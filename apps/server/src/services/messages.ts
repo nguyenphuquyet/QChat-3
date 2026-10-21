@@ -11,6 +11,8 @@ export const publicUser = {
   nickname: true,
   avatarId: true,
   bio: true,
+  gender: true,
+  region: true,
 } as const;
 export async function membership(userId: string, conversationId: string) {
   const m = await db.conversationMember.findUnique({

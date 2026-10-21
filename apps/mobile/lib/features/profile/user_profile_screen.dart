@@ -9,8 +9,8 @@ import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 
 class UserProfileScreen extends ConsumerStatefulWidget {
-  const UserProfileScreen({super.key, this.id, this.qchatId});
-  final String? id, qchatId;
+  const UserProfileScreen({super.key, this.id, this.qchatId, this.from});
+  final String? id, qchatId, from;
   @override
   ConsumerState<UserProfileScreen> createState() => _UserProfileScreenState();
 }
@@ -18,6 +18,7 @@ class UserProfileScreen extends ConsumerStatefulWidget {
 class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   Map? user;
   bool friend = false, sent = false, busy = false, loading = true;
+  bool expanded = true;
   String? error;
   StreamSubscription<void>? updates;
   int revision = 0;
@@ -101,94 +102,233 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     }
   }
 
-  Widget action(String label, String icon, {bool disabled = false}) =>
-      Container(
-        color: surface(context),
-        width: double.infinity,
-        child: TButton(
-          variant: TButtonVariant.text,
-          onPressed: busy || disabled ? null : () => act(label),
-          style: const ButtonStyle(
-            minimumSize: WidgetStatePropertyAll(Size(double.infinity, 56)),
-            foregroundColor: WidgetStatePropertyAll(Color(0xff576b95)),
-            textStyle: WidgetStatePropertyAll(
-              TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-            ),
-          ),
-          icon: QChatIcon(icon, size: 22, color: const Color(0xff576b95)),
-          child: Text(tr(context, label)),
-        ),
-      );
+  Color body(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+      ? const Color(0xffb4b4b4)
+      : const Color(0xff4c4c4c);
 
-  @override
-  Widget build(BuildContext c) => DetailPage(
-    whiteHeader: true,
-    child: ListView(
+  Color line(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+      ? const Color(0xff2e2e2e)
+      : const Color(0xffe8e8e8);
+
+  Widget header(Map u) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (loading) const Center(child: TLoading()),
-        if (user != null) ...[
-          Container(
-            color: surface(c),
-            padding: const EdgeInsets.fromLTRB(16, 26, 16, 32),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                UserAvatar(user!, size: 64),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user!['nickname'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w600,
-                        ),
+        UserAvatar(u, size: 76),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      u['nickname'] ?? '',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 24,
+                        height: 1.25,
+                        fontWeight: FontWeight.w600,
+                        color: ink(context),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'QChat ID: ${user!['qchatId'] ?? ''}',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: QChatColors.muted,
-                        ),
-                      ),
-                      if ((user!['bio'] ?? '').toString().isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          user!['bio'],
-                          style: const TextStyle(color: QChatColors.muted),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 9),
-          if (user!['id'] != ref.read(clientProvider).userId)
-            if (friend) ...[
-              action('messageUser', 'chats'),
-              const SizedBox(height: 1),
-              action('voiceCall', 'call'),
-              const SizedBox(height: 1),
-              action('videoCall', 'videoCall'),
-            ] else
-              action(
-                sent ? 'friendRequestSent' : 'add',
-                'contacts',
-                disabled: sent,
+                  if (u['gender'] == 'female' || u['gender'] == 'male') ...[
+                    const SizedBox(width: 6),
+                    QChatIcon(
+                      u['gender'] == 'female' ? 'female' : 'male',
+                      size: 19,
+                      color: u['gender'] == 'female'
+                          ? const Color(0xfff2749a)
+                          : const Color(0xff5a9be8),
+                    ),
+                  ],
+                ],
               ),
-        ],
-        if (busy)
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: TLoading()),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${tr(context, 'region')}:',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      height: 1.35,
+                      color: QChatColors.muted,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      (u['region'] ?? '').toString().isEmpty
+                          ? tr(context, 'notSet')
+                          : u['region'].toString(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.35,
+                        color: body(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        if (error != null) TCell(title: Text(error!), arrow: true, onTap: load),
+        ),
       ],
     ),
   );
+
+  Widget sectionTitle() => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () => setState(() => expanded = !expanded),
+    child: SizedBox(
+      height: 56,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Row(
+          children: [
+            Text(
+              tr(context, 'profileSection'),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: ink(context),
+              ),
+            ),
+            const Spacer(),
+            AnimatedRotation(
+              turns: expanded ? .25 : 0,
+              duration: const Duration(milliseconds: 160),
+              child: const QChatIcon(
+                'chevron',
+                size: 18,
+                color: QChatColors.muted,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget infoRow(String label, String value) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 104,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              height: 1.35,
+              color: QChatColors.muted,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: TextStyle(fontSize: 16, height: 1.35, color: body(context)),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget action(String label, {bool disabled = false}) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: busy || disabled ? null : () => act(label),
+    child: SizedBox(
+      height: 56,
+      child: Center(
+        child: Text(
+          tr(context, label),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Color(0xff576b95),
+          ),
+        ),
+      ),
+    ),
+  );
+
+  Widget actionsCard(List<String> labels) => Container(
+    color: surface(context),
+    child: Column(
+      children: [
+        for (var i = 0; i < labels.length; i++)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              border: i == labels.length - 1
+                  ? null
+                  : Border(bottom: BorderSide(color: line(context), width: .5)),
+            ),
+            child: action(
+              labels[i],
+              disabled: labels[i] == 'friendRequestSent',
+            ),
+          ),
+      ],
+    ),
+  );
+
+  @override
+  Widget build(BuildContext c) {
+    final u = user;
+    final isSelf = u != null && u['id'] == ref.read(clientProvider).userId;
+    final bio = (u?['bio'] ?? '').toString();
+    return DetailPage(
+      whiteHeader: true,
+      child: ListView(
+        children: [
+          if (loading) const QChatLoading(),
+          if (u != null) ...[
+            Container(
+              color: surface(c),
+              child: Column(
+                children: [
+                  header(u),
+                  Container(height: .5, color: line(c)),
+                  sectionTitle(),
+                  if (expanded) ...[
+                    infoRow(
+                      tr(c, 'profileStatus'),
+                      bio.isEmpty ? tr(c, 'notSet') : bio,
+                    ),
+                    if (widget.from == 'qr')
+                      infoRow(tr(c, 'from'), tr(c, 'fromQr')),
+                    infoRow('ID', u['qchatId']?.toString() ?? ''),
+                    const SizedBox(height: 10),
+                  ],
+                ],
+              ),
+            ),
+            if (!isSelf) ...[
+              const SizedBox(height: 9),
+              if (friend)
+                actionsCard(['messageUser', 'voiceCall', 'videoCall'])
+              else
+                actionsCard([sent ? 'friendRequestSent' : 'add']),
+            ],
+          ],
+          if (busy)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: QChatLoading(),
+            ),
+          if (error != null)
+            TCell(title: Text(error!), arrow: true, onTap: load),
+        ],
+      ),
+    );
+  }
 }

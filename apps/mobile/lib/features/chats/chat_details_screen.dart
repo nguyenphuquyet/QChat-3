@@ -325,8 +325,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
       child: ListView(
         children: [
           if (error != null) TCell(title: Text(error!), onTap: load),
-          if (conversation == null && error == null)
-            const Center(child: TLoading()),
+          if (conversation == null && error == null) const QChatLoading(),
           if (conversation != null) ...[
             if (conversation!['kind'] == 'GROUP') ...[
               Container(
@@ -617,7 +616,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
           onChanged: search,
           onSubmitted: search,
         ),
-        if (loading) const Center(child: TLoading()),
+        if (loading) const QChatLoading(),
         if (error != null)
           Padding(padding: const EdgeInsets.all(16), child: Text(error!)),
         Expanded(

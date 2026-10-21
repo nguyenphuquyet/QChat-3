@@ -7,6 +7,7 @@ import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
+import '../chats/media_screen.dart';
 import 'moment_composer.dart';
 
 class MomentsScreen extends ConsumerStatefulWidget {
@@ -240,33 +241,36 @@ class _MomentCardState extends ConsumerState<_MomentCard> {
                         GestureDetector(
                           onTap: () =>
                               context.push('/media/${media['mediaId']}'),
-                          child: SizedBox(
-                            width: 120,
-                            height: 120,
-                            child: (media['media']?['mime'] as String? ?? '')
-                                    .startsWith('video/')
-                                ? ColoredBox(
-                                    color: const Color(0xff252525),
-                                    child: Center(
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          const QChatIcon(
-                                            'videoCall',
-                                            color: Colors.white,
-                                            size: 36,
-                                          ),
-                                          Text(
-                                            tr(c, 'play'),
-                                            style: const TextStyle(
+                          child: Hero(
+                            tag: MediaScreen.heroTag(media['mediaId'].toString()),
+                            child: SizedBox(
+                              width: 120,
+                              height: 120,
+                              child: (media['media']?['mime'] as String? ?? '')
+                                      .startsWith('video/')
+                                  ? ColoredBox(
+                                      color: const Color(0xff252525),
+                                      child: Center(
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const QChatIcon(
+                                              'videoCall',
                                               color: Colors.white,
+                                              size: 36,
                                             ),
-                                          ),
-                                        ],
+                                            Text(
+                                              tr(c, 'play'),
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                  )
-                                : MediaImage(id: media['mediaId']),
+                                    )
+                                  : MediaImage(id: media['mediaId']),
+                            ),
                           ),
                         ),
                     ],

@@ -294,10 +294,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     subtitle: r['sender']['qchatId'],
                     leading: UserAvatar(r['sender']),
                     trailing: pending.contains(r['id'].toString())
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                        ? const Text(
+                            '···',
+                            style: TextStyle(color: QChatColors.muted),
                           )
                         : null,
                     onTap: pending.contains(r['id'].toString())

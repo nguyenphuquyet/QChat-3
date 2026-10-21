@@ -182,12 +182,10 @@ class _MediaImageState extends ConsumerState<MediaImage> {
       return _buildError();
     }
     return widget.placeholder ??
-        const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
+        ColoredBox(
+          color: Theme.of(c).brightness == Brightness.dark
+              ? const Color(0xff2a2a2a)
+              : const Color(0xffededed),
         );
   }
 

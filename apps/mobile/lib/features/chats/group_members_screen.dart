@@ -246,7 +246,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
               ),
             Expanded(
               child: loading && conversation == null
-                  ? const Center(child: TLoading())
+                  ? const QChatLoading()
                   : TabBarView(
                       children: [
                         _buildMemberList(

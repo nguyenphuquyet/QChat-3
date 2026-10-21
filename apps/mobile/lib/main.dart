@@ -75,8 +75,10 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         qchatRoute(path: '/profile', builder: (_, s) => const ProfileScreen()),
         qchatRoute(
           path: '/user',
-          builder: (_, s) =>
-              UserProfileScreen(qchatId: s.uri.queryParameters['q']),
+          builder: (_, s) => UserProfileScreen(
+            qchatId: s.uri.queryParameters['q'],
+            from: s.uri.queryParameters['from'],
+          ),
         ),
         qchatRoute(
           path: '/user/:id',

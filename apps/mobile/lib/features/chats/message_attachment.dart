@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
+import 'media_screen.dart';
 
 class MessageAttachment extends ConsumerStatefulWidget {
   const MessageAttachment({
@@ -19,7 +20,6 @@ class MessageAttachment extends ConsumerStatefulWidget {
 
 class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
   VideoPlayerController? video;
-  bool failed = false;
   @override
   void initState() {
     super.initState();
@@ -38,9 +38,7 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
       video = controller;
       await controller.initialize();
       if (mounted) setState(() {});
-    } catch (_) {
-      if (mounted) setState(() => failed = true);
-    }
+    } catch (_) {}
   }
 
   @override
@@ -54,9 +52,12 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
     if (widget.kind == 'IMAGE') {
       return ClipRRect(
         borderRadius: BorderRadius.circular(5),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 210, maxHeight: 260),
-          child: MediaImage(id: widget.id, fit: BoxFit.contain),
+        child: Hero(
+          tag: MediaScreen.heroTag(widget.id),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 210, maxHeight: 260),
+            child: MediaImage(id: widget.id, fit: BoxFit.contain),
+          ),
         ),
       );
     }
@@ -64,32 +65,29 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
       final controller = video;
       return ClipRRect(
         borderRadius: BorderRadius.circular(5),
-        child: SizedBox(
-          width: 210,
-          height: 160,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              const Positioned.fill(child: ColoredBox(color: Colors.black87)),
-              if (controller != null && controller.value.isInitialized)
-                AspectRatio(
-                  aspectRatio: controller.value.aspectRatio,
-                  child: VideoPlayer(controller),
+        child: Hero(
+          tag: MediaScreen.heroTag(widget.id),
+          child: SizedBox(
+            width: 210,
+            height: 160,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                const Positioned.fill(
+                  child: ColoredBox(color: Colors.black87),
                 ),
-              if (!failed &&
-                  (controller == null || !controller.value.isInitialized))
-                const SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
+                if (controller != null && controller.value.isInitialized)
+                  AspectRatio(
+                    aspectRatio: controller.value.aspectRatio,
+                    child: VideoPlayer(controller),
+                  ),
                 const Icon(
                   Icons.play_circle_fill,
                   color: Colors.white,
                   size: 48,
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       );
