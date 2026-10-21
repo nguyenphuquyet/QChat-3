@@ -242,6 +242,38 @@ void main() {
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('message action grid fills the popover evenly', (tester) async {
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    await tester.longPress(find.text('Xin chào'));
+    await tester.pumpAndSettle();
+    final panel = tester.getRect(find.byKey(const Key('t-popover-content')));
+    Rect action(String key) =>
+        tester.getRect(find.byKey(ValueKey('message-action-$key')));
+    final screenWidth =
+        tester.view.physicalSize.width / tester.view.devicePixelRatio;
+    expect(panel.left, closeTo(screenWidth - panel.right, 0.5));
+    // Both ends of the first row keep the same inset from the panel.
+    expect(
+      action('copy').left - panel.left,
+      closeTo(panel.right - action('delete').right, 0.5),
+    );
+    // The shorter second row stays centered under that same grid.
+    final step = action('copy').width;
+    expect(
+      action('forward').center.dx - action('copy').center.dx,
+      closeTo(step, 0.5),
+    );
+    expect(
+      action('favorites').center.dx - action('forward').center.dx,
+      closeTo(step, 0.5),
+    );
+    // The next row starts on the same column as the first one.
+    expect(
+      action('selectMessages').center.dx,
+      closeTo(action('copy').center.dx, 0.5),
+    );
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('video preview keeps the real shape while it loads', (
     tester,
   ) async {

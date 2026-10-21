@@ -751,39 +751,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           ),
       ],
     ];
-    return Builder(
-      builder: (c) => Wrap(
-        alignment: WrapAlignment.center,
-        children: [
-          for (final a in actions)
-            SizedBox(
-              width: (MediaQuery.sizeOf(c).width.clamp(0, 430) - 48) / 4,
-              height: 78,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  TPopoverController.maybeOf(c)?.close();
-                  a.$3();
-                },
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TIcon(a.$2, size: 22, color: Colors.white),
-                    const SizedBox(height: 4),
-                    Text(
-                      tr(c, a.$1),
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: Colors.white),
-                    ),
-                  ],
+    // The grid sizes itself from the room the popover actually gives it, so
+    // four columns fill the panel evenly instead of drifting to one side.
+    return LayoutBuilder(
+      builder: (c, box) {
+        final available = box.maxWidth.isFinite && box.maxWidth > 0
+            ? box.maxWidth
+            : MediaQuery.sizeOf(c).width.clamp(0, 430) - 48;
+        final tile = available / 4;
+        return Wrap(
+          alignment: WrapAlignment.center,
+          children: [
+            for (final a in actions)
+              SizedBox(
+                key: ValueKey('message-action-${a.$1}'),
+                width: tile,
+                height: 78,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {
+                    TPopoverController.maybeOf(c)?.close();
+                    a.$3();
+                  },
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TIcon(a.$2, size: 22, color: Colors.white),
+                      const SizedBox(height: 4),
+                      Text(
+                        tr(c, a.$1),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 
@@ -921,101 +933,105 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       color: QChatColors.green,
                                     ),
                                   ),
-                                QChatChatBubble(
-                                  bareMedia:
-                                      m['mediaId'] != null &&
-                                      m['recalledAt'] == null &&
-                                      (m['kind'] == 'IMAGE' ||
-                                          m['kind'] == 'VIDEO'),
-                                  bubbleWrapper: (bubble) => TPopoverAnchor(
-                                    content: menu(m),
-                                    placement: TPopoverPlacement.bottom,
-                                    width:
-                                        MediaQuery.sizeOf(
-                                          c,
-                                        ).width.clamp(0, 430) -
-                                        24,
-                                    showArrow: true,
-                                    builder: (_, controller, _) =>
-                                        GestureDetector(
-                                          onLongPress: controller.open,
-                                          child: bubble,
-                                        ),
-                                  ),
-                                  mine: mine,
-                                  avatar: UserAvatar(
-                                    openProfile: !mine,
-                                    members.cast<Map>().firstWhere(
-                                      (member) =>
-                                          member['userId'] == m['senderId'],
-                                      orElse: () => {
-                                        'user':
-                                            m['sender'] ??
-                                            {'nickname': mine ? myName : title},
-                                      },
-                                    )['user'],
-                                    size: 42,
-                                  ),
-                                  name: mine ? myName : title,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      if (m['replyToId'] != null)
-                                        GestureDetector(
-                                          onTap: () => jumpToQuote(
-                                            m['replyToId'].toString(),
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(8),
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
+                                TPopoverAnchor(
+                                  content: menu(m),
+                                  // Anchoring the whole row keeps the menu centred
+                                  // with equal margins; anchoring the bubble
+                                  // alone pinned it to the nearest screen edge.
+                                  placement: TPopoverPlacement.bottom,
+                                  width:
+                                      MediaQuery.sizeOf(c).width.clamp(0, 430) -
+                                      32,
+                                  showArrow: false,
+                                  builder: (_, controller, _) => QChatChatBubble(
+                                    bareMedia:
+                                        m['mediaId'] != null &&
+                                        m['recalledAt'] == null &&
+                                        (m['kind'] == 'IMAGE' ||
+                                            m['kind'] == 'VIDEO'),
+                                    bubbleWrapper: (bubble) => GestureDetector(
+                                      onLongPress: controller.open,
+                                      child: bubble,
+                                    ),
+                                    mine: mine,
+                                    avatar: UserAvatar(
+                                      openProfile: !mine,
+                                      members.cast<Map>().firstWhere(
+                                        (member) =>
+                                            member['userId'] == m['senderId'],
+                                        orElse: () => {
+                                          'user':
+                                              m['sender'] ??
+                                              {
+                                                'nickname': mine
+                                                    ? myName
+                                                    : title,
+                                              },
+                                        },
+                                      )['user'],
+                                      size: 42,
+                                    ),
+                                    name: mine ? myName : title,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (m['replyToId'] != null)
+                                          GestureDetector(
+                                            onTap: () => jumpToQuote(
+                                              m['replyToId'].toString(),
                                             ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(
-                                                alpha: .06,
+                                            child: Container(
+                                              padding: const EdgeInsets.all(8),
+                                              margin: const EdgeInsets.only(
+                                                bottom: 8,
                                               ),
-                                              border: const Border(
-                                                left: BorderSide(
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(
+                                                  alpha: .06,
+                                                ),
+                                                border: const Border(
+                                                  left: BorderSide(
+                                                    color: QChatColors.muted,
+                                                    width: 2,
+                                                  ),
+                                                ),
+                                              ),
+                                              child: Text(
+                                                '↳ ${quoteLabel(m['replyToId'].toString())}',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  fontSize: 12,
                                                   color: QChatColors.muted,
-                                                  width: 2,
                                                 ),
                                               ),
                                             ),
-                                            child: Text(
-                                              '↳ ${quoteLabel(m['replyToId'].toString())}',
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: QChatColors.muted,
-                                              ),
+                                          ),
+                                        if (m['mediaId'] != null &&
+                                            m['recalledAt'] == null)
+                                          GestureDetector(
+                                            onTap: () => context.push(
+                                              '/media/${m['mediaId']}',
+                                              extra: "message-${m['id']}",
+                                            ),
+                                            child: MessageAttachment(
+                                              sourceTag: "message-${m['id']}",
+                                              key: ValueKey(m['mediaId']),
+                                              id: m['mediaId'].toString(),
+                                              kind: m['kind'] ?? 'FILE',
+                                              name: m['text'] ?? '',
                                             ),
                                           ),
-                                        ),
-                                      if (m['mediaId'] != null &&
-                                          m['recalledAt'] == null)
-                                        GestureDetector(
-                                          onTap: () => context.push(
-                                            '/media/${m['mediaId']}',
-                                            extra: "message-${m['id']}",
+                                        if (m['mediaId'] == null ||
+                                            m['recalledAt'] != null)
+                                          Text(
+                                            m['recalledAt'] != null
+                                                ? tr(c, 'recalled')
+                                                : m['text'] ?? '',
                                           ),
-                                          child: MessageAttachment(
-                                            sourceTag: "message-${m['id']}",
-                                            key: ValueKey(m['mediaId']),
-                                            id: m['mediaId'].toString(),
-                                            kind: m['kind'] ?? 'FILE',
-                                            name: m['text'] ?? '',
-                                          ),
-                                        ),
-                                      if (m['mediaId'] == null ||
-                                          m['recalledAt'] != null)
-                                        Text(
-                                          m['recalledAt'] != null
-                                              ? tr(c, 'recalled')
-                                              : m['text'] ?? '',
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 ),
                                 if (i == lastOutgoing)
