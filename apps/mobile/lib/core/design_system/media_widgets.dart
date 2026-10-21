@@ -25,9 +25,7 @@ class MediaCache {
     _memory[id] = bytes;
     if (local != null) {
       unawaited(
-        local
-            .cache('media_bytes:$id', base64Encode(bytes))
-            .catchError((_) {}),
+        local.cache('media_bytes:$id', base64Encode(bytes)).catchError((_) {}),
       );
     }
   }
@@ -35,11 +33,7 @@ class MediaCache {
   static void evict(String id, {LocalDatabase? local}) {
     _memory.remove(id);
     if (local != null) {
-      unawaited(
-        local
-            .removeCache('media_bytes:$id')
-            .catchError((_) {}),
-      );
+      unawaited(local.removeCache('media_bytes:$id').catchError((_) {}));
     }
   }
 
@@ -152,20 +146,22 @@ class _MediaImageState extends ConsumerState<MediaImage> {
     final currentRev = ++_revision;
     final client = ref.read(clientProvider);
 
-    MediaCache.load(client, widget.id).then((bytes) {
-      if (mounted && currentRev == _revision) {
-        setState(() {
-          _bytes = bytes;
-          _error = bytes == null;
+    MediaCache.load(client, widget.id)
+        .then((bytes) {
+          if (mounted && currentRev == _revision) {
+            setState(() {
+              _bytes = bytes;
+              _error = bytes == null;
+            });
+          }
+        })
+        .catchError((_) {
+          if (mounted && currentRev == _revision) {
+            setState(() {
+              _error = true;
+            });
+          }
         });
-      }
-    }).catchError((_) {
-      if (mounted && currentRev == _revision) {
-        setState(() {
-          _error = true;
-        });
-      }
-    });
   }
 
   @override
@@ -200,9 +196,15 @@ class _MediaImageState extends ConsumerState<MediaImage> {
 }
 
 class UserAvatar extends StatelessWidget {
-  const UserAvatar(this.user, {super.key, this.size = 48});
+  const UserAvatar(
+    this.user, {
+    super.key,
+    this.size = 48,
+    this.openProfile = false,
+  });
   final Map user;
   final double size;
+  final bool openProfile;
   @override
   Widget build(BuildContext c) {
     final avatarId = user['avatarId']?.toString();
@@ -218,7 +220,9 @@ class UserAvatar extends StatelessWidget {
       ),
       child: TAvatar(
         shape: TAvatarShape.square,
-        onTap: user['id'] == null ? null : () => c.push('/user/${user['id']}'),
+        onTap: !openProfile || user['id'] == null
+            ? null
+            : () => c.push('/user/${user['id']}'),
         child: avatarId == null || avatarId.isEmpty
             ? fallback
             : SizedBox.square(

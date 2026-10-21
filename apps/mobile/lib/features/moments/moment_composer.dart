@@ -25,13 +25,16 @@ class _MomentComposerState extends ConsumerState<MomentComposer> {
     super.dispose();
   }
 
-  Future<void> pick(bool video) async {
+  Future<void> pick() async {
     setState(() {
       picking = true;
       error = null;
     });
     try {
-      final selected = await pickMediaWithSource(context, video: video);
+      final selected = await pickMediaWithSource(
+        context,
+        maxAssets: 9 - files.length,
+      );
       if (!mounted || selected.isEmpty) return;
       for (final file in selected) {
         final size = await file.length() ?? 0;
@@ -138,14 +141,10 @@ class _MomentComposerState extends ConsumerState<MomentComposer> {
             spacing: 8,
             children: [
               QChatButton(
-                tr(c, 'image'),
+                tr(c, 'chooseMedia'),
                 secondary: true,
-                onTap: busy || picking ? null : () => pick(false),
-              ),
-              QChatButton(
-                tr(c, 'video'),
-                secondary: true,
-                onTap: busy || picking ? null : () => pick(true),
+                loading: picking,
+                onTap: busy || picking || files.length >= 9 ? null : pick,
               ),
             ],
           ),
@@ -207,7 +206,8 @@ class _MomentComposerState extends ConsumerState<MomentComposer> {
               ),
             ),
           QChatButton(
-            tr(c, busy ? 'loading' : 'post'),
+            tr(c, 'post'),
+            loading: busy,
             onTap: busy || picking ? null : post,
           ),
         ],

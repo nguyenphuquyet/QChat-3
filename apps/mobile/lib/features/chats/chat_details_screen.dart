@@ -419,7 +419,11 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                       width: 52,
                       child: Column(
                         children: [
-                          UserAvatar(member['user'], size: 50),
+                          UserAvatar(
+                            member['user'],
+                            size: 50,
+                            openProfile: true,
+                          ),
                           const SizedBox(height: 6),
                           Text(
                             member['user']['nickname'],

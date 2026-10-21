@@ -101,10 +101,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     }
                   },
             child: Center(
-              child: Text(
-                tr(c, saving ? 'loading' : 'save'),
-                style: const TextStyle(color: QChatColors.green),
-              ),
+              child: saving
+                  ? const QChatLoading()
+                  : Text(
+                      tr(c, 'save'),
+                      style: const TextStyle(color: QChatColors.green),
+                    ),
             ),
           ),
           child: Padding(
@@ -194,7 +196,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         }
         return ListView(
           children: [
-            if (uploading) const QChatLoading(),
             if (error != null)
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -209,7 +210,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  UserAvatar(u, size: 34),
+                  SizedBox.square(
+                    dimension: 34,
+                    child: uploading
+                        ? const QChatLoading()
+                        : UserAvatar(u, size: 34),
+                  ),
                   const SizedBox(width: 9),
                   const QChatIcon(
                     'chevron',

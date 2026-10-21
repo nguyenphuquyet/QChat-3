@@ -47,7 +47,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   int readSequence = 0;
   String title = 'QChat';
   String? error, reply;
-  bool loading = true, emoji = false, uploading = false;
+  bool loading = true, emoji = false, uploading = false, pickingMedia = false;
   bool attachments = false, voice = false;
   String myName = 'Q';
   Color? chatBackground;
@@ -405,9 +405,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  Future<void> attachFile(PlatformFile file) async {
+  Future<void> attachFile(PlatformFile file, {bool confirmed = false}) async {
     if (uploading) return;
-    setState(() => uploading = true);
+    setState(() {
+      uploading = true;
+      error = null;
+    });
     try {
       if ((await file.length() ?? 0) > maxMediaBytes) {
         throw StateError('mediaTooLarge');
@@ -431,7 +434,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final type = mime[ext];
       if (type == null) throw StateError('unsupportedMedia');
       if (!mounted) return;
-      final confirmed = await previewAttachment(context, file, bytes, type);
+      confirmed =
+          confirmed || await previewAttachment(context, file, bytes, type);
       if (!confirmed || !mounted) return;
       final client = ref.read(clientProvider);
       final intent = await client.post('/media/upload-intent', {
@@ -485,8 +489,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> attachImage() async {
-    final file = await pickImageWithSource(context);
-    if (file != null) await attachFile(file);
+    if (pickingMedia || uploading) return;
+    setState(() => pickingMedia = true);
+    try {
+      dismissInput();
+      final files = await pickMediaWithSource(
+        context,
+        confirmLabel: tr(context, 'send'),
+      );
+      for (final file in files) {
+        if (!mounted) break;
+        await attachFile(file, confirmed: true);
+        if (error != null) break;
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(
+          () => error = tr(
+            context,
+            e is StateError ? e.message.toString() : 'mediaUnavailable',
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => pickingMedia = false);
+    }
   }
 
   Future<void> takePhoto() async {
@@ -523,14 +550,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final actions = <(String, String, VoidCallback)>[
       ('image', 'image', attachImage),
       ('camera', 'camera', takePhoto),
-      (
-        'videoCall',
-        'video',
-        () async {
-          final files = await pickMediaWithSource(context, video: true);
-          if (files.isNotEmpty && mounted) await attachFile(files.first);
-        },
-      ),
       ('location', 'location', () => openFeature(c, 'location')),
       ('favorites', 'favorites', () => c.push('/favorites')),
       ('me', 'contactCard', () => openFeature(c, 'contactCard')),
@@ -544,7 +563,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       children: [
         for (final a in actions)
           GestureDetector(
-            onTap: uploading ? null : a.$3,
+            onTap: uploading || pickingMedia ? null : a.$3,
             child: Column(
               children: [
                 Container(
@@ -921,6 +940,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   ),
                                   mine: mine,
                                   avatar: UserAvatar(
+                                    openProfile: !mine,
                                     members.cast<Map>().firstWhere(
                                       (member) =>
                                           member['userId'] == m['senderId'],
@@ -1059,14 +1079,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 onTap: () => setState(() => reply = null),
               ),
             ),
-          if (uploading)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(
-                tr(c, 'loading'),
-                style: const TextStyle(fontSize: 12, color: QChatColors.muted),
-              ),
-            ),
           Container(
             decoration: BoxDecoration(
               color: navigationSurface(c),
@@ -1081,6 +1093,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 ChatInputBar(
+                  mediaBusy: uploading || pickingMedia,
                   controller: input,
                   focusNode: inputFocus,
                   voice: voice,

@@ -3,9 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
-import '../design_system/components.dart';
 import '../design_system/media_widgets.dart';
-import '../localization/strings.dart';
+import '../media/media_picker.dart';
 import 'client.dart';
 
 const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -50,77 +49,22 @@ base class XFilePlatformFile extends PlatformFile {
   Stream<Uint8List> readAsByteStream() => _xFile.openRead();
 }
 
-Future<PlatformFile?> pickImageWithSource(
-  BuildContext context, {
-  List<String>? allowedExtensions,
-}) async {
-  final choice = await showQChatSheet<String>(
-    context,
-    (c) => Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        QChatOverlayAction(
-          label: tr(c, 'photoLibrary'),
-          onTap: () => Navigator.pop(c, 'gallery'),
-        ),
-        QChatOverlayAction(
-          label: tr(c, 'fromFiles'),
-          onTap: () => Navigator.pop(c, 'file'),
-        ),
-      ],
-    ),
-  );
-  if (choice == null) return null;
-  if (choice == 'gallery') {
-    final picker = ImagePicker();
-    final x = await picker.pickImage(source: ImageSource.gallery);
-    if (x == null) return null;
-    return XFilePlatformFile(x);
-  } else {
-    return await FilePicker.pickFile(
-      type: FileType.custom,
-      allowedExtensions: allowedExtensions ?? imageExtensions,
-    );
-  }
+Future<PlatformFile?> pickImageWithSource(BuildContext context) async {
+  final files = await pickQChatMedia(context, imagesOnly: true, maxAssets: 1);
+  return files.isEmpty ? null : XFilePlatformFile(files.first);
 }
 
 Future<List<PlatformFile>> pickMediaWithSource(
   BuildContext context, {
-  bool video = false,
+  int maxAssets = 9,
+  String? confirmLabel,
 }) async {
-  final choice = await showQChatSheet<String>(
+  final files = await pickQChatMedia(
     context,
-    (c) => Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        QChatOverlayAction(
-          label: tr(c, 'photoLibrary'),
-          onTap: () => Navigator.pop(c, 'gallery'),
-        ),
-        QChatOverlayAction(
-          label: tr(c, 'fromFiles'),
-          onTap: () => Navigator.pop(c, 'file'),
-        ),
-      ],
-    ),
+    maxAssets: maxAssets,
+    confirmLabel: confirmLabel,
   );
-  if (choice == null) return [];
-  if (choice == 'gallery') {
-    final picker = ImagePicker();
-    if (video) {
-      final x = await picker.pickVideo(source: ImageSource.gallery);
-      if (x == null) return [];
-      return [XFilePlatformFile(x)];
-    } else {
-      final list = await picker.pickMultiImage();
-      return list.map((x) => XFilePlatformFile(x)).toList();
-    }
-  } else {
-    return await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: video ? ['mp4', 'mov'] : imageExtensions,
-    );
-  }
+  return files.map(XFilePlatformFile.new).toList();
 }
 
 String? mediaMime(String? extension) => const {

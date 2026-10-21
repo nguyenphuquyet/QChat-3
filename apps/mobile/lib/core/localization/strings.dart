@@ -1,6 +1,21 @@
 import 'package:flutter/widgets.dart';
 
 const translations = <String, List<String>>{
+  'select': ['Select', 'Chọn', '选择'],
+  'close': ['Close', 'Đóng', '关闭'],
+  'chooseMedia': ['Photos and videos', 'Ảnh và video', '照片和视频'],
+  'recentMedia': ['Recent', 'Gần đây', '最近'],
+  'selectionLimit': ['Selection limit:', 'Chọn tối đa:', '最多选择：'],
+  'photoPermission': [
+    'Allow photo access in Settings to choose photos and videos.',
+    'Cho phép truy cập ảnh trong Cài đặt để chọn ảnh và video.',
+    '请在设置中允许访问照片以选择照片和视频。',
+  ],
+  'mediaUnavailable': [
+    'Could not load this media. Try again.',
+    'Không thể đọc ảnh/video này. Vui lòng thử lại.',
+    '无法读取此照片或视频，请重试。',
+  ],
   'chatHistoryManagement': [
     'Manage chat history',
     'Quản lý lịch sử trò chuyện',
@@ -346,7 +361,6 @@ const translations = <String, List<String>>{
     'Không kết nối được. Vui lòng thử lại.',
     '连接失败，请重试。',
   ],
-  'loading': ['Loading…', 'Đang tải…', '加载中…'],
   'pending': [
     'Pending · tap to retry',
     'Đang chờ · chạm để thử lại',

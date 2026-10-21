@@ -172,14 +172,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               ),
             const SizedBox(height: 24),
             QChatButton(
-              tr(
-                c,
-                busy
-                    ? 'loading'
-                    : register
-                    ? 'register'
-                    : 'login',
-              ),
+              tr(c, register ? 'register' : 'login'),
+              loading: busy,
               onTap: busy ? null : submit,
             ),
             const SizedBox(height: 12),

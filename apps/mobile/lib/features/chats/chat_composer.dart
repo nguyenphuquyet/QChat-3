@@ -21,11 +21,12 @@ class ChatInputBar extends StatelessWidget {
     required this.onSend,
     required this.onHold,
     this.onChanged,
+    this.mediaBusy = false,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool voice, hasText;
+  final bool voice, hasText, mediaBusy;
   final String voiceLabel, emojiLabel, plusLabel, sendLabel, holdLabel;
   final VoidCallback onVoice, onEmoji, onPlus, onSend, onHold;
   final ValueChanged<String>? onChanged;
@@ -107,7 +108,13 @@ class ChatInputBar extends StatelessWidget {
             label: emojiLabel,
             onTap: onEmoji,
           ),
-          if (hasText && !voice)
+          if (mediaBusy)
+            const SizedBox(
+              width: 40,
+              height: fieldHeight,
+              child: Center(child: QChatLoading()),
+            )
+          else if (hasText && !voice)
             Padding(
               padding: const EdgeInsets.only(left: 2),
               child: SizedBox(
@@ -211,7 +218,11 @@ class _GlyphPainter extends CustomPainter {
         canvas.drawLine(const Offset(6.8, 12), const Offset(17.2, 12), stroke);
         canvas.drawLine(const Offset(12, 6.8), const Offset(12, 17.2), stroke);
       case _Glyph.emoji:
-        canvas.drawLine(const Offset(8.6, 8.4), const Offset(8.6, 10.4), stroke);
+        canvas.drawLine(
+          const Offset(8.6, 8.4),
+          const Offset(8.6, 10.4),
+          stroke,
+        );
         canvas.drawLine(
           const Offset(15.4, 8.4),
           const Offset(15.4, 10.4),
@@ -253,7 +264,11 @@ class _GlyphPainter extends CustomPainter {
         for (final x in const [9.0, 12.0, 15.0]) {
           canvas.drawCircle(Offset(x, 10.8), .35, stroke);
         }
-        canvas.drawLine(const Offset(9.5, 13.4), const Offset(14.5, 13.4), stroke);
+        canvas.drawLine(
+          const Offset(9.5, 13.4),
+          const Offset(14.5, 13.4),
+          stroke,
+        );
     }
   }
 

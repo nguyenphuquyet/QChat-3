@@ -190,7 +190,7 @@ class _MomentCardState extends ConsumerState<_MomentCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          UserAvatar(p['author'], size: 40),
+          UserAvatar(p['author'], size: 40, openProfile: true),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

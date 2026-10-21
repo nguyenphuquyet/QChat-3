@@ -180,13 +180,19 @@ class QChatIconButton extends StatelessWidget {
 }
 
 class QChatButton extends StatelessWidget {
-  const QChatButton(this.text, {super.key, this.onTap, this.secondary = false});
+  const QChatButton(
+    this.text, {
+    super.key,
+    this.onTap,
+    this.secondary = false,
+    this.loading = false,
+  });
   final String text;
   final VoidCallback? onTap;
-  final bool secondary;
+  final bool secondary, loading;
   @override
   Widget build(BuildContext c) => TButton(
-    onPressed: onTap,
+    onPressed: loading ? null : onTap,
     style: ButtonStyle(
       backgroundColor: WidgetStatePropertyAll(
         secondary ? surface(c) : QChatColors.green,
@@ -199,7 +205,13 @@ class QChatButton extends StatelessWidget {
       ),
       minimumSize: const WidgetStatePropertyAll(Size(90, 44)),
     ),
-    child: Text(text),
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        Opacity(opacity: loading ? 0 : 1, child: Text(text)),
+        if (loading) const QChatLoading(),
+      ],
+    ),
   );
 }
 
@@ -550,10 +562,15 @@ class QChatEmptyState extends StatelessWidget {
 class QChatLoading extends StatelessWidget {
   const QChatLoading({super.key});
   @override
-  Widget build(BuildContext c) => Center(
-    child: Text(
-      tr(c, 'loading'),
-      style: const TextStyle(color: QChatColors.muted),
+  Widget build(BuildContext c) => const Center(
+    widthFactor: 1,
+    heightFactor: 1,
+    child: SizedBox.square(
+      dimension: 20,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        color: QChatColors.muted,
+      ),
     ),
   );
 }
