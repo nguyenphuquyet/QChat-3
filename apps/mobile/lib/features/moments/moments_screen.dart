@@ -84,20 +84,6 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
               if (!s.hasData && !s.hasError) return const QChatLoading();
               return ListView(
                 children: [
-                  Container(
-                    height: 190,
-                    color: const Color(0xff2f5345),
-                    padding: const EdgeInsets.all(24),
-                    alignment: Alignment.bottomLeft,
-                    child: Text(
-                      tr(c, 'moments'),
-                      style: const TextStyle(
-                        fontSize: 30,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
                   if (posts.isEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 40),

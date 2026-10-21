@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:tdesign_flutter/src/components/popover/t_popover_widget.dart'; // ignore: implementation_imports
 import 'package:qchat/app/providers.dart';
@@ -69,6 +70,9 @@ class FakeClient extends QChatClient {
     }
     if (path == '/conversations') return [conversation];
     if (path == '/conversations/chat') return conversation;
+    if (path == '/users/me') {
+      return {'id': 'self', 'nickname': 'Tôi', 'qchatId': 'me'};
+    }
     if (path.contains('/messages?')) return rows;
     if (path.contains('/media/')) throw Exception('offline photo');
     return [];
@@ -302,6 +306,9 @@ void main() {
       find.byType(QChatUnreadBadge),
     );
     expect(badge.count, 2);
+    // The count sits in a round dot, not a stretched rectangle.
+    final size = tester.getSize(find.byType(QChatUnreadBadge));
+    expect(size.width, closeTo(size.height, 0.1));
     expect(tester.takeException(), isNull);
   });
   testWidgets('conversation swipe exposes unread hide and delete', (
@@ -316,6 +323,50 @@ void main() {
     expect(find.byType(TSwipeCellAction), findsNWidgets(3));
     expect(find.text('Đánh dấu chưa đọc'), findsOneWidget);
     expect(find.text('Ẩn'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('Me opens only the moments I posted', (tester) async {
+    final client = FakeClient();
+    String? opened;
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => const Material(child: HomeScreen()),
+        ),
+        GoRoute(
+          path: '/moments',
+          builder: (_, s) {
+            opened = s.uri.toString();
+            return const SizedBox();
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [clientProvider.overrideWithValue(client)],
+        child: MaterialApp.router(
+          locale: const Locale('vi'),
+          supportedLocales: const [Locale('vi')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          theme: qchatTheme(false),
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tôi').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Khoảnh khắc'));
+    await tester.pumpAndSettle();
+    expect(opened, '/moments?authorId=self');
     expect(tester.takeException(), isNull);
   });
   test(

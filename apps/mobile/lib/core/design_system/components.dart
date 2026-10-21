@@ -331,19 +331,25 @@ class QChatUnreadBadge extends StatelessWidget {
   const QChatUnreadBadge(this.count, {super.key});
   final int count;
   @override
-  Widget build(BuildContext c) => count < 1
-      ? const SizedBox.shrink()
-      : Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-          decoration: BoxDecoration(
-            color: QChatColors.danger,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            count > 99 ? '99+' : '$count',
-            style: const TextStyle(color: Colors.white, fontSize: 11),
-          ),
-        );
+  Widget build(BuildContext c) {
+    if (count < 1) return const SizedBox.shrink();
+    final label = count > 99 ? '99+' : '$count';
+    // A single digit is a true circle; wider counts grow into a pill.
+    final wide = label.length > 1;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+      padding: EdgeInsets.symmetric(horizontal: wide ? 5 : 0, vertical: 2),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: QChatColors.danger,
+        borderRadius: BorderRadius.circular(9),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.2),
+      ),
+    );
+  }
 }
 
 class QChatListTile extends StatelessWidget {

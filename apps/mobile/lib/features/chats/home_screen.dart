@@ -536,7 +536,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         color: const Color(0xffe8b933),
         onTap: () => c.push('/favorites'),
       ),
-      MenuRow('moments', icon: 'image', onTap: () => c.push('/moments')),
+      // The Me tab lists only what this account posted, not the shared feed.
+      MenuRow(
+        'moments',
+        icon: 'image',
+        onTap: () {
+          final id = u['id']?.toString() ?? '';
+          c.push(
+            id.isEmpty
+                ? '/moments'
+                : '/moments?authorId=${Uri.encodeQueryComponent(id)}',
+          );
+        },
+      ),
       const MenuRow('stickers', icon: 'emoji', color: Color(0xffeeb714)),
       sectionGap,
       MenuRow('settings', icon: 'settings', onTap: () => c.push('/settings')),
