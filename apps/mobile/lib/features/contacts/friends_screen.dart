@@ -302,6 +302,10 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                     onTap: pending.contains(r['id'].toString())
                         ? null
                         : () => qchatSheet(c, [
+                            (
+                              tr(c, 'viewProfile'),
+                              () => c.push('/user/${r['sender']['id']}'),
+                            ),
                             (tr(c, 'accept'), () => respond(r, true)),
                             (tr(c, 'reject'), () => respond(r, false)),
                           ]),

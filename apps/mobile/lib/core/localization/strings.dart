@@ -319,6 +319,7 @@ const translations = <String, List<String>>{
     '原消息不可用',
   ],
   'newFriends': ['New friends', 'Bạn bè mới', '新的朋友'],
+  'viewProfile': ['View profile', 'Xem hồ sơ', '查看资料'],
   'groups': ['Group chats', 'Trò chuyện nhóm', '群聊'],
   'friends': ['Friends', 'Bạn bè', '好友可见'],
   'moments': ['Moments', 'Khoảnh khắc', '朋友圈'],
