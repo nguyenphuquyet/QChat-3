@@ -86,38 +86,32 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
           .where((f) => !ids.contains(f['friendId']))
           .toList();
       if (!mounted) return;
-      final chosen = await TDialog.show<String>(
+      final chosen = await showQChatDialog<String>(
         context,
-        barrierDismissible: true,
-        dialog: Builder(
-          builder: (c) => TDialog(
-            title: Text(tr(c, 'add')),
-            content: SizedBox(
-              width: double.maxFinite,
-              height: 300,
-              child: available.isEmpty
-                  ? Center(child: Text(tr(c, 'emptyContacts')))
-                  : ListView(
-                      children: [
-                        for (final f in available)
-                          TCell(
-                            title: Text(f['friend']['nickname']),
-                            image: UserAvatar(f['friend'], size: 42),
-                            onTap: () =>
-                                Navigator.pop(c, f['friendId'] as String),
-                          ),
-                      ],
-                    ),
-            ),
-            actions: [
-              TDialogAction(
-                child: Text(tr(c, 'cancel')),
-                onPressed: () => Navigator.pop(c),
-                variant: TButtonVariant.text,
-              ),
-            ],
+        title: tr(context, 'add'),
+        content: Builder(
+          builder: (c) => ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: available.isEmpty
+                ? SizedBox(
+                    height: 120,
+                    child: Center(child: Text(tr(c, 'emptyContacts'))),
+                  )
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final f in available)
+                        TCell(
+                          title: Text(f['friend']['nickname']),
+                          image: UserAvatar(f['friend'], size: 42),
+                          onTap: () =>
+                              Navigator.pop(c, f['friendId'] as String),
+                        ),
+                    ],
+                  ),
           ),
         ),
+        actions: [QChatDialogAction(label: tr(context, 'cancel'))],
       );
       if (chosen == null) return;
       await client.post('/conversations/${widget.conversationId}/members', {

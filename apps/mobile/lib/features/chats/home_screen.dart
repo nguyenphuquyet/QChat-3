@@ -284,22 +284,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       }
     } catch (_) {
       if (mounted) {
-        await TDialog.show<void>(
+        await showQChatDialog<void>(
           context,
-          barrierDismissible: true,
-          dialog: Builder(
-            builder: (c) => TDialog(
-              content: Text(tr(c, 'networkError')),
-              actions: [
-                TDialogAction(
-                  child: Text(tr(c, 'confirm')),
-                  onPressed: () => Navigator.pop(c),
-                  role: TDialogActionRole.primary,
-                  variant: TButtonVariant.text,
-                ),
-              ],
-            ),
-          ),
+          message: tr(context, 'networkError'),
+          actions: [
+            QChatDialogAction(label: tr(context, 'confirm'), primary: true),
+          ],
         );
       }
     }

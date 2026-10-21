@@ -596,40 +596,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final client = ref.read(clientProvider);
       final chats = await client.get('/conversations', cached: false) as List;
       if (!mounted) return;
-      final target = await TDialog.show<String>(
+      final target = await showQChatDialog<String>(
         context,
-        dialog: Builder(
-          builder: (c) => TDialog(
-            title: Text(tr(c, 'forward')),
-            content: SizedBox(
-              width: double.maxFinite,
-              height: 320,
-              child: ListView(
-                children: [
-                  for (final chat in chats)
-                    TCell(
-                      title: Text(
-                        chat['kind'] == 'GROUP'
-                            ? chat['title']
-                            : (chat['members'] as List)
-                                  .where((m) => m['userId'] != client.userId)
-                                  .map((m) => m['user']['nickname'])
-                                  .join(', '),
-                      ),
-                      onTap: () => Navigator.pop(c, chat['id'] as String),
+        title: tr(context, 'forward'),
+        content: Builder(
+          builder: (c) => ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 320),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final chat in chats)
+                  TCell(
+                    title: Text(
+                      chat['kind'] == 'GROUP'
+                          ? chat['title']
+                          : (chat['members'] as List)
+                                .where((m) => m['userId'] != client.userId)
+                                .map((m) => m['user']['nickname'])
+                                .join(', '),
                     ),
-                ],
-              ),
+                    onTap: () => Navigator.pop(c, chat['id'] as String),
+                  ),
+              ],
             ),
-            actions: [
-              TDialogAction(
-                child: Text(tr(c, 'cancel')),
-                onPressed: () => Navigator.pop(c),
-                variant: TButtonVariant.text,
-              ),
-            ],
           ),
         ),
+        actions: [QChatDialogAction(label: tr(context, 'cancel'))],
       );
       if (target == null) return;
       for (final row in rows) {
