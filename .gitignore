@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env
+.env.*.local
+.tools/
+.dart_tool/
+build/
+*.log
+apps/mobile/android/local.properties
+apps/mobile/ios/Pods/
+apps/mobile/ios/Flutter/Generated.xcconfig

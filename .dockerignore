@@ -1,0 +1,10 @@
+node_modules
+.tools
+apps/mobile
+**/.next
+.env
+.git
+
+backups
+*.dump
+**/env-before-*

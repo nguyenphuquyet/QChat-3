@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  qchatId String @unique
+  email String @unique
+  passwordHash String
+  nickname String
+  bio String @default("")
+  gender String @default("")
+  region String @default("")
+  phone String @default("")
+  poke String @default("")
+  avatarId String? @db.Uuid
+  emailVerified Boolean @default(false)
+  disabled Boolean @default(false)
+  role String @default("USER")
+  allowRequests Boolean @default(true)
+  previewPush Boolean @default(false)
+  createdAt DateTime @default(now())
+  sessions UserSession[]
+  members ConversationMember[]
+  messages Message[]
+  requestsSent FriendRequest[] @relation("requestSender")
+  requestsReceived FriendRequest[] @relation("requestRecipient")
+  friendships Friendship[] @relation("friendOwner")
+  friendsOf Friendship[] @relation("friendTarget")
+  blocks BlockedUser[] @relation("blockOwner")
+  blockedBy BlockedUser[] @relation("blockTarget")
+  moments Moment[]
+  momentComments MomentComment[]
+  media Media[]
+  tokens AccountToken[]
+  devices PushDevice[]
+}
+model UserSession {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  refreshHash String @unique
+  previousHash String? @unique
+  deviceName String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([userId,revokedAt])
+}
+model AccountToken {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  hash String @unique
+  kind String
+  expiresAt DateTime
+}
+model FriendRequest {
+  id String @id @default(uuid()) @db.Uuid
+  senderId String @db.Uuid
+  recipientId String @db.Uuid
+  sender User @relation("requestSender",fields:[senderId],references:[id],onDelete:Cascade)
+  recipient User @relation("requestRecipient",fields:[recipientId],references:[id],onDelete:Cascade)
+  status String @default("PENDING")
+  createdAt DateTime @default(now())
+  @@unique([senderId,recipientId])
+  @@index([recipientId,status])
+}
+model Friendship {
+  ownerId String @db.Uuid
+  friendId String @db.Uuid
+  owner User @relation("friendOwner",fields:[ownerId],references:[id],onDelete:Cascade)
+  friend User @relation("friendTarget",fields:[friendId],references:[id],onDelete:Cascade)
+  remark String @default("")
+  @@id([ownerId,friendId])
+}
+model BlockedUser {
+  ownerId String @db.Uuid
+  targetId String @db.Uuid
+  owner User @relation("blockOwner",fields:[ownerId],references:[id],onDelete:Cascade)
+  target User @relation("blockTarget",fields:[targetId],references:[id],onDelete:Cascade)
+  @@id([ownerId,targetId])
+}
+model Conversation {
+  id String @id @default(uuid()) @db.Uuid
+  kind String
+  directKey String? @unique
+  title String @default("")
+  announcement String @default("")
+  sequence Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  members ConversationMember[]
+  messages Message[]
+  calls CallSession[]
+}
+model ConversationMember {
+  conversationId String @db.Uuid
+  userId String @db.Uuid
+  conversation Conversation @relation(fields:[conversationId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  role String @default("MEMBER")
+  muted Boolean @default(false)
+  pinned Boolean @default(false)
+  hidden Boolean @default(false)
+  readSequence Int @default(0)
+  markedUnread Boolean @default(false)
+  clearedSequence Int @default(0)
+  deliveredSequence Int @default(0)
+  @@id([conversationId,userId])
+  @@index([userId,pinned])
+}
+model Message {
+  id String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation Conversation @relation(fields:[conversationId],references:[id],onDelete:Cascade)
+  senderId String @db.Uuid
+  sender User @relation(fields:[senderId],references:[id])
+  clientId String @db.Uuid
+  sequence Int
+  kind String @default("TEXT")
+  text String @default("")
+  replyToId String? @db.Uuid
+  replyTo Message? @relation("Replies",fields:[replyToId],references:[id],onDelete:SetNull)
+  replies Message[] @relation("Replies")
+  mediaId String? @db.Uuid
+  media Media? @relation(fields:[mediaId],references:[id])
+  recalledAt DateTime?
+  createdAt DateTime @default(now())
+  states MessageUserState[]
+  @@unique([senderId,clientId])
+  @@unique([conversationId,sequence])
+}
+model MessageUserState {
+  messageId String @db.Uuid
+  userId String @db.Uuid
+  message Message @relation(fields:[messageId],references:[id],onDelete:Cascade)
+  hidden Boolean @default(false)
+  favorite Boolean @default(false)
+  @@id([messageId,userId])
+}
+model Media {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner User @relation(fields:[ownerId],references:[id])
+  key String @unique
+  mime String
+  size Int
+  name String
+  status String @default("PENDING")
+  createdAt DateTime @default(now())
+  messages Message[]
+  moments MomentMedia[]
+}
+model Moment {
+  id String @id @default(uuid()) @db.Uuid
+  authorId String @db.Uuid
+  author User @relation(fields:[authorId],references:[id],onDelete:Cascade)
+  text String
+  privacy String @default("FRIENDS")
+  createdAt DateTime @default(now())
+  media MomentMedia[]
+  likes MomentLike[]
+  comments MomentComment[]
+  @@index([authorId,createdAt])
+}
+model MomentMedia {
+  momentId String @db.Uuid
+  mediaId String @db.Uuid
+  moment Moment @relation(fields:[momentId],references:[id],onDelete:Cascade)
+  media Media @relation(fields:[mediaId],references:[id])
+  @@id([momentId,mediaId])
+}
+model MomentLike {
+  momentId String @db.Uuid
+  userId String @db.Uuid
+  moment Moment @relation(fields:[momentId],references:[id],onDelete:Cascade)
+  @@id([momentId,userId])
+}
+model MomentComment {
+  id String @id @default(uuid()) @db.Uuid
+  momentId String @db.Uuid
+  userId String @db.Uuid
+  moment Moment @relation(fields:[momentId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  text String
+  createdAt DateTime @default(now())
+  @@index([momentId,createdAt])
+}
+model PushDevice {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  token String @unique
+  platform String
+}
+model CallSession {
+  id String @id @default(uuid()) @db.Uuid
+  conversationId String @db.Uuid
+  conversation Conversation @relation(fields:[conversationId],references:[id],onDelete:Cascade)
+  callerId String @db.Uuid
+  calleeId String @db.Uuid
+  kind String
+  status String @default("RINGING")
+  createdAt DateTime @default(now())
+  endedAt DateTime?
+}
+model Report {
+  id String @id @default(uuid()) @db.Uuid
+  reporterId String @db.Uuid
+  targetId String @db.Uuid
+  reason String
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+}
+model AuditLog {
+  id String @id @default(uuid()) @db.Uuid
+  actorId String @db.Uuid
+  action String
+  targetId String
+  createdAt DateTime @default(now())
+}
+model Outbox {
+  id String @id @default(uuid()) @db.Uuid
+  event String
+  room String
+  payload Json
+  createdAt DateTime @default(now())
+  deliveredAt DateTime?
+  @@index([deliveredAt,createdAt])
+}

@@ -1,0 +1,133 @@
+name: Flutter app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/flutter.yml'
+  pull_request:
+    paths:
+      - 'apps/mobile/**'
+      - '.github/workflows/flutter.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+
+jobs:
+  checks:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/mobile
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - run: flutter analyze
+      - run: flutter test
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [apk, web]
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      API_URL: ${{ vars.API_URL || 'https://chat.nguyenphuquyet.online/api' }}
+      REALTIME_URL: ${{ vars.REALTIME_URL || 'https://chat.nguyenphuquyet.online' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v4
+        if: matrix.target == 'apk'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build release
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+        run: >-
+          flutter build "$BUILD_TARGET" --release
+          --dart-define="API_URL=$API_URL"
+          --dart-define="REALTIME_URL=$REALTIME_URL"
+      - name: Upload Android APK
+        if: matrix.target == 'apk'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qchat-android-${{ github.sha }}
+          path: apps/mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload web bundle
+        if: matrix.target == 'web'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qchat-web-${{ github.sha }}
+          path: apps/mobile/build/web/
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: Build unsigned iOS IPA
+    needs: checks
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/mobile
+    env:
+      API_URL: ${{ vars.API_URL || 'https://chat.nguyenphuquyet.online/api' }}
+      REALTIME_URL: ${{ vars.REALTIME_URL || 'https://chat.nguyenphuquyet.online' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: Build iOS device app without signing
+        run: >-
+          flutter build ios --release --no-codesign
+          --dart-define="API_URL=$API_URL"
+          --dart-define="REALTIME_URL=$REALTIME_URL"
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p build/ios/unsigned/Payload
+          ditto build/ios/iphoneos/Runner.app build/ios/unsigned/Payload/Runner.app
+          cd build/ios/unsigned
+          zip -qry ../qchat-unsigned.ipa Payload
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: qchat-ios-unsigned-${{ github.sha }}
+          path: apps/mobile/build/ios/qchat-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,52 @@
+{
+  "name": "qchat",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "dev": "pnpm --filter @qchat/server dev",
+    "build": "pnpm --filter @qchat/server build",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:integration": "tsx --test tests/integration/*.test.ts",
+    "db:generate": "prisma generate --schema apps/server/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema apps/server/prisma/schema.prisma",
+    "format": "prettier --write apps packages tests docs infra *.json *.md"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.958.0",
+    "@aws-sdk/s3-request-presigner": "3.958.0",
+    "@prisma/client": "6.19.0",
+    "@socket.io/redis-adapter": "8.3.0",
+    "argon2": "0.44.0",
+    "ioredis": "5.8.2",
+    "jose": "6.2.12",
+    "next": "16.4.2",
+    "nodemailer": "7.0.11",
+    "prisma": "6.19.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "socket.io": "4.8.4",
+    "socket.io-client": "4.8.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/nodemailer": "7.0.4",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "prettier": "3.7.4",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "argon2",
+      "sharp",
+      "esbuild"
+    ]
+  }
+}

@@ -1,0 +1,80 @@
+name: Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/server/**'
+      - 'apps/realtime/**'
+      - 'apps/admin/**'
+      - 'packages/**'
+      - 'tests/**'
+      - 'infra/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - '.npmrc'
+      - '.dockerignore'
+      - '.github/workflows/server.yml'
+  pull_request:
+    paths:
+      - 'apps/server/**'
+      - 'apps/realtime/**'
+      - 'apps/admin/**'
+      - 'packages/**'
+      - 'tests/**'
+      - 'infra/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - 'tsconfig.json'
+      - '.npmrc'
+      - '.dockerignore'
+      - '.github/workflows/server.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test and build backend image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.11.0'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:generate
+      - run: pnpm typecheck
+      - run: pnpm test
+      - uses: docker/setup-buildx-action@v3
+      - name: Build server and realtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          tags: qchat-server:${{ github.sha }}
+          outputs: type=docker,dest=${{ runner.temp }}/qchat-server.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Upload backend image
+        uses: actions/upload-artifact@v4
+        with:
+          name: qchat-server-${{ github.sha }}
+          path: ${{ runner.temp }}/qchat-server.tar
+          if-no-files-found: error
+          retention-days: 7
