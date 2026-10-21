@@ -35,7 +35,8 @@ export async function momentsRoute(
   body: unknown,
   url: URL,
 ) {
-  const [, id, sub, commentId] = path;
+  const [, id, sub] = path;
+  requireCondition(sub !== "comments", 410, "COMMENTS_DISABLED");
   if (!id) {
     if (method === "GET") {
       const friends = await db.friendship.findMany({
@@ -47,8 +48,10 @@ export async function momentsRoute(
       });
       const blocked = new Set(blocks.flatMap((b) => [b.ownerId, b.targetId]));
       const before = url.searchParams.get("before");
-      return db.moment.findMany({
+      const authorId = url.searchParams.get("authorId");
+      const moments = await db.moment.findMany({
         where: {
+          ...(authorId ? { authorId: uuid.parse(authorId) } : {}),
           OR: [
             { authorId: userId },
             {
@@ -68,15 +71,12 @@ export async function momentsRoute(
           author: { select: publicUser },
           media: { include: { media: { select: { mime: true, name: true } } } },
           likes: true,
-          comments: {
-            take: 30,
-            orderBy: { createdAt: "asc" },
-            include: { user: { select: publicUser } },
-          },
         },
         orderBy: { createdAt: "desc" },
         take: 20,
       });
+      // Older clients still read this field; comments remain disabled.
+      return moments.map((moment) => ({ ...moment, comments: [] }));
     }
     if (method === "POST") {
       const v = z
@@ -125,19 +125,5 @@ export async function momentsRoute(
       await db.momentLike.deleteMany({ where: { momentId: id, userId } });
       return { ok: true };
     }
-  }
-  if (sub === "comments" && method === "POST") {
-    const { text } = z
-      .object({ text: z.string().trim().min(1).max(1000) })
-      .strict()
-      .parse(body);
-    return db.momentComment.create({ data: { momentId: id, userId, text } });
-  }
-  if (sub === "comments" && commentId && method === "DELETE") {
-    const result = await db.momentComment.deleteMany({
-      where: { id: uuid.parse(commentId), momentId: id, userId },
-    });
-    requireCondition(result.count, 404, "NOT_FOUND");
-    return { ok: true };
   }
 }

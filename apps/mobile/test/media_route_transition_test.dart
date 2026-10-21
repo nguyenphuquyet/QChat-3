@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +9,72 @@ import 'package:qchat/main.dart';
 
 import 'reference_ui_test.dart' show PreviewClient;
 
+class DelayedMediaClient extends PreviewClient {
+  final access = Completer<Map<String, dynamic>>();
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) {
+    if (path == '/media/m1/access') return access.future;
+    return super.get(path, cached: cached);
+  }
+}
+
 void main() {
+  testWidgets(
+    'thumbnail flies immediately while media access is still pending',
+    (tester) async {
+      final client = DelayedMediaClient();
+      final router = GoRouter(
+        initialLocation: '/home',
+        routes: [
+          GoRoute(
+            path: '/home',
+            builder: (_, _) => const Scaffold(
+              body: Align(
+                alignment: Alignment.bottomLeft,
+                child: Hero(
+                  tag: 'message-first',
+                  child: SizedBox(
+                    key: ValueKey('source-frame'),
+                    width: 100,
+                    height: 150,
+                    child: ColoredBox(color: Colors.red),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          qchatMediaRoute(),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [clientProvider.overrideWithValue(client)],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final original = tester.getRect(
+        find.byKey(const ValueKey('source-frame')),
+      );
+      router.push('/media/m1', extra: 'message-first');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 120));
+      expect(client.access.isCompleted, isFalse);
+      final flying = tester.getRect(find.byKey(const ValueKey('source-frame')));
+      expect(flying.width, greaterThan(original.width));
+      expect(flying.top, lessThan(original.top));
+      expect(tester.takeException(), isNull);
+      await tester.pumpAndSettle();
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('source-frame'))),
+        original,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets('media viewer fades in without sliding over the chat page', (
     tester,
   ) async {

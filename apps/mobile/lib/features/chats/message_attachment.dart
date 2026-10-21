@@ -12,8 +12,10 @@ class MessageAttachment extends ConsumerStatefulWidget {
     required this.id,
     required this.kind,
     required this.name,
+    this.sourceTag,
   });
   final String id, kind, name;
+  final String? sourceTag;
   @override
   ConsumerState<MessageAttachment> createState() => _MessageAttachmentState();
 }
@@ -50,10 +52,10 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
   @override
   Widget build(BuildContext c) {
     if (widget.kind == 'IMAGE') {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(5),
-        child: Hero(
-          tag: MediaScreen.heroTag(widget.id),
+      return Hero(
+        tag: widget.sourceTag ?? MediaScreen.heroTag(widget.id),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(5),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 210, maxHeight: 260),
             child: MediaImage(id: widget.id, fit: BoxFit.contain),
@@ -63,29 +65,66 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
     }
     if (widget.kind == 'VIDEO') {
       final controller = video;
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(5),
-        child: Hero(
-          tag: MediaScreen.heroTag(widget.id),
+      final ready = controller != null && controller.value.isInitialized;
+      final ratio = ready ? controller.value.aspectRatio : 9 / 16;
+      final width = ratio < 1 ? (260 * ratio).clamp(120.0, 210.0) : 210.0;
+      final height = (width / ratio).clamp(80.0, 300.0);
+      final duration = ready ? controller.value.duration : null;
+      return Hero(
+        tag: widget.sourceTag ?? MediaScreen.heroTag(widget.id),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(5),
           child: SizedBox(
-            width: 210,
-            height: 160,
+            width: width,
+            height: height,
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const Positioned.fill(
-                  child: ColoredBox(color: Colors.black87),
-                ),
+                const Positioned.fill(child: ColoredBox(color: Colors.black87)),
                 if (controller != null && controller.value.isInitialized)
                   AspectRatio(
                     aspectRatio: controller.value.aspectRatio,
                     child: VideoPlayer(controller),
                   ),
-                const Icon(
-                  Icons.play_circle_fill,
-                  color: Colors.white,
-                  size: 48,
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: const Color(0x55000000),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white70, width: 1.5),
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 40,
+                  ),
                 ),
+                if (duration != null)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(8, 24, 8, 6),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Colors.transparent, Colors.black38],
+                        ),
+                      ),
+                      child: Text(
+                        '${duration.inMinutes}:${duration.inSeconds.remainder(60).toString().padLeft(2, '0')}',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          decoration: TextDecoration.none,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

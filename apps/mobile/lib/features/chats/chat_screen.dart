@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:async';
 import 'dart:convert';
 import 'package:uuid/uuid.dart';
@@ -707,7 +708,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           'search',
           TIcons.search,
           () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
+            CupertinoPageRoute<void>(
               builder: (_) =>
                   ChatHistoryScreen(id: widget.id, query: m['text'] ?? ''),
             ),
@@ -806,11 +807,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         label: tr(c, 'settings'),
         onTap: () async {
           dismissInput();
-          await Navigator.of(c).push(
-            MaterialPageRoute<void>(
-              builder: (_) => ChatDetailsScreen(id: widget.id),
-            ),
+          final route = CupertinoPageRoute<void>(
+            builder: (_) => ChatDetailsScreen(id: widget.id),
           );
+          await Navigator.of(c).push(route);
+          // The pop result arrives before an interactive back swipe settles.
+          // Refresh only after the route overlay has finished moving away.
+          await route.completed;
           if (mounted) load();
         },
       ),
@@ -971,8 +974,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         GestureDetector(
                                           onTap: () => context.push(
                                             '/media/${m['mediaId']}',
+                                            extra: "message-${m['id']}",
                                           ),
                                           child: MessageAttachment(
+                                            sourceTag: "message-${m['id']}",
                                             key: ValueKey(m['mediaId']),
                                             id: m['mediaId'].toString(),
                                             kind: m['kind'] ?? 'FILE',

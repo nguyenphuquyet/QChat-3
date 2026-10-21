@@ -12,6 +12,7 @@ import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
 import 'package:qchat/features/chats/home_screen.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
+import 'package:qchat/features/moments/moments_screen.dart';
 
 class FakeClient extends QChatClient {
   FakeClient({this.isFriend = false, this.group = false, this.owner = false}) {
@@ -104,7 +105,45 @@ Future<void> mount(
   await tester.pumpAndSettle();
 }
 
+class MomentsClient extends FakeClient {
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async {
+    if (path.startsWith('/moments')) {
+      calls.add(path);
+      return [
+        {
+          'id': 'post',
+          'authorId': 'peer',
+          'author': peer,
+          'text': 'A moment',
+          'createdAt': '2026-10-21T00:00:00Z',
+          'media': [],
+          'likes': [],
+          'comments': [
+            {'text': 'Legacy comment'},
+          ],
+        },
+      ];
+    }
+    return super.get(path, cached: cached);
+  }
+}
+
 void main() {
+  testWidgets('friend moments request only that author and hide comments', (
+    tester,
+  ) async {
+    final client = MomentsClient();
+    await mount(tester, client, const MomentsScreen(authorId: 'peer'));
+    expect(client.calls, contains('/moments?authorId=peer'));
+    expect(find.text('A moment'), findsOneWidget);
+    expect(find.text('Legacy comment'), findsNothing);
+    expect(find.byType(TInput), findsNothing);
+    expect(
+      find.byWidgetPredicate((w) => w is QChatIconButton && w.icon == 'plus'),
+      findsNothing,
+    );
+  });
   testWidgets(
     'three dots opens TDesign details and message avatars use media IDs',
     (tester) async {
@@ -148,6 +187,8 @@ void main() {
     expect(find.text('Gọi thoại'), findsOneWidget);
     expect(find.text('Gọi video'), findsOneWidget);
     expect(find.text('Thêm bạn'), findsNothing);
+    expect(find.text('QChat ID: quyetguic'), findsOneWidget);
+    expect(find.text('Khoảnh khắc'), findsOneWidget);
   });
   testWidgets('only group owner sees dissolve action', (tester) async {
     await mount(

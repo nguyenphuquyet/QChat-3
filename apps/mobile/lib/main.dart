@@ -41,7 +41,10 @@ GoRoute qchatMediaRoute() => GoRoute(
   path: '/media/:id',
   pageBuilder: (context, state) => CustomTransitionPage<void>(
     key: state.pageKey,
-    child: MediaScreen(id: state.pathParameters['id']!),
+    child: MediaScreen(
+      id: state.pathParameters['id']!,
+      sourceTag: state.extra is String ? state.extra as String : null,
+    ),
     transitionDuration: const Duration(milliseconds: 240),
     reverseTransitionDuration: const Duration(milliseconds: 240),
     transitionsBuilder: (context, animation, secondaryAnimation, child) =>
@@ -87,7 +90,11 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => const FriendsScreen(requestsOnly: true),
         ),
         qchatRoute(path: '/groups/new', builder: (_, s) => const GroupScreen()),
-        qchatRoute(path: '/moments', builder: (_, s) => const MomentsScreen()),
+        qchatRoute(
+          path: '/moments',
+          builder: (_, s) =>
+              MomentsScreen(authorId: s.uri.queryParameters['authorId']),
+        ),
         qchatRoute(path: '/profile', builder: (_, s) => const ProfileScreen()),
         qchatRoute(
           path: '/user',

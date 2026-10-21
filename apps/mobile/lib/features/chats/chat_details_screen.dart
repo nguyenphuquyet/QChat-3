@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
@@ -302,7 +303,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
   }
 
   Future<void> showMembers() => Navigator.of(context).push(
-    MaterialPageRoute<void>(
+    CupertinoPageRoute<void>(
       builder: (_) => GroupMembersScreen(
         conversationId: widget.id,
         initialConversation: conversation != null
@@ -497,7 +498,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
               title: Text(tr(c, 'searchHistory')),
               arrow: true,
               onTap: () => Navigator.of(c).push(
-                MaterialPageRoute<void>(
+                CupertinoPageRoute<void>(
                   builder: (_) => ChatHistoryScreen(id: widget.id),
                 ),
               ),

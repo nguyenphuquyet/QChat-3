@@ -17,6 +17,7 @@ class UserProfileScreen extends ConsumerStatefulWidget {
 
 class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   Map? user;
+  List momentMedia = [];
   bool friend = false, sent = false, busy = false, loading = true;
   bool expanded = true;
   String? error;
@@ -52,9 +53,29 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         found = matches.isEmpty ? null : matches.first as Map;
       }
       final friends = await client.get('/friends', cached: false) as List;
+      final isFriend =
+          found != null && friends.any((f) => f['friendId'] == found!['id']);
+      List previews = [];
+      if (isFriend) {
+        try {
+          final posts =
+              await client.get(
+                    '/moments?authorId=${Uri.encodeQueryComponent(found['id'].toString())}',
+                    cached: false,
+                  )
+                  as List;
+          previews = posts
+              .expand((p) => p['media'] as List? ?? [])
+              .take(4)
+              .toList();
+        } catch (_) {
+          // A failed preview must not prevent opening the friend's profile.
+        }
+      }
       if (mounted && current == revision) {
         setState(() {
           user = found;
+          momentMedia = previews;
           friend =
               found != null &&
               friends.any((f) => f['friendId'] == found!['id']);
@@ -149,6 +170,16 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                 ],
               ),
               const SizedBox(height: 10),
+              if (friend) ...[
+                Text(
+                  'QChat ID: ${u['qchatId'] ?? ''}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: QChatColors.muted,
+                  ),
+                ),
+                const SizedBox(height: 6),
+              ],
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -306,12 +337,78 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                     ),
                     if (widget.from == 'qr')
                       infoRow(tr(c, 'from'), tr(c, 'fromQr')),
-                    infoRow('ID', u['qchatId']?.toString() ?? ''),
+                    if (!friend)
+                      infoRow('QChat ID', u['qchatId']?.toString() ?? ''),
                     const SizedBox(height: 10),
                   ],
                 ],
               ),
             ),
+            if (friend) ...[
+              const SizedBox(height: 9),
+              Material(
+                color: surface(c),
+                child: InkWell(
+                  onTap: () => context.push(
+                    '/moments?authorId=${Uri.encodeQueryComponent(u['id'].toString())}',
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 18,
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 94,
+                          child: Text(
+                            tr(c, 'moments'),
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                        ),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (c, constraints) {
+                              final size = ((constraints.maxWidth - 18) / 4)
+                                  .clamp(0.0, 52.0);
+                              return Row(
+                                children: [
+                                  for (final media in momentMedia) ...[
+                                    SizedBox.square(
+                                      dimension: size,
+                                      child:
+                                          (media['media']?['mime'] ?? '')
+                                              .toString()
+                                              .startsWith('video/')
+                                          ? const ColoredBox(
+                                              color: Color(0xff333333),
+                                              child: Icon(
+                                                Icons.play_arrow,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : MediaImage(
+                                              id: media['mediaId'].toString(),
+                                            ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                        const QChatIcon(
+                          'chevron',
+                          size: 18,
+                          color: QChatColors.muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (!isSelf) ...[
               const SizedBox(height: 9),
               if (friend)
@@ -321,10 +418,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             ],
           ],
           if (busy)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: QChatLoading(),
-            ),
+            const Padding(padding: EdgeInsets.all(16), child: QChatLoading()),
           if (error != null)
             TCell(title: Text(error!), arrow: true, onTap: load),
         ],

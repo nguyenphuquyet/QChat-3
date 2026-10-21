@@ -7,11 +7,11 @@ import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
-import '../chats/media_screen.dart';
 import 'moment_composer.dart';
 
 class MomentsScreen extends ConsumerStatefulWidget {
-  const MomentsScreen({super.key});
+  const MomentsScreen({super.key, this.authorId});
+  final String? authorId;
   @override
   ConsumerState<MomentsScreen> createState() => _MomentsScreenState();
 }
@@ -31,7 +31,14 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
   }
 
   void load() {
-    feed = ref.read(clientProvider).get('/moments', cached: false);
+    feed = ref
+        .read(clientProvider)
+        .get(
+          widget.authorId == null
+              ? '/moments'
+              : '/moments?authorId=${Uri.encodeQueryComponent(widget.authorId!)}',
+          cached: false,
+        );
   }
 
   @override
@@ -48,16 +55,20 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
       label: tr(c, 'back'),
       onTap: () => context.pop(),
     ),
-    trailing: QChatIconButton(
-      'plus',
-      label: tr(c, 'post'),
-      onTap: () async {
-        final posted = await Navigator.of(
-          c,
-        ).push<bool>(MaterialPageRoute(builder: (_) => const MomentComposer()));
-        if (posted == true && mounted) setState(load);
-      },
-    ),
+    trailing:
+        widget.authorId != null &&
+            widget.authorId != ref.read(clientProvider).userId
+        ? null
+        : QChatIconButton(
+            'plus',
+            label: tr(c, 'post'),
+            onTap: () async {
+              final posted = await Navigator.of(c).push<bool>(
+                MaterialPageRoute(builder: (_) => const MomentComposer()),
+              );
+              if (posted == true && mounted) setState(load);
+            },
+          ),
     child: Column(
       children: [
         if (error != null)
@@ -128,40 +139,6 @@ class _MomentCard extends ConsumerStatefulWidget {
 }
 
 class _MomentCardState extends ConsumerState<_MomentCard> {
-  /// null = ẩn input; non-null = đang mở input cho bài post này
-  bool _showInput = false;
-  final _commentCtrl = TextEditingController();
-  bool _sending = false;
-
-  @override
-  void dispose() {
-    _commentCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _sendComment() async {
-    final text = _commentCtrl.text.trim();
-    if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
-    try {
-      await ref.read(clientProvider).post(
-        '/moments/${widget.post['id']}/comments',
-        {'text': text},
-      );
-      _commentCtrl.clear();
-      setState(() {
-        _showInput = false;
-        _sending = false;
-      });
-      widget.onReload();
-    } catch (_) {
-      if (mounted) {
-        setState(() => _sending = false);
-        widget.onError(tr(context, 'networkError'));
-      }
-    }
-  }
-
   Future<void> _toggleLike() async {
     final liked = (widget.post['likes'] as List).any(
       (l) => l['userId'] == widget.myId,
@@ -239,14 +216,17 @@ class _MomentCardState extends ConsumerState<_MomentCard> {
                     children: [
                       for (final media in p['media'])
                         GestureDetector(
-                          onTap: () =>
-                              context.push('/media/${media['mediaId']}'),
+                          onTap: () => context.push(
+                            '/media/${media['mediaId']}',
+                            extra: "moment-${p['id']}-${media['mediaId']}",
+                          ),
                           child: Hero(
-                            tag: MediaScreen.heroTag(media['mediaId'].toString()),
+                            tag: "moment-${p['id']}-${media['mediaId']}",
                             child: SizedBox(
                               width: 120,
                               height: 120,
-                              child: (media['media']?['mime'] as String? ?? '')
+                              child:
+                                  (media['media']?['mime'] as String? ?? '')
                                       .startsWith('video/')
                                   ? ColoredBox(
                                       color: const Color(0xff252525),
@@ -314,17 +294,6 @@ class _MomentCardState extends ConsumerState<_MomentCard> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    // Nút bình luận inline
-                    GestureDetector(
-                      onTap: () => setState(() => _showInput = !_showInput),
-                      child: QChatIcon(
-                        'chats',
-                        size: 18,
-                        color: _showInput
-                            ? QChatColors.green
-                            : QChatColors.muted,
-                      ),
-                    ),
                     // Nút xóa (chỉ chủ bài)
                     if (p['authorId'] == widget.myId) ...[
                       const SizedBox(width: 16),
@@ -339,90 +308,6 @@ class _MomentCardState extends ConsumerState<_MomentCard> {
                     ],
                   ],
                 ),
-
-                // Danh sách bình luận
-                if ((p['comments'] as List).isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(top: 8),
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: ink(c).withValues(alpha: .05),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (final comment in p['comments'])
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 3),
-                            child: RichText(
-                              text: TextSpan(
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: ink(c),
-                                ),
-                                children: [
-                                  if ((comment['author']?['nickname'] ?? '')
-                                      .toString()
-                                      .isNotEmpty)
-                                    TextSpan(
-                                      text:
-                                          '${comment['author']['nickname']}: ',
-                                      style: const TextStyle(
-                                        color: Color(0xff546d91),
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  TextSpan(text: comment['text']),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-
-                // Input bình luận inline
-                if (_showInput)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TInput(
-                            controller: _commentCtrl,
-                            hintText: tr(c, 'comment'),
-                            maxLines: 3,
-                            minLines: 1,
-                            maxLength: 1000,
-                            enabled: !_sending,
-                            autofocus: true,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: _sending ? null : _sendComment,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: QChatColors.green,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              tr(c, 'send'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
               ],
             ),
           ),

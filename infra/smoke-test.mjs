@@ -103,6 +103,18 @@ try {
   await request(`/conversations/${group.id}`, 'DELETE', undefined, a.accessToken);
   assert.equal(await db.conversation.count({ where: { id: group.id } }), 0);
   console.log('PASS: avatars, pin/unread, private history clearing, media forwarding and owner-only dissolution');
+  const moment = await request('/moments', 'POST', { text: 'Visible moment', mediaIds: [intent.id] }, a.accessToken);
+  await request('/moments', 'POST', { text: 'Private moment', privacy: 'PRIVATE' }, a.accessToken);
+  await request('/moments', 'POST', { text: 'Other author' }, b.accessToken);
+  const feed = await request('/moments?authorId=' + a.userId, 'GET', undefined, b.accessToken);
+  assert.deepEqual(feed.map(post => post.id), [moment.id]);
+  assert.equal(feed[0].media[0].mediaId, intent.id);
+  assert.deepEqual(feed[0].comments, []);
+  await request('/moments/' + moment.id + '/comments', 'POST', { text: 'Disabled' }, b.accessToken, 410);
+  await request('/moments?authorId=invalid', 'GET', undefined, b.accessToken, 400);
+  await db.blockedUser.create({ data: { ownerId: a.userId, targetId: b.userId } });
+  assert.deepEqual(await request('/moments?authorId=' + a.userId, 'GET', undefined, b.accessToken), []);
+  console.log('PASS: author-filtered moments, private/blocked visibility and disabled comments');
 } finally {
   socket?.disconnect();
   const temporary = await db.user.findMany({ where: { email: { in: emails } }, select: { id: true } });
@@ -113,6 +125,7 @@ try {
   if (group) await db.conversation.deleteMany({ where: { id: group.id } });
   if (conversation) await db.conversation.deleteMany({ where: { id: conversation.id } });
   await db.outbox.deleteMany({ where: { room: { in: ids.map(id => `user:${id}`) } } });
+  await db.moment.deleteMany({ where: { authorId: { in: ids } } });
   await db.media.deleteMany({ where: { ownerId: { in: ids } } });
   await db.user.deleteMany({ where: { id: { in: ids } } });
   await db.$disconnect();

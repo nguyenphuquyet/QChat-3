@@ -9,8 +9,9 @@ import '../../core/localization/strings.dart';
 
 /// Immersive, chrome-free image and video viewer.
 class MediaScreen extends ConsumerStatefulWidget {
-  const MediaScreen({super.key, required this.id});
+  const MediaScreen({super.key, required this.id, this.sourceTag});
   final String id;
+  final String? sourceTag;
 
   /// Tag shared with the thumbnail that opens this viewer, so the media grows
   /// out of its original frame.
@@ -45,28 +46,48 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
     child: Stack(
       children: [
         Positioned.fill(
-          child: FutureBuilder<Map<String, dynamic>>(
-            future: access,
-            builder: (c, s) {
-              if (s.hasError) {
-                return _ViewerMessage(
-                  text: tr(c, 'networkError'),
-                  onRetry: () => setState(() => access = _load()),
-                );
-              }
-              if (!s.hasData) return const _ViewerPlaceholder();
-              final data = s.data!;
-              final mime = data['mime'] as String? ?? '';
-              return mime.startsWith('video/')
-                  ? VideoMedia(
-                      url: data['url']?.toString() ?? '',
-                      heroTag: MediaScreen.heroTag(widget.id),
-                    )
-                  : _ImageViewer(
-                      id: widget.id,
-                      heroTag: MediaScreen.heroTag(widget.id),
-                    );
-            },
+          child: Hero(
+            tag: widget.sourceTag ?? MediaScreen.heroTag(widget.id),
+            flightShuttleBuilder:
+                (flightContext, animation, direction, from, to) {
+                  final thumbnail =
+                      (direction == HeroFlightDirection.push
+                              ? from.widget
+                              : to.widget)
+                          as Hero;
+                  return FittedBox(
+                    fit: BoxFit.contain,
+                    child: SizedBox.fromSize(
+                      size:
+                          ((direction == HeroFlightDirection.push ? from : to)
+                                      .findRenderObject()
+                                  as RenderBox)
+                              .size,
+                      child: thumbnail.child,
+                    ),
+                  );
+                },
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: access,
+              builder: (c, s) {
+                if (s.hasError) {
+                  return _ViewerMessage(
+                    text: tr(c, 'networkError'),
+                    onRetry: () => setState(() => access = _load()),
+                  );
+                }
+                if (!s.hasData) {
+                  return MediaCache.getFromMemory(widget.id) != null
+                      ? _ImageViewer(id: widget.id)
+                      : const _ViewerPlaceholder();
+                }
+                final data = s.data!;
+                final mime = data['mime'] as String? ?? '';
+                return mime.startsWith('video/')
+                    ? VideoMedia(url: data['url']?.toString() ?? '')
+                    : _ImageViewer(id: widget.id);
+              },
+            ),
           ),
         ),
         Positioned(
@@ -89,18 +110,15 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
 }
 
 class _ImageViewer extends StatelessWidget {
-  const _ImageViewer({required this.id, required this.heroTag});
-  final String id, heroTag;
+  const _ImageViewer({required this.id});
+  final String id;
 
   @override
   Widget build(BuildContext c) => InteractiveViewer(
     minScale: 1,
     maxScale: 4,
     child: Center(
-      child: Hero(
-        tag: heroTag,
-        child: MediaImage(id: id, fit: BoxFit.contain),
-      ),
+      child: MediaImage(id: id, fit: BoxFit.contain),
     ),
   );
 }
@@ -129,9 +147,7 @@ class _ViewerButton extends StatelessWidget {
           color: Color(0x59000000),
           shape: BoxShape.circle,
         ),
-        child: Center(
-          child: QChatIcon(icon, color: Colors.white, size: 23),
-        ),
+        child: Center(child: QChatIcon(icon, color: Colors.white, size: 23)),
       ),
     ),
   );
@@ -165,8 +181,7 @@ class _ViewerPlaceholder extends StatelessWidget {
   const _ViewerPlaceholder();
 
   @override
-  Widget build(BuildContext c) =>
-      const ColoredBox(color: Color(0xff0a0a0a));
+  Widget build(BuildContext c) => const ColoredBox(color: Color(0xff0a0a0a));
 }
 
 class _ViewerMessage extends StatelessWidget {
@@ -306,7 +321,10 @@ class _VideoMediaState extends State<VideoMedia> {
       valueListenable: player,
       builder: (c, value, _) {
         final total = value.duration.inMilliseconds;
-        final played = value.position.inMilliseconds.clamp(0, total <= 0 ? 0 : total);
+        final played = value.position.inMilliseconds.clamp(
+          0,
+          total <= 0 ? 0 : total,
+        );
         return Stack(
           children: [
             Positioned.fill(
@@ -342,10 +360,7 @@ class _VideoMediaState extends State<VideoMedia> {
                           children: [
                             _PlainIconButton(
                               icon: value.isPlaying ? 'pause' : 'play',
-                              label: tr(
-                                c,
-                                value.isPlaying ? 'pause' : 'play',
-                              ),
+                              label: tr(c, value.isPlaying ? 'pause' : 'play'),
                               onTap: () => value.isPlaying
                                   ? player.pause()
                                   : player.play(),
@@ -398,8 +413,9 @@ class _VideoMediaState extends State<VideoMedia> {
                           child: Slider(
                             value: played.toDouble(),
                             max: total <= 0 ? 1 : total.toDouble(),
-                            onChanged: (v) =>
-                                player.seekTo(Duration(milliseconds: v.round())),
+                            onChanged: (v) => player.seekTo(
+                              Duration(milliseconds: v.round()),
+                            ),
                           ),
                         ),
                       ],
