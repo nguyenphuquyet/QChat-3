@@ -33,6 +33,22 @@ GoRoute qchatRoute({
       CupertinoPage<void>(key: state.pageKey, child: builder(context, state)),
 );
 
+/// The image/video viewer moves its media with a shared element (Hero). It must
+/// not use the Cupertino slide transition as well, otherwise the slide and the
+/// media zoom play on top of each other on open and on dismiss. Only the black
+/// backdrop fades, so the media zoom stays the single visible motion.
+GoRoute qchatMediaRoute() => GoRoute(
+  path: '/media/:id',
+  pageBuilder: (context, state) => CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: MediaScreen(id: state.pathParameters['id']!),
+    transitionDuration: const Duration(milliseconds: 240),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+        FadeTransition(opacity: animation, child: child),
+  ),
+);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -110,10 +126,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           path: '/favorites',
           builder: (_, s) => const DataListScreen(kind: 'favorites'),
         ),
-        qchatRoute(
-          path: '/media/:id',
-          builder: (_, s) => MediaScreen(id: s.pathParameters['id']!),
-        ),
+        qchatMediaRoute(),
         qchatRoute(
           path: '/call/:id',
           builder: (_, s) => CallScreen(
