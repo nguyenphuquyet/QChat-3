@@ -337,7 +337,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           '/conversations/${widget.id}/state',
           data: {'markedUnread': false},
         );
-        await client.local?.removeCache('/conversations');
+        await client.applyConversationRead(
+          widget.id,
+          ownMember['readSequence'] as int? ?? 0,
+          clearMarkedUnread: true,
+        );
       }
       final rows = await client.messages(widget.id);
       final others = (c['members'] as List).where(
@@ -365,13 +369,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               AppLifecycleState.resumed) &&
           (ModalRoute.of(context)?.isCurrent ?? false) &&
           (sent.last['sequence'] as int) > readSequence) {
+        final sequence = sent.last['sequence'] as int;
         unawaited(
           client
-              .post('/conversations/${widget.id}/read', {
-                'sequence': sent.last['sequence'],
-              })
-              .then((_) {
-                readSequence = sent.last['sequence'];
+              .post('/conversations/${widget.id}/read', {'sequence': sequence})
+              .then((_) async {
+                readSequence = sequence;
+                await client.applyConversationRead(widget.id, sequence);
               })
               .catchError((_) {}),
         );

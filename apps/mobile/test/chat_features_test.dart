@@ -8,9 +8,11 @@ import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
 import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/core/network/client.dart';
+import 'package:qchat/core/network/video_meta.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
 import 'package:qchat/features/chats/home_screen.dart';
+import 'package:qchat/features/chats/message_attachment.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
 import 'package:qchat/features/moments/moments_screen.dart';
 
@@ -103,6 +105,20 @@ Future<void> mount(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class RequestsClient extends FakeClient {
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async {
+    if (path == '/friends/requests') {
+      calls.add(path);
+      return [
+        {'id': 'request-1', 'sender': peer},
+        {'id': 'request-2', 'sender': peer},
+      ];
+    }
+    return super.get(path, cached: cached);
+  }
 }
 
 class MomentsClient extends FakeClient {
@@ -220,6 +236,72 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(TPopoverWidget), findsNothing);
     expect(find.text('Hủy'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('video preview keeps the real shape while it loads', (
+    tester,
+  ) async {
+    addTearDown(VideoMetaCache.clear);
+    VideoMetaCache.remember(
+      'landscape',
+      const VideoMeta(width: 1920, height: 1080),
+    );
+    VideoMetaCache.remember(
+      'portrait',
+      const VideoMeta(width: 1080, height: 1920),
+    );
+    await mount(
+      tester,
+      FakeClient(),
+      const Align(
+        alignment: Alignment.topLeft,
+        child: MessageAttachment(
+          key: ValueKey('landscape'),
+          id: 'landscape',
+          kind: 'VIDEO',
+          name: 'clip.mp4',
+        ),
+      ),
+    );
+    final landscape = tester.getSize(
+      find.byKey(const ValueKey('video-frame-landscape')),
+    );
+    expect(landscape.width, greaterThan(landscape.height));
+    expect(landscape.width, closeTo(210, 0.1));
+    expect(landscape.height, closeTo(210 * 9 / 16, 0.1));
+
+    await mount(
+      tester,
+      FakeClient(),
+      const Align(
+        alignment: Alignment.topLeft,
+        child: MessageAttachment(
+          key: ValueKey('portrait'),
+          id: 'portrait',
+          kind: 'VIDEO',
+          name: 'clip.mp4',
+        ),
+      ),
+    );
+    final portrait = tester.getSize(
+      find.byKey(const ValueKey('video-frame-portrait')),
+    );
+    expect(portrait.height, greaterThan(portrait.width));
+    expect(portrait.height, closeTo(260, 0.1));
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('contacts mark how many friend requests are waiting', (
+    tester,
+  ) async {
+    final client = RequestsClient();
+    await mount(tester, client, const HomeScreen());
+    await tester.tap(find.text('Danh bạ').last);
+    await tester.pumpAndSettle();
+    expect(client.calls, contains('/friends/requests'));
+    final badge = tester.widget<QChatUnreadBadge>(
+      find.byType(QChatUnreadBadge),
+    );
+    expect(badge.count, 2);
     expect(tester.takeException(), isNull);
   });
   testWidgets('conversation swipe exposes unread hide and delete', (

@@ -142,6 +142,48 @@ void main() {
     expect(client.offline.value, false);
   });
 
+  test(
+    'read receipt clears the cached unread badge for that conversation',
+    () async {
+      final client = QChatClient()
+        ..userId = 'self'
+        ..local = LocalDatabase.testing(NativeDatabase.memory());
+      addTearDown(() async {
+        client.dispose();
+        await client.local!.close();
+      });
+      await client.local!.cache('/conversations', [
+        {
+          'id': 'chat',
+          'sequence': 5,
+          'members': [
+            {'userId': 'self', 'readSequence': 2, 'markedUnread': true},
+            {'userId': 'peer', 'readSequence': 0},
+          ],
+        },
+        {
+          'id': 'other',
+          'sequence': 3,
+          'members': [
+            {'userId': 'self', 'readSequence': 1, 'markedUnread': false},
+          ],
+        },
+      ]);
+
+      await client.applyConversationRead('chat', 5, clearMarkedUnread: true);
+
+      final saved = await client.local!.read('/conversations') as List;
+      final chat = saved.firstWhere((c) => c['id'] == 'chat');
+      final me = (chat['members'] as List).firstWhere(
+        (m) => m['userId'] == 'self',
+      );
+      expect(me['readSequence'], 5);
+      expect(me['markedUnread'], false);
+      final other = saved.firstWhere((c) => c['id'] == 'other');
+      expect((other['members'] as List).single['readSequence'], 1);
+    },
+  );
+
   testWidgets('offline without cache retains home navigation and search', (
     tester,
   ) async {

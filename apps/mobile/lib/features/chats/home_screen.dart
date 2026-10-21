@@ -20,6 +20,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   int index = 0;
   final search = TextEditingController();
   late Future<dynamic> data;
+  Future<dynamic>? requests;
   StreamSubscription<void>? updates;
   final sectionKeys = <String, GlobalKey>{};
   @override
@@ -32,15 +33,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void load() {
-    data = ref
-        .read(clientProvider)
-        .get(
-          index == 0
-              ? '/conversations'
-              : index == 1
-              ? '/friends'
-              : '/users/me',
-        );
+    final client = ref.read(clientProvider);
+    data = client.get(
+      index == 0
+          ? '/conversations'
+          : index == 1
+          ? '/friends'
+          : '/users/me',
+    );
+    // Contacts also surface how many people are waiting for a reply.
+    if (index == 1) requests = client.get('/friends/requests');
   }
 
   @override
@@ -149,7 +151,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           color: surface(c),
                           child: index == 0
                               ? chats(c, items)
-                              : contacts(c, items),
+                              : contacts(c, items, requests),
                         ),
                       ),
                     ],
@@ -249,7 +251,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : ((item['sequence'] as int) -
                       ((member?['readSequence'] as int?) ?? 0))
                   .clamp(0, 999),
-        onTap: () => c.push('/chat/${item['id']}'),
+        onTap: () async {
+          await c.push('/chat/${item['id']}');
+          // The chat acknowledges reads while it is open; reload so the red
+          // badge is gone as soon as the list is visible again.
+          if (mounted) setState(load);
+        },
       ),
     );
   }
@@ -272,6 +279,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         await client.post('/conversations/$id/read', {
           'sequence': item['sequence'],
         });
+        await client.applyConversationRead(
+          id,
+          item['sequence'] as int? ?? 0,
+          clearMarkedUnread: true,
+        );
       } else {
         await client.dio.patch(
           '/conversations/$id/state',
@@ -295,7 +307,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  Widget contacts(BuildContext c, List items) {
+  Widget contacts(BuildContext c, List items, Future<dynamic>? requests) {
     items.sort(
       (a, b) => a['friend']['nickname'].toString().compareTo(
         b['friend']['nickname'].toString(),
@@ -312,12 +324,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         ListView(
           children: [
-            MenuRow(
-              'newFriends',
-              icon: 'addFriend',
-              boxed: true,
-              color: const Color(0xfffa9d3b),
-              onTap: () => c.push('/friends/requests'),
+            FutureBuilder<dynamic>(
+              future: requests,
+              builder: (c, s) {
+                final pending = s.data is List ? (s.data as List).length : 0;
+                return MenuRow(
+                  'newFriends',
+                  icon: 'addFriend',
+                  boxed: true,
+                  color: const Color(0xfffa9d3b),
+                  badge: pending,
+                  onTap: () async {
+                    await c.push('/friends/requests');
+                    if (mounted) setState(load);
+                  },
+                );
+              },
             ),
             MenuRow(
               'groups',

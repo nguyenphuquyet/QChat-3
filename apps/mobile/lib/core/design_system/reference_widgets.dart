@@ -18,6 +18,7 @@ class MenuRow extends StatelessWidget {
     this.onTap,
     this.boxed = false,
     this.trailing,
+    this.badge = 0,
   });
   final String label;
   final String? icon, value, subtitle;
@@ -25,6 +26,9 @@ class MenuRow extends StatelessWidget {
   final VoidCallback? onTap;
   final bool boxed;
   final Widget? trailing;
+
+  /// Red count pinned next to the chevron, e.g. pending friend requests.
+  final int badge;
   @override
   Widget build(BuildContext c) => QChatListTile(
     title: tr(c, label),
@@ -47,23 +51,26 @@ class MenuRow extends StatelessWidget {
         : SizedBox(width: 26, child: QChatIcon(icon!, color: color, size: 23)),
     trailing:
         trailing ??
-        (value == null
+        (value == null && badge < 1
             ? null
             : Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 190),
-                    child: Text(
-                      value!,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: QChatColors.muted,
-                        fontSize: 16,
+                  if (value != null)
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 190),
+                      child: Text(
+                        value!,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: QChatColors.muted,
+                          fontSize: 16,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
+                  if (value != null) const SizedBox(width: 8),
+                  if (badge > 0) QChatUnreadBadge(badge),
+                  if (badge > 0) const SizedBox(width: 8),
                   const QChatIcon(
                     'chevron',
                     size: 18,

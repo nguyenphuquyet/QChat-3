@@ -315,6 +315,39 @@ class QChatClient {
 
   Future<dynamic> post(String path, Object data) async =>
       (await dio.post(path, data: data)).data;
+
+  /// Mirrors a read receipt into the cached conversation list so the red
+  /// unread badge clears as soon as the chat is left, without waiting for the
+  /// next network refresh.
+  Future<void> applyConversationRead(
+    String id,
+    int sequence, {
+    bool clearMarkedUnread = false,
+  }) async {
+    final cached = await local?.read('/conversations');
+    if (cached is! List) return;
+    var changed = false;
+    for (final conversation in cached) {
+      if (conversation is! Map || conversation['id'] != id) continue;
+      final members = conversation['members'];
+      if (members is! List) continue;
+      for (final member in members) {
+        if (member is! Map || member['userId'] != userId) continue;
+        if (sequence > (member['readSequence'] as int? ?? 0)) {
+          member['readSequence'] = sequence;
+          changed = true;
+        }
+        if (clearMarkedUnread && member['markedUnread'] == true) {
+          member['markedUnread'] = false;
+          changed = true;
+        }
+      }
+    }
+    if (!changed) return;
+    await local?.cache('/conversations', cached);
+    changes.add(null);
+  }
+
   Future<void> applyClearedSequence(String id, int sequence) async {
     if (sequence < (clearedSequences[id] ?? 0)) {
       sequence = clearedSequences[id]!;
