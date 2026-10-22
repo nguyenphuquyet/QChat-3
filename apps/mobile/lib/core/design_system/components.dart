@@ -117,6 +117,7 @@ class QChatPage extends StatelessWidget {
                           right: 0,
                           child: QChatGlass(
                             color: pageColor,
+                            opacity: .88,
                             child: SafeArea(bottom: false, child: appBar),
                           ),
                         ),

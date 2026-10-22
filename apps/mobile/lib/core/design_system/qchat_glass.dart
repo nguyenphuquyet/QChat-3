@@ -10,6 +10,7 @@ class QChatGlass extends StatelessWidget {
     this.topBorder = false,
     this.border = true,
     this.color,
+    this.opacity = .84,
   });
   final Widget child;
   final bool topBorder;
@@ -22,13 +23,17 @@ class QChatGlass extends StatelessWidget {
   /// the same color as the screen it floats over.
   final Color? color;
 
+  final double opacity;
+
   @override
   Widget build(BuildContext context) => ClipRect(
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: (color ?? navigationSurface(context)).withValues(alpha: .88),
+          color: (color ?? navigationSurface(context)).withValues(
+            alpha: opacity,
+          ),
           border: border
               ? Border(
                   top: topBorder
