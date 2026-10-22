@@ -1,4 +1,5 @@
 name: Flutter app
+# Build and test on GitHub runners; no local build is required.
 
 on:
   push:
