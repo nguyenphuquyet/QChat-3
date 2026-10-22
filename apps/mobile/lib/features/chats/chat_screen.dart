@@ -874,6 +874,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
     final keyboard = MediaQuery.viewInsetsOf(c).bottom;
     final safeBottom = MediaQuery.viewPaddingOf(c).bottom;
+    // Same base the page paints behind the list, so both glass bars keep the
+    // chat background color instead of a lighter gray.
+    final pageColor = chatBackground ?? Theme.of(c).scaffoldBackgroundColor;
     // The glass bar floats over the list, so reserve its height at the top of
     // the content instead of letting the newest messages sit under the blur.
     final headerInset = MediaQuery.paddingOf(c).top + 54;
@@ -1140,6 +1143,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                   bottom: 0,
                   child: QChatGlass(
                     topBorder: true,
+                    color: pageColor,
                     child: Column(
                       key: composerKey,
                       mainAxisSize: MainAxisSize.min,
@@ -1228,6 +1232,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           // Khi bàn phím đang chuyển động thì không animate thêm để khỏi trễ.
           QChatGlass(
             border: false,
+            color: pageColor,
             child: AnimatedContainer(
               duration: keyboard > 0 || inputFocus.hasFocus
                   ? Duration.zero

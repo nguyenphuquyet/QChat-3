@@ -9,6 +9,7 @@ class QChatGlass extends StatelessWidget {
     required this.child,
     this.topBorder = false,
     this.border = true,
+    this.color,
   });
   final Widget child;
   final bool topBorder;
@@ -17,13 +18,17 @@ class QChatGlass extends StatelessWidget {
   /// without a visible seam.
   final bool border;
 
+  /// Tint under the blur. Callers pass the page background so the bar keeps
+  /// the same color as the screen it floats over.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) => ClipRect(
     child: BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: navigationSurface(context).withValues(alpha: .84),
+          color: (color ?? navigationSurface(context)).withValues(alpha: .88),
           border: border
               ? Border(
                   top: topBorder
