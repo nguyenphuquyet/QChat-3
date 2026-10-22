@@ -136,6 +136,17 @@ function Empty({ children }: { children: ReactNode }) {
     </div>
   );
 }
+function Spinner({ label = "Đang tải" }: { label?: string }) {
+  return (
+    <div
+      role="status"
+      aria-label={label}
+      className="flex min-h-48 items-center justify-center p-8"
+    >
+      <Loader2 className="h-7 w-7 animate-spin text-emerald-500" />
+    </div>
+  );
+}
 function failure(error: unknown) {
   const code = error instanceof Error ? error.message : "";
   return (
@@ -583,15 +594,6 @@ export default function Dashboard() {
               <Check size={16} />
               {notice}
             </p>
-          )}
-          {busy && (
-            <div
-              role="status"
-              className="mb-4 flex items-center gap-2 text-xs text-slate-500"
-            >
-              <Loader2 size={14} className="animate-spin" />
-              Đang cập nhật dữ liệu…
-            </div>
           )}
 
           {section === "overview" && stats && (
@@ -1062,52 +1064,64 @@ export default function Dashboard() {
             </Card>
           )}
 
-          {section === "system" && (
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card className="p-7">
-                <div className="mb-6 flex items-center justify-between">
-                  <span className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
-                    <Activity size={25} />
-                  </span>
-                  {healthy !== null && (
-                    <Badge warning={!healthy}>
-                      {healthy ? "Sẵn sàng phục vụ" : "Cần kiểm tra"}
-                    </Badge>
-                  )}
-                </div>
-                <h2 className="text-lg font-bold">API & kết nối dữ liệu</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-500">
-                  Kiểm tra API, truy vấn PostgreSQL và kết nối Redis trong cùng
-                  một yêu cầu.
-                </p>
-                <button
-                  onClick={() => void load("system")}
-                  disabled={busy}
-                  className={`${buttonStyle} mt-6`}
-                >
-                  <RefreshCw size={15} />
-                  Kiểm tra lại
-                </button>
+          {section === "system" &&
+            (busy && healthy === null ? (
+              <Card>
+                <Spinner label="Đang kiểm tra hệ thống" />
               </Card>
-              <Card className="p-7">
-                <Database className="mb-6 text-emerald-600" size={28} />
-                <h2 className="text-lg font-bold">Dữ liệu & lưu trữ</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-500">
-                  Tin nhắn được lưu trong PostgreSQL, tệp đính kèm lưu trong kho
-                  riêng tư. Trạng thái sức khỏe này không bao gồm kiểm tra kho
-                  tệp.
-                </p>
-                <a
-                  href="/api/health"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-emerald-600"
-                >
-                  Xem phản hồi API <ArrowRight size={16} />
-                </a>
-              </Card>
-            </div>
-          )}
+            ) : (
+              <div className="grid gap-6 md:grid-cols-2">
+                <Card className="p-7">
+                  <div className="mb-6 flex items-center justify-between">
+                    <span className="rounded-2xl bg-emerald-50 p-3 text-emerald-600">
+                      <Activity size={25} />
+                    </span>
+                    {busy ? (
+                      <Loader2
+                        aria-label="Đang kiểm tra hệ thống"
+                        className="h-5 w-5 animate-spin text-emerald-500"
+                      />
+                    ) : (
+                      healthy !== null && (
+                        <Badge warning={!healthy}>
+                          {healthy ? "Sẵn sàng phục vụ" : "Cần kiểm tra"}
+                        </Badge>
+                      )
+                    )}
+                  </div>
+                  <h2 className="text-lg font-bold">API & kết nối dữ liệu</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
+                    Kiểm tra API, truy vấn PostgreSQL và kết nối Redis trong cùng
+                    một yêu cầu.
+                  </p>
+                  <button
+                    onClick={() => void load("system")}
+                    disabled={busy}
+                    className={`${buttonStyle} mt-6`}
+                  >
+                    <RefreshCw size={15} />
+                    Kiểm tra lại
+                  </button>
+                </Card>
+                <Card className="p-7">
+                  <Database className="mb-6 text-emerald-600" size={28} />
+                  <h2 className="text-lg font-bold">Dữ liệu & lưu trữ</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-500">
+                    Tin nhắn được lưu trong PostgreSQL, tệp đính kèm lưu trong
+                    kho riêng tư. Trạng thái sức khỏe này không bao gồm kiểm tra
+                    kho tệp.
+                  </p>
+                  <a
+                    href="/api/health"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-emerald-600"
+                  >
+                    Xem phản hồi API <ArrowRight size={16} />
+                  </a>
+                </Card>
+              </div>
+            ))}
           <footer className="mt-8 flex flex-wrap justify-between gap-2 text-[11px] text-slate-400">
             <span>QChat · Không gian quản trị</span>
             <span>
