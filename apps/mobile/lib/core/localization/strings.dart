@@ -362,6 +362,11 @@ const translations = <String, List<String>>{
     'Không kết nối được. Vui lòng thử lại.',
     '连接失败，请重试。',
   ],
+  'sessionExpired': [
+    'This session is no longer valid. Please sign in again.',
+    'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.',
+    '此登录会话已失效，请重新登录。',
+  ],
   'pending': [
     'Pending · tap to retry',
     'Đang chờ · chạm để thử lại',

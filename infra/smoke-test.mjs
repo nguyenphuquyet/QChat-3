@@ -115,6 +115,28 @@ try {
   await db.blockedUser.create({ data: { ownerId: a.userId, targetId: b.userId } });
   assert.deepEqual(await request('/moments?authorId=' + a.userId, 'GET', undefined, b.accessToken), []);
   console.log('PASS: author-filtered moments, private/blocked visibility and disabled comments');
+  await request('/admin/stats', 'GET', undefined, b.accessToken, 403);
+  await db.user.update({ where: { id: a.userId }, data: { role: 'ADMIN' } });
+  const summary = await request('/admin/stats', 'GET', undefined, a.accessToken);
+  assert.equal(summary.activity.length, 7);
+  const listed = await request('/admin/users?q=' + encodeURIComponent(emails[1]), 'GET', undefined, a.accessToken);
+  assert.equal(listed.total, 1);
+  assert.equal(listed.items[0].id, b.userId);
+  assert.equal(listed.items[0].passwordHash, undefined);
+  await request('/admin/users/' + b.userId, 'PATCH', { disabled: true }, a.accessToken);
+  await request('/auth/refresh', 'POST', { refreshToken: b.refreshToken }, undefined, 401);
+  await request('/admin/users/' + b.userId, 'PATCH', { disabled: false }, a.accessToken);
+  const sessionRows = await db.userSession.findMany({ where: { userId: b.userId } });
+  assert.ok(sessionRows.every(row => row.expiresAt === null));
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const refreshed = await request('/auth/refresh', 'POST', { refreshToken: b.refreshToken });
+    assert.equal(refreshed.refreshToken, b.refreshToken);
+    await request('/users/me', 'GET', undefined, refreshed.accessToken);
+  }
+  await request('/auth/logout', 'POST', {}, b.accessToken);
+  await request('/auth/refresh', 'POST', { refreshToken: b.refreshToken }, undefined, 401);
+  await request('/users/me', 'GET', undefined, b.accessToken, 401);
+  console.log('PASS: admin authorization, user management, persistent refresh and logout revocation');
 } finally {
   socket?.disconnect();
   const temporary = await db.user.findMany({ where: { email: { in: emails } }, select: { id: true } });
@@ -127,6 +149,7 @@ try {
   await db.outbox.deleteMany({ where: { room: { in: ids.map(id => `user:${id}`) } } });
   await db.moment.deleteMany({ where: { authorId: { in: ids } } });
   await db.media.deleteMany({ where: { ownerId: { in: ids } } });
+  await db.auditLog.deleteMany({ where: { actorId: { in: ids } } });
   await db.user.deleteMany({ where: { id: { in: ids } } });
   await db.$disconnect();
   s3.destroy();

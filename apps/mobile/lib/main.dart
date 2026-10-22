@@ -73,6 +73,12 @@ class _QChatAppState extends ConsumerState<QChatApp> {
     super.initState();
     router = GoRouter(
       initialLocation: '/login',
+      refreshListenable: ref.read(clientProvider).sessionExpired,
+      redirect: (_, state) =>
+          ref.read(clientProvider).sessionExpired.value &&
+              state.uri.path != '/login'
+          ? '/login'
+          : null,
       routes: [
         qchatRoute(path: '/login', builder: (_, s) => const AuthScreen()),
         qchatRoute(path: '/home', builder: (_, s) => const HomeScreen()),

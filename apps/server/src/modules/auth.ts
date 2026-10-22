@@ -5,7 +5,7 @@ import { registerSchema, loginSchema } from "../../../../packages/contracts";
 import { db } from "../services/db";
 import {
   createSession,
-  rotateSession,
+  refreshSession,
   secretToken,
   digest,
 } from "../security/auth";
@@ -44,7 +44,7 @@ export async function authRoute(action: string, body: unknown) {
     return createSession(u.id, v.deviceName);
   }
   if (action === "refresh")
-    return rotateSession(
+    return refreshSession(
       z
         .object({ refreshToken: z.string().min(32).max(200) })
         .strict()

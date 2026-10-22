@@ -22,12 +22,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   late Future<dynamic> data;
   Future<dynamic>? requests;
   StreamSubscription<void>? updates;
+  StreamSubscription<String>? recalls;
   final sectionKeys = <String, GlobalKey>{};
   @override
   void initState() {
     super.initState();
     load();
     updates = ref.read(clientProvider).changes.stream.listen((_) {
+      if (mounted) setState(load);
+    });
+    recalls = ref.read(clientProvider).recalls.stream.listen((_) {
       if (mounted) setState(load);
     });
   }
@@ -48,6 +52,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void dispose() {
     updates?.cancel();
+    recalls?.cancel();
     search.dispose();
     super.dispose();
   }

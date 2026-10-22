@@ -150,6 +150,12 @@ VideoMeta? parseMp4Meta(Uint8List bytes) {
   if (width < 16 || height < 16 || width > 10000 || height > 10000) {
     return null;
   }
+  // Phone recordings often store landscape pixels plus a 90/270-degree
+  // display transform. Respect that transform when reserving the chat frame.
+  final matrixAt = widthAt - 36;
+  final b = data.getInt32(matrixAt + 4) / 65536;
+  final c = data.getInt32(matrixAt + 12) / 65536;
+  if (b.abs() > .9 && c.abs() > .9) return (width: height, height: width);
   return (width: width, height: height);
 }
 

@@ -5,6 +5,7 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/network/video_meta.dart';
+import '../../core/network/cached_video.dart';
 import 'media_screen.dart';
 
 class MessageAttachment extends ConsumerStatefulWidget {
@@ -23,11 +24,31 @@ class MessageAttachment extends ConsumerStatefulWidget {
 
 class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
   VideoPlayerController? video;
+  CachedVideo? cachedVideo;
   VideoMeta? meta;
   @override
   void initState() {
     super.initState();
+    meta =
+        VideoMetaCache.fromMemory(widget.id) ??
+        VideoMeta.fromJson(MediaCache.infoFromMemory(widget.id));
     if (widget.kind == 'VIDEO') loadVideo();
+    if (widget.kind == 'IMAGE') loadImage();
+  }
+
+  Future<void> loadImage() async {
+    final client = ref.read(clientProvider);
+    final details = await MediaCache.info(client, widget.id);
+    if (mounted && details != null) {
+      setState(() => meta = VideoMeta.fromJson(details));
+    }
+    await MediaCache.load(client, widget.id);
+    if (mounted) {
+      setState(
+        () => meta =
+            VideoMeta.fromJson(MediaCache.infoFromMemory(widget.id)) ?? meta,
+      );
+    }
   }
 
   Future<void> loadVideo() async {
@@ -37,32 +58,16 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
     final cached = await VideoMetaCache.load(client.local, widget.id);
     if (cached != null && mounted) setState(() => meta = cached);
     try {
-      final access = await client.get(
-        '/media/${widget.id}/access',
-        cached: false,
-      );
-      if (!mounted) return;
-      final url = access['url']?.toString();
-      if (url == null || url.isEmpty) return;
-      // Probe and player start together: the preview gets its real shape as
-      // soon as the header is read instead of waiting for the first frame.
-      final probing = meta == null
-          ? probeVideoMeta(
-              client.dio,
-              url,
-              size: (access['size'] as num?)?.toInt(),
-            )
-          : Future<VideoMeta?>.value(null);
-      final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-      video = controller;
-      // Keep the failure handled while the header probe is still in flight.
-      final starting = controller.initialize().catchError((_) {});
-      final probed = await probing;
-      if (probed != null) {
-        VideoMetaCache.remember(widget.id, probed, local: client.local);
-        if (mounted) setState(() => meta = probed);
+      final source = await CachedVideo.load(client, widget.id);
+      if (!mounted) {
+        await source.dispose();
+        return;
       }
-      await starting;
+      cachedVideo = source;
+      final controller = source.controller;
+      video = controller;
+      setState(() => meta = VideoMetaCache.fromMemory(widget.id) ?? meta);
+      await controller.initialize();
       if (!mounted) return;
       final value = controller.value;
       if (value.isInitialized) {
@@ -82,7 +87,7 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
 
   @override
   void dispose() {
-    video?.dispose();
+    cachedVideo?.dispose();
     super.dispose();
   }
 
@@ -95,7 +100,16 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
           borderRadius: BorderRadius.circular(5),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 210, maxHeight: 260),
-            child: MediaImage(id: widget.id, fit: BoxFit.contain),
+            child: SizedBox(
+              width: meta == null
+                  ? null
+                  : (260 * meta!.aspectRatio).clamp(0.0, 210.0),
+              height: meta == null
+                  ? null
+                  : (260 * meta!.aspectRatio).clamp(0.0, 210.0) /
+                        meta!.aspectRatio,
+              child: MediaImage(id: widget.id, fit: BoxFit.contain),
+            ),
           ),
         ),
       );
@@ -111,12 +125,8 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
           : null;
       // Until the real shape is known, avoid reserving a wrong (portrait)
       // frame: the probe resolves the ratio before playback is ready.
-      final width = ratio == null
-          ? 210.0
-          : ratio < 1
-          ? (260 * ratio).clamp(120.0, 210.0)
-          : 210.0;
-      final height = ratio == null ? 150.0 : (width / ratio).clamp(80.0, 300.0);
+      final width = ratio == null ? 210.0 : (260 * ratio).clamp(0.0, 210.0);
+      final height = ratio == null ? 150.0 : width / ratio;
       final duration =
           known?.duration ?? (ready ? controller.value.duration : null);
       return Hero(

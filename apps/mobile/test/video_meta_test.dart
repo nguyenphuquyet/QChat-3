@@ -36,6 +36,16 @@ Uint8List header({
 }
 
 void main() {
+  test('phone rotation matrix preserves portrait display geometry', () {
+    final bytes = header(width: 1920, height: 1080);
+    final data = ByteData.sublistView(bytes);
+    final matrixAt = 108 + 72 - 36;
+    data.setInt32(matrixAt + 4, 65536);
+    data.setInt32(matrixAt + 12, -65536);
+    final meta = parseMp4Meta(bytes)!;
+    expect(meta.width, 1080);
+    expect(meta.height, 1920);
+  });
   test('reads landscape geometry and duration from an MP4 header', () {
     final meta = parseMp4Meta(header(width: 1920, height: 1080));
 

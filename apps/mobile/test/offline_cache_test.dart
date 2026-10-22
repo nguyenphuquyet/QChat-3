@@ -42,6 +42,49 @@ class OfflineClient extends QChatClient {
 
 void main() {
   test(
+    'recall patches one message without resetting history or cursor',
+    () async {
+      final client = QChatClient()
+        ..local = LocalDatabase.testing(NativeDatabase.memory());
+      addTearDown(() async {
+        client.dispose();
+        await client.local!.close();
+      });
+      final rows = [
+        {
+          'id': 'a',
+          'clientId': 'ca',
+          'conversationId': 'chat',
+          'sequence': 1,
+          'text': 'keep',
+        },
+        {
+          'id': 'b',
+          'clientId': 'cb',
+          'conversationId': 'chat',
+          'sequence': 2,
+          'text': 'recall',
+          'mediaId': 'file',
+        },
+      ];
+      await client.local!.cache('messages:chat', rows);
+      await client.local!.cache('cursor:chat', 2);
+      client.confirmed['cb'] = Map<String, dynamic>.from(rows.last);
+      var reloads = 0;
+      final subscription = client.changes.stream.listen((_) => reloads++);
+      addTearDown(subscription.cancel);
+      await client.applyRecall('chat', 'b');
+      final visible = client.visibleMessages('chat', rows);
+      expect(visible.first['text'], 'keep');
+      expect(visible.last['text'], '');
+      expect(visible.last['mediaId'], isNull);
+      expect(visible.last['recalledAt'], isNotNull);
+      expect(await client.local!.read('cursor:chat'), 2);
+      expect((await client.local!.read('messages:chat') as List).length, 2);
+      expect(reloads, 0);
+    },
+  );
+  test(
     'cached data renders before HTTP finishes and fresh data is persisted',
     () async {
       final client = QChatClient()

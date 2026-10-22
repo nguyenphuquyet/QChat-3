@@ -36,6 +36,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final input = TextEditingController(), scroll = ScrollController();
   List<Map<String, dynamic>> messages = [];
   final selected = <String>{};
+  final recalling = <String>{};
   final messageKeys = <String, GlobalKey>{};
   String? highlightedMessage;
   bool locatingQuote = false;
@@ -85,9 +86,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             .visibleMessages(widget.id, messages);
         loading = false;
       });
-      if (nearEnd ||
-          (messages.length > previousCount &&
-              messages.last['pending'] == true)) {
+      if (messages.length > previousCount &&
+          (nearEnd || messages.last['pending'] == true)) {
         scrollToEnd();
       }
     });
@@ -453,8 +453,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         options: Options(headers: {'Content-Type': type}),
       );
       await client.post('/media/complete', {'mediaId': intent['id']});
-      if (type.startsWith('image/')) {
-        MediaCache.put(intent['id'], bytes, local: client.local);
+      if (type.startsWith('image/') || type.startsWith('video/')) {
+        await MediaCache.rememberMedia(
+          intent['id'],
+          bytes,
+          type,
+          local: client.local,
+        );
       }
       await client.send(
         widget.id,
@@ -740,15 +745,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         if (m['senderId'] == ref.read(clientProvider).userId &&
             created != null &&
             DateTime.now().difference(created).inSeconds < 120)
-          (
-            'recall',
-            TIcons.rollback,
-            () => operation(
-              () => ref
-                  .read(clientProvider)
-                  .post('/messages/${m['id']}/recall', {}),
-            ),
-          ),
+          ('recall', TIcons.rollback, () => recallMessage(m)),
       ],
     ];
     // The grid sizes itself from the room the popover actually gives it, so
@@ -759,41 +756,61 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             ? box.maxWidth
             : MediaQuery.sizeOf(c).width.clamp(0, 430) - 48;
         final tile = available / 4;
-        return Wrap(
-          alignment: WrapAlignment.center,
-          children: [
-            for (final a in actions)
-              SizedBox(
-                key: ValueKey('message-action-${a.$1}'),
-                width: tile,
-                height: 78,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () {
-                    TPopoverController.maybeOf(c)?.close();
-                    a.$3();
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TIcon(a.$2, size: 22, color: Colors.white),
-                      const SizedBox(height: 4),
-                      Text(
-                        tr(c, a.$1),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.white,
+        return Material(
+          color: Colors.transparent,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            children: [
+              for (final a in actions)
+                SizedBox(
+                  key: ValueKey('message-action-${a.$1}'),
+                  width: tile,
+                  height: 84,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      TPopoverController.maybeOf(c)?.close();
+                      a.$3();
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .08),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: TIcon(
+                              a.$2,
+                              size: 22,
+                              color: a.$1 == 'delete' || a.$1 == 'recall'
+                                  ? const Color(0xffffa4a4)
+                                  : Colors.white,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          tr(c, a.$1),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -811,6 +828,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       await load();
     } catch (e) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  Future<void> recallMessage(Map<String, dynamic> message) async {
+    final id = message['id'] as String;
+    if (!recalling.add(id)) return;
+    setState(() {});
+    try {
+      final client = ref.read(clientProvider);
+      final result = await client.post('/messages/$id/recall', {});
+      await client.applyRecall(
+        widget.id,
+        id,
+        at: result['recalledAt'] as String?,
+      );
+      if (mounted && reply == id) setState(() => reply = null);
+    } catch (_) {
+      if (mounted) {
+        await showQChatDialog<void>(
+          context,
+          message: tr(context, 'networkError'),
+          actions: [
+            QChatDialogAction(label: tr(context, 'confirm'), primary: true),
+          ],
+        );
+      }
+    } finally {
+      if (mounted) setState(() => recalling.remove(id));
     }
   }
 
@@ -951,7 +996,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             m['kind'] == 'VIDEO'),
                                     bubbleWrapper: (bubble) => GestureDetector(
                                       onLongPress: controller.open,
-                                      child: bubble,
+                                      child: Stack(
+                                        alignment: Alignment.center,
+                                        children: [
+                                          Opacity(
+                                            opacity: recalling.contains(m['id'])
+                                                ? .45
+                                                : 1,
+                                            child: bubble,
+                                          ),
+                                          if (recalling.contains(m['id']))
+                                            const SizedBox(
+                                              width: 16,
+                                              height: 16,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 1.5,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                     mine: mine,
                                     avatar: UserAvatar(

@@ -42,7 +42,7 @@ export async function authenticate(token: string) {
     !session ||
     session.userId !== payload.sub ||
     session.revokedAt ||
-    session.expiresAt <= new Date() ||
+    (session.expiresAt !== null && session.expiresAt <= new Date()) ||
     session.user.disabled
   )
     throw new ApiError(401, "SESSION_REVOKED");
@@ -59,38 +59,29 @@ export async function createSession(userId: string, deviceName: string) {
       userId,
       deviceName,
       refreshHash: digest(refreshToken),
-      expiresAt: new Date(Date.now() + 30 * 86400000),
+      expiresAt: null,
     },
   });
   return { accessToken: await accessToken(userId, s.id), refreshToken, userId };
 }
-export async function rotateSession(token: string) {
+export async function refreshSession(token: string) {
   const hash = digest(token);
-  const refreshToken = secretToken();
-  const result = await db.$transaction(async (tx) => {
-    const s = await tx.userSession.findFirst({
-      where: { OR: [{ refreshHash: hash }, { previousHash: hash }] },
-      include: { user: true },
-    });
-    if (!s || s.revokedAt || s.expiresAt <= new Date() || s.user.disabled)
-      return null;
-    if (s.previousHash === hash) {
-      await tx.userSession.update({
-        where: { id: s.id },
-        data: { revokedAt: new Date() },
-      });
-      return null;
-    }
-    const updated = await tx.userSession.updateMany({
-      where: { id: s.id, refreshHash: hash, revokedAt: null },
-      data: { refreshHash: digest(refreshToken), previousHash: hash },
-    });
-    return updated.count ? s : null;
+  // A retry after a lost response must not revoke the user's session.
+  // Keep the high-entropy refresh secret stable and store only its hash.
+  const result = await db.userSession.findUnique({
+    where: { refreshHash: hash },
+    include: { user: true },
   });
-  if (!result) throw new ApiError(401, "INVALID_REFRESH");
+  if (
+    !result ||
+    result.revokedAt ||
+    result.user.disabled ||
+    (result.expiresAt !== null && result.expiresAt <= new Date())
+  )
+    throw new ApiError(401, "INVALID_REFRESH");
   return {
     accessToken: await accessToken(result.userId, result.id),
-    refreshToken,
+    refreshToken: token,
     userId: result.userId,
   };
 }

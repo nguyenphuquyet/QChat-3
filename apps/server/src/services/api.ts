@@ -96,15 +96,20 @@ export async function handle(request: Request) {
           result = { ok: true };
         }
         if (path[1] === "sessions" && method === "GET")
-          result = (await db.userSession.findMany({
-            where: { userId, revokedAt: null },
-            select: {
-              id: true,
-              deviceName: true,
-              createdAt: true,
-              expiresAt: true,
-            },
-          })).map((session) => ({ ...session, current: session.id === sessionId }));
+          result = (
+            await db.userSession.findMany({
+              where: { userId, revokedAt: null },
+              select: {
+                id: true,
+                deviceName: true,
+                createdAt: true,
+                expiresAt: true,
+              },
+            })
+          ).map((session) => ({
+            ...session,
+            current: session.id === sessionId,
+          }));
         if (path[1] === "sessions" && path[2] && method === "DELETE") {
           await db.userSession.updateMany({
             where: { id: uuid.parse(path[2]), userId },
@@ -186,14 +191,87 @@ export async function handle(request: Request) {
         break;
       case "admin":
         requireCondition(auth.role === "ADMIN");
-        if (method === "GET" && path[1] === "stats")
+        if (method === "GET" && path[1] === "stats") {
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0);
+          const activity = await Promise.all(
+            Array.from({ length: 7 }, async (_, i) => {
+              const start = new Date(today.getTime() - (6 - i) * 86400000);
+              const end = new Date(start.getTime() + 86400000);
+              return {
+                date: start.toISOString(),
+                messages: await db.message.count({
+                  where: { createdAt: { gte: start, lt: end } },
+                }),
+              };
+            }),
+          );
           result = {
             users: await db.user.count(),
             messages: await db.message.count(),
+            conversations: await db.conversation.count(),
+            disabledUsers: await db.user.count({ where: { disabled: true } }),
+            pendingReports: await db.report.count({
+              where: { status: "OPEN" },
+            }),
+            activeSessions: await db.userSession.count({
+              where: {
+                revokedAt: null,
+                user: { disabled: false },
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+              },
+            }),
+            activity,
             storage:
               (await db.media.aggregate({ _sum: { size: true } }))._sum.size ??
               0,
           };
+        }
+        if (method === "GET" && path[1] === "users") {
+          const page = z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(100000)
+            .parse(url.searchParams.get("page") ?? 1);
+          const query = z
+            .string()
+            .max(100)
+            .parse(url.searchParams.get("q") ?? "")
+            .trim();
+          const where = query
+            ? {
+                OR: [
+                  {
+                    qchatId: { contains: query, mode: "insensitive" as const },
+                  },
+                  {
+                    nickname: { contains: query, mode: "insensitive" as const },
+                  },
+                  { email: { contains: query, mode: "insensitive" as const } },
+                ],
+              }
+            : {};
+          const [items, total] = await Promise.all([
+            db.user.findMany({
+              where,
+              skip: (page - 1) * 20,
+              take: 20,
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                qchatId: true,
+                nickname: true,
+                email: true,
+                role: true,
+                disabled: true,
+                createdAt: true,
+              },
+            }),
+            db.user.count({ where }),
+          ]);
+          result = { items, total, page, pageSize: 20 };
+        }
         if (method === "GET" && path[1] === "reports")
           result = await db.report.findMany({
             take: 100,

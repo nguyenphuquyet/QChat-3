@@ -45,7 +45,7 @@ model UserSession {
   refreshHash String @unique
   previousHash String? @unique
   deviceName String
-  expiresAt DateTime
+  expiresAt DateTime?
   revokedAt DateTime?
   createdAt DateTime @default(now())
   @@index([userId,revokedAt])

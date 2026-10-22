@@ -24,6 +24,18 @@ ThemeData qchatTheme(bool dark) {
     extensions: [
       defaultTheme,
       const TSearchBarThemeData(height: 36),
+      TPopoverThemeData(
+        backgroundColor: const Color(0xff25282d),
+        borderRadius: BorderRadius.circular(20),
+        padding: const EdgeInsets.all(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: .20),
+            blurRadius: 24,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
       TDialogThemeData(
         backgroundColor: dark ? const Color(0xff202020) : Colors.white,
         shape: RoundedRectangleBorder(

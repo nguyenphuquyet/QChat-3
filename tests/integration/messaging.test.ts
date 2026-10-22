@@ -148,14 +148,19 @@ test(
         refreshToken: a.refreshToken,
       });
       assert.equal(refresh.status, 200);
+      assert.equal(refresh.data.refreshToken, a.refreshToken);
       assert.equal(
         (
           await request("/auth/refresh", "POST", {
             refreshToken: a.refreshToken,
           })
         ).status,
-        401,
+        200,
       );
+      assert.equal((await request('/auth/logout', 'POST', {}, refresh.data.accessToken)).status, 200);
+      assert.equal((await request('/auth/refresh', 'POST', {
+        refreshToken: a.refreshToken,
+      })).status, 401);
       assert.equal(
         (await request("/users/me", "GET", undefined, refresh.data.accessToken))
           .status,

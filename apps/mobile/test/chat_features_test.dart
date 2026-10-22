@@ -274,6 +274,19 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+  testWidgets('recall keeps the conversation loaded', (tester) async {
+    final client = FakeClient();
+    await mount(tester, client, const ChatScreen(id: 'chat'));
+    final loads = client.calls.where((p) => p == '/conversations/chat').length;
+    await tester.longPress(find.text('Xin chào'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('message-action-recall')));
+    await tester.pumpAndSettle();
+    expect(client.calls, contains('/messages/message/recall'));
+    expect(client.calls.where((p) => p == '/conversations/chat').length, loads);
+    expect(find.text('Xin chào'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('video preview keeps the real shape while it loads', (
     tester,
   ) async {

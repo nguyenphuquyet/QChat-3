@@ -107,7 +107,7 @@ Future<String> uploadMedia(QChatClient client, PlatformFile file) async {
     );
     await client.post('/media/complete', {'mediaId': intent['id']});
     final mediaId = intent['id'] as String;
-    MediaCache.put(mediaId, bytes, local: client.local);
+    await MediaCache.rememberMedia(mediaId, bytes, mime, local: client.local);
     return mediaId;
   } finally {
     uploader.close();

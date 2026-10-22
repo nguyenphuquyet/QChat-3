@@ -143,6 +143,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               style: const TextStyle(fontSize: 13, color: QChatColors.muted),
             ),
             const SizedBox(height: 40),
+            ValueListenableBuilder<bool>(
+              valueListenable: ref.read(clientProvider).sessionExpired,
+              builder: (c, expired, _) => expired
+                  ? Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        tr(c, 'sessionExpired'),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             QChatTextInput(
               controller: identifier,
               hint: register ? 'QChat ID' : tr(c, 'identifier'),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -8,18 +9,71 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/network/client.dart';
 import '../../core/storage/database.dart';
+import '../network/video_meta.dart';
 import 'components.dart';
 
 class MediaCache {
   static final Map<String, Uint8List> _memory = {};
   static final Map<String, Future<Uint8List?>> _inFlight = {};
   static const int maxMemoryEntries = 250;
+  static const int maxMemoryBytes = 64 * 1024 * 1024;
+  static final Map<String, Map<String, dynamic>> _info = {};
+
+  static Map<String, dynamic>? infoFromMemory(String id) => _info[id];
+
+  static Future<Map<String, dynamic>?> info(
+    QChatClient client,
+    String id,
+  ) async {
+    if (_info.containsKey(id)) return _info[id];
+    final stored = await client.local?.read('media_info:$id');
+    if (stored is Map) return _info[id] = Map<String, dynamic>.from(stored);
+    return null;
+  }
+
+  static Future<void> rememberMedia(
+    String id,
+    Uint8List bytes,
+    String mime, {
+    LocalDatabase? local,
+  }) async {
+    put(id, bytes);
+    final details = <String, dynamic>{'mime': mime};
+    try {
+      if (mime.startsWith('image/')) {
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        details.addAll({
+          'width': frame.image.width,
+          'height': frame.image.height,
+        });
+        frame.image.dispose();
+        codec.dispose();
+      } else if (mime.startsWith('video/')) {
+        final meta = parseMp4Meta(bytes);
+        if (meta != null) {
+          details.addAll(meta.toJson());
+          VideoMetaCache.remember(id, meta, local: local);
+        }
+      }
+    } catch (_) {}
+    _info[id] = details;
+    try {
+      await local?.cache('media_bytes:$id', base64Encode(bytes));
+      await local?.cache('media_info:$id', details);
+    } catch (_) {}
+  }
 
   static Uint8List? getFromMemory(String id) => _memory[id];
 
   static void put(String id, Uint8List bytes, {LocalDatabase? local}) {
     if (id.isEmpty || bytes.isEmpty) return;
-    if (_memory.length >= maxMemoryEntries) {
+    _memory.remove(id);
+    while (_memory.isNotEmpty &&
+        (_memory.length >= maxMemoryEntries ||
+            _memory.values.fold<int>(0, (sum, item) => sum + item.length) +
+                    bytes.length >
+                maxMemoryBytes)) {
       _memory.remove(_memory.keys.first);
     }
     _memory[id] = bytes;
@@ -40,6 +94,7 @@ class MediaCache {
   static void clear() {
     _memory.clear();
     _inFlight.clear();
+    _info.clear();
   }
 
   static Future<Uint8List?> load(QChatClient client, String id) {
@@ -64,17 +119,14 @@ class MediaCache {
       final disk = await client.local?.read('media_bytes:$id');
       if (disk is String && disk.isNotEmpty) {
         final bytes = base64Decode(disk);
-        if (_memory.length >= maxMemoryEntries) {
-          _memory.remove(_memory.keys.first);
-        }
-        _memory[id] = bytes;
+        put(id, bytes);
         return bytes;
       }
     } catch (_) {}
 
     // 2. Load access URL and bytes from server
     try {
-      final access = await client.get('/media/$id/access', cached: true);
+      final access = await client.get('/media/$id/access', cached: false);
       if (access is Map && access['url'] != null) {
         final url = access['url'].toString();
         final response = await client.dio.get<List<int>>(
@@ -88,7 +140,12 @@ class MediaCache {
         final data = response.data;
         if (data != null && data.isNotEmpty) {
           final bytes = Uint8List.fromList(data);
-          put(id, bytes, local: client.local);
+          await rememberMedia(
+            id,
+            bytes,
+            access['mime']?.toString() ?? '',
+            local: client.local,
+          );
           return bytes;
         }
       }

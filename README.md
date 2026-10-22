@@ -47,6 +47,22 @@ Register two real accounts, send and accept a friend request, then open the frie
 
 ## Automatic builds (GitHub Actions)
 
+The server root opens the admin console at `/admin`. It uses Tailwind CSS,
+self-hosted Manrope and Lucide icons. An existing account with the `ADMIN` role
+can view real metrics, search users, lock/unlock accounts, resolve reports and
+review the audit trail. Private message bodies are not exposed.
+
+Mobile sessions now remain valid until logout or administrative/security
+revocation. Access tokens still expire after 10 minutes and renew with the
+session's stable, server-hashed refresh secret. Valid existing sessions migrate
+to non-expiring sessions; already expired/revoked sessions require one new login.
+Retrying a refresh after a dropped response no longer revokes the session.
+
+Chat attachments cache their bytes and geometry in the account's local cache.
+Videos reuse those bytes for the thumbnail and full-screen player; native players
+use a temporary file that is removed on disposal. Clear storage in app settings
+to remove the persistent media cache. The in-memory media cache is capped at 64 MB.
+
 Two independent workflows run on pushes to `main`, pull requests that change their
 respective paths, or manually from **Actions → Run workflow**:
 
@@ -57,6 +73,10 @@ respective paths, or manually from **Actions → Run workflow**:
   The macOS job builds with `flutter build ios --release --no-codesign` and packages
   `Payload/Runner.app` as `qchat-unsigned.ipa`. No Apple certificate or provisioning
   profile is required to build; the IPA must be signed before installation on an iPhone.
+  Emulator builds are also available as `qchat-android-emulator-<commit>` (debug APK
+  for x64/ARM64) and `qchat-ios-simulator-<commit>` (`qchat-ios-simulator.zip`
+  containing `Runner.app`, for iOS Simulator/Appetize). Use the simulator ZIP,
+  not the device IPA, when uploading an iOS build to Appetize.
   Linux runs the UI rendering tests; pixel golden comparisons currently run only on Windows.
 - **Server** (`.github/workflows/server.yml`): Node 24 / pnpm 10.11.0, Prisma generation,
   TypeScript checks (including realtime), unit tests, and a Docker build that runs

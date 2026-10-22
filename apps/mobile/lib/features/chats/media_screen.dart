@@ -6,6 +6,8 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../../core/network/cached_video.dart';
+import '../../core/network/client.dart';
 
 /// Immersive, chrome-free image and video viewer.
 class MediaScreen extends ConsumerStatefulWidget {
@@ -31,6 +33,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   }
 
   Future<Map<String, dynamic>> _load() async {
+    final client = ref.read(clientProvider);
+    final cached = await MediaCache.info(client, widget.id);
+    if (cached != null) return cached;
     final data = await ref
         .read(clientProvider)
         .get('/media/${widget.id}/access', cached: false);
@@ -84,7 +89,11 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
                 final data = s.data!;
                 final mime = data['mime'] as String? ?? '';
                 return mime.startsWith('video/')
-                    ? VideoMedia(url: data['url']?.toString() ?? '')
+                    ? VideoMedia(
+                        url: data['url']?.toString() ?? '',
+                        mediaId: widget.id,
+                        client: ref.read(clientProvider),
+                      )
                     : _ImageViewer(id: widget.id);
               },
             ),
@@ -220,8 +229,16 @@ class _ViewerMessage extends StatelessWidget {
 }
 
 class VideoMedia extends StatefulWidget {
-  const VideoMedia({super.key, required this.url, this.heroTag});
+  const VideoMedia({
+    super.key,
+    required this.url,
+    this.heroTag,
+    this.mediaId,
+    this.client,
+  });
   final String url;
+  final String? mediaId;
+  final QChatClient? client;
   final String? heroTag;
   @override
   State<VideoMedia> createState() => _VideoMediaState();
@@ -229,6 +246,7 @@ class VideoMedia extends StatefulWidget {
 
 class _VideoMediaState extends State<VideoMedia> {
   VideoPlayerController? controller;
+  CachedVideo? cachedVideo;
   final speedKey = GlobalKey();
   bool failed = false;
   double speed = 1;
@@ -240,10 +258,21 @@ class _VideoMediaState extends State<VideoMedia> {
   }
 
   Future<void> start() async {
-    final created = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    controller = created;
     try {
+      if (widget.mediaId != null && widget.client != null) {
+        final source = await CachedVideo.load(widget.client!, widget.mediaId!);
+        if (!mounted) {
+          await source.dispose();
+          return;
+        }
+        cachedVideo = source;
+      }
+      final created =
+          cachedVideo?.controller ??
+          VideoPlayerController.networkUrl(Uri.parse(widget.url));
+      controller = created;
       await created.initialize();
+      if (!mounted) return;
       await created.setLooping(true);
       await created.play();
       if (mounted) setState(() {});
@@ -254,7 +283,11 @@ class _VideoMediaState extends State<VideoMedia> {
 
   @override
   void dispose() {
-    controller?.dispose();
+    if (cachedVideo != null) {
+      cachedVideo!.dispose();
+    } else {
+      controller?.dispose();
+    }
     super.dispose();
   }
 

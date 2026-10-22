@@ -6,6 +6,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
 import 'package:uuid/uuid.dart';
 import '../storage/database.dart';
+import '../design_system/media_widgets.dart';
+import 'video_meta.dart';
 
 const apiUrl = String.fromEnvironment(
   'API_URL',
@@ -25,8 +27,17 @@ class QChatClient {
     ),
   );
   final storage = const FlutterSecureStorage();
+  final refreshDio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 10),
+    ),
+  );
+  final sessionExpired = ValueNotifier<bool>(false);
   final changes = StreamController<void>.broadcast();
   final messageChanges = StreamController<void>.broadcast(sync: true);
+  final recalls = StreamController<String>.broadcast();
+  final Map<String, String> recalled = {};
   final Map<String, Map<String, dynamic>> outgoing = {};
   final Map<String, Map<String, dynamic>> confirmed = {};
   final Map<String, Map<String, int>> receipts = {};
@@ -62,7 +73,9 @@ class QChatClient {
   }
 
   Future<void> reconnect() async {
-    if (_reconnecting || userId == null || stopping) return;
+    if (_reconnecting || userId == null || stopping || sessionExpired.value) {
+      return;
+    }
     _reconnecting = true;
     try {
       await refresh();
@@ -131,6 +144,15 @@ class QChatClient {
       data: data,
     );
     await save(Map<String, dynamic>.from(response.data));
+    MediaCache.clear();
+    VideoMetaCache.clear();
+    await local?.close();
+    outgoing.clear();
+    confirmed.clear();
+    receipts.clear();
+    clearedSequences.clear();
+    recalled.clear();
+    _checked.clear();
     local = LocalDatabase(userId!);
     connect();
   }
@@ -140,6 +162,7 @@ class QChatClient {
     userId = data['userId'];
     await storage.write(key: 'refreshToken', value: data['refreshToken']);
     await storage.write(key: 'userId', value: userId);
+    sessionExpired.value = false;
   }
 
   Future<void> refresh() async {
@@ -147,21 +170,38 @@ class QChatClient {
     refreshing = _refresh();
     try {
       await refreshing;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 401) _expireSession();
+      rethrow;
+    } on StateError {
+      _expireSession();
+      rethrow;
     } finally {
       refreshing = null;
     }
   }
 
   Future<void> _refresh() async {
+    if (sessionExpired.value) throw StateError('Session expired');
     final refresh = await storage.read(key: 'refreshToken');
     if (refresh == null) throw StateError('Session expired');
-    final r = await Dio(
-      BaseOptions(
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
-      ),
-    ).post('$apiUrl/auth/refresh', data: {'refreshToken': refresh});
+    final r = await refreshDio.post(
+      '$apiUrl/auth/refresh',
+      data: {'refreshToken': refresh},
+    );
     await save(Map<String, dynamic>.from(r.data));
+  }
+
+  void _expireSession() {
+    stopping = true;
+    _recovery?.cancel();
+    _recovery = null;
+    socket?.dispose();
+    socket = null;
+    token = null;
+    offline.value = false;
+    // Preserve the account's local history and outbox for reauthentication.
+    sessionExpired.value = true;
   }
 
   void connect() {
@@ -219,21 +259,7 @@ class QChatClient {
       });
     }
     socket!.on('message:recall', (event) async {
-      _checked.clear();
-      confirmed.removeWhere((_, m) => m['id'] == event['id']);
-      final key = 'messages:${event['conversationId']}';
-      final rows = await local?.read(key);
-      if (rows is List) {
-        for (final row in rows) {
-          if (row['id'] == event['id']) {
-            row['text'] = '';
-            row['mediaId'] = null;
-            row['recalledAt'] = DateTime.now().toIso8601String();
-          }
-        }
-        await local?.cache(key, rows);
-      }
-      changes.add(null);
+      await applyRecall(event['conversationId'], event['id']);
     });
     socket!.onDisconnect((_) async {
       if (stopping) return;
@@ -245,6 +271,44 @@ class QChatClient {
       } catch (_) {}
     });
     socket!.connect();
+  }
+
+  Future<void> applyRecall(
+    String conversationId,
+    String id, {
+    String? at,
+  }) async {
+    recalled[id] = at ?? recalled[id] ?? DateTime.now().toIso8601String();
+    _checked.remove('/conversations');
+    messageChanges.add(null);
+    final database = local;
+    try {
+      await database?.transaction(() async {
+        final key = 'messages:$conversationId';
+        final rows = await database.read(key);
+        if (rows is List) {
+          await database.cache(key, [
+            for (final row in rows) _withRecall(Map<String, dynamic>.from(row)),
+          ]);
+        }
+        await database.removeCache('/conversations');
+      });
+    } catch (_) {
+      // Keep the acknowledged recall visible even if disk storage fails.
+    }
+    recalls.add(conversationId);
+  }
+
+  Map<String, dynamic> _withRecall(Map<String, dynamic> message) {
+    final at = recalled[message['id']];
+    if (at == null) return message;
+    return {
+      ...message,
+      'text': '',
+      'mediaId': null,
+      'media': null,
+      'recalledAt': at,
+    };
   }
 
   Future<dynamic> get(String path, {bool cached = true}) async {
@@ -416,7 +480,7 @@ class QChatClient {
       if (m['conversationId'] == id &&
           (m['sequence'] == null ||
               (m['sequence'] as int) > (clearedSequences[id] ?? 0))) {
-        rows[m['clientId'] ?? m['id']] = m;
+        rows[m['clientId'] ?? m['id']] = _withRecall(m);
       }
     }
     final result = rows.values.toList();
@@ -552,7 +616,7 @@ class QChatClient {
         }
         if (batch.length < 50) break;
       }
-      await local!.mergeMessages(id, old);
+      await local!.mergeMessages(id, old.map(_withRecall).toList());
       await local!.cache('cursor:$id', cursor);
       for (final m in old) {
         if (outgoing.containsKey(m['clientId'])) {
@@ -584,11 +648,18 @@ class QChatClient {
   }
 
   Future<void> logout() async {
-    await post('/auth/logout', {});
+    try {
+      await post('/auth/logout', {});
+    } on DioException catch (e) {
+      if (e.response?.statusCode != 401) rethrow;
+    }
     await clearSession();
   }
 
   Future<void> clearSession() async {
+    MediaCache.clear();
+    VideoMetaCache.clear();
+    recalled.clear();
     clearedSequences.clear();
     stopping = true;
     _recovery?.cancel();
@@ -614,5 +685,6 @@ class QChatClient {
     _recovery?.cancel();
     socket?.dispose();
     dio.close(force: true);
+    refreshDio.close(force: true);
   }
 }
