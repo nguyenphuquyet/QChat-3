@@ -94,6 +94,19 @@ const buttonStyle =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold transition hover:bg-slate-50 disabled:opacity-50";
 const primaryStyle =
   "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50";
+const sessionKey = "qchat-admin-session";
+function storedSession(): Session | null {
+  try {
+    const saved = window.sessionStorage.getItem(sessionKey);
+    if (!saved) return null;
+    const value = JSON.parse(saved) as Partial<Session>;
+    return value.accessToken && value.refreshToken && value.userId
+      ? (value as Session)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 function Card({
   children,
@@ -166,6 +179,7 @@ export default function Dashboard() {
   const session = useRef<Session | null>(null);
   const refreshing = useRef<Promise<void> | null>(null);
   const [signedIn, setSignedIn] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [section, setSection] = useState<Section>("overview");
@@ -216,11 +230,16 @@ export default function Dashboard() {
           if (!refresh.ok) {
             if (refresh.status === 401) {
               session.current = null;
+              window.sessionStorage.removeItem(sessionKey);
               setSignedIn(false);
             }
             throw new Error("INVALID_REFRESH");
           }
           session.current = await refresh.json();
+          window.sessionStorage.setItem(
+            sessionKey,
+            JSON.stringify(session.current),
+          );
         })().finally(() => {
           refreshing.current = null;
         });
@@ -277,6 +296,31 @@ export default function Dashboard() {
     }
   }
   useEffect(() => {
+    const saved = storedSession();
+    if (!saved) {
+      setRestoring(false);
+      return;
+    }
+    session.current = saved;
+    let active = true;
+    void (async () => {
+      try {
+        await api("/admin/stats");
+        if (active) setSignedIn(true);
+      } catch {
+        if (!active) return;
+        session.current = null;
+        window.sessionStorage.removeItem(sessionKey);
+        setSignedIn(false);
+      } finally {
+        if (active) setRestoring(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
     if (signedIn) void load();
   }, [signedIn, section, page, search]);
 
@@ -300,6 +344,7 @@ export default function Dashboard() {
         throw e;
       }
       setPassword("");
+      window.sessionStorage.setItem(sessionKey, JSON.stringify(data));
       setSignedIn(true);
       setSection("overview");
     } catch (e) {
@@ -314,6 +359,7 @@ export default function Dashboard() {
       await api("/auth/logout", "POST", {});
       revision.current++;
       session.current = null;
+      window.sessionStorage.removeItem(sessionKey);
       setSignedIn(false);
       setStats(null);
       setUsers([]);
@@ -350,6 +396,13 @@ export default function Dashboard() {
   }
   const currentNav = navigation.find((item) => item.id === section)!;
   const openReports = reports.filter((row) => row.status === "OPEN");
+
+  if (restoring)
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f6f8f7]">
+        <Spinner label="Đang khôi phục phiên đăng nhập" />
+      </main>
+    );
 
   if (!signedIn)
     return (
