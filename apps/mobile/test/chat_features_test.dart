@@ -3,7 +3,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
-import 'package:tdesign_flutter/src/components/popover/t_popover_widget.dart'; // ignore: implementation_imports
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
@@ -227,51 +226,49 @@ void main() {
     expect(find.text('Thành viên'), findsOneWidget);
     expect(find.text('Giải tán nhóm'), findsNothing);
   });
-  testWidgets('long press opens anchored actions and selection', (
+  testWidgets('long press opens the message action sheet and selection', (
     tester,
   ) async {
     await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
     await tester.longPress(find.text('Xin chào'));
     await tester.pumpAndSettle();
-    expect(find.byType(TPopoverWidget), findsOneWidget);
+    expect(find.byKey(const Key('message-actions-sheet')), findsOneWidget);
     expect(find.text('Chuyển tiếp'), findsOneWidget);
     expect(find.text('Trích dẫn'), findsOneWidget);
     await tester.tap(find.text('Chọn'));
     await tester.pumpAndSettle();
-    expect(find.byType(TPopoverWidget), findsNothing);
+    expect(find.byKey(const Key('message-actions-sheet')), findsNothing);
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('message action grid fills the popover evenly', (tester) async {
+  testWidgets('message action sheet stacks full-width rows', (tester) async {
     await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
     await tester.longPress(find.text('Xin chào'));
     await tester.pumpAndSettle();
-    final panel = tester.getRect(find.byKey(const Key('t-popover-content')));
+    final sheet = tester.getRect(find.byKey(const Key('message-actions-sheet')));
     Rect action(String key) =>
         tester.getRect(find.byKey(ValueKey('message-action-$key')));
     final screenWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
-    expect(panel.left, closeTo(screenWidth - panel.right, 0.5));
-    // Both ends of the first row keep the same inset from the panel.
-    expect(
-      action('copy').left - panel.left,
-      closeTo(panel.right - action('delete').right, 0.5),
-    );
-    // The shorter second row stays centered under that same grid.
-    final step = action('copy').width;
-    expect(
-      action('forward').center.dx - action('copy').center.dx,
-      closeTo(step, 0.5),
-    );
-    expect(
-      action('favorites').center.dx - action('forward').center.dx,
-      closeTo(step, 0.5),
-    );
-    // The next row starts on the same column as the first one.
-    expect(
-      action('selectMessages').center.dx,
-      closeTo(action('copy').center.dx, 0.5),
-    );
+    expect(sheet.left, closeTo(screenWidth - sheet.right, 0.5));
+    // Every row shares the same full-width inset and stays inside the sheet.
+    for (final key in [
+      'quoteMessage',
+      'copy',
+      'forward',
+      'favorites',
+      'search',
+      'selectMessages',
+      'delete',
+    ]) {
+      expect(action(key).left, closeTo(action('quoteMessage').left, 0.5));
+      expect(action(key).right, closeTo(action('quoteMessage').right, 0.5));
+      expect(action(key).top, greaterThanOrEqualTo(sheet.top));
+      expect(action(key).bottom, lessThanOrEqualTo(sheet.bottom));
+    }
+    // Rows are stacked, not packed into columns.
+    expect(action('copy').top, greaterThan(action('quoteMessage').top));
+    expect(action('delete').top, greaterThan(action('search').top));
     expect(tester.takeException(), isNull);
   });
   testWidgets('recall keeps the conversation loaded', (tester) async {

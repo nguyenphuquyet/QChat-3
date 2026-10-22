@@ -15,6 +15,7 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 import 'message_status.dart';
+import 'message_actions_sheet.dart';
 import 'chat_composer.dart';
 import 'attachment_preview.dart';
 import 'message_attachment.dart';
@@ -691,21 +692,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  Widget menu(Map<String, dynamic> m) {
+  void openMessageMenu(Map<String, dynamic> m) {
     final sent = m['pending'] != true && m['recalledAt'] == null;
     final created = DateTime.tryParse(m['createdAt']?.toString() ?? '');
-    final actions = <(String, IconData, VoidCallback)>[
-      (
-        'copy',
-        TIcons.copy,
-        () => Clipboard.setData(ClipboardData(text: m['text'] ?? '')),
-      ),
+    final text = (m['text'] ?? '').toString().trim();
+    final preview = m['recalledAt'] != null
+        ? tr(context, 'recalled')
+        : text.isNotEmpty
+        ? text
+        : switch (m['kind']) {
+            'IMAGE' => tr(context, 'image'),
+            'VIDEO' => tr(context, 'video'),
+            'AUDIO' => tr(context, 'audio'),
+            'FILE' => tr(context, 'file'),
+            _ => '',
+          };
+    final actions = <MessageAction>[
+      if (sent)
+        MessageAction(
+          id: 'quoteMessage',
+          icon: TIcons.quote,
+          label: tr(context, 'quoteMessage'),
+          onTap: () {
+            setState(() => reply = m['id']);
+            inputFocus.requestFocus();
+          },
+        ),
+      if (text.isNotEmpty)
+        MessageAction(
+          id: 'copy',
+          icon: TIcons.copy,
+          label: tr(context, 'copy'),
+          onTap: () => Clipboard.setData(ClipboardData(text: text)),
+        ),
       if (sent) ...[
-        ('forward', TIcons.share, () => forward([m])),
-        (
-          'favorites',
-          TIcons.star,
-          () => operation(
+        MessageAction(
+          id: 'forward',
+          icon: TIcons.share,
+          label: tr(context, 'forward'),
+          onTap: () => forward([m]),
+        ),
+        MessageAction(
+          id: 'favorites',
+          icon: TIcons.star,
+          label: tr(context, 'favorites'),
+          onTap: () => operation(
             () => ref
                 .read(clientProvider)
                 .dio
@@ -715,105 +746,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
           ),
         ),
-        ('delete', TIcons.delete, () => deleteMessages([m])),
-        (
-          'selectMessages',
-          TIcons.check_rectangle,
-          () => setState(() {
-            selecting = true;
-            selected.add(m['id']);
-          }),
-        ),
-        (
-          'quoteMessage',
-          TIcons.quote,
-          () {
-            setState(() => reply = m['id']);
-            inputFocus.requestFocus();
-          },
-        ),
-        (
-          'search',
-          TIcons.search,
-          () => Navigator.of(context).push(
+        MessageAction(
+          id: 'search',
+          icon: TIcons.search,
+          label: tr(context, 'search'),
+          onTap: () => Navigator.of(context).push(
             CupertinoPageRoute<void>(
               builder: (_) =>
                   ChatHistoryScreen(id: widget.id, query: m['text'] ?? ''),
             ),
           ),
         ),
+        MessageAction(
+          id: 'selectMessages',
+          icon: TIcons.check_rectangle,
+          label: tr(context, 'selectMessages'),
+          onTap: () => setState(() {
+            selecting = true;
+            selected.add(m['id']);
+          }),
+        ),
         if (m['senderId'] == ref.read(clientProvider).userId &&
             created != null &&
             DateTime.now().difference(created).inSeconds < 120)
-          ('recall', TIcons.rollback, () => recallMessage(m)),
+          MessageAction(
+            id: 'recall',
+            icon: TIcons.rollback,
+            label: tr(context, 'recall'),
+            destructive: true,
+            onTap: () => recallMessage(m),
+          ),
+        MessageAction(
+          id: 'delete',
+          icon: TIcons.delete,
+          label: tr(context, 'delete'),
+          destructive: true,
+          onTap: () => deleteMessages([m]),
+        ),
       ],
     ];
-    // The grid sizes itself from the room the popover actually gives it, so
-    // four columns fill the panel evenly instead of drifting to one side.
-    return LayoutBuilder(
-      builder: (c, box) {
-        final available = box.maxWidth.isFinite && box.maxWidth > 0
-            ? box.maxWidth
-            : MediaQuery.sizeOf(c).width.clamp(0, 430) - 48;
-        final tile = available / 4;
-        return Material(
-          color: Colors.transparent,
-          child: Wrap(
-            alignment: WrapAlignment.center,
-            children: [
-              for (final a in actions)
-                SizedBox(
-                  key: ValueKey('message-action-${a.$1}'),
-                  width: tile,
-                  height: 84,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(14),
-                    onTap: () {
-                      TPopoverController.maybeOf(c)?.close();
-                      a.$3();
-                    },
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: .08),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Center(
-                            child: TIcon(
-                              a.$2,
-                              size: 22,
-                              color: a.$1 == 'delete' || a.$1 == 'recall'
-                                  ? const Color(0xffffa4a4)
-                                  : Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          tr(c, a.$1),
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
+    if (actions.isEmpty) return;
+    showMessageActionSheet(context, preview: preview, actions: actions);
   }
 
   Future<void> operation(Future<dynamic> Function() fn) async {
@@ -978,24 +951,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       color: QChatColors.green,
                                     ),
                                   ),
-                                TPopoverAnchor(
-                                  content: menu(m),
-                                  // Anchoring the whole row keeps the menu centred
-                                  // with equal margins; anchoring the bubble
-                                  // alone pinned it to the nearest screen edge.
-                                  placement: TPopoverPlacement.bottom,
-                                  width:
-                                      MediaQuery.sizeOf(c).width.clamp(0, 430) -
-                                      32,
-                                  showArrow: false,
-                                  builder: (_, controller, _) => QChatChatBubble(
+                                QChatChatBubble(
                                     bareMedia:
                                         m['mediaId'] != null &&
                                         m['recalledAt'] == null &&
                                         (m['kind'] == 'IMAGE' ||
                                             m['kind'] == 'VIDEO'),
                                     bubbleWrapper: (bubble) => GestureDetector(
-                                      onLongPress: controller.open,
+                                      onLongPress: () => openMessageMenu(m),
                                       child: Stack(
                                         alignment: Alignment.center,
                                         children: [
@@ -1095,7 +1058,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                           ),
                                       ],
                                     ),
-                                  ),
                                 ),
                                 if (i == lastOutgoing)
                                   MessageStatus(
