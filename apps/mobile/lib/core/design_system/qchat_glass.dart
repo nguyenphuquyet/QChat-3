@@ -4,9 +4,18 @@ import 'components.dart';
 
 /// A restrained glass surface; clip the filter to the bar, never the full page.
 class QChatGlass extends StatelessWidget {
-  const QChatGlass({super.key, required this.child, this.topBorder = false});
+  const QChatGlass({
+    super.key,
+    required this.child,
+    this.topBorder = false,
+    this.border = true,
+  });
   final Widget child;
   final bool topBorder;
+
+  /// When false the surface draws no hairline, so two glass bars can stack
+  /// without a visible seam.
+  final bool border;
 
   @override
   Widget build(BuildContext context) => ClipRect(
@@ -15,20 +24,22 @@ class QChatGlass extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: navigationSurface(context).withValues(alpha: .84),
-          border: Border(
-            top: topBorder
-                ? BorderSide(
-                    color: ink(context).withValues(alpha: .07),
-                    width: .5,
-                  )
-                : BorderSide.none,
-            bottom: topBorder
-                ? BorderSide.none
-                : BorderSide(
-                    color: ink(context).withValues(alpha: .05),
-                    width: .5,
-                  ),
-          ),
+          border: border
+              ? Border(
+                  top: topBorder
+                      ? BorderSide(
+                          color: ink(context).withValues(alpha: .07),
+                          width: .5,
+                        )
+                      : BorderSide.none,
+                  bottom: topBorder
+                      ? BorderSide.none
+                      : BorderSide(
+                          color: ink(context).withValues(alpha: .05),
+                          width: .5,
+                        ),
+                )
+              : null,
         ),
         child: child,
       ),

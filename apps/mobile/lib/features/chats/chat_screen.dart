@@ -58,7 +58,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   int wallpaperRequest = 0;
   bool wallpaperLoaded = false;
   final inputFocus = FocusNode();
+  final composerKey = GlobalKey();
   double keyboardHeight = 0;
+  double composerHeight = 56;
   Timer? panelTimer;
   @override
   void initState() {
@@ -68,12 +70,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (mounted) setState(() {});
       settlePanels();
     });
+    // Only refresh the read marker here. Reloading from the scroll listener
+    // used to jump the list back to the bottom while the user was dragging
+    // away from it, which felt like the list kept snapping.
     scroll.addListener(() {
-      if (!locatingQuote &&
-          scroll.hasClients &&
-          scroll.position.pixels < 20 &&
-          messages.any((m) => (m['sequence'] as int? ?? 0) > readSequence)) {
-        load();
+      if (!locatingQuote && scroll.hasClients && scroll.position.pixels < 40) {
+        markRead();
       }
     });
     load();
@@ -82,7 +84,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     });
     messageUpdates = ref.read(clientProvider).messageChanges.stream.listen((_) {
       if (!mounted) return;
-      final nearEnd = !scroll.hasClients || scroll.position.pixels < 100;
+      final atBottom = !scroll.hasClients || scroll.position.pixels < 8;
       final previousCount = messages.length;
       setState(() {
         messages = ref
@@ -91,7 +93,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         loading = false;
       });
       if (messages.length > previousCount &&
-          (nearEnd || messages.last['pending'] == true)) {
+          (atBottom || messages.last['pending'] == true)) {
         scrollToEnd();
       }
     });
@@ -226,6 +228,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (locatingQuote) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!locatingQuote && scroll.hasClients) scroll.jumpTo(0);
+    });
+  }
+
+  /// Marks the newest message as read without reloading the conversation, so
+  /// scrolling near the bottom never rebuilds the list or moves its offset.
+  void markRead() {
+    if (!mounted ||
+        !(ModalRoute.of(context)?.isCurrent ?? false) ||
+        WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    var sequence = readSequence;
+    for (final message in messages) {
+      final value = message['sequence'];
+      if (message['pending'] != true && value is int && value > sequence) {
+        sequence = value;
+      }
+    }
+    if (sequence <= readSequence) return;
+    readSequence = sequence;
+    final client = ref.read(clientProvider);
+    unawaited(
+      client
+          .post('/conversations/${widget.id}/read', {'sequence': sequence})
+          .then((_) => client.applyConversationRead(widget.id, sequence))
+          .catchError((_) {}),
+    );
+  }
+
+  /// Measures the floating input bar so the list can keep its newest message
+  /// above it even when the field grows to several lines or the selection /
+  /// reply bars appear.
+  void measureComposer() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = composerKey.currentContext?.size;
+      if (size == null || (size.height - composerHeight).abs() < .5) return;
+      setState(() => composerHeight = size.height);
     });
   }
 
@@ -386,30 +426,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           error = null;
         });
       }
-      final sent = rows.where((m) => m['pending'] != true);
-      if (sent.isNotEmpty &&
-          nearEnd &&
-          mounted &&
-          (WidgetsBinding.instance.lifecycleState ==
-              AppLifecycleState.resumed) &&
-          (ModalRoute.of(context)?.isCurrent ?? false) &&
-          (sent.last['sequence'] as int) > readSequence) {
-        final sequence = sent.last['sequence'] as int;
-        unawaited(
-          client
-              .post('/conversations/${widget.id}/read', {'sequence': sequence})
-              .then((_) async {
-                readSequence = sequence;
-                await client.applyConversationRead(widget.id, sequence);
-              })
-              .catchError((_) {}),
-        );
-      }
-      if (nearEnd) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (scroll.hasClients) scroll.jumpTo(0);
-        });
-      }
+      // Do not jump to the bottom here: the reversed list already stays at the
+      // newest message, and jumping interrupted the user whenever a refresh
+      // (receipt, reconnect, read sync) completed mid-scroll.
+      if (nearEnd) markRead();
     } catch (e) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
     } finally {
@@ -862,6 +882,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final panelHeight = math.max(keyboardHeight, 250 + safeBottom);
     // Hàm liên tục theo bàn phím: không còn bước nhảy từ viewInsets -> safe area.
     final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
+    measureComposer();
     return QChatPage(
       title: title,
       glassHeader: true,
@@ -904,293 +925,330 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               ),
             ),
           Expanded(
-            child: loading
-                ? const QChatLoading()
-                : messages.isEmpty
-                ? QChatEmptyState(tr(c, 'emptyChats'))
-                : GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: dismissInput,
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ListView.builder(
-                        controller: scroll,
-                        padding: EdgeInsets.only(
-                          top: error == null ? headerInset : 0,
-                        ),
-                        // reverse: điểm bắt đầu là tin mới nhất -> mở chat không phải
-                        // cuộn từ trên xuống. Ít tin thì shrinkWrap + Align để vẫn
-                        // nằm sát phía trên như cũ.
-                        reverse: true,
-                        shrinkWrap: messages.length < 12,
-                        keyboardDismissBehavior:
-                            ScrollViewKeyboardDismissBehavior.onDrag,
-                        itemCount: messages.length,
-                        itemBuilder: (c, index) {
-                          final i = messages.length - 1 - index;
-                          final m = messages[i],
-                              mine =
-                                  m['senderId'] ==
-                                  ref.read(clientProvider).userId;
-                          return AnimatedContainer(
-                            key: messageKeys.putIfAbsent(
-                              m['id'].toString(),
-                              () => GlobalKey(),
-                            ),
-                            duration: const Duration(milliseconds: 200),
-                            color: highlightedMessage == m['id']
-                                ? QChatColors.green.withValues(alpha: .18)
-                                : Colors.transparent,
-                            child: Column(
-                              children: [
-                                if (showTime(i))
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 16,
-                                    ),
-                                    child: Text(
-                                      messageTime(m['createdAt']),
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: QChatColors.muted,
-                                      ),
-                                    ),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: loading
+                      ? const QChatLoading()
+                      : messages.isEmpty
+                      ? QChatEmptyState(tr(c, 'emptyChats'))
+                      : GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: dismissInput,
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: ListView.builder(
+                              controller: scroll,
+                              padding: EdgeInsets.only(
+                                top: error == null ? headerInset : 0,
+                                bottom: composerHeight,
+                              ),
+                              // reverse: điểm bắt đầu là tin mới nhất -> mở chat không phải
+                              // cuộn từ trên xuống. Ít tin thì shrinkWrap + Align để vẫn
+                              // nằm sát phía trên như cũ.
+                              reverse: true,
+                              shrinkWrap: messages.length < 12,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              itemCount: messages.length,
+                              itemBuilder: (c, index) {
+                                final i = messages.length - 1 - index;
+                                final m = messages[i],
+                                    mine =
+                                        m['senderId'] ==
+                                        ref.read(clientProvider).userId;
+                                return AnimatedContainer(
+                                  key: messageKeys.putIfAbsent(
+                                    m['id'].toString(),
+                                    () => GlobalKey(),
                                   ),
-                                if (selecting && m['pending'] != true)
-                                  TButton(
-                                    variant: TButtonVariant.text,
-                                    onPressed: () => setState(
-                                      () => selected.contains(m['id'])
-                                          ? selected.remove(m['id'])
-                                          : selected.add(m['id']),
-                                    ),
-                                    child: TIcon(
-                                      selected.contains(m['id'])
-                                          ? TIcons.check_circle_filled
-                                          : TIcons.circle,
-                                      color: QChatColors.green,
-                                    ),
-                                  ),
-                                QChatChatBubble(
-                                  bareMedia:
-                                      m['mediaId'] != null &&
-                                      m['recalledAt'] == null &&
-                                      (m['kind'] == 'IMAGE' ||
-                                          m['kind'] == 'VIDEO'),
-                                  bubbleWrapper: (bubble) => Builder(
-                                    builder: (anchor) => GestureDetector(
-                                      onLongPress: () =>
-                                          openMessageMenu(m, anchor),
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          Opacity(
-                                            opacity: recalling.contains(m['id'])
-                                                ? .45
-                                                : 1,
-                                            child: bubble,
-                                          ),
-                                          if (recalling.contains(m['id']))
-                                            const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 1.5,
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  mine: mine,
-                                  avatar: UserAvatar(
-                                    openProfile: !mine,
-                                    members.cast<Map>().firstWhere(
-                                      (member) =>
-                                          member['userId'] == m['senderId'],
-                                      orElse: () => {
-                                        'user':
-                                            m['sender'] ??
-                                            {'nickname': mine ? myName : title},
-                                      },
-                                    )['user'],
-                                    size: 42,
-                                  ),
-                                  name: mine ? myName : title,
+                                  duration: const Duration(milliseconds: 200),
+                                  color: highlightedMessage == m['id']
+                                      ? QChatColors.green.withValues(alpha: .18)
+                                      : Colors.transparent,
                                   child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
                                     children: [
-                                      if (m['replyToId'] != null)
-                                        GestureDetector(
-                                          onTap: () => jumpToQuote(
-                                            m['replyToId'].toString(),
+                                      if (showTime(i))
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 16,
                                           ),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(8),
-                                            margin: const EdgeInsets.only(
-                                              bottom: 8,
+                                          child: Text(
+                                            messageTime(m['createdAt']),
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: QChatColors.muted,
                                             ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(
-                                                alpha: .06,
-                                              ),
-                                              border: const Border(
-                                                left: BorderSide(
-                                                  color: QChatColors.muted,
-                                                  width: 2,
+                                          ),
+                                        ),
+                                      if (selecting && m['pending'] != true)
+                                        TButton(
+                                          variant: TButtonVariant.text,
+                                          onPressed: () => setState(
+                                            () => selected.contains(m['id'])
+                                                ? selected.remove(m['id'])
+                                                : selected.add(m['id']),
+                                          ),
+                                          child: TIcon(
+                                            selected.contains(m['id'])
+                                                ? TIcons.check_circle_filled
+                                                : TIcons.circle,
+                                            color: QChatColors.green,
+                                          ),
+                                        ),
+                                      QChatChatBubble(
+                                        bareMedia:
+                                            m['mediaId'] != null &&
+                                            m['recalledAt'] == null &&
+                                            (m['kind'] == 'IMAGE' ||
+                                                m['kind'] == 'VIDEO'),
+                                        bubbleWrapper: (bubble) => Builder(
+                                          builder: (anchor) => GestureDetector(
+                                            onLongPress: () =>
+                                                openMessageMenu(m, anchor),
+                                            child: Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                Opacity(
+                                                  opacity:
+                                                      recalling.contains(
+                                                        m['id'],
+                                                      )
+                                                      ? .45
+                                                      : 1,
+                                                  child: bubble,
+                                                ),
+                                                if (recalling.contains(m['id']))
+                                                  const SizedBox(
+                                                    width: 16,
+                                                    height: 16,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                          strokeWidth: 1.5,
+                                                        ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        mine: mine,
+                                        avatar: UserAvatar(
+                                          openProfile: !mine,
+                                          members.cast<Map>().firstWhere(
+                                            (member) =>
+                                                member['userId'] ==
+                                                m['senderId'],
+                                            orElse: () => {
+                                              'user':
+                                                  m['sender'] ??
+                                                  {
+                                                    'nickname': mine
+                                                        ? myName
+                                                        : title,
+                                                  },
+                                            },
+                                          )['user'],
+                                          size: 42,
+                                        ),
+                                        name: mine ? myName : title,
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            if (m['replyToId'] != null)
+                                              GestureDetector(
+                                                onTap: () => jumpToQuote(
+                                                  m['replyToId'].toString(),
+                                                ),
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(
+                                                    8,
+                                                  ),
+                                                  margin: const EdgeInsets.only(
+                                                    bottom: 8,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: Colors.black
+                                                        .withValues(alpha: .06),
+                                                    border: const Border(
+                                                      left: BorderSide(
+                                                        color:
+                                                            QChatColors.muted,
+                                                        width: 2,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  child: Text(
+                                                    '↳ ${quoteLabel(m['replyToId'].toString())}',
+                                                    maxLines: 2,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      color: QChatColors.muted,
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            ),
-                                            child: Text(
-                                              '↳ ${quoteLabel(m['replyToId'].toString())}',
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                color: QChatColors.muted,
+                                            if (m['mediaId'] != null &&
+                                                m['recalledAt'] == null)
+                                              GestureDetector(
+                                                onTap: () => context.push(
+                                                  '/media/${m['mediaId']}',
+                                                  extra: "message-${m['id']}",
+                                                ),
+                                                child: MessageAttachment(
+                                                  sourceTag:
+                                                      "message-${m['id']}",
+                                                  key: ValueKey(m['mediaId']),
+                                                  id: m['mediaId'].toString(),
+                                                  kind: m['kind'] ?? 'FILE',
+                                                  name: m['text'] ?? '',
+                                                ),
                                               ),
-                                            ),
-                                          ),
+                                            if (m['mediaId'] == null ||
+                                                m['recalledAt'] != null)
+                                              Text(
+                                                m['recalledAt'] != null
+                                                    ? tr(c, 'recalled')
+                                                    : m['text'] ?? '',
+                                              ),
+                                          ],
                                         ),
-                                      if (m['mediaId'] != null &&
-                                          m['recalledAt'] == null)
-                                        GestureDetector(
-                                          onTap: () => context.push(
-                                            '/media/${m['mediaId']}',
-                                            extra: "message-${m['id']}",
-                                          ),
-                                          child: MessageAttachment(
-                                            sourceTag: "message-${m['id']}",
-                                            key: ValueKey(m['mediaId']),
-                                            id: m['mediaId'].toString(),
-                                            kind: m['kind'] ?? 'FILE',
-                                            name: m['text'] ?? '',
-                                          ),
-                                        ),
-                                      if (m['mediaId'] == null ||
-                                          m['recalledAt'] != null)
-                                        Text(
-                                          m['recalledAt'] != null
-                                              ? tr(c, 'recalled')
-                                              : m['text'] ?? '',
+                                      ),
+                                      if (i == lastOutgoing)
+                                        MessageStatus(
+                                          status: ref
+                                              .read(clientProvider)
+                                              .messageStatus(m, members),
+                                          onRetry: () =>
+                                              ref.read(clientProvider).flush(),
                                         ),
                                     ],
                                   ),
-                                ),
-                                if (i == lastOutgoing)
-                                  MessageStatus(
-                                    status: ref
-                                        .read(clientProvider)
-                                        .messageStatus(m, members),
-                                    onRetry: () =>
-                                        ref.read(clientProvider).flush(),
-                                  ),
-                              ],
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        ),
+                ),
+                // The input bar floats over the list so messages slide under
+                // its glass; composerHeight is the list's bottom inset.
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: QChatGlass(
+                    topBorder: true,
+                    child: Column(
+                      key: composerKey,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (selecting)
+                          Row(
+                            children: [
+                              Expanded(
+                                child: TButton(
+                                  variant: TButtonVariant.text,
+                                  onPressed: selected.isEmpty
+                                      ? null
+                                      : () => forward(
+                                          messages
+                                              .where(
+                                                (m) =>
+                                                    selected.contains(m['id']),
+                                              )
+                                              .toList(),
+                                        ),
+                                  child: Text(tr(c, 'forward')),
+                                ),
+                              ),
+                              Expanded(
+                                child: TButton(
+                                  variant: TButtonVariant.text,
+                                  onPressed: selected.isEmpty
+                                      ? null
+                                      : () => deleteMessages(
+                                          messages
+                                              .where(
+                                                (m) =>
+                                                    selected.contains(m['id']),
+                                              )
+                                              .toList(),
+                                        ),
+                                  child: Text(tr(c, 'delete')),
+                                ),
+                              ),
+                              Expanded(
+                                child: TButton(
+                                  variant: TButtonVariant.text,
+                                  onPressed: () => setState(() {
+                                    selecting = false;
+                                    selected.clear();
+                                  }),
+                                  child: Text(tr(c, 'cancel')),
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (reply != null)
+                          QChatListTile(
+                            title: tr(c, 'reply'),
+                            trailing: QChatButton(
+                              tr(c, 'cancel'),
+                              onTap: () => setState(() => reply = null),
+                            ),
+                          ),
+                        ChatInputBar(
+                          mediaBusy: uploading || pickingMedia,
+                          controller: input,
+                          focusNode: inputFocus,
+                          voice: voice,
+                          hasText: input.text.trim().isNotEmpty,
+                          voiceLabel: tr(c, 'voice'),
+                          emojiLabel: 'Emoji',
+                          plusLabel: tr(c, 'file'),
+                          sendLabel: tr(c, 'send'),
+                          holdLabel: tr(c, 'holdToTalk'),
+                          onVoice: toggleVoice,
+                          onEmoji: toggleEmoji,
+                          onPlus: togglePlus,
+                          onSend: send,
+                          onHold: () => openFeature(c, 'voice'),
+                          onChanged: (_) => setState(() {}),
+                        ),
+                      ],
                     ),
                   ),
+                ),
+              ],
+            ),
           ),
-          if (selecting)
-            Row(
-              children: [
-                Expanded(
-                  child: TButton(
-                    variant: TButtonVariant.text,
-                    onPressed: selected.isEmpty
-                        ? null
-                        : () => forward(
-                            messages
-                                .where((m) => selected.contains(m['id']))
-                                .toList(),
-                          ),
-                    child: Text(tr(c, 'forward')),
-                  ),
-                ),
-                Expanded(
-                  child: TButton(
-                    variant: TButtonVariant.text,
-                    onPressed: selected.isEmpty
-                        ? null
-                        : () => deleteMessages(
-                            messages
-                                .where((m) => selected.contains(m['id']))
-                                .toList(),
-                          ),
-                    child: Text(tr(c, 'delete')),
-                  ),
-                ),
-                Expanded(
-                  child: TButton(
-                    variant: TButtonVariant.text,
-                    onPressed: () => setState(() {
-                      selecting = false;
-                      selected.clear();
-                    }),
-                    child: Text(tr(c, 'cancel')),
-                  ),
-                ),
-              ],
-            ),
-          if (reply != null)
-            QChatListTile(
-              title: tr(c, 'reply'),
-              trailing: QChatButton(
-                tr(c, 'cancel'),
-                onTap: () => setState(() => reply = null),
-              ),
-            ),
+          // Vùng đáy: = bàn phím | panel emoji/đính kèm | safe area.
+          // Khi bàn phím đang chuyển động thì không animate thêm để khỏi trễ.
           QChatGlass(
-            topBorder: true,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ChatInputBar(
-                  mediaBusy: uploading || pickingMedia,
-                  controller: input,
-                  focusNode: inputFocus,
-                  voice: voice,
-                  hasText: input.text.trim().isNotEmpty,
-                  voiceLabel: tr(c, 'voice'),
-                  emojiLabel: 'Emoji',
-                  plusLabel: tr(c, 'file'),
-                  sendLabel: tr(c, 'send'),
-                  holdLabel: tr(c, 'holdToTalk'),
-                  onVoice: toggleVoice,
-                  onEmoji: toggleEmoji,
-                  onPlus: togglePlus,
-                  onSend: send,
-                  onHold: () => openFeature(c, 'voice'),
-                  onChanged: (_) => setState(() {}),
-                ),
-                // Vùng đáy: = bàn phím | panel emoji/đính kèm | safe area.
-                // Khi bàn phím đang chuyển động thì không animate thêm để khỏi trễ.
-                AnimatedContainer(
-                  duration: keyboard > 0 || inputFocus.hasFocus
-                      ? Duration.zero
-                      : qchatDuration(c),
-                  curve: Curves.easeOut,
-                  height: reserved,
-                  child: panelOpen
-                      ? ClipRect(
-                          child: OverflowBox(
-                            alignment: Alignment.topCenter,
-                            minHeight: 0,
-                            maxHeight: panelHeight,
-                            child: SizedBox(
-                              height: panelHeight,
-                              child: emoji
-                                  ? emojiPanel(c, safeBottom)
-                                  : attachmentPanel(c, safeBottom),
-                            ),
-                          ),
-                        )
-                      : null,
-                ),
-              ],
+            border: false,
+            child: AnimatedContainer(
+              duration: keyboard > 0 || inputFocus.hasFocus
+                  ? Duration.zero
+                  : qchatDuration(c),
+              curve: Curves.easeOut,
+              height: reserved,
+              child: panelOpen
+                  ? ClipRect(
+                      child: OverflowBox(
+                        alignment: Alignment.topCenter,
+                        minHeight: 0,
+                        maxHeight: panelHeight,
+                        child: SizedBox(
+                          height: panelHeight,
+                          child: emoji
+                              ? emojiPanel(c, safeBottom)
+                              : attachmentPanel(c, safeBottom),
+                        ),
+                      ),
+                    )
+                  : null,
             ),
           ),
         ],
