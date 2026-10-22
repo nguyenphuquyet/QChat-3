@@ -27,7 +27,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   StreamSubscription<String>? recalls;
   final sectionKeys = <String, GlobalKey>{};
   final navKey = GlobalKey();
+  final searchKey = GlobalKey();
   double navHeight = 0;
+  double searchHeight = 0;
   @override
   void initState() {
     super.initState();
@@ -167,22 +169,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ];
                                 items = ordered;
                               }
-                              return Column(
+                              final inset = MediaQuery.paddingOf(c).top;
+                              measureSearch();
+                              return Stack(
                                 children: [
-                                  SizedBox(height: MediaQuery.paddingOf(c).top),
-                                  QChatSearchBar(
-                                    controller: search,
-                                    onChanged: (_) => setState(() {}),
-                                  ),
-                                  Expanded(
-                                    child: MediaQuery.removePadding(
-                                      context: c,
-                                      removeTop: true,
+                                  Positioned.fill(
+                                    child: MediaQuery(
+                                      data: MediaQuery.of(c).copyWith(
+                                        padding: MediaQuery.of(c).padding
+                                            .copyWith(
+                                              top: inset + searchHeight,
+                                            ),
+                                      ),
                                       child: ColoredBox(
                                         color: surface(c),
                                         child: index == 0
                                             ? chats(c, items)
                                             : contacts(c, items, requests),
+                                      ),
+                                    ),
+                                  ),
+                                  // Search bar floats over the list, so rows
+                                  // scroll underneath its glass.
+                                  Positioned(
+                                    top: inset,
+                                    left: 0,
+                                    right: 0,
+                                    child: QChatGlass(
+                                      key: searchKey,
+                                      border: false,
+                                      color: Theme.of(
+                                        c,
+                                      ).scaffoldBackgroundColor,
+                                      opacity: .88,
+                                      child: QChatSearchBar(
+                                        controller: search,
+                                        onChanged: (_) => setState(() {}),
                                       ),
                                     ),
                                   ),
@@ -224,6 +246,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final size = navKey.currentContext?.size;
       if (size == null || (size.height - navHeight).abs() < .5) return;
       setState(() => navHeight = size.height);
+    });
+  }
+
+  void measureSearch() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = searchKey.currentContext?.size;
+      if (size == null || (size.height - searchHeight).abs() < .5) return;
+      setState(() => searchHeight = size.height);
     });
   }
 
