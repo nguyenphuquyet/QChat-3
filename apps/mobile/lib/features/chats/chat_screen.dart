@@ -883,8 +883,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (keyboard > keyboardHeight) keyboardHeight = keyboard;
     final panelOpen = emoji || attachments;
     final panelHeight = math.max(keyboardHeight, 250 + safeBottom);
-    // Hàm liên tục theo bàn phím: không còn bước nhảy từ viewInsets -> safe area.
-    final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
+    // Vùng đáy: = bàn phím | panel emoji/đính kèm. Safe area nằm trong thanh
+    // nhập để tin nhắn trượt xuống dưới được cả phần sát mép màn hình.
+    final reserved = panelOpen
+        ? panelHeight
+        : keyboard > 0
+        ? keyboard
+        : 0.0;
+    final barInset = keyboard > 0 || panelOpen ? 0.0 : safeBottom;
     measureComposer();
     return QChatPage(
       title: title,
@@ -1221,6 +1227,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           onHold: () => openFeature(c, 'voice'),
                           onChanged: (_) => setState(() {}),
                         ),
+                        // Safe area nằm trong lớp kính để tin nhắn trượt
+                        // xuống dưới được cả phần sát mép màn hình.
+                        SizedBox(height: barInset),
                       ],
                     ),
                   ),
