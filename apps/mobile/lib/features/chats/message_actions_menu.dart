@@ -1,7 +1,5 @@
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 
-import '../../core/design_system/components.dart';
-
 /// One entry in the long-press menu for a message.
 class MessageAction {
   const MessageAction({
@@ -19,9 +17,9 @@ class MessageAction {
   final bool destructive;
 }
 
-/// Opens a compact popover next to the pressed bubble: a small rounded card
-/// with one row per action, anchored to [anchorContext]. It keeps the
-/// conversation visible instead of covering the bottom of the screen.
+/// Opens a TDesign popover anchored to the pressed bubble. The bubble stays
+/// visible, the arrow points at it, and the panel flips above when the bottom
+/// of the screen is too close.
 Future<void> showMessageActions(
   BuildContext context, {
   required BuildContext anchorContext,
@@ -29,64 +27,139 @@ Future<void> showMessageActions(
 }) async {
   if (actions.isEmpty) return;
   final anchor = anchorContext.findRenderObject();
-  final overlay = Overlay.of(context).context.findRenderObject();
-  if (anchor is! RenderBox || !anchor.hasSize || overlay is! RenderBox) return;
-  final topLeft = anchor.localToGlobal(Offset.zero, ancestor: overlay);
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  final muted = dark ? const Color(0xffd6d6d6) : const Color(0xff555555);
-  final selected = await showMenu<int>(
-    context: context,
-    position: RelativeRect.fromRect(
-      Rect.fromLTWH(
-        topLeft.dx,
-        topLeft.dy,
-        anchor.size.width,
-        anchor.size.height,
-      ),
-      Offset.zero & overlay.size,
+  if (anchor is! RenderBox || !anchor.hasSize) return;
+
+  var chosen = -1;
+  await TPopover.showPopover(
+    context: anchorContext,
+    placement: TPopoverPlacement.bottom,
+    width: 240,
+    closeOnClickOutside: true,
+    content: _MessageMenu(
+      actions: actions,
+      onPick: (index) {
+        chosen = index;
+        // TDesign registers a local history entry for the popover, so this pop
+        // dismisses the menu and keeps the conversation on screen.
+        Navigator.of(anchorContext).pop();
+      },
     ),
-    color: dark ? const Color(0xff2a2a2a) : Colors.white,
-    elevation: 14,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-    constraints: const BoxConstraints(minWidth: 208, maxWidth: 232),
-    items: [
-      for (var i = 0; i < actions.length; i++) ...[
-        if (i > 0 && actions[i].destructive && !actions[i - 1].destructive)
-          const PopupMenuDivider(height: 9),
-        PopupMenuItem<int>(
-          key: ValueKey('message-action-${actions[i].id}'),
-          value: i,
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
+  );
+  if (chosen >= 0) actions[chosen].onTap();
+}
+
+class _MessageMenu extends StatelessWidget {
+  const _MessageMenu({required this.actions, required this.onPick});
+
+  final List<MessageAction> actions;
+  final ValueChanged<int> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.tTheme;
+    final font = theme.fontBodyMedium;
+    final radius = BorderRadius.circular(theme.radiusDefault);
+    final separator = Container(
+      height: .5,
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      color: theme.textColorAnti.withValues(alpha: .16),
+    );
+    return SizedBox(
+      width: 224,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < actions.length; i++) ...[
+            if (i > 0 &&
+                actions[i].destructive &&
+                !actions[i - 1].destructive)
+              separator,
+            _MenuRow(
+              action: actions[i],
+              font: font,
+              radius: radius,
+              onTap: () => onPick(i),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MenuRow extends StatefulWidget {
+  const _MenuRow({
+    required this.action,
+    required this.font,
+    required this.radius,
+    required this.onTap,
+  });
+
+  final MessageAction action;
+  final Font? font;
+  final BorderRadius radius;
+  final VoidCallback onTap;
+
+  @override
+  State<_MenuRow> createState() => _MenuRowState();
+}
+
+class _MenuRowState extends State<_MenuRow> {
+  var _pressed = false;
+
+  void _press(bool value) {
+    if (_pressed == value || !mounted) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.tTheme;
+    final color = widget.action.destructive
+        ? theme.errorColor
+        : theme.textColorAnti;
+    return Semantics(
+      button: true,
+      child: GestureDetector(
+        key: ValueKey('message-action-${widget.action.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => _press(true),
+        onTapUp: (_) => _press(false),
+        onTapCancel: () => _press(false),
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 42,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+            color: _pressed
+                ? theme.textColorAnti.withValues(alpha: .08)
+                : Colors.transparent,
+            borderRadius: widget.radius,
+          ),
           child: Row(
             children: [
-              TIcon(
-                actions[i].icon,
-                size: 19,
-                color: actions[i].destructive ? QChatColors.danger : muted,
-              ),
-              const SizedBox(width: 12),
+              TIcon(widget.action.icon, size: 18, color: color),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  actions[i].label,
+                child: TText(
+                  widget.action.label,
+                  font: widget.font,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w500,
-                    color: actions[i].destructive
-                        ? QChatColors.danger
-                        : dark
-                        ? const Color(0xffeeeeee)
-                        : QChatColors.ink,
-                  ),
                 ),
               ),
             ],
           ),
         ),
-      ],
-    ],
-  );
-  if (selected != null) actions[selected].onTap();
+      ),
+    );
+  }
 }

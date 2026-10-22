@@ -248,12 +248,18 @@ void main() {
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('message action popover stays compact next to the bubble', (
+  testWidgets('message action popover uses the TDesign bubble', (
     tester,
   ) async {
     await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
     await tester.longPress(find.text('Xin chào'));
     await tester.pumpAndSettle();
+    // TDesign popover surface, not a Material menu.
+    final bubble = tester.widget<Container>(
+      find.byKey(const Key('t-popover-content')),
+    );
+    expect((bubble.decoration! as BoxDecoration).color, const Color(0xff25282d));
+    expect(find.byKey(const Key('t-popover-outside-dismiss')), findsOneWidget);
     Rect action(String key) =>
         tester.getRect(find.byKey(ValueKey('message-action-$key')));
     final first = action('quoteMessage');
@@ -277,7 +283,7 @@ void main() {
     expect(first.width, lessThanOrEqualTo(232));
     expect(first.left, greaterThanOrEqualTo(0));
     expect(first.right, lessThanOrEqualTo(screenWidth));
-    // Stacked rows, and the menu stays a small popover, not a sheet.
+    // Stacked rows, and the bubble stays a small popover, not a sheet.
     expect(action('copy').top, greaterThan(first.top));
     expect(last.top, greaterThan(action('search').top));
     expect(last.bottom - first.top, lessThan(screenHeight * .7));
