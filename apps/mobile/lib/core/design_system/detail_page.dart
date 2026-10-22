@@ -71,7 +71,7 @@ class DetailPage extends StatelessWidget {
             right: 0,
             child: QChatGlass(
               color: barColor,
-              opacity: .88,
+              opacity: .72,
               child: SafeArea(bottom: false, child: _navBar(c)),
             ),
           ),

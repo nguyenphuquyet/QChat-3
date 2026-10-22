@@ -201,7 +201,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       color: Theme.of(
                                         c,
                                       ).scaffoldBackgroundColor,
-                                      opacity: .88,
+                                      opacity: .72,
                                       child: QChatSearchBar(
                                         controller: search,
                                         onChanged: (_) => setState(() {}),
@@ -221,8 +221,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   child: QChatGlass(
                     key: navKey,
                     border: false,
-                    color: navigationSurface(ctx),
-                    opacity: .88,
+                    color: Theme.of(ctx).scaffoldBackgroundColor,
+                    opacity: .72,
                     child: SafeArea(
                       top: false,
                       child: QChatBottomNavigation(

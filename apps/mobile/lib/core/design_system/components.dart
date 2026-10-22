@@ -126,7 +126,7 @@ class QChatPage extends StatelessWidget {
                           right: 0,
                           child: QChatGlass(
                             color: topColor,
-                            opacity: .88,
+                            opacity: .72,
                             border: false,
                             child: SafeArea(bottom: false, child: appBar),
                           ),
@@ -576,62 +576,54 @@ class QChatBottomNavigation extends StatelessWidget {
   final int index;
   final ValueChanged<int> onChanged;
   @override
-  Widget build(BuildContext c) => Container(
-    decoration: BoxDecoration(
-      color: navigationSurface(c),
-      border: Border(
-        top: BorderSide(color: ink(c).withValues(alpha: .12), width: .5),
-      ),
-    ),
-    child: Row(
-      children: [
-        for (int i = 0; i < 4; i++)
-          Expanded(
-            child: Semantics(
-              selected: index == i,
-              button: true,
-              label: tr(c, ['chats', 'contacts', 'discover', 'me'][i]),
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => onChanged(i),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 9),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        (index == i
-                            ? const [
-                                CupertinoIcons.chat_bubble_fill,
-                                CupertinoIcons.person_2_fill,
-                                CupertinoIcons.compass_fill,
-                                CupertinoIcons.person_fill,
-                              ]
-                            : const [
-                                CupertinoIcons.chat_bubble,
-                                CupertinoIcons.person_2,
-                                CupertinoIcons.compass,
-                                CupertinoIcons.person,
-                              ])[i],
-                        size: 26,
+  Widget build(BuildContext c) => Row(
+    children: [
+      for (int i = 0; i < 4; i++)
+        Expanded(
+          child: Semantics(
+            selected: index == i,
+            button: true,
+            label: tr(c, ['chats', 'contacts', 'discover', 'me'][i]),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(i),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      (index == i
+                          ? const [
+                              CupertinoIcons.chat_bubble_fill,
+                              CupertinoIcons.person_2_fill,
+                              CupertinoIcons.compass_fill,
+                              CupertinoIcons.person_fill,
+                            ]
+                          : const [
+                              CupertinoIcons.chat_bubble,
+                              CupertinoIcons.person_2,
+                              CupertinoIcons.compass,
+                              CupertinoIcons.person,
+                            ])[i],
+                      size: 26,
+                      color: index == i ? QChatColors.green : ink(c),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      tr(c, ['chats', 'contacts', 'discover', 'me'][i]),
+                      style: TextStyle(
+                        fontSize: 11.5,
                         color: index == i ? QChatColors.green : ink(c),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        tr(c, ['chats', 'contacts', 'discover', 'me'][i]),
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: index == i ? QChatColors.green : ink(c),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-      ],
-    ),
+        ),
+    ],
   );
 }
 
