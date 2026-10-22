@@ -1,24 +1,45 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
+import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
 
-class SettingsExtras extends StatefulWidget {
+class SettingsExtras extends ConsumerStatefulWidget {
   const SettingsExtras({super.key, required this.kind});
   final String kind;
   @override
-  State<SettingsExtras> createState() => _SettingsExtrasState();
+  ConsumerState<SettingsExtras> createState() => _SettingsExtrasState();
 }
 
-class _SettingsExtrasState extends State<SettingsExtras> {
+class _SettingsExtrasState extends ConsumerState<SettingsExtras> {
   final feedback = TextEditingController();
   String? status;
+  bool sending = false;
   @override
   void dispose() {
     feedback.dispose();
     super.dispose();
+  }
+
+  Future<void> submit() async {
+    if (sending) return;
+    setState(() {
+      sending = true;
+      status = null;
+    });
+    try {
+      await ref.read(clientProvider).sendFeedback(feedback.text.trim());
+      if (!mounted) return;
+      feedback.clear();
+      setState(() => status = tr(context, 'feedbackSent'));
+    } catch (_) {
+      if (mounted) setState(() => status = tr(context, 'networkError'));
+    } finally {
+      if (mounted) setState(() => sending = false);
+    }
   }
 
   @override
@@ -60,7 +81,14 @@ class _SettingsExtrasState extends State<SettingsExtras> {
                 ),
                 const SizedBox(height: 16),
                 QChatButton(
+                  tr(c, 'sendFeedback'),
+                  loading: sending,
+                  onTap: feedback.text.trim().isEmpty ? null : submit,
+                ),
+                const SizedBox(height: 10),
+                QChatButton(
                   tr(c, 'copyFeedback'),
+                  secondary: true,
                   onTap: feedback.text.trim().isEmpty
                       ? null
                       : () async {

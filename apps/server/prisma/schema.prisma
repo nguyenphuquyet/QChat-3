@@ -37,6 +37,7 @@ model User {
   media Media[]
   tokens AccountToken[]
   devices PushDevice[]
+  feedback Feedback[]
 }
 model UserSession {
   id String @id @default(uuid()) @db.Uuid
@@ -215,6 +216,16 @@ model Report {
   reason String
   status String @default("OPEN")
   createdAt DateTime @default(now())
+}
+model Feedback {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  content String
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+  handledAt DateTime?
+  @@index([status,createdAt])
 }
 model AuditLog {
   id String @id @default(uuid()) @db.Uuid

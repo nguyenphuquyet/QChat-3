@@ -31,9 +31,15 @@ const translations = <String, List<String>>{
     '描述问题或建议',
   ],
   'feedbackNote': [
-    'Write and copy your feedback to share with the administrator. It is not sent automatically.',
-    'Soạn và sao chép phản hồi để gửi cho quản trị viên. Nội dung không được tự động gửi.',
-    '填写并复制反馈以分享给管理员，不会自动发送。',
+    'Your feedback is sent to the QChat administrator and is not shown to other users.',
+    'Phản hồi của bạn được gửi tới quản trị viên QChat và không hiển thị với người dùng khác.',
+    '您的反馈将发送给 QChat 管理员，不会向其他用户显示。',
+  ],
+  'sendFeedback': ['Send feedback', 'Gửi phản hồi', '发送反馈'],
+  'feedbackSent': [
+    'Feedback sent. Thank you!',
+    'Đã gửi phản hồi. Cảm ơn bạn!',
+    '反馈已发送，谢谢！',
   ],
   'copyFeedback': ['Copy feedback', 'Sao chép phản hồi', '复制反馈'],
   'switchAccount': ['Switch account', 'Chuyển đổi tài khoản', '切换账号'],

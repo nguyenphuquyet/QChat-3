@@ -64,7 +64,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         entry(c, 'addons'),
         const SectionLabel('helpAbout'),
         entry(c, 'feedback'),
-        entry(c, 'about', route: '/about', value: '${tr(c, 'version')} 0.1.0'),
+        entry(c, 'about', route: '/about', value: '${tr(c, 'version')} 1.1.0'),
         sectionGap,
         if (tr(
           c,

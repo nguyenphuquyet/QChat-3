@@ -159,7 +159,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
             child: const Padding(
               padding: EdgeInsets.all(24),
               child: Text(
-                'QChat 0.1.0\n\nIndependent messaging software. Messages are stored on your QChat server. This release does not provide end-to-end encryption.\n\nMedia, camera and microphone access require your explicit permission.',
+                'QChat 1.1.0\n\nIndependent messaging software. Messages are stored on your QChat server. This release does not provide end-to-end encryption.\n\nMedia, camera and microphone access require your explicit permission.',
               ),
             ),
           ),

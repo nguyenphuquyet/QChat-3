@@ -12,6 +12,7 @@ import {
   Database,
   FileClock,
   Flag,
+  Inbox,
   LayoutDashboard,
   Loader2,
   LockKeyhole,
@@ -28,7 +29,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type Section = "overview" | "users" | "reports" | "audit" | "system";
+type Section = "overview" | "users" | "reports" | "feedback" | "audit" | "system";
 type Session = { accessToken: string; refreshToken: string; userId: string };
 type Stats = {
   users: number;
@@ -37,6 +38,7 @@ type Stats = {
   conversations: number;
   disabledUsers: number;
   pendingReports: number;
+  pendingFeedback: number;
   activeSessions: number;
   activity: { date: string; messages: number }[];
 };
@@ -56,6 +58,15 @@ type Report = {
   status: string;
   createdAt: string;
 };
+type Feedback = {
+  id: string;
+  userId: string;
+  content: string;
+  status: string;
+  createdAt: string;
+  handledAt: string | null;
+  user: { id: string; qchatId: string; nickname: string; email: string } | null;
+};
 type Audit = {
   id: string;
   action: string;
@@ -67,6 +78,7 @@ const navigation: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Tổng quan", icon: LayoutDashboard },
   { id: "users", label: "Người dùng", icon: Users },
   { id: "reports", label: "Báo cáo vi phạm", icon: Flag },
+  { id: "feedback", label: "Phản hồi", icon: Inbox },
   { id: "audit", label: "Nhật ký quản trị", icon: FileClock },
   { id: "system", label: "Hệ thống", icon: Server },
 ];
@@ -153,6 +165,7 @@ export default function Dashboard() {
   const [notice, setNotice] = useState("");
   const [stats, setStats] = useState<Stats | null>(null);
   const [reports, setReports] = useState<Report[]>([]);
+  const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
@@ -231,6 +244,10 @@ export default function Dashboard() {
         const result = await api("/admin/reports");
         if (current !== revision.current) return;
         setReports(result);
+      } else if (target === "feedback") {
+        const result = await api("/admin/feedback");
+        if (current !== revision.current) return;
+        setFeedbacks(result);
       } else if (target === "audit") {
         const result = await api("/admin/audit");
         if (current !== revision.current) return;
@@ -290,6 +307,7 @@ export default function Dashboard() {
       setStats(null);
       setUsers([]);
       setReports([]);
+      setFeedbacks([]);
       setAudit([]);
       setNotice("");
       setError("");
@@ -465,6 +483,11 @@ export default function Dashboard() {
                   {stats!.pendingReports}
                 </span>
               )}
+              {id === "feedback" && (stats?.pendingFeedback ?? 0) > 0 && (
+                <span className="ml-auto rounded-md bg-white/15 px-1.5 text-xs">
+                  {stats!.pendingFeedback}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -528,7 +551,9 @@ export default function Dashboard() {
                     ? "Tìm kiếm và quản lý quyền truy cập tài khoản."
                     : section === "reports"
                       ? "Xem xét phản ánh để cộng đồng an toàn hơn."
-                      : section === "audit"
+                      : section === "feedback"
+                        ? "Đọc góp ý người dùng gửi từ ứng dụng."
+                        : section === "audit"
                         ? "Theo dõi các thay đổi do quản trị viên thực hiện."
                         : "Kiểm tra khả năng phục vụ của hệ thống."}
               </p>
@@ -901,6 +926,82 @@ export default function Dashboard() {
             </Card>
           )}
 
+          {section === "feedback" && (
+            <Card>
+              <div className="border-b border-slate-100 p-5">
+                <h2 className="font-bold">Phản hồi gần đây</h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Tối đa 100 phản hồi mới nhất gửi từ ứng dụng
+                </p>
+              </div>
+              {feedbacks.length === 0 && !busy ? (
+                <Empty>Chưa có phản hồi nào.</Empty>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {feedbacks.map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex flex-wrap items-start gap-5 p-5"
+                    >
+                      <span className="rounded-xl bg-emerald-50 p-3 text-emerald-600">
+                        <Inbox size={19} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="whitespace-pre-wrap break-words text-sm font-semibold">
+                          {row.content}
+                        </p>
+                        <p className="mt-2 break-all text-xs text-slate-400">
+                          {row.user
+                            ? `${row.user.nickname} (@${row.user.qchatId}) · ${row.user.email}`
+                            : row.userId}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                          {date(row.createdAt)}
+                        </p>
+                        <div className="mt-3">
+                          <Badge warning={row.status === "OPEN"}>
+                            {row.status === "OPEN"
+                              ? "Chờ xử lý"
+                              : row.status === "RESOLVED"
+                                ? "Đã xử lý"
+                                : "Đã bỏ qua"}
+                          </Badge>
+                        </div>
+                      </div>
+                      {row.status === "OPEN" && (
+                        <div className="flex gap-2">
+                          <button
+                            disabled={actionBusy}
+                            className={buttonStyle}
+                            onClick={() =>
+                              void act(`/admin/feedback/${row.id}`, {
+                                status: "DISMISSED",
+                              })
+                            }
+                          >
+                            Bỏ qua
+                          </button>
+                          <button
+                            disabled={actionBusy}
+                            className={primaryStyle}
+                            onClick={() =>
+                              void act(`/admin/feedback/${row.id}`, {
+                                status: "RESOLVED",
+                              })
+                            }
+                          >
+                            <Check size={15} />
+                            Đã xử lý
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
+
           {section === "audit" && (
             <Card>
               <div className="border-b border-slate-100 p-5">
@@ -938,6 +1039,8 @@ export default function Dashboard() {
                                 USER_UNLOCK: "Mở khóa tài khoản",
                                 REPORT_RESOLVED: "Xử lý báo cáo",
                                 REPORT_DISMISSED: "Bỏ qua báo cáo",
+                                FEEDBACK_RESOLVED: "Xử lý phản hồi",
+                                FEEDBACK_DISMISSED: "Bỏ qua phản hồi",
                               } as Record<string, string>
                             )[row.action] ?? row.action}
                           </td>

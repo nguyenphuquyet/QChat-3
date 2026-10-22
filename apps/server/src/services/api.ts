@@ -189,6 +189,18 @@ export async function handle(request: Request) {
           });
         }
         break;
+      case "feedback":
+        if (method === "POST") {
+          const v = z
+            .object({ content: z.string().trim().min(1).max(2000) })
+            .strict()
+            .parse(body);
+          result = await db.feedback.create({
+            data: { userId, content: v.content },
+            select: { id: true, status: true, createdAt: true },
+          });
+        }
+        break;
       case "admin":
         requireCondition(auth.role === "ADMIN");
         if (method === "GET" && path[1] === "stats") {
@@ -212,6 +224,9 @@ export async function handle(request: Request) {
             conversations: await db.conversation.count(),
             disabledUsers: await db.user.count({ where: { disabled: true } }),
             pendingReports: await db.report.count({
+              where: { status: "OPEN" },
+            }),
+            pendingFeedback: await db.feedback.count({
               where: { status: "OPEN" },
             }),
             activeSessions: await db.userSession.count({
@@ -277,6 +292,37 @@ export async function handle(request: Request) {
             take: 100,
             orderBy: { createdAt: "desc" },
           });
+        if (method === "GET" && path[1] === "feedback")
+          result = await db.feedback.findMany({
+            take: 100,
+            orderBy: { createdAt: "desc" },
+            include: {
+              user: {
+                select: { id: true, qchatId: true, nickname: true, email: true },
+              },
+            },
+          });
+        if (method === "PATCH" && path[1] === "feedback") {
+          const v = z
+            .object({ status: z.enum(["RESOLVED", "DISMISSED"]) })
+            .strict()
+            .parse(body);
+          const targetId = uuid.parse(path[2]);
+          await db.$transaction([
+            db.feedback.update({
+              where: { id: targetId },
+              data: { status: v.status, handledAt: new Date() },
+            }),
+            db.auditLog.create({
+              data: {
+                actorId: userId,
+                action: `FEEDBACK_${v.status}`,
+                targetId,
+              },
+            }),
+          ]);
+          result = { ok: true };
+        }
         if (method === "GET" && path[1] === "audit")
           result = await db.auditLog.findMany({
             take: 100,

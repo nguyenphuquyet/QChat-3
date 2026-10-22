@@ -380,6 +380,10 @@ class QChatClient {
   Future<dynamic> post(String path, Object data) async =>
       (await dio.post(path, data: data)).data;
 
+  Future<void> sendFeedback(String content) async {
+    await post('/feedback', {'content': content});
+  }
+
   /// Mirrors a read receipt into the cached conversation list so the red
   /// unread badge clears as soon as the chat is left, without waiting for the
   /// next network refresh.

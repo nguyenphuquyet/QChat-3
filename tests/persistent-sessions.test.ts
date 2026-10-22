@@ -34,7 +34,7 @@ test("persistent sessions survive retries and remain revocable", async (t) => {
     assert.equal(data.expiresAt, null);
     session.refreshHash = data.refreshHash;
     return session;
-  }) as typeof db.userSession.create;
+  }) as unknown as typeof db.userSession.create;
   db.userSession.findUnique = (async ({ where }: any) =>
     where.id === session.id || where.refreshHash === session.refreshHash
       ? session
