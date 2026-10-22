@@ -441,7 +441,6 @@ const translations = <String, List<String>>{
   'forward': ['Forward', 'Chuyển tiếp', '转发'],
   'selectMessages': ['Select', 'Chọn', '多选'],
   'quoteMessage': ['Quote', 'Trích dẫn', '引用'],
-  'messageActions': ['Message actions', 'Tùy chọn tin nhắn', '消息操作'],
   'chatDetails': ['Details', 'Chi tiết', '详情'],
   'searchHistory': ['Search chat history', 'Tìm kiếm lịch sử', '查找聊天记录'],
   'pinChat': ['Pin to top', 'Ghim ở trên cùng', '置顶聊天'],

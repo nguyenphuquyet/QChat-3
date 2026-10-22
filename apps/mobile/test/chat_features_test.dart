@@ -226,34 +226,44 @@ void main() {
     expect(find.text('Thành viên'), findsOneWidget);
     expect(find.text('Giải tán nhóm'), findsNothing);
   });
-  testWidgets('long press opens the message action sheet and selection', (
+  testWidgets('long press opens the message action menu and selection', (
     tester,
   ) async {
     await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
     await tester.longPress(find.text('Xin chào'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('message-actions-sheet')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('message-action-quoteMessage')),
+      findsOneWidget,
+    );
     expect(find.text('Chuyển tiếp'), findsOneWidget);
     expect(find.text('Trích dẫn'), findsOneWidget);
     await tester.tap(find.text('Chọn'));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('message-actions-sheet')), findsNothing);
+    // The menu closes; the remaining "Chuyển tiếp" is the selection bar.
+    expect(
+      find.byKey(const ValueKey('message-action-forward')),
+      findsNothing,
+    );
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('message action sheet stacks full-width rows', (tester) async {
+  testWidgets('message action popover stays compact next to the bubble', (
+    tester,
+  ) async {
     await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
     await tester.longPress(find.text('Xin chào'));
     await tester.pumpAndSettle();
-    final sheet = tester.getRect(find.byKey(const Key('message-actions-sheet')));
     Rect action(String key) =>
         tester.getRect(find.byKey(ValueKey('message-action-$key')));
+    final first = action('quoteMessage');
+    final last = action('delete');
     final screenWidth =
         tester.view.physicalSize.width / tester.view.devicePixelRatio;
-    expect(sheet.left, closeTo(screenWidth - sheet.right, 0.5));
-    // Every row shares the same full-width inset and stays inside the sheet.
+    final screenHeight =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    // Rows share one narrow column instead of spreading into a grid.
     for (final key in [
-      'quoteMessage',
       'copy',
       'forward',
       'favorites',
@@ -261,14 +271,16 @@ void main() {
       'selectMessages',
       'delete',
     ]) {
-      expect(action(key).left, closeTo(action('quoteMessage').left, 0.5));
-      expect(action(key).right, closeTo(action('quoteMessage').right, 0.5));
-      expect(action(key).top, greaterThanOrEqualTo(sheet.top));
-      expect(action(key).bottom, lessThanOrEqualTo(sheet.bottom));
+      expect(action(key).left, closeTo(first.left, 0.5));
+      expect(action(key).width, closeTo(first.width, 0.5));
     }
-    // Rows are stacked, not packed into columns.
-    expect(action('copy').top, greaterThan(action('quoteMessage').top));
-    expect(action('delete').top, greaterThan(action('search').top));
+    expect(first.width, lessThanOrEqualTo(232));
+    expect(first.left, greaterThanOrEqualTo(0));
+    expect(first.right, lessThanOrEqualTo(screenWidth));
+    // Stacked rows, and the menu stays a small popover, not a sheet.
+    expect(action('copy').top, greaterThan(first.top));
+    expect(last.top, greaterThan(action('search').top));
+    expect(last.bottom - first.top, lessThan(screenHeight * .7));
     expect(tester.takeException(), isNull);
   });
   testWidgets('recall keeps the conversation loaded', (tester) async {

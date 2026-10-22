@@ -15,7 +15,7 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 import 'message_status.dart';
-import 'message_actions_sheet.dart';
+import 'message_actions_menu.dart';
 import 'chat_composer.dart';
 import 'attachment_preview.dart';
 import 'message_attachment.dart';
@@ -692,21 +692,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  void openMessageMenu(Map<String, dynamic> m) {
+  void openMessageMenu(Map<String, dynamic> m, BuildContext anchor) {
     final sent = m['pending'] != true && m['recalledAt'] == null;
     final created = DateTime.tryParse(m['createdAt']?.toString() ?? '');
     final text = (m['text'] ?? '').toString().trim();
-    final preview = m['recalledAt'] != null
-        ? tr(context, 'recalled')
-        : text.isNotEmpty
-        ? text
-        : switch (m['kind']) {
-            'IMAGE' => tr(context, 'image'),
-            'VIDEO' => tr(context, 'video'),
-            'AUDIO' => tr(context, 'audio'),
-            'FILE' => tr(context, 'file'),
-            _ => '',
-          };
     final actions = <MessageAction>[
       if (sent)
         MessageAction(
@@ -786,7 +775,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       ],
     ];
     if (actions.isEmpty) return;
-    showMessageActionSheet(context, preview: preview, actions: actions);
+    showMessageActions(context, anchorContext: anchor, actions: actions);
   }
 
   Future<void> operation(Future<dynamic> Function() fn) async {
@@ -957,8 +946,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         m['recalledAt'] == null &&
                                         (m['kind'] == 'IMAGE' ||
                                             m['kind'] == 'VIDEO'),
-                                    bubbleWrapper: (bubble) => GestureDetector(
-                                      onLongPress: () => openMessageMenu(m),
+                                    bubbleWrapper: (bubble) => Builder(
+                                    builder: (anchor) => GestureDetector(
+                                      onLongPress: () =>
+                                          openMessageMenu(m, anchor),
                                       child: Stack(
                                         alignment: Alignment.center,
                                         children: [
@@ -976,7 +967,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                 strokeWidth: 1.5,
                                               ),
                                             ),
-                                        ],
+                                          ],
+                                        ),
                                       ),
                                     ),
                                     mine: mine,
