@@ -220,7 +220,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   bottom: 0,
                   child: QChatGlass(
                     key: navKey,
-                    border: false,
+                    topBorder: true,
                     color: navigationSurface(ctx),
                     opacity: .88,
                     child: SafeArea(
