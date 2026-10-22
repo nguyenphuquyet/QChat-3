@@ -54,6 +54,17 @@ class QChatPage extends StatelessWidget {
     final bottomColor = navigationBackground ?? pageColor;
     final topBrightness = ThemeData.estimateBrightnessForColor(topColor);
     final bottomBrightness = ThemeData.estimateBrightnessForColor(bottomColor);
+    final appBar = title == null
+        ? null
+        : QChatAppBar(title: title!, leading: leading, trailing: trailing);
+    final content = MediaQuery.removePadding(
+      context: c,
+      removeTop: title != null || !edgeToEdge,
+      removeBottom: bottom != null,
+      removeLeft: true,
+      removeRight: true,
+      child: child,
+    );
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -79,30 +90,12 @@ class QChatPage extends StatelessWidget {
         ),
         child: Column(
           children: [
-            if (title != null && glassHeader)
-              QChatGlass(
-                child: SafeArea(
-                  bottom: false,
-                  child: QChatAppBar(
-                    title: title!,
-                    leading: leading,
-                    trailing: trailing,
-                  ),
-                ),
-              )
-            else if (title != null)
+            if (appBar != null && !glassHeader)
               ColoredBox(
                 color: topColor,
-                child: SafeArea(
-                  bottom: false,
-                  child: QChatAppBar(
-                    title: title!,
-                    leading: leading,
-                    trailing: trailing,
-                  ),
-                ),
+                child: SafeArea(bottom: false, child: appBar),
               )
-            else if (!edgeToEdge)
+            else if (appBar == null && !edgeToEdge)
               ColoredBox(
                 color: topColor,
                 child: SizedBox(
@@ -111,14 +104,24 @@ class QChatPage extends StatelessWidget {
                 ),
               ),
             Expanded(
-              child: MediaQuery.removePadding(
-                context: c,
-                removeTop: title != null || !edgeToEdge,
-                removeBottom: bottom != null,
-                removeLeft: true,
-                removeRight: true,
-                child: child,
-              ),
+              // A glass bar has to float above the page: it can only blur what
+              // is painted underneath it, so the content scrolls behind the bar
+              // instead of starting below it.
+              child: appBar != null && glassHeader
+                  ? Stack(
+                      children: [
+                        Positioned.fill(child: content),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: QChatGlass(
+                            child: SafeArea(bottom: false, child: appBar),
+                          ),
+                        ),
+                      ],
+                    )
+                  : content,
             ),
             if (bottom != null)
               ColoredBox(

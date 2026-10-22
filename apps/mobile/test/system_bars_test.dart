@@ -91,4 +91,38 @@ void main() {
     expect(find.byType(Positioned), findsNothing);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('glass header floats over the content it blurs', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(390, 844),
+            padding: EdgeInsets.only(top: 44, bottom: 34),
+          ),
+          child: QChatPage(
+            glassHeader: true,
+            title: 'Chat',
+            child: const ColoredBox(
+              key: Key('green-body'),
+              color: QChatColors.green,
+              child: SizedBox.expand(),
+            ),
+          ),
+        ),
+      ),
+    );
+    final body = tester.getRect(find.byKey(const Key('green-body')));
+    final bar = tester.getRect(find.byType(QChatAppBar));
+    // The bar is painted by a Positioned overlay, not stacked above the body,
+    // so the page really continues underneath the blur.
+    expect(body.top, 0);
+    expect(bar.top, 44);
+    expect(bar.bottom, 98);
+    expect(find.byType(Positioned), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
 }

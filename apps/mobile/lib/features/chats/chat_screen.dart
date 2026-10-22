@@ -854,6 +854,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
     final keyboard = MediaQuery.viewInsetsOf(c).bottom;
     final safeBottom = MediaQuery.viewPaddingOf(c).bottom;
+    // The glass bar floats over the list, so reserve its height at the top of
+    // the content instead of letting the newest messages sit under the blur.
+    final headerInset = MediaQuery.paddingOf(c).top + 54;
     if (keyboard > keyboardHeight) keyboardHeight = keyboard;
     final panelOpen = emoji || attachments;
     final panelHeight = math.max(keyboardHeight, 250 + safeBottom);
@@ -890,7 +893,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             GestureDetector(
               onTap: load,
               child: Padding(
-                padding: const EdgeInsets.all(8),
+                padding: EdgeInsets.fromLTRB(8, headerInset + 8, 8, 8),
                 child: Text(
                   error!,
                   style: const TextStyle(
@@ -912,6 +915,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       alignment: Alignment.topCenter,
                       child: ListView.builder(
                         controller: scroll,
+                        padding: EdgeInsets.only(
+                          top: error == null ? headerInset : 0,
+                        ),
                         // reverse: điểm bắt đầu là tin mới nhất -> mở chat không phải
                         // cuộn từ trên xuống. Ít tin thì shrinkWrap + Align để vẫn
                         // nằm sát phía trên như cũ.
