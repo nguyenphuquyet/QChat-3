@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 
 /// One entry in the long-press menu for a message.
@@ -17,9 +20,10 @@ class MessageAction {
   final bool destructive;
 }
 
-/// Opens a TDesign popover anchored to the pressed bubble. The bubble stays
-/// visible, the arrow points at it, and the panel flips above when the bottom
-/// of the screen is too close.
+/// Opens the long-press menu next to [anchorContext]'s bubble. The panel keeps
+/// a margin from the screen edges, aligns to the bubble's side, and animates
+/// in from the arrow so it reads as a TDesign popover instead of a clamped
+/// Material popup.
 Future<void> showMessageActions(
   BuildContext context, {
   required BuildContext anchorContext,
@@ -28,62 +32,341 @@ Future<void> showMessageActions(
   if (actions.isEmpty) return;
   final anchor = anchorContext.findRenderObject();
   if (anchor is! RenderBox || !anchor.hasSize) return;
+  if (Overlay.maybeOf(anchorContext, rootOverlay: true) == null) return;
 
   var chosen = -1;
-  await TPopover.showPopover(
-    context: anchorContext,
-    placement: TPopoverPlacement.bottom,
-    width: 240,
-    closeOnClickOutside: true,
-    content: _MessageMenu(
-      actions: actions,
-      onPick: (index) {
-        chosen = index;
-        // TDesign registers a local history entry for the popover, so this pop
-        // dismisses the menu and keeps the conversation on screen.
-        Navigator.of(anchorContext).pop();
-      },
-    ),
+  await _MessageMenuPopover.show(
+    anchorContext: anchorContext,
+    actions: actions,
+    onPick: (index) => chosen = index,
   );
   if (chosen >= 0) actions[chosen].onTap();
 }
 
-class _MessageMenu extends StatelessWidget {
-  const _MessageMenu({required this.actions, required this.onPick});
+class _MessageMenuPopover extends StatefulWidget {
+  const _MessageMenuPopover({
+    required this.anchorContext,
+    required this.actions,
+    required this.onPick,
+    required this.onDismissed,
+  });
 
+  final BuildContext anchorContext;
   final List<MessageAction> actions;
   final ValueChanged<int> onPick;
+  final VoidCallback onDismissed;
+
+  static Future<void> show({
+    required BuildContext anchorContext,
+    required List<MessageAction> actions,
+    required ValueChanged<int> onPick,
+  }) {
+    final overlay = Overlay.maybeOf(anchorContext, rootOverlay: true);
+    if (overlay == null) return Future<void>.value();
+    final completer = Completer<void>();
+    var removed = false;
+    late final OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => _MessageMenuPopover(
+        anchorContext: anchorContext,
+        actions: actions,
+        onPick: onPick,
+        onDismissed: () {
+          if (removed) return;
+          removed = true;
+          if (entry.mounted) entry.remove();
+          if (!completer.isCompleted) completer.complete();
+        },
+      ),
+    );
+    _MessageMenuPopoverState._active?.close();
+    overlay.insert(entry);
+    return completer.future;
+  }
+
+  @override
+  State<_MessageMenuPopover> createState() => _MessageMenuPopoverState();
+}
+
+class _MessageMenuPopoverState extends State<_MessageMenuPopover>
+    with SingleTickerProviderStateMixin {
+  /// Only one menu at a time: pressing another bubble closes the open one.
+  static _MessageMenuPopoverState? _active;
+
+  static const _rowHeight = 42.0;
+  static const _separatorHeight = 8.5;
+  static const _gap = 10.0;
+  static const _edge = 12.0;
+  static const _width = 240.0;
+
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 160),
+    reverseDuration: const Duration(milliseconds: 130),
+  );
+  LocalHistoryEntry? _history;
+  ScrollPosition? _scrollPosition;
+  bool _closing = false;
+  bool _anchorCheckScheduled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _MessageMenuPopoverState._active?.close();
+    _active = this;
+    _controller.forward();
+    ModalRoute.of(widget.anchorContext)?.addLocalHistoryEntry(
+      _history = LocalHistoryEntry(onRemove: _handleLocalHistoryRemoved),
+    );
+    _scheduleAnchorCheck();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _scrollPosition ??= Scrollable.maybeOf(widget.anchorContext)?.position
+      ?..addListener(_close);
+  }
+
+  @override
+  void dispose() {
+    _closing = true;
+    if (identical(_active, this)) _active = null;
+    final history = _history;
+    _history = null;
+    history?.remove();
+    _scrollPosition?.removeListener(_close);
+    widget.onDismissed();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _handleLocalHistoryRemoved() {
+    _history = null;
+    _close();
+  }
+
+  /// Closes on a tap outside, on the system back gesture, on scroll, and when
+  /// the pressed bubble leaves the list.
+  void close() => _close();
+
+  void _close() {
+    if (_closing || !mounted) return;
+    _closing = true;
+    final history = _history;
+    _history = null;
+    history?.remove();
+    _controller.reverse().whenComplete(() {
+      if (!mounted) return;
+      widget.onDismissed();
+    });
+  }
+
+  void _scheduleAnchorCheck() {
+    if (_anchorCheckScheduled || _closing) return;
+    _anchorCheckScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _anchorCheckScheduled = false;
+      if (!mounted || _closing) return;
+      if (!widget.anchorContext.mounted) {
+        _close();
+        return;
+      }
+      _scheduleAnchorCheck();
+    });
+  }
+
+  Rect? _anchorRect() {
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final overlayBox = overlay.context.findRenderObject();
+    final anchorBox = widget.anchorContext.findRenderObject();
+    if (overlayBox is! RenderBox ||
+        !overlayBox.attached ||
+        anchorBox is! RenderBox ||
+        !anchorBox.attached ||
+        !anchorBox.hasSize) {
+      return null;
+    }
+    return anchorBox.localToGlobal(Offset.zero, ancestor: overlayBox) &
+        anchorBox.size;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.tTheme;
-    final font = theme.fontBodyMedium;
-    final radius = BorderRadius.circular(theme.radiusDefault);
-    final separator = Container(
-      height: .5,
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      color: theme.textColorAnti.withValues(alpha: .16),
-    );
-    return SizedBox(
-      width: 224,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < actions.length; i++) ...[
-            if (i > 0 &&
-                actions[i].destructive &&
-                !actions[i - 1].destructive)
-              separator,
-            _MenuRow(
-              action: actions[i],
-              font: font,
-              radius: radius,
-              onTap: () => onPick(i),
+    _scheduleAnchorCheck();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rect = _anchorRect();
+        if (rect == null) return const SizedBox.shrink();
+        final screen = constraints.biggest;
+        final mq = MediaQuery.of(context);
+        final theme = Theme.of(context);
+        final tokens = context.tTheme;
+        final popoverTheme =
+            theme.extension<TPopoverThemeData>() ?? const TPopoverThemeData();
+        final background =
+            popoverTheme.backgroundColor ??
+            (theme.brightness == Brightness.dark
+                ? const Color(0xff202020)
+                : Colors.white);
+        final radius =
+            popoverTheme.borderRadius ??
+            BorderRadius.circular(tokens.radiusDefault);
+        final resolvedRadius = radius.resolve(Directionality.of(context));
+        final padding =
+            (popoverTheme.padding ?? const EdgeInsets.all(12)).resolve(
+              Directionality.of(context),
+            );
+        final shadow =
+            popoverTheme.boxShadow ?? tokens.shadow3 ?? const <BoxShadow>[];
+
+        var separators = 0;
+        for (var i = 1; i < widget.actions.length; i++) {
+          if (widget.actions[i].destructive &&
+              !widget.actions[i - 1].destructive) {
+            separators++;
+          }
+        }
+        final panelHeight =
+            padding.vertical +
+            widget.actions.length * _rowHeight +
+            separators * _separatorHeight;
+
+        final topInset = mq.padding.top;
+        final bottomInset = math.max(mq.padding.bottom, mq.viewInsets.bottom);
+        final spaceBelow = screen.height - bottomInset - _edge - (rect.bottom + _gap);
+        final spaceAbove = rect.top - _gap - topInset - _edge;
+        // Drop the panel under the bubble, or lift it above when the bottom
+        // of the screen is too close.
+        final below = spaceBelow >= panelHeight || spaceBelow >= spaceAbove;
+        // Align to the bubble's side so a right-hand message never leaves the
+        // panel glued to the screen edge.
+        final alignRight = rect.center.dx > screen.width / 2;
+
+        final top =
+            (below ? rect.bottom + _gap : rect.top - _gap - panelHeight)
+                .clamp(
+                  topInset + _edge,
+                  math.max(
+                    topInset + _edge,
+                    screen.height - bottomInset - _edge - panelHeight,
+                  ),
+                )
+                .toDouble();
+        final left = (alignRight ? rect.right - _width : rect.left)
+            .clamp(
+              _edge,
+              math.max(_edge, screen.width - _edge - _width),
+            )
+            .toDouble();
+        final arrowPad = resolvedRadius.topLeft.x + 10;
+        final arrowDx = (rect.center.dx - left)
+            .clamp(
+              arrowPad,
+              math.max(arrowPad, _width - arrowPad),
+            )
+            .toDouble();
+
+        final panel = Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              key: const ValueKey('message-action-menu'),
+              width: _width,
+              height: panelHeight,
+              padding: padding,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: radius,
+                boxShadow: shadow,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < widget.actions.length; i++) ...[
+                    if (i > 0 &&
+                        widget.actions[i].destructive &&
+                        !widget.actions[i - 1].destructive)
+                      Container(
+                        height: .5,
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        color: tokens.textColorAnti.withValues(alpha: .16),
+                      ),
+                    _MenuRow(
+                      action: widget.actions[i],
+                      font: tokens.fontBodyMedium,
+                      radius: BorderRadius.circular(tokens.radiusDefault),
+                      onTap: () {
+                        widget.onPick(i);
+                        close();
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Positioned(
+              left: arrowDx - 6,
+              top: below ? -6 : panelHeight - 6,
+              child: Transform.rotate(
+                angle: math.pi / 4,
+                child: Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(color: background),
+                ),
+              ),
             ),
           ],
-        ],
-      ),
+        );
+
+        final entrance = CurvedAnimation(
+          parent: _controller,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return AnimatedBuilder(
+          animation: _controller,
+          child: TapRegion(
+            key: const ValueKey('message-action-tap-region'),
+            onTapOutside: (_) => close(),
+            child: panel,
+          ),
+          builder: (context, child) {
+            final t = entrance.value.clamp(0.0, 1.0).toDouble();
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  left: left,
+                  top: top,
+                  width: _width,
+                  height: panelHeight,
+                  child: FadeTransition(
+                    key: const ValueKey('message-menu-fade'),
+                    opacity: entrance,
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - t) * (below ? -8 : 8)),
+                      child: Transform.scale(
+                        alignment: Alignment(
+                          alignRight ? 1 : -1,
+                          below ? -1 : 1,
+                        ),
+                        scale: .92 + .08 * t,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

@@ -1,7 +1,7 @@
 name: qchat
 description: QChat private cross-platform messaging
 publish_to: none
-version: 1.1.0+5
+version: 1.1.0+6
 environment:
   sdk: '>=3.10.0 <4.0.0'
 dependencies:
