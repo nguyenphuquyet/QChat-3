@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:go_router/go_router.dart';
@@ -23,10 +24,20 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
   Map? conversation;
   String? error;
   bool busy = false;
+  StreamSubscription<void>? updates;
   @override
   void initState() {
     super.initState();
     load();
+    updates = ref.read(clientProvider).changes.stream.listen((_) {
+      if (mounted) load();
+    });
+  }
+
+  @override
+  void dispose() {
+    updates?.cancel();
+    super.dispose();
   }
 
   Future<void> load() async {
@@ -61,74 +72,32 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
   }
 
   Future<void> background() async {
-    await showQChatSheet<void>(
+    final choice = await showQChatSheet<String>(
       context,
       (c) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           QChatOverlayAction(
             label: tr(c, 'selectWallpaper'),
-            onTap: () async {
-              Navigator.pop(c);
-              final file = await pickImageWithSource(context);
-              if (file == null) return;
-              final bytes = await file.readAsBytes();
-              if (bytes.isNotEmpty) {
-                final base64Str = base64Encode(bytes);
-                final client = ref.read(clientProvider);
-                await client.local?.removeCache('chatBackground:${widget.id}');
-                await client.local?.cache(
-                  'chatBackgroundImage:${widget.id}',
-                  base64Str,
-                );
-                client.changes.add(null);
-                if (mounted) setState(() {});
-              }
-            },
+            onTap: () => Navigator.pop(c, 'image'),
           ),
           QChatOverlayAction(
             label: tr(c, 'clearWallpaper'),
-            onTap: () async {
-              Navigator.pop(c);
-              final client = ref.read(clientProvider);
-              await client.local?.removeCache(
-                'chatBackgroundImage:${widget.id}',
-              );
-              await client.local?.removeCache('chatBackground:${widget.id}');
-              client.changes.add(null);
-              if (mounted) setState(() {});
-            },
+            onTap: () => Navigator.pop(c, 'reset'),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                for (final value in [
-                  0xffededed,
-                  0xffe4eee5,
-                  0xffe5edf5,
-                  0xfff5e8e1,
-                ])
+                for (final value in ['ededed', 'e4eee5', 'e5edf5', 'f5e8e1'])
                   GestureDetector(
-                    onTap: () async {
-                      Navigator.pop(c);
-                      final client = ref.read(clientProvider);
-                      await client.local?.removeCache(
-                        'chatBackgroundImage:${widget.id}',
-                      );
-                      await client.local?.cache(
-                        'chatBackground:${widget.id}',
-                        value,
-                      );
-                      client.changes.add(null);
-                      if (mounted) setState(() {});
-                    },
+                    onTap: () => Navigator.pop(c, '#$value'),
                     child: Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Color(value),
+                        color: Color(int.parse('ff$value', radix: 16)),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.black12, width: 1),
                       ),
@@ -140,6 +109,26 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
         ],
       ),
     );
+    if (choice == null || !mounted) return;
+    final client = ref.read(clientProvider);
+    String? mediaId;
+    if (choice == 'image') {
+      final file = await pickImageWithSource(context);
+      if (file == null || !mounted) return;
+      mediaId = await uploadMedia(client, file);
+    }
+    await client.dio.patch(
+      '/conversations/${widget.id}/wallpaper',
+      data: {
+        'wallpaperColor': choice.startsWith('#') ? choice : null,
+        'wallpaperMediaId': mediaId,
+      },
+    );
+    // Discard the old device-only setting after the shared update succeeds.
+    await client.local?.removeCache('chatBackground:${widget.id}');
+    await client.local?.removeCache('chatBackgroundImage:${widget.id}');
+    await load();
+    client.changes.add(null);
   }
 
   Future<void> clearHistory() async {
@@ -318,6 +307,9 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
     final client = ref.read(clientProvider);
     final members = conversation?['members'] as List? ?? [];
     final own = members.where((m) => m['userId'] == client.userId).firstOrNull;
+    final canChangeWallpaper =
+        conversation?['kind'] == 'DIRECT' ||
+        ['OWNER', 'ADMIN'].contains(own?['role']);
     final shown = conversation?['kind'] == 'DIRECT'
         ? members.where((m) => m['userId'] != client.userId)
         : members;
@@ -527,8 +519,16 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
             const SizedBox(height: 9),
             TCell(
               title: Text(tr(c, 'chatBackground')),
-              arrow: true,
-              onTap: busy ? null : () => run(background),
+              subtitle: Text(
+                tr(
+                  c,
+                  canChangeWallpaper
+                      ? 'sharedWallpaperNote'
+                      : 'adminWallpaperOnly',
+                ),
+              ),
+              arrow: canChangeWallpaper,
+              onTap: busy || !canChangeWallpaper ? null : () => run(background),
             ),
             const SizedBox(height: 9),
             TCell(

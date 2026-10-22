@@ -63,155 +63,247 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext c) => QChatPage(
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 440),
-        child: ListView(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 36),
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                for (final language in ['vi', 'en', 'zh'])
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: GestureDetector(
-                      onTap: () => ref
-                          .read(preferencesProvider.notifier)
-                          .language(language),
-                      child: Text(
-                        language == 'vi'
-                            ? 'VI'
-                            : language == 'en'
-                            ? 'EN'
-                            : '中文',
-                        style: TextStyle(
-                          color:
-                              ref.watch(preferencesProvider).locale == language
-                              ? QChatColors.green
-                              : QChatColors.muted,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 42),
-            Center(
-              child: Container(
-                width: 76,
-                height: 76,
-                decoration: BoxDecoration(
-                  color: QChatColors.green,
-                  borderRadius: BorderRadius.circular(19),
-                ),
-                child: const Center(
-                  child: Text(
-                    'Q',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'QChat',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 30,
-                fontWeight: FontWeight.w600,
-                letterSpacing: -1,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              tr(c, 'welcome'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              tr(c, 'welcomeNote'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: QChatColors.muted),
-            ),
-            const SizedBox(height: 40),
-            ValueListenableBuilder<bool>(
-              valueListenable: ref.read(clientProvider).sessionExpired,
-              builder: (c, expired, _) => expired
-                  ? Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        tr(c, 'sessionExpired'),
-                        textAlign: TextAlign.center,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-            QChatTextInput(
-              controller: identifier,
-              hint: register ? 'QChat ID' : tr(c, 'identifier'),
-            ),
-            const SizedBox(height: 12),
-            if (register) ...[
-              QChatTextInput(controller: email, hint: tr(c, 'email')),
-              const SizedBox(height: 12),
-              QChatTextInput(controller: nickname, hint: tr(c, 'nickname')),
-              const SizedBox(height: 12),
-            ],
-            QChatTextInput(
-              controller: password,
-              hint: tr(c, 'password'),
-              secret: true,
-            ),
-            if (error != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  error!,
-                  style: const TextStyle(
-                    color: QChatColors.danger,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            const SizedBox(height: 24),
-            QChatButton(
-              tr(c, register ? 'register' : 'login'),
-              loading: busy,
-              onTap: busy ? null : submit,
-            ),
-            const SizedBox(height: 12),
-            QChatButton(
-              tr(c, register ? 'login' : 'register'),
-              secondary: true,
-              onTap: busy
-                  ? null
-                  : () => setState(() {
-                      register = !register;
-                      error = null;
-                    }),
-            ),
-            const SizedBox(height: 40),
-            Text(
-              tr(c, 'terms'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 11,
-                color: QChatColors.muted,
-                height: 1.6,
-              ),
-            ),
-          ],
+  Widget field(
+    BuildContext c,
+    TextEditingController controller,
+    String label, {
+    bool secret = false,
+    TextInputType? keyboardType,
+  }) => Padding(
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: ink(c),
+          ),
         ),
-      ),
+        const SizedBox(height: 8),
+        Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: ink(c).withValues(alpha: .035),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: ink(c).withValues(alpha: .09)),
+          ),
+          child: TInput(
+            controller: controller,
+            hintText: secret ? '••••••••••••' : '',
+            obscureText: secret,
+            inputType: keyboardType ?? TextInputType.text,
+            borderless: true,
+            cursorColor: QChatColors.green,
+            style: TextStyle(fontSize: 16, color: ink(c)),
+          ),
+        ),
+      ],
     ),
   );
+
+  @override
+  Widget build(BuildContext c) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    return QChatPage(
+      background: dark ? const Color(0xff171c1a) : const Color(0xfff5f8f6),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(c).bottom),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      for (final language in ['vi', 'en', 'zh'])
+                        Padding(
+                          padding: const EdgeInsets.only(left: 4),
+                          child: TButton(
+                            variant: TButtonVariant.text,
+                            onPressed: () => ref
+                                .read(preferencesProvider.notifier)
+                                .language(language),
+                            child: Text(
+                              language == 'zh' ? '中文' : language.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight:
+                                    ref.watch(preferencesProvider).locale ==
+                                        language
+                                    ? FontWeight.w700
+                                    : FontWeight.w400,
+                                color:
+                                    ref.watch(preferencesProvider).locale ==
+                                        language
+                                    ? QChatColors.green
+                                    : QChatColors.muted,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    tr(c, register ? 'authCreateTitle' : 'authWelcomeTitle'),
+                    style: TextStyle(
+                      fontSize: 32,
+                      height: 1.2,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -.8,
+                      color: ink(c),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    tr(c, register ? 'authCreateNote' : 'welcomeNote'),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 1.6,
+                      color: QChatColors.muted,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: surface(c),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: ink(c).withValues(alpha: .05)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: dark ? .08 : .025,
+                          ),
+                          blurRadius: 32,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ValueListenableBuilder<bool>(
+                          valueListenable: ref
+                              .read(clientProvider)
+                              .sessionExpired,
+                          builder: (c, expired, _) => expired
+                              ? Padding(
+                                  padding: const EdgeInsets.only(bottom: 18),
+                                  child: Text(tr(c, 'sessionExpired')),
+                                )
+                              : const SizedBox.shrink(),
+                        ),
+                        field(
+                          c,
+                          identifier,
+                          register ? 'QChat ID' : tr(c, 'identifier'),
+                        ),
+                        if (register) ...[
+                          field(
+                            c,
+                            email,
+                            tr(c, 'email'),
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          field(c, nickname, tr(c, 'nickname')),
+                        ],
+                        field(c, password, tr(c, 'password'), secret: true),
+                        if (error != null)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 18),
+                            child: Text(
+                              error!,
+                              style: const TextStyle(
+                                color: QChatColors.danger,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 6),
+                        TButton(
+                          onPressed: busy ? null : submit,
+                          style: ButtonStyle(
+                            minimumSize: const WidgetStatePropertyAll(
+                              Size.fromHeight(52),
+                            ),
+                            backgroundColor: const WidgetStatePropertyAll(
+                              QChatColors.green,
+                            ),
+                            foregroundColor: const WidgetStatePropertyAll(
+                              Colors.white,
+                            ),
+                            shape: WidgetStatePropertyAll(
+                              RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          child: busy
+                              ? const QChatLoading()
+                              : Text(
+                                  tr(c, register ? 'register' : 'login'),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    tr(c, register ? 'authHasAccount' : 'authNoAccount'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: QChatColors.muted,
+                    ),
+                  ),
+                  TButton(
+                    variant: TButtonVariant.text,
+                    onPressed: busy
+                        ? null
+                        : () => setState(() {
+                            register = !register;
+                            error = null;
+                          }),
+                    child: Text(
+                      tr(c, register ? 'login' : 'register'),
+                      style: const TextStyle(
+                        color: QChatColors.green,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    tr(c, 'terms'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      height: 1.6,
+                      color: QChatColors.muted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

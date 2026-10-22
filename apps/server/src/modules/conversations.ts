@@ -10,6 +10,14 @@ import {
 } from "../services/messages";
 import { requireCondition } from "../security/errors";
 import { messageSchema, uuid } from "../../../../packages/contracts";
+
+async function notifyConversation(tx: Prisma.TransactionClient, id: string) {
+  const members = await tx.conversationMember.findMany({ where: { conversationId: id } });
+  await tx.outbox.createMany({ data: members.map(member => ({
+    event: "conversation:updated", room: `user:${member.userId}`,
+    payload: { conversationId: id },
+  })) });
+}
 export async function conversationsRoute(
   userId: string,
   method: string,
@@ -87,6 +95,29 @@ export async function conversationsRoute(
     return;
   }
   const m = await membership(userId, uuid.parse(id));
+  if (sub === "wallpaper" && method === "PATCH") {
+    const data = z.object({
+      wallpaperColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable(),
+      wallpaperMediaId: uuid.nullable(),
+    }).strict().refine(v => !(v.wallpaperColor && v.wallpaperMediaId)).parse(body);
+    return db.$transaction(async tx => {
+      // Serialize shared settings and role changes, then check current permissions.
+      await tx.$queryRaw`SELECT "id" FROM "Conversation" WHERE "id" = ${id}::uuid FOR UPDATE`;
+      const c = await tx.conversation.findUniqueOrThrow({ where: { id } });
+      const actor = await tx.conversationMember.findUnique({
+        where: { conversationId_userId: { conversationId: id, userId } },
+      });
+      requireCondition(actor && (c.kind === "DIRECT" || ["OWNER", "ADMIN"].includes(actor.role)));
+      if (data.wallpaperMediaId) {
+        const media = await tx.media.findUnique({ where: { id: data.wallpaperMediaId } });
+        requireCondition(media && media.ownerId === userId && media.status === "READY" &&
+          media.mime.startsWith("image/"), 400, "INVALID_WALLPAPER");
+      }
+      const updated = await tx.conversation.update({ where: { id }, data });
+      await notifyConversation(tx, id);
+      return updated;
+    });
+  }
   if (sub === "messages") {
     if (method === "POST")
       return sendMessage(
@@ -216,6 +247,19 @@ export async function conversationsRoute(
         .strict()
         .parse(body);
       await db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Conversation" WHERE "id" = ${id}::uuid FOR UPDATE`;
+        const actor = await tx.conversationMember.findUnique({
+          where: { conversationId_userId: { conversationId: id, userId } },
+        });
+        requireCondition(actor?.role === "OWNER");
+        const peer = await tx.conversationMember.findUnique({
+          where: { conversationId_userId: { conversationId: id, userId: uuid.parse(target) } },
+        });
+        requireCondition(peer, 404, "NOT_FOUND");
+        if (role === "ADMIN" && peer.role !== "ADMIN") {
+          const admins = await tx.conversationMember.count({ where: { conversationId: id, role: "ADMIN" } });
+          requireCondition(admins < 3, 409, "ADMIN_LIMIT_REACHED");
+        }
         if (role === "OWNER")
           await tx.conversationMember.update({
             where: { conversationId_userId: { conversationId: id, userId } },
@@ -230,6 +274,7 @@ export async function conversationsRoute(
           },
           data: { role },
         });
+        await notifyConversation(tx, id);
       });
       return { ok: true };
     }

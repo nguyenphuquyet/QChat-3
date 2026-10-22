@@ -1,6 +1,46 @@
 import 'package:flutter/widgets.dart';
 
 const translations = <String, List<String>>{
+  'sharedWallpaperNote': [
+    'Visible to everyone in this chat.',
+    'Hình nền dùng chung cho mọi người trong cuộc trò chuyện.',
+    '聊天中的所有人共享此背景。',
+  ],
+  'adminWallpaperOnly': [
+    'Only the owner and admins can change the wallpaper.',
+    'Chỉ chủ nhóm và quản trị viên được đổi hình nền.',
+    '仅群主和管理员可更改背景。',
+  ],
+  'appointAdmin': ['Appoint admin', 'Bổ nhiệm quản trị viên', '设为管理员'],
+  'removeAdmin': ['Remove admin role', 'Gỡ quyền quản trị viên', '取消管理员'],
+  'adminSlots': ['Appointed admins', 'Quản trị viên được bổ nhiệm', '已任命管理员'],
+  'adminLimit': [
+    'A group can have up to 3 appointed admins, besides its owner.',
+    'Nhóm có tối đa 3 quản trị viên được bổ nhiệm, không tính chủ nhóm.',
+    '除群主外，最多可任命3名管理员。',
+  ],
+  'manageMember': ['Manage member', 'Quản lý thành viên', '管理成员'],
+  'authWelcomeTitle': ['Welcome back.', 'Chào mừng trở lại.', '欢迎回来。'],
+  'authCreateTitle': ['Start something closer.', 'Bắt đầu kết nối.', '开启新的连接。'],
+  'authCreateNote': [
+    'Create your account to share everyday moments.',
+    'Tạo tài khoản để cùng chia sẻ những khoảnh khắc mỗi ngày.',
+    '创建账号，分享日常点滴。',
+  ],
+  'authHasAccount': [
+    'Already have an account?',
+    'Bạn đã có tài khoản?',
+    '已有账号？',
+  ],
+  'authNoAccount': ['New to QChat?', 'Bạn chưa có tài khoản?', '还没有账号？'],
+  'yesterday': ['Yesterday', 'Hôm qua', '昨天'],
+  'weekday1': ['Monday', 'Thứ Hai', '星期一'],
+  'weekday2': ['Tuesday', 'Thứ Ba', '星期二'],
+  'weekday3': ['Wednesday', 'Thứ Tư', '星期三'],
+  'weekday4': ['Thursday', 'Thứ Năm', '星期四'],
+  'weekday5': ['Friday', 'Thứ Sáu', '星期五'],
+  'weekday6': ['Saturday', 'Thứ Bảy', '星期六'],
+  'weekday7': ['Sunday', 'Chủ nhật', '星期日'],
   'select': ['Select', 'Chọn', '选择'],
   'close': ['Close', 'Đóng', '关闭'],
   'chooseMedia': ['Photos and videos', 'Ảnh và video', '照片和视频'],

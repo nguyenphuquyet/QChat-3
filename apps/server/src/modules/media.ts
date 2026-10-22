@@ -165,6 +165,11 @@ export async function mediaRoute(
     requireCondition(file && file.status === "READY", 404, "NOT_FOUND");
     let allowed = file.ownerId === userId;
     if (!allowed)
+      allowed = !!(await db.conversation.findFirst({
+        where: { wallpaperMediaId: file.id, members: { some: { userId } } },
+        select: { id: true },
+      }));
+    if (!allowed)
       allowed = !!(await db.user.findFirst({
         where: { avatarId: file.id, disabled: false },
         select: { id: true },

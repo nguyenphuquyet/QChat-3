@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import '../localization/strings.dart';
 import 'qchat_colors.dart';
+import 'qchat_glass.dart';
 import 'qchat_icons.dart';
 import 'qchat_typography.dart';
 import 'overlays.dart';
@@ -37,6 +38,7 @@ class QChatPage extends StatelessWidget {
     this.statusBackground,
     this.navigationBackground,
     this.edgeToEdge = false,
+    this.glassHeader = false,
   });
   final Widget child;
   final String? title;
@@ -44,6 +46,7 @@ class QChatPage extends StatelessWidget {
   final Color? background, statusBackground, navigationBackground;
   final ImageProvider? backgroundImage;
   final bool edgeToEdge;
+  final bool glassHeader;
   @override
   Widget build(BuildContext c) {
     final pageColor = background ?? Theme.of(c).scaffoldBackgroundColor;
@@ -76,7 +79,18 @@ class QChatPage extends StatelessWidget {
         ),
         child: Column(
           children: [
-            if (title != null)
+            if (title != null && glassHeader)
+              QChatGlass(
+                child: SafeArea(
+                  bottom: false,
+                  child: QChatAppBar(
+                    title: title!,
+                    leading: leading,
+                    trailing: trailing,
+                  ),
+                ),
+              )
+            else if (title != null)
               ColoredBox(
                 color: topColor,
                 child: SafeArea(
@@ -452,25 +466,89 @@ class QChatConversationTile extends StatelessWidget {
   final int unread;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext c) => QChatListTile(
-    title: name,
-    subtitle: preview,
-    leading: Stack(
-      clipBehavior: Clip.none,
-      children: [
-        avatar ?? QChatAvatar(name),
-        if (unread > 0)
-          Positioned(right: -5, top: -5, child: QChatUnreadBadge(unread)),
-      ],
-    ),
-    trailing: Padding(
-      padding: const EdgeInsets.only(left: 8),
-      child: Text(
-        time,
-        style: const TextStyle(fontSize: 11, color: Color(0xffb2b2b2)),
+  Widget build(BuildContext c) => Semantics(
+    button: true,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        color: surface(c),
+        padding: const EdgeInsets.only(left: 16),
+        child: Row(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                avatar ?? QChatAvatar(name),
+                if (unread > 0)
+                  Positioned(
+                    right: -5,
+                    top: -5,
+                    child: QChatUnreadBadge(unread),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(0, 17, 16, 17),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: ink(c).withValues(alpha: .07),
+                      width: .5,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 17),
+                          ),
+                        ),
+                        if (time.isNotEmpty) ...[
+                          const SizedBox(width: 12),
+                          Text(
+                            time,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(c).brightness == Brightness.dark
+                                  ? const Color(0xff929895)
+                                  : const Color(0xffb2b2b2),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (preview.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        preview,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: QChatColors.muted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     ),
-    onTap: onTap,
   );
 }
 
@@ -611,8 +689,9 @@ class QChatChatBubble extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 12),
             padding: bareMedia
                 ? EdgeInsets.zero
-                : const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+                : const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
             constraints: BoxConstraints(
+              minHeight: bareMedia ? 0 : 42,
               maxWidth: MediaQuery.sizeOf(c).width * .68,
             ),
             decoration: BoxDecoration(
@@ -627,7 +706,7 @@ class QChatChatBubble extends StatelessWidget {
               style: TextStyle(
                 color: mine && !bareMedia ? QChatColors.ink : ink(c),
                 fontSize: 16,
-                height: 1.4,
+                height: 1.375,
               ),
               child: child,
             ),

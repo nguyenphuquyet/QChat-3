@@ -1,6 +1,6 @@
+import '../../core/design_system/qchat_glass.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:async';
-import 'dart:convert';
 import 'package:uuid/uuid.dart';
 import '../../core/design_system/dialogs.dart';
 import 'dart:math' as math;
@@ -54,6 +54,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   String myName = 'Q';
   Color? chatBackground;
   ImageProvider? chatBackgroundImage;
+  String? wallpaperMediaId;
+  int wallpaperRequest = 0;
+  bool wallpaperLoaded = false;
   final inputFocus = FocusNode();
   double keyboardHeight = 0;
   Timer? panelTimer;
@@ -285,6 +288,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
+  void applyWallpaper(Map conversation) {
+    if (!mounted) return;
+    wallpaperLoaded = true;
+    final color = conversation['wallpaperColor'];
+    final colorValue =
+        color is String && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(color)
+        ? int.tryParse('ff${color.substring(1)}', radix: 16)
+        : null;
+    final mediaId = conversation['wallpaperMediaId'] as String?;
+    setState(
+      () => chatBackground = colorValue == null ? null : Color(colorValue),
+    );
+    if (mediaId == wallpaperMediaId && chatBackgroundImage != null) return;
+    final request = ++wallpaperRequest;
+    wallpaperMediaId = mediaId;
+    setState(() => chatBackgroundImage = null);
+    if (mediaId == null) return;
+    unawaited(
+      MediaCache.load(ref.read(clientProvider), mediaId)
+          .then((bytes) {
+            if (!mounted || request != wallpaperRequest || bytes == null) {
+              return;
+            }
+            setState(() => chatBackgroundImage = MemoryImage(bytes));
+          })
+          .catchError((_) {}),
+    );
+  }
+
   Future<void> load() async {
     if (fetching) {
       reload = true;
@@ -295,23 +327,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         !locatingQuote && (!scroll.hasClients || scroll.offset < 100);
     try {
       final client = ref.read(clientProvider);
-      final color = await client.local?.read('chatBackground:${widget.id}');
-      final bgImg = await client.local?.read(
-        'chatBackgroundImage:${widget.id}',
-      );
-      if (mounted) {
-        setState(() {
-          chatBackground = color is int ? Color(color) : null;
-          if (bgImg is String && bgImg.isNotEmpty) {
-            try {
-              chatBackgroundImage = MemoryImage(base64Decode(bgImg));
-            } catch (_) {
-              chatBackgroundImage = null;
-            }
-          } else {
-            chatBackgroundImage = null;
-          }
-        });
+      if (!wallpaperLoaded) {
+        final cachedConversation = await client.local?.read(
+          '/conversations/${widget.id}',
+        );
+        if (cachedConversation is Map) applyWallpaper(cachedConversation);
       }
       final cached = await client.local?.read('messages:${widget.id}');
       client.clearedSequences[widget.id] =
@@ -326,6 +346,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         });
       }
       final c = await client.get('/conversations/${widget.id}', cached: false);
+      applyWallpaper(c);
+      try {
+        await client.local?.cache('/conversations/${widget.id}', c);
+      } catch (_) {}
       final ownMember = (c['members'] as List).firstWhere(
         (m) => m['userId'] == client.userId,
       );
@@ -837,6 +861,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
     return QChatPage(
       title: title,
+      glassHeader: true,
       background: chatBackground,
       backgroundImage: chatBackgroundImage,
       leading: QChatIconButton(
@@ -941,12 +966,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                     ),
                                   ),
                                 QChatChatBubble(
-                                    bareMedia:
-                                        m['mediaId'] != null &&
-                                        m['recalledAt'] == null &&
-                                        (m['kind'] == 'IMAGE' ||
-                                            m['kind'] == 'VIDEO'),
-                                    bubbleWrapper: (bubble) => Builder(
+                                  bareMedia:
+                                      m['mediaId'] != null &&
+                                      m['recalledAt'] == null &&
+                                      (m['kind'] == 'IMAGE' ||
+                                          m['kind'] == 'VIDEO'),
+                                  bubbleWrapper: (bubble) => Builder(
                                     builder: (anchor) => GestureDetector(
                                       onLongPress: () =>
                                           openMessageMenu(m, anchor),
@@ -967,89 +992,85 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                 strokeWidth: 1.5,
                                               ),
                                             ),
-                                          ],
-                                        ),
+                                        ],
                                       ),
                                     ),
-                                    mine: mine,
-                                    avatar: UserAvatar(
-                                      openProfile: !mine,
-                                      members.cast<Map>().firstWhere(
-                                        (member) =>
-                                            member['userId'] == m['senderId'],
-                                        orElse: () => {
-                                          'user':
-                                              m['sender'] ??
-                                              {
-                                                'nickname': mine
-                                                    ? myName
-                                                    : title,
-                                              },
-                                        },
-                                      )['user'],
-                                      size: 42,
-                                    ),
-                                    name: mine ? myName : title,
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (m['replyToId'] != null)
-                                          GestureDetector(
-                                            onTap: () => jumpToQuote(
-                                              m['replyToId'].toString(),
+                                  ),
+                                  mine: mine,
+                                  avatar: UserAvatar(
+                                    openProfile: !mine,
+                                    members.cast<Map>().firstWhere(
+                                      (member) =>
+                                          member['userId'] == m['senderId'],
+                                      orElse: () => {
+                                        'user':
+                                            m['sender'] ??
+                                            {'nickname': mine ? myName : title},
+                                      },
+                                    )['user'],
+                                    size: 42,
+                                  ),
+                                  name: mine ? myName : title,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (m['replyToId'] != null)
+                                        GestureDetector(
+                                          onTap: () => jumpToQuote(
+                                            m['replyToId'].toString(),
+                                          ),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            margin: const EdgeInsets.only(
+                                              bottom: 8,
                                             ),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(8),
-                                              margin: const EdgeInsets.only(
-                                                bottom: 8,
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withValues(
+                                                alpha: .06,
                                               ),
-                                              decoration: BoxDecoration(
-                                                color: Colors.black.withValues(
-                                                  alpha: .06,
-                                                ),
-                                                border: const Border(
-                                                  left: BorderSide(
-                                                    color: QChatColors.muted,
-                                                    width: 2,
-                                                  ),
-                                                ),
-                                              ),
-                                              child: Text(
-                                                '↳ ${quoteLabel(m['replyToId'].toString())}',
-                                                maxLines: 2,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: const TextStyle(
-                                                  fontSize: 12,
+                                              border: const Border(
+                                                left: BorderSide(
                                                   color: QChatColors.muted,
+                                                  width: 2,
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                        if (m['mediaId'] != null &&
-                                            m['recalledAt'] == null)
-                                          GestureDetector(
-                                            onTap: () => context.push(
-                                              '/media/${m['mediaId']}',
-                                              extra: "message-${m['id']}",
-                                            ),
-                                            child: MessageAttachment(
-                                              sourceTag: "message-${m['id']}",
-                                              key: ValueKey(m['mediaId']),
-                                              id: m['mediaId'].toString(),
-                                              kind: m['kind'] ?? 'FILE',
-                                              name: m['text'] ?? '',
+                                            child: Text(
+                                              '↳ ${quoteLabel(m['replyToId'].toString())}',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: QChatColors.muted,
+                                              ),
                                             ),
                                           ),
-                                        if (m['mediaId'] == null ||
-                                            m['recalledAt'] != null)
-                                          Text(
-                                            m['recalledAt'] != null
-                                                ? tr(c, 'recalled')
-                                                : m['text'] ?? '',
+                                        ),
+                                      if (m['mediaId'] != null &&
+                                          m['recalledAt'] == null)
+                                        GestureDetector(
+                                          onTap: () => context.push(
+                                            '/media/${m['mediaId']}',
+                                            extra: "message-${m['id']}",
                                           ),
-                                      ],
-                                    ),
+                                          child: MessageAttachment(
+                                            sourceTag: "message-${m['id']}",
+                                            key: ValueKey(m['mediaId']),
+                                            id: m['mediaId'].toString(),
+                                            kind: m['kind'] ?? 'FILE',
+                                            name: m['text'] ?? '',
+                                          ),
+                                        ),
+                                      if (m['mediaId'] == null ||
+                                          m['recalledAt'] != null)
+                                        Text(
+                                          m['recalledAt'] != null
+                                              ? tr(c, 'recalled')
+                                              : m['text'] ?? '',
+                                        ),
+                                    ],
+                                  ),
                                 ),
                                 if (i == lastOutgoing)
                                   MessageStatus(
@@ -1116,16 +1137,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 onTap: () => setState(() => reply = null),
               ),
             ),
-          Container(
-            decoration: BoxDecoration(
-              color: navigationSurface(c),
-              border: Border(
-                top: BorderSide(
-                  color: ink(c).withValues(alpha: .08),
-                  width: .5,
-                ),
-              ),
-            ),
+          QChatGlass(
+            topBorder: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

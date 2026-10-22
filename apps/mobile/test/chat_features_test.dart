@@ -216,6 +216,11 @@ void main() {
       const ChatDetailsScreen(id: 'chat'),
     );
     expect(find.text('Thành viên'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Giải tán nhóm'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Giải tán nhóm'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
     await mount(
@@ -241,10 +246,7 @@ void main() {
     await tester.tap(find.text('Chọn'));
     await tester.pumpAndSettle();
     // The menu closes; the remaining "Chuyển tiếp" is the selection bar.
-    expect(
-      find.byKey(const ValueKey('message-action-forward')),
-      findsNothing,
-    );
+    expect(find.byKey(const ValueKey('message-action-forward')), findsNothing);
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
@@ -273,10 +275,7 @@ void main() {
     final panel = tester.widget<Container>(
       find.byKey(const Key('message-action-menu')),
     );
-    expect(
-      (panel.decoration! as BoxDecoration).color,
-      const Color(0xff25282d),
-    );
+    expect((panel.decoration! as BoxDecoration).color, const Color(0xff25282d));
     expect(
       find.byKey(const ValueKey('message-action-tap-region')),
       findsOneWidget,

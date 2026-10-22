@@ -1,3 +1,4 @@
+import 'conversation_time.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -199,13 +200,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final last = rows.isEmpty ? null : rows.first;
     final date = DateTime.tryParse(last?['createdAt'] ?? '')?.toLocal();
     final now = DateTime.now();
-    final time = date == null
-        ? ''
-        : date.year == now.year &&
-              date.month == now.month &&
-              date.day == now.day
-        ? '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}'
-        : '${date.day}/${date.month}';
+    final time = conversationTime(date, now, (key) => tr(c, key));
     return TSwipeCell(
       key: ValueKey(item['id']),
       end: TSwipeCellPanel(

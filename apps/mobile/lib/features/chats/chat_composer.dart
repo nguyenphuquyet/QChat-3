@@ -37,7 +37,9 @@ class ChatInputBar extends StatelessWidget {
   Widget build(BuildContext c) {
     final dark = Theme.of(c).brightness == Brightness.dark;
     final decoration = BoxDecoration(
-      color: dark ? const Color(0xff2c2c2c) : Colors.white,
+      color: (dark ? const Color(0xff2c2c2c) : Colors.white).withValues(
+        alpha: .86,
+      ),
       borderRadius: BorderRadius.circular(12),
       border: Border.all(color: ink(c).withValues(alpha: .06), width: .5),
     );

@@ -234,6 +234,14 @@ class QChatClient {
       await local?.removeCache('messages:$id');
       changes.add(null);
     });
+    socket!.on('conversation:updated', (event) async {
+      if (event is! Map || event['conversationId'] is! String) return;
+      final id = event['conversationId'] as String;
+      _checked.remove('/conversations');
+      _checked.remove('/conversations/$id');
+      // Keep cached settings for offline use; active screens fetch fresh data.
+      changes.add(null);
+    });
     socket!.on('message:new', (event) async {
       try {
         _checked.clear();

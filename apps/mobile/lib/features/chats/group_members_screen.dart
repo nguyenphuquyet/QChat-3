@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
@@ -28,6 +29,7 @@ class GroupMembersScreen extends ConsumerStatefulWidget {
 class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
   Map<String, dynamic>? conversation;
   bool loading = true;
+  bool managing = false;
   String? error;
   final searchController = TextEditingController();
   String query = '';
@@ -146,6 +148,78 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
     }
   }
 
+  Future<void> manageMember(Map<String, dynamic> member) async {
+    if (managing) return;
+    final members = conversation?['members'] as List? ?? [];
+    final own = members
+        .where((m) => m['userId'] == ref.read(clientProvider).userId)
+        .firstOrNull;
+    final owner = own?['role'] == 'OWNER';
+    final canRemove =
+        owner || (own?['role'] == 'ADMIN' && member['role'] == 'MEMBER');
+    if (!canRemove || member['role'] == 'OWNER') return;
+    final choice = await showQChatSheet<String>(
+      context,
+      (c) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (owner)
+            QChatOverlayAction(
+              label: tr(
+                c,
+                member['role'] == 'ADMIN' ? 'removeAdmin' : 'appointAdmin',
+              ),
+              onTap: () => Navigator.pop(
+                c,
+                member['role'] == 'ADMIN' ? 'MEMBER' : 'ADMIN',
+              ),
+            ),
+          QChatOverlayAction(
+            label: tr(c, 'removeMember'),
+            onTap: () => Navigator.pop(c, 'remove'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return;
+    if (choice == 'remove') {
+      await removeMember(member);
+      return;
+    }
+    if (choice == 'ADMIN' &&
+        members.where((m) => m['role'] == 'ADMIN').length >= 3) {
+      setState(() => error = tr(context, 'adminLimit'));
+      return;
+    }
+    setState(() {
+      managing = true;
+      error = null;
+    });
+    try {
+      final client = ref.read(clientProvider);
+      await client.dio.patch(
+        '/conversations/${widget.conversationId}/members/${member['userId']}',
+        data: {'role': choice},
+      );
+      await load();
+      client.changes.add(null);
+      widget.onUpdated?.call();
+    } on DioException catch (e) {
+      if (mounted) {
+        setState(
+          () => error = tr(
+            context,
+            e.response?.statusCode == 409 ? 'adminLimit' : 'operationFailed',
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    } finally {
+      if (mounted) setState(() => managing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext c) {
     final client = ref.read(clientProvider);
@@ -233,6 +307,13 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
               ),
             ),
             const Divider(height: 1, thickness: 0.5),
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                '${tr(c, 'adminSlots')}: ${members.where((m) => m['role'] == 'ADMIN').length}/3',
+                style: const TextStyle(fontSize: 12, color: QChatColors.muted),
+              ),
+            ),
             if (error != null)
               Padding(
                 padding: const EdgeInsets.all(8),
@@ -337,15 +418,22 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
               note: _buildRoleBadge(c, m['role']),
               trailing:
                   canManage &&
+                      ((conversation?['members'] as List? ?? []).any(
+                            (own) =>
+                                own['userId'] == currentUserId &&
+                                own['role'] == 'OWNER',
+                          ) ||
+                          m['role'] == 'MEMBER') &&
                       m['role'] != 'OWNER' &&
                       m['userId'] != currentUserId
                   ? IconButton(
                       icon: const Icon(
-                        Icons.remove_circle_outline,
-                        color: QChatColors.danger,
+                        Icons.more_horiz,
+                        color: QChatColors.muted,
                         size: 20,
                       ),
-                      onPressed: () => removeMember(m),
+                      tooltip: tr(c, 'manageMember'),
+                      onPressed: managing ? null : () => manageMember(m),
                     )
                   : null,
               onTap: () => c.push('/user/${m['userId']}'),
