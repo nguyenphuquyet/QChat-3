@@ -65,6 +65,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       builder: (c) => StatefulBuilder(
         builder: (c, update) => QChatPage(
           title: tr(c, label),
+          glassHeader: false,
           leading: QChatIconButton(
             'back',
             label: tr(c, 'back'),

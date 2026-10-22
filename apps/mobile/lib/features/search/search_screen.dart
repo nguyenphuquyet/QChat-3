@@ -82,59 +82,72 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         label: tr(c, 'back'),
         onTap: () => c.pop(),
       ),
-      child: Column(
-        children: [
-          QChatSearchBar(controller: query, onChanged: changed),
-          Expanded(
-            child: busy
-                ? const QChatLoading()
-                : error != null
-                ? QChatError(error: error!, retry: () => changed(query.text))
-                : ListView(
-                    children: [
-                      if (query.text.trim().isEmpty)
-                        QChatEmptyState(tr(c, 'searchHint')),
-                      if (query.text.trim().isNotEmpty &&
-                          friends.isEmpty &&
-                          conversations.isEmpty &&
-                          messages.isEmpty)
-                        QChatEmptyState(tr(c, 'noItems')),
-                      if (friends.isNotEmpty) const SectionLabel('contacts'),
-                      for (final item in friends)
-                        QChatListTile(
-                          title: item['friend']['nickname'],
-                          subtitle: item['friend']['qchatId'],
-                          leading: UserAvatar(item['friend'], size: 42),
-                          onTap: () => c.push('/user/${item['friend']['id']}'),
-                        ),
-                      if (conversations.isNotEmpty)
-                        const SectionLabel('conversations'),
-                      for (final item in conversations)
-                        QChatListTile(
-                          title: item['kind'] == 'GROUP'
-                              ? item['title']
-                              : (item['members'] as List)
-                                    .where(
-                                      (m) =>
-                                          m['userId'] !=
-                                          ref.read(clientProvider).userId,
-                                    )
-                                    .map((m) => m['user']['nickname'])
-                                    .join(', '),
-                          onTap: () => c.push('/chat/${item['id']}'),
-                        ),
-                      if (messages.isNotEmpty) const SectionLabel('messages'),
-                      for (final item in messages)
-                        QChatListTile(
-                          title: item['text'],
-                          subtitle: item['sender']['nickname'],
-                          onTap: () =>
-                              c.push('/chat/${item['conversationId']}'),
-                        ),
-                    ],
-                  ),
-          ),
-        ],
+      child: Builder(
+        builder: (ctx) => Column(
+          children: [
+            SizedBox(height: MediaQuery.paddingOf(ctx).top),
+            QChatSearchBar(controller: query, onChanged: changed),
+            Expanded(
+              child: MediaQuery.removePadding(
+                context: ctx,
+                removeTop: true,
+                child: busy
+                    ? const QChatLoading()
+                    : error != null
+                    ? QChatError(
+                        error: error!,
+                        retry: () => changed(query.text),
+                      )
+                    : ListView(
+                        children: [
+                          if (query.text.trim().isEmpty)
+                            QChatEmptyState(tr(c, 'searchHint')),
+                          if (query.text.trim().isNotEmpty &&
+                              friends.isEmpty &&
+                              conversations.isEmpty &&
+                              messages.isEmpty)
+                            QChatEmptyState(tr(c, 'noItems')),
+                          if (friends.isNotEmpty)
+                            const SectionLabel('contacts'),
+                          for (final item in friends)
+                            QChatListTile(
+                              title: item['friend']['nickname'],
+                              subtitle: item['friend']['qchatId'],
+                              leading: UserAvatar(item['friend'], size: 42),
+                              onTap: () =>
+                                  c.push('/user/${item['friend']['id']}'),
+                            ),
+                          if (conversations.isNotEmpty)
+                            const SectionLabel('conversations'),
+                          for (final item in conversations)
+                            QChatListTile(
+                              title: item['kind'] == 'GROUP'
+                                  ? item['title']
+                                  : (item['members'] as List)
+                                        .where(
+                                          (m) =>
+                                              m['userId'] !=
+                                              ref.read(clientProvider).userId,
+                                        )
+                                        .map((m) => m['user']['nickname'])
+                                        .join(', '),
+                              onTap: () => c.push('/chat/${item['id']}'),
+                            ),
+                          if (messages.isNotEmpty)
+                            const SectionLabel('messages'),
+                          for (final item in messages)
+                            QChatListTile(
+                              title: item['text'],
+                              subtitle: item['sender']['nickname'],
+                              onTap: () =>
+                                  c.push('/chat/${item['conversationId']}'),
+                            ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

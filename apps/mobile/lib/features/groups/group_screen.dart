@@ -50,56 +50,65 @@ class _GroupScreenState extends ConsumerState<GroupScreen> {
       label: tr(c, 'back'),
       onTap: () => context.pop(),
     ),
-    child: Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: QChatTextInput(controller: name, hint: tr(c, 'groupName')),
-        ),
-        if (error != null) Text(error!),
-        Expanded(
-          child: FutureBuilder<dynamic>(
-            future: friends,
-            builder: (c, s) => s.hasError
-                ? QChatError(
-                    error: s.error!,
-                    retry: () => setState(
-                      () => friends = ref.read(clientProvider).get('/friends'),
-                    ),
-                  )
-                : !s.hasData
-                ? const QChatLoading()
-                : ListView(
-                    children: [
-                      for (final f in s.data)
-                        QChatListTile(
-                          title: f['friend']['nickname'],
-                          leading: UserAvatar(f['friend']),
-                          trailing: Text(
-                            selected.contains(f['friendId']) ? '✓' : '○',
-                            style: const TextStyle(
-                              color: QChatColors.green,
-                              fontSize: 24,
-                            ),
-                          ),
-                          onTap: () => setState(
-                            () => selected.contains(f['friendId'])
-                                ? selected.remove(f['friendId'])
-                                : selected.add(f['friendId']),
-                          ),
+    child: Builder(
+      builder: (ctx) => Column(
+        children: [
+          SizedBox(height: MediaQuery.paddingOf(ctx).top),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: QChatTextInput(controller: name, hint: tr(c, 'groupName')),
+          ),
+          if (error != null) Text(error!),
+          Expanded(
+            child: MediaQuery.removePadding(
+              context: ctx,
+              removeTop: true,
+              child: FutureBuilder<dynamic>(
+                future: friends,
+                builder: (c, s) => s.hasError
+                    ? QChatError(
+                        error: s.error!,
+                        retry: () => setState(
+                          () => friends = ref
+                              .read(clientProvider)
+                              .get('/friends'),
                         ),
-                    ],
-                  ),
+                      )
+                    : !s.hasData
+                    ? const QChatLoading()
+                    : ListView(
+                        children: [
+                          for (final f in s.data)
+                            QChatListTile(
+                              title: f['friend']['nickname'],
+                              leading: UserAvatar(f['friend']),
+                              trailing: Text(
+                                selected.contains(f['friendId']) ? '✓' : '○',
+                                style: const TextStyle(
+                                  color: QChatColors.green,
+                                  fontSize: 24,
+                                ),
+                              ),
+                              onTap: () => setState(
+                                () => selected.contains(f['friendId'])
+                                    ? selected.remove(f['friendId'])
+                                    : selected.add(f['friendId']),
+                              ),
+                            ),
+                        ],
+                      ),
+              ),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: QChatButton(
-            tr(c, 'newGroup'),
-            onTap: selected.isEmpty ? null : create,
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: QChatButton(
+              tr(c, 'newGroup'),
+              onTap: selected.isEmpty ? null : create,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

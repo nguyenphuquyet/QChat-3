@@ -60,6 +60,7 @@ class _SettingsExtrasState extends ConsumerState<SettingsExtras> {
     };
     return QChatPage(
       title: tr(c, widget.kind),
+      glassHeader: false,
       leading: QChatIconButton(
         'back',
         label: tr(c, 'back'),

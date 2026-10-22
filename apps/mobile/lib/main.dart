@@ -151,6 +151,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           path: '/about',
           builder: (c, s) => QChatPage(
             title: 'QChat',
+            glassHeader: false,
             leading: QChatIconButton(
               'back',
               label: 'Back',

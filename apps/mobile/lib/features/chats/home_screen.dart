@@ -6,6 +6,7 @@ import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
+import '../../core/design_system/qchat_glass.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
@@ -25,6 +26,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   StreamSubscription<void>? updates;
   StreamSubscription<String>? recalls;
   final sectionKeys = <String, GlobalKey>{};
+  final navKey = GlobalKey();
+  double navHeight = 0;
   @override
   void initState() {
     super.initState();
@@ -90,7 +93,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       valueListenable: offline,
       builder: (c, isOffline, _) => QChatPage(
         statusBackground: index == 3 ? surface(c) : null,
-        navigationBackground: navigationSurface(c),
         edgeToEdge: true,
         title: index == 3
             ? null
@@ -104,68 +106,125 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 onTap: () => index == 0 ? menu(c) : c.push('/friends'),
               )
             : null,
-        bottom: QChatBottomNavigation(index: index, onChanged: switchTab),
-        child: index == 2
-            ? discover(c)
-            : FutureBuilder<dynamic>(
-                key: ValueKey(index),
-                future: data,
-                builder: (c, s) {
-                  if (s.hasError && !ref.read(clientProvider).offline.value) {
-                    return QChatError(
-                      error: s.error!,
-                      retry: () => setState(load),
-                    );
-                  }
-                  if (index == 3) {
-                    return me(
-                      c,
-                      s.data as Map? ?? {'nickname': '', 'qchatId': ''},
-                    );
-                  }
-                  var items = (s.data as List? ?? [])
-                      .where(
-                        (item) =>
-                            (index == 0
-                                    ? conversationName(item)
-                                    : item['friend']['nickname'])
-                                .toString()
-                                .toLowerCase()
-                                .contains(search.text.toLowerCase()),
-                      )
-                      .toList();
-                  if (index == 0) {
-                    bool pinned(dynamic chat) => (chat['members'] as List).any(
-                      (m) =>
-                          m['userId'] == ref.read(clientProvider).userId &&
-                          m['pinned'] == true,
-                    );
-                    final ordered = [
-                      ...items.where(pinned),
-                      ...items.where((item) => !pinned(item)),
-                    ];
-                    items = ordered;
-                  }
-                  return Column(
-                    children: [
-                      QChatSearchBar(
-                        controller: search,
-                        onChanged: (_) => setState(() {}),
+        child: Builder(
+          builder: (ctx) {
+            final media = MediaQuery.of(ctx);
+            measureNav();
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: MediaQuery(
+                    data: media.copyWith(
+                      padding: media.padding.copyWith(bottom: navHeight),
+                      viewPadding: media.viewPadding.copyWith(
+                        bottom: navHeight,
                       ),
-                      Expanded(
-                        child: ColoredBox(
-                          color: surface(c),
-                          child: index == 0
-                              ? chats(c, items)
-                              : contacts(c, items, requests),
-                        ),
+                    ),
+                    child: index == 2
+                        ? discover(ctx)
+                        : FutureBuilder<dynamic>(
+                            key: ValueKey(index),
+                            future: data,
+                            builder: (c, s) {
+                              if (s.hasError &&
+                                  !ref.read(clientProvider).offline.value) {
+                                return QChatError(
+                                  error: s.error!,
+                                  retry: () => setState(load),
+                                );
+                              }
+                              if (index == 3) {
+                                return me(
+                                  c,
+                                  s.data as Map? ??
+                                      {'nickname': '', 'qchatId': ''},
+                                );
+                              }
+                              var items = (s.data as List? ?? [])
+                                  .where(
+                                    (item) =>
+                                        (index == 0
+                                                ? conversationName(item)
+                                                : item['friend']['nickname'])
+                                            .toString()
+                                            .toLowerCase()
+                                            .contains(
+                                              search.text.toLowerCase(),
+                                            ),
+                                  )
+                                  .toList();
+                              if (index == 0) {
+                                bool pinned(dynamic chat) =>
+                                    (chat['members'] as List).any(
+                                      (m) =>
+                                          m['userId'] ==
+                                              ref.read(clientProvider).userId &&
+                                          m['pinned'] == true,
+                                    );
+                                final ordered = [
+                                  ...items.where(pinned),
+                                  ...items.where((item) => !pinned(item)),
+                                ];
+                                items = ordered;
+                              }
+                              return Column(
+                                children: [
+                                  SizedBox(height: MediaQuery.paddingOf(c).top),
+                                  QChatSearchBar(
+                                    controller: search,
+                                    onChanged: (_) => setState(() {}),
+                                  ),
+                                  Expanded(
+                                    child: MediaQuery.removePadding(
+                                      context: c,
+                                      removeTop: true,
+                                      child: ColoredBox(
+                                        color: surface(c),
+                                        child: index == 0
+                                            ? chats(c, items)
+                                            : contacts(c, items, requests),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: QChatGlass(
+                    key: navKey,
+                    border: false,
+                    color: navigationSurface(ctx),
+                    opacity: .88,
+                    child: SafeArea(
+                      top: false,
+                      child: QChatBottomNavigation(
+                        index: index,
+                        onChanged: switchTab,
                       ),
-                    ],
-                  );
-                },
-              ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
+  }
+
+  void measureNav() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = navKey.currentContext?.size;
+      if (size == null || (size.height - navHeight).abs() < .5) return;
+      setState(() => navHeight = size.height);
+    });
   }
 
   Widget chats(BuildContext c, List items) => ListView(
@@ -445,7 +504,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ],
   );
   Widget me(BuildContext c, Map u) => ListView(
-    padding: EdgeInsets.zero,
+    padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom),
     children: [
       Container(
         color: surface(c),

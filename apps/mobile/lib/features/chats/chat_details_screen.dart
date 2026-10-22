@@ -612,6 +612,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
   @override
   Widget build(BuildContext c) => DetailPage(
     title: tr(c, 'searchHistory'),
+    glassHeader: false,
     child: Column(
       children: [
         TSearchBar(

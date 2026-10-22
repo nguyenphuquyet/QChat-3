@@ -117,6 +117,7 @@ class _MomentComposerState extends ConsumerState<MomentComposer> {
     canPop: !busy,
     child: QChatPage(
       title: tr(c, 'post'),
+      glassHeader: false,
       leading: QChatIconButton(
         'back',
         label: tr(c, 'back'),

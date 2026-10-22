@@ -319,6 +319,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     final bio = (u?['bio'] ?? '').toString();
     return DetailPage(
       whiteHeader: true,
+      glassHeader: false,
       child: ListView(
         children: [
           if (loading) const QChatLoading(),

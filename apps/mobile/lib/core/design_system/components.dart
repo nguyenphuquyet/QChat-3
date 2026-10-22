@@ -38,7 +38,7 @@ class QChatPage extends StatelessWidget {
     this.statusBackground,
     this.navigationBackground,
     this.edgeToEdge = false,
-    this.glassHeader = false,
+    this.glassHeader = true,
   });
   final Widget child;
   final String? title;
@@ -49,6 +49,7 @@ class QChatPage extends StatelessWidget {
   final bool glassHeader;
   @override
   Widget build(BuildContext c) {
+    final media = MediaQuery.of(c);
     final pageColor = background ?? Theme.of(c).scaffoldBackgroundColor;
     final topColor = statusBackground ?? pageColor;
     final bottomColor = navigationBackground ?? pageColor;
@@ -57,12 +58,23 @@ class QChatPage extends StatelessWidget {
     final appBar = title == null
         ? null
         : QChatAppBar(title: title!, leading: leading, trailing: trailing);
-    final content = MediaQuery.removePadding(
-      context: c,
-      removeTop: title != null || !edgeToEdge,
-      removeBottom: bottom != null,
+    final glassBar = appBar != null && glassHeader;
+    final barHeight = media.padding.top + 54;
+    final base = media.removePadding(
       removeLeft: true,
       removeRight: true,
+      removeTop: glassBar || title != null || !edgeToEdge,
+      removeBottom: bottom != null,
+    );
+    // A floating bar must not push the page down: its height becomes a
+    // MediaQuery inset, so lists start below it but still scroll underneath.
+    final content = MediaQuery(
+      data: glassBar
+          ? base.copyWith(
+              padding: base.padding.copyWith(top: barHeight),
+              viewPadding: base.viewPadding.copyWith(top: barHeight),
+            )
+          : base,
       child: child,
     );
 
@@ -100,14 +112,11 @@ class QChatPage extends StatelessWidget {
                 color: topColor,
                 child: SizedBox(
                   width: double.infinity,
-                  height: MediaQuery.paddingOf(c).top,
+                  height: media.padding.top,
                 ),
               ),
             Expanded(
-              // A glass bar has to float above the page: it can only blur what
-              // is painted underneath it, so the content scrolls behind the bar
-              // instead of starting below it.
-              child: appBar != null && glassHeader
+              child: glassBar
                   ? Stack(
                       children: [
                         Positioned.fill(child: content),
@@ -116,7 +125,7 @@ class QChatPage extends StatelessWidget {
                           left: 0,
                           right: 0,
                           child: QChatGlass(
-                            color: pageColor,
+                            color: topColor,
                             opacity: .88,
                             child: SafeArea(bottom: false, child: appBar),
                           ),

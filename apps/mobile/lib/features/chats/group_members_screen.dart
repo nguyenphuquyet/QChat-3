@@ -243,6 +243,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
       length: 2,
       child: DetailPage(
         title: tr(c, 'groupMembers'),
+        glassHeader: false,
         child: Column(
           children: [
             Container(

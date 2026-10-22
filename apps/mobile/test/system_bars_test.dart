@@ -81,6 +81,7 @@ void main() {
       ),
     );
     expect(tester.getTopLeft(find.byType(QChatAppBar)).dy, 44);
+    expect(tester.getTopLeft(find.byKey(const Key('scroll'))).dy, 0);
     expect(tester.getBottomLeft(find.byKey(const Key('scroll'))).dy, 844);
     await tester.drag(find.byKey(const Key('scroll')), const Offset(0, -2000));
     await tester.pumpAndSettle();
@@ -88,7 +89,8 @@ void main() {
       tester.getBottomLeft(find.byType(SizedBox).last).dy,
       lessThanOrEqualTo(810),
     );
-    expect(find.byType(Positioned), findsNothing);
+    // The header floats above the page instead of taking layout space.
+    expect(find.byType(Positioned), findsWidgets);
     expect(tester.takeException(), isNull);
   });
   testWidgets('glass header floats over the content it blurs', (tester) async {
