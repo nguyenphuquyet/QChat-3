@@ -277,6 +277,68 @@ class _IconPainter extends CustomPainter {
           canvas.drawCircle(Offset(x, 12), 1.4, p..style = PaintingStyle.fill);
         }
         break;
+      case 'friendQr':
+        canvas.drawCircle(const Offset(8.5, 6.5), 3.4, p);
+        canvas.drawPath(
+          Path()
+            ..moveTo(2.5, 19)
+            ..cubicTo(2.5, 12.5, 14.5, 12.5, 14.5, 19),
+          p,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(13.5, 13.5, 8, 8),
+            const Radius.circular(1.2),
+          ),
+          p,
+        );
+        canvas.drawRect(const Rect.fromLTWH(15.3, 15.3, 2, 2), p);
+        canvas.drawRect(const Rect.fromLTWH(18.4, 15.3, 1.5, 1.5), p);
+        canvas.drawRect(const Rect.fromLTWH(15.3, 18.4, 1.5, 1.5), p);
+        break;
+      case 'gift':
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(4, 7.5, 16, 13.5),
+            const Radius.circular(1.8),
+          ),
+          p,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(4, 11.5)
+            ..cubicTo(8.5, 15.5, 15.5, 15.5, 20, 11.5),
+          p,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(9.5, 7.5)
+            ..cubicTo(7, 2.5, 11.5, 2.5, 12, 7.5)
+            ..cubicTo(12.5, 2.5, 17, 2.5, 14.5, 7.5),
+          p,
+        );
+        break;
+      case 'folderOpen':
+        canvas.drawPath(
+          Path()
+            ..moveTo(3, 19)
+            ..lineTo(3, 6)
+            ..lineTo(9, 6)
+            ..lineTo(11, 9)
+            ..lineTo(19, 9)
+            ..lineTo(19, 12.5),
+          p,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(3, 19)
+            ..lineTo(6, 12.5)
+            ..lineTo(21.5, 12.5)
+            ..lineTo(18.5, 19)
+            ..close(),
+          p,
+        );
+        break;
       case 'plus':
         canvas.drawCircle(const Offset(12, 12), 10, p);
         canvas.drawLine(const Offset(6, 12), const Offset(18, 12), p);

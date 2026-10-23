@@ -32,7 +32,174 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool uploading = false;
   final qrCardKey = GlobalKey();
   int qrStyle = 0;
+  bool qrExpanded = true;
   static const qrStyles = [Color(0xff111111), Color(0xff168fe5), Color(0xffe8b323)];
+
+  Widget _qrPage(BuildContext c, Map u) {
+    final qrSize = (MediaQuery.sizeOf(c).width * .5)
+        .clamp(170.0, 230.0)
+        .toDouble();
+    final link = Theme.of(c).brightness == Brightness.dark
+        ? const Color(0xff8ba0c6)
+        : const Color(0xff576b95);
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 20, 8, 28),
+      children: [
+        RepaintBoundary(
+          key: qrCardKey,
+          child: QChatQrCard(
+            child: Column(
+              children: [
+                QChatQrHeader(
+                  icon: 'friendQr',
+                  iconColor: const Color(0xffe8b323),
+                  title: 'Kết bạn với tôi',
+                  expanded: qrExpanded,
+                  onTap: () => setState(() => qrExpanded = !qrExpanded),
+                  onMore: () => qchatSheet(c, [
+                    ('Lưu hình ảnh', () => saveQr()),
+                    (
+                      'Thay đổi phong cách',
+                      () => setState(
+                        () => qrStyle = (qrStyle + 1) % qrStyles.length,
+                      ),
+                    ),
+                  ]),
+                ),
+                if (qrExpanded) ...[
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      UserAvatar(u, size: 40),
+                      const SizedBox(width: 14),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            u['nickname'] ?? '',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w600,
+                              color: ink(c),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            (u['region'] as String?)?.isNotEmpty == true
+                                ? u['region']
+                                : 'Việt Nam',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              color: Color(0xffb2b2b2),
+                              height: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 40),
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      QrImageView(
+                        data: 'qchat://user/${u['qchatId']}',
+                        size: qrSize,
+                        padding: EdgeInsets.zero,
+                        backgroundColor: Colors.white,
+                        errorCorrectionLevel: QrErrorCorrectLevel.H,
+                        eyeStyle: QrEyeStyle(
+                          eyeShape: QrEyeShape.square,
+                          color: qrStyles[qrStyle],
+                        ),
+                        dataModuleStyle: QrDataModuleStyle(
+                          dataModuleShape: QrDataModuleShape.square,
+                          color: qrStyles[qrStyle],
+                        ),
+                      ),
+                      QChatQrMark(
+                        size: (qrSize * .27).clamp(44.0, 58.0).toDouble(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 236),
+                    child: const Text(
+                      'Quét mã QR để thêm tôi làm bạn bè.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.4,
+                        color: Color(0xffb2b2b2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 34),
+                  Container(
+                    height: .5,
+                    color: ink(c).withValues(alpha: .08),
+                  ),
+                  SizedBox(
+                    height: 46,
+                    child: Row(
+                      children: [
+                        QChatQrAction('Quét', link, () => c.push('/scan')),
+                        Container(
+                          width: .5,
+                          height: 18,
+                          color: ink(c).withValues(alpha: .1),
+                        ),
+                        QChatQrAction(
+                          'Thay đổi phong cách',
+                          link,
+                          () => setState(
+                            () => qrStyle = (qrStyle + 1) % qrStyles.length,
+                          ),
+                        ),
+                        Container(
+                          width: .5,
+                          height: 18,
+                          color: ink(c).withValues(alpha: .1),
+                        ),
+                        QChatQrAction('Lưu hình ảnh', link, saveQr),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const QChatQrCard(
+          child: QChatQrHeader(
+            icon: 'folderOpen',
+            iconColor: Color(0xff168fe5),
+            title: 'Nhận Ảnh & Tệp tin gần đây',
+            subtitle: 'Quét mã QR để gửi ảnh, video và tệp cho tôi.',
+            expanded: false,
+          ),
+        ),
+        const SizedBox(height: 12),
+        QChatQrCard(
+          child: QChatQrHeader(
+            icon: 'gift',
+            iconColor: const Color(0xfffa5151),
+            title: 'Nhận Hồng bao xung quanh',
+            subtitle: 'Quét mã QR để gửi Lì xì cho tôi.',
+            expanded: false,
+            onMore: () => qchatSheet(c, [
+              ('Quét', () => c.push('/scan')),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
 
   Future<void> saveQr() async {
     try {
@@ -174,6 +341,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext c) => QChatPage(
     title: tr(c, widget.qr ? 'qr' : 'profile'),
+    glassHeader: !widget.qr,
     leading: QChatIconButton(
       'back',
       label: tr(c, 'back'),
@@ -197,65 +365,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           bio.text = u['bio'];
           initialized = true;
         }
-        if (widget.qr) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
-            children: [
-              RepaintBoundary(
-                key: qrCardKey,
-                child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-                decoration: BoxDecoration(
-                  color: surface(c),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  children: [
-                    Row(children: [
-                      const QChatIcon('qr', color: Color(0xffe8b323), size: 24),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text('Kết bạn với tôi', style: Theme.of(c).textTheme.titleLarge)),
-                      const QChatIcon('chevron', color: QChatColors.muted, size: 18),
-                    ]),
-                    const SizedBox(height: 28),
-                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      UserAvatar(u, size: 48),
-                      const SizedBox(width: 12),
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(u['nickname'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                        Text((u['region'] as String?)?.isNotEmpty == true ? u['region'] : 'Việt Nam', style: const TextStyle(color: QChatColors.muted)),
-                      ]),
-                    ]),
-                    const SizedBox(height: 22),
-                    QrImageView(
-                      data: 'qchat://user/${u['qchatId']}',
-                      size: 250,
-                      backgroundColor: Colors.white,
-                      eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: qrStyles[qrStyle]),
-                      dataModuleStyle: QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: qrStyles[qrStyle]),
-                    ),
-                    const SizedBox(height: 14),
-                    const Text('Quét mã QR để thêm tôi làm bạn bè.', textAlign: TextAlign.center, style: TextStyle(color: QChatColors.muted, fontSize: 15)),
-                    const SizedBox(height: 22),
-                    const Divider(height: 1),
-                    Row(children: [
-                      Expanded(child: TButton(variant: TButtonVariant.text, onPressed: () => c.push('/scan'), child: const Text('Quét'))),
-                      const SizedBox(height: 1, child: VerticalDivider(width: 1)),
-                      Expanded(child: TButton(variant: TButtonVariant.text, onPressed: () => setState(() => qrStyle = (qrStyle + 1) % qrStyles.length), child: const Text('Thay đổi phong cách'))),
-                      const SizedBox(height: 1, child: VerticalDivider(width: 1)),
-                      Expanded(child: TButton(variant: TButtonVariant.text, onPressed: saveQr, child: const Text('Lưu hình ảnh'))),
-                    ]),
-                  ],
-                ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TCell(title: const Text('Nhận Ảnh & Tệp tin gần đây'), subtitle: const Text('Quét mã QR để gửi ảnh, video và tệp cho tôi.'), image: const QChatIcon('file', color: Color(0xff168fe5), size: 24), onTap: () {}),
-              const SizedBox(height: 12),
-              TCell(title: const Text('Nhận Hồng bao xung quanh'), subtitle: const Text('Quét mã QR để gửi Lì xì cho tôi.'), image: const QChatIcon('gift', color: Color(0xfffa5151), size: 24), onTap: () {}),
-            ],
-          );
-        }
+        if (widget.qr) return _qrPage(c, u);
         return ListView(
           children: [
             if (error != null)
@@ -378,6 +488,209 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       },
     ),
   );
+}
+
+class QChatQrCard extends StatelessWidget {
+  const QChatQrCard({super.key, required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext c) => Container(
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: surface(c),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: child,
+  );
+}
+
+class QChatQrHeader extends StatelessWidget {
+  const QChatQrHeader({
+    super.key,
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    this.subtitle,
+    this.expanded = false,
+    this.onTap,
+    this.onMore,
+  });
+  final String icon, title;
+  final String? subtitle;
+  final Color iconColor;
+  final bool expanded;
+  final VoidCallback? onTap, onMore;
+  @override
+  Widget build(BuildContext c) {
+    const muted = Color(0xffb2b2b2);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          14,
+          subtitle == null ? 16 : 14,
+          10,
+          subtitle == null ? 12 : 14,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 26,
+              height: 24,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: QChatIcon(icon, color: iconColor, size: 23),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 17,
+                      height: 1.25,
+                      color: ink(c),
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.3,
+                        color: Color(0xffa3a3a3),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (onMore != null)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onMore,
+                child: const SizedBox(
+                  width: 34,
+                  height: 24,
+                  child: Center(
+                    child: QChatIcon('more', color: muted, size: 20),
+                  ),
+                ),
+              ),
+            SizedBox(
+              width: 34,
+              height: 24,
+              child: Center(
+                child: RotatedBox(
+                  quarterTurns: expanded ? -1 : 1,
+                  child: const QChatIcon('chevron', color: muted, size: 19),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class QChatQrAction extends StatelessWidget {
+  const QChatQrAction(this.label, this.color, this.onTap, {super.key});
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+  @override
+  Widget build(BuildContext c) => Expanded(
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Center(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 15, color: color),
+        ),
+      ),
+    ),
+  );
+}
+
+class QChatQrMark extends StatelessWidget {
+  const QChatQrMark({super.key, required this.size});
+  final double size;
+  @override
+  Widget build(BuildContext c) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      color: const Color(0xff1c1c1c),
+      borderRadius: BorderRadius.circular(size * .2),
+    ),
+    child: CustomPaint(painter: _QrMarkPainter()),
+  );
+}
+
+class _QrMarkPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.scale(size.width / 100, size.height / 100);
+    final white = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final black = Paint()
+      ..color = const Color(0xff1c1c1c)
+      ..style = PaintingStyle.fill;
+
+    // Smaller bubble, upper right.
+    canvas.drawPath(
+      Path()
+        ..addRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(44, 14, 40, 32),
+            const Radius.circular(15),
+          ),
+        )
+        ..moveTo(72, 41)
+        ..lineTo(80, 56)
+        ..lineTo(61, 44)
+        ..close(),
+      white,
+    );
+    canvas.drawCircle(const Offset(56, 29), 3.4, black);
+    canvas.drawCircle(const Offset(71, 29), 3.4, black);
+
+    // Bigger bubble, lower left.
+    canvas.drawPath(
+      Path()
+        ..addRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(10, 30, 50, 38),
+            const Radius.circular(17),
+          ),
+        )
+        ..moveTo(21, 66)
+        ..lineTo(14, 82)
+        ..lineTo(34, 68)
+        ..close(),
+      white,
+    );
+    canvas.drawCircle(const Offset(27, 48), 4, black);
+    canvas.drawCircle(const Offset(45, 48), 4, black);
+  }
+
+  @override
+  bool shouldRepaint(_QrMarkPainter old) => false;
 }
 
 class ScanScreen extends StatefulWidget {
