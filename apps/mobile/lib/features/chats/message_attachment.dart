@@ -276,13 +276,13 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
       final seconds = voiceSeconds ?? 1;
       // Width derives from the sent duration only, so the bubble keeps the
       // exact size it had at send time even before the audio is loaded.
-      final width = 58 + 100 * math.sqrt(seconds.clamp(1, 60) / 60);
+      final width = 50 + 64 * math.sqrt(seconds.clamp(1, 60) / 60);
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: audioLoading ? null : toggleAudio,
         child: SizedBox(
           width: width,
-          height: 30,
+          height: 24,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.end,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -296,7 +296,7 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
                   color: QChatColors.ink,
                 ),
               ),
-              const SizedBox(width: 9),
+              const SizedBox(width: 8),
               if (audioLoading)
                 const SizedBox.square(dimension: 22, child: QChatLoading())
               else
