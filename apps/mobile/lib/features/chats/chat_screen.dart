@@ -738,9 +738,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           barrierLabel: 'Hồng bao',
           transitionDuration: const Duration(milliseconds: 220),
           reverseTransitionDuration: const Duration(milliseconds: 180),
-          pageBuilder: (_, animation, __) =>
+          pageBuilder: (_, animation, _) =>
               RedPacketScreen(message: m, sender: sender),
-          transitionsBuilder: (_, animation, __, child) => FadeTransition(
+          transitionsBuilder: (_, animation, _, child) => FadeTransition(
             opacity: animation,
             child: ScaleTransition(
               scale: Tween<double>(begin: .97, end: 1).animate(
