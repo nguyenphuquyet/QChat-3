@@ -87,6 +87,7 @@ class QChatIcon extends StatelessWidget {
       'headset' => LucideIcons.headset,
       'gear' => LucideIcons.settings,
       'shieldCheck' => LucideIcons.shieldCheck,
+      'info' => LucideIcons.info,
       'chevronRight' => LucideIcons.chevronRight,
       _ => null,
     };

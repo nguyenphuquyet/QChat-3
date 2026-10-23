@@ -243,7 +243,7 @@ class _ServiceSection extends StatelessWidget {
             const spacing = 2.0;
             final itemWidth = (constraints.maxWidth - spacing * 3) / 4;
             return Wrap(
-              alignment: WrapAlignment.center,
+              alignment: WrapAlignment.start,
               spacing: spacing,
               runSpacing: 4,
               children: [
