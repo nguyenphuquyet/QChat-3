@@ -656,7 +656,13 @@ class QChatLoading extends StatelessWidget {
   @override
   Widget build(BuildContext c) => Center(
     child: label == null
-        ? const TLoading(size: 20, icon: TLoadingIcon.circle)
+        ? const SizedBox.square(
+            dimension: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: QChatColors.muted,
+            ),
+          )
         : Container(
             width: 164,
             height: 160,
