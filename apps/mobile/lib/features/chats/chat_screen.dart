@@ -70,7 +70,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Timer? voiceHoldTimer;
   int voiceHoldToken = 0;
   final composerKey = GlobalKey();
-  double keyboardHeight = 0;
   double composerHeight = 56;
   Timer? panelTimer;
   Timer? voiceLimitTimer;
@@ -1175,13 +1174,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // The glass bar floats over the list, so reserve its height at the top of
     // the content instead of letting the newest messages sit under the blur.
     final headerInset = MediaQuery.paddingOf(c).top + 54;
-    if (keyboard > keyboardHeight) keyboardHeight = keyboard;
     final panelOpen = emoji || attachments;
-    final panelHeight = math.max(keyboardHeight, 250 + safeBottom);
+    // Panel luôn thấp, cố định; chỉ bàn phím thật mới đẩy thanh nhập lên cao.
+    // Không ghi nhớ chiều cao bàn phím trước đó, nếu không panel (khi bàn phím
+    // đã đóng) sẽ bị kéo cao bằng bàn phím và để lại một khoảng trống xấu.
+    final panelHeight = 250 + safeBottom;
     // Vùng đáy nằm trong lớp kính của thanh nhập: bàn phím | panel | safe area.
     // Dùng max() để khi bàn phím đóng dần, ô nhập vẫn nằm trên safe area chứ
     // không tụt xuống sát đáy rồi bật ngược lên.
-    final reserved = panelOpen ? panelHeight : math.max(keyboard, safeBottom);
+    final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
     // khung hình; chỉ riêng lúc mở/đóng panel mới cần nội suy để ô nhập và
     // danh sách tin nhắn cùng trượt, không bị giật lệch nhau.
