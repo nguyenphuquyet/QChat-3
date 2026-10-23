@@ -90,7 +90,7 @@ class MoneyMessageCard extends StatelessWidget {
     final payload = MoneyPayload.parse(message['text']);
     final completed = MoneyMessageState.isCompleted(message);
     // Match the bubble's 68% cap so narrow phones never clip the card.
-    final width = (MediaQuery.sizeOf(c).width * .68 - 24).clamp(190.0, 244.0);
+    final width = (MediaQuery.sizeOf(c).width * .68 - 24).clamp(186.0, 240.0);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -100,12 +100,12 @@ class MoneyMessageCard extends StatelessWidget {
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            top: 18,
+            top: 16,
             left: mine ? null : -4,
             right: mine ? -4 : null,
             child: Transform.rotate(
               angle: .785398,
-              child: Container(width: 11, height: 11, color: moneyOrange),
+              child: Container(width: 10, height: 10, color: moneyOrange),
             ),
           ),
           Container(
@@ -118,98 +118,114 @@ class MoneyMessageCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                  padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
                   child: SizedBox(
-                    height: 58,
+                    height: 46,
                     child: red
                         ? Row(
-                          children: [
-                            const _Envelope(),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    greeting,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Color(0xffffffff),
-                                      fontSize: 16.5,
-                                      height: 1.3,
-                                      fontWeight: FontWeight.w500,
+                            children: [
+                              const _Envelope(),
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      greeting,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Color(0xffffffff),
+                                        fontSize: 16,
+                                        height: 1.3,
+                                        fontWeight: FontWeight.w500,
+                                      ),
                                     ),
+                                    if (completed)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 2),
+                                        child: Text(
+                                          'Đã mở hồng bao',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: Color(0xf2ffffff),
+                                            fontSize: 12.5,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: const Color(0xffffffff),
+                                    width: 1.6,
                                   ),
-                                  if (completed)
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 3),
-                                      child: Text(
-                                        'Đã mở hồng bao',
-                                        style: TextStyle(
-                                          color: Color(0xf2ffffff),
-                                          fontSize: 13,
+                                ),
+                                child: const Center(
+                                  child: _TransferArrows(),
+                                ),
+                              ),
+                              const SizedBox(width: 11),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      moneyText(payload.amount),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: Color(0xffffffff),
+                                        fontSize: 17.5,
+                                        height: 1.2,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    // The reference keeps this caption on one
+                                    // line, shrinking it a touch when needed.
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          mine
+                                              ? 'Bạn đã thực hiện chuyển khoản'
+                                              : completed
+                                              ? 'Đã nhận'
+                                              : 'Chấp nhận chuyển tiền',
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: const TextStyle(
+                                            color: Color(0xf2ffffff),
+                                            fontSize: 12.5,
+                                            height: 1.2,
+                                          ),
                                         ),
                                       ),
                                     ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      : Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: const Color(0xccffffff),
-                                  width: 1.6,
+                                  ],
                                 ),
                               ),
-                              child: const Center(
-                                child: _TransferArrows(),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    moneyText(payload.amount),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Color(0xffffffff),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    mine
-                                        ? 'Bạn đã thực hiện chuyển khoản'
-                                        : completed
-                                        ? 'Đã nhận'
-                                        : 'Chấp nhận chuyển tiền',
-                                    style: const TextStyle(
-                                      color: Color(0xf2ffffff),
-                                      fontSize: 13,
-                                      height: 1.25,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: Container(
                     width: double.infinity,
                     height: .5,
@@ -217,9 +233,10 @@ class MoneyMessageCard extends StatelessWidget {
                   ),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 5, 12, 6),
+                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 5),
                   child: Text(
                     red ? 'QChat Hồng bao' : 'QChat Chuyển tiền',
+                    maxLines: 1,
                     style: const TextStyle(
                       color: _footerInk,
                       fontSize: 11,
@@ -240,8 +257,8 @@ class _Envelope extends StatelessWidget {
   const _Envelope();
   @override
   Widget build(BuildContext c) => Container(
-    width: 46,
-    height: 56,
+    width: 40,
+    height: 46,
     decoration: BoxDecoration(
       borderRadius: BorderRadius.circular(4),
       gradient: const LinearGradient(
@@ -260,8 +277,8 @@ class _Envelope extends StatelessWidget {
         ),
         Center(
           child: Container(
-            width: 21,
-            height: 21,
+            width: 20,
+            height: 20,
             alignment: Alignment.center,
             decoration: const BoxDecoration(
               color: Color(0xfff8dfb0),
@@ -271,7 +288,7 @@ class _Envelope extends StatelessWidget {
               '₫',
               style: TextStyle(
                 color: Color(0xffb33a2b),
-                fontSize: 11,
+                fontSize: 10.5,
                 height: 1,
                 fontWeight: FontWeight.w700,
               ),
@@ -321,12 +338,12 @@ class _EnvelopeFlap extends CustomPainter {
   bool shouldRepaint(_EnvelopeFlap old) => false;
 }
 
-/// The two circulating arrows of the transfer bubble (top right, bottom left).
+/// The two stacked transfer arrows: top points left, bottom points right.
 class _TransferArrows extends StatelessWidget {
   const _TransferArrows();
   @override
   Widget build(BuildContext c) => CustomPaint(
-    size: const Size.square(25),
+    size: const Size.square(26),
     painter: const _TransferArrowsPainter(),
   );
 }
@@ -336,30 +353,33 @@ class _TransferArrowsPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.width / 24;
-    final paint = Paint()
+    final ink = Paint()..color = const Color(0xffffffff);
+    final shaft = Paint()
       ..color = const Color(0xffffffff)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6 * s
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(
-      Path()
-        ..moveTo(4.5 * s, 8.5 * s)
-        ..lineTo(19.5 * s, 8.5 * s)
-        ..moveTo(15 * s, 4 * s)
-        ..lineTo(19.5 * s, 8.5 * s)
-        ..lineTo(15 * s, 13 * s),
-      paint,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(19.5 * s, 15.5 * s)
-        ..lineTo(4.5 * s, 15.5 * s)
-        ..moveTo(9 * s, 11 * s)
-        ..lineTo(4.5 * s, 15.5 * s)
-        ..lineTo(9 * s, 20 * s),
-      paint,
-    );
+      ..strokeWidth = 1.7 * s
+      ..strokeCap = StrokeCap.round;
+
+    /// One straight arrow with a solid triangular head, like the reference.
+    void arrow(double tail, double tip, double y) {
+      canvas.drawLine(
+        Offset(tail * s, y * s),
+        Offset(tip * s, y * s),
+        shaft,
+      );
+      final neck = tip + (tail - tip).sign * 4.6;
+      canvas.drawPath(
+        Path()
+          ..moveTo(tip * s, y * s)
+          ..lineTo(neck * s, (y - 2.9) * s)
+          ..lineTo(neck * s, (y + 2.9) * s)
+          ..close(),
+        ink,
+      );
+    }
+
+    arrow(21.4, 3.0, 9.2);
+    arrow(2.6, 21.0, 14.8);
   }
 
   @override

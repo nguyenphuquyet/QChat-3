@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:video_player/video_player.dart';
@@ -7,6 +9,7 @@ import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/network/video_meta.dart';
 import '../../core/network/cached_video.dart';
+import '../../core/network/cached_audio.dart';
 import '../../core/localization/strings.dart';
 import 'media_screen.dart';
 
@@ -28,6 +31,7 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
     with SingleTickerProviderStateMixin {
   VideoPlayerController? video;
   CachedVideo? cachedVideo;
+  CachedAudio? cachedAudio;
   VideoMeta? meta;
   final AudioPlayer audio = AudioPlayer();
   bool audioLoading = false;
@@ -114,8 +118,14 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
   @override
   void dispose() {
     cachedVideo?.dispose();
+    final audioSource = cachedAudio;
+    if (audioSource == null) {
+      audio.dispose();
+    } else {
+      // Close the player before deleting the cached temp file/blob.
+      unawaited(audio.dispose().then((_) => audioSource.dispose()));
+    }
     speakerWave.dispose();
-    audio.dispose();
     super.dispose();
   }
 
@@ -136,8 +146,18 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
       }
       if (audio.audioSource == null) {
         setState(() => audioLoading = true);
-        final access = await ref.read(clientProvider).get('/media/${widget.id}/access', cached: false);
-        await audio.setUrl(access['url'].toString());
+        // Reads the local cache first and only downloads the first time;
+        // replays never touch the network again.
+        final cached = await CachedAudio.load(
+          ref.read(clientProvider),
+          widget.id,
+        );
+        if (!mounted) {
+          await cached.dispose();
+          return;
+        }
+        cachedAudio = cached;
+        await audio.setAudioSource(cached.source);
         loadedAudioDuration = audio.duration;
         if (mounted) setState(() {});
       }
@@ -253,37 +273,34 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
       );
     }
     if (widget.kind == 'AUDIO') {
-      final seconds = voiceSeconds;
+      final seconds = voiceSeconds ?? 1;
+      // Width derives from the sent duration only, so the bubble keeps the
+      // exact size it had at send time even before the audio is loaded.
+      final width = 58 + 100 * math.sqrt(seconds.clamp(1, 60) / 60);
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: audioLoading ? null : toggleAudio,
         child: SizedBox(
-          width: (56 + (seconds ?? 20)).toDouble(),
-          child: Stack(
-            alignment: Alignment.center,
+          width: width,
+          height: 30,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                seconds == null ? '' : '$seconds"',
-                textAlign: TextAlign.center,
+                '$seconds"',
                 maxLines: 1,
                 style: const TextStyle(
                   fontSize: 17,
-                  height: 1.2,
+                  height: 1,
                   color: QChatColors.ink,
                 ),
               ),
-              Positioned(
-                right: 0,
-                child: audioLoading
-                    ? const SizedBox.square(
-                        dimension: 22,
-                        child: QChatLoading(),
-                      )
-                    : _VoiceSpeaker(
-                        animation: speakerWave,
-                        playing: audioPlaying,
-                      ),
-              ),
+              const SizedBox(width: 9),
+              if (audioLoading)
+                const SizedBox.square(dimension: 22, child: QChatLoading())
+              else
+                _VoiceSpeaker(animation: speakerWave, playing: audioPlaying),
             ],
           ),
         ),
@@ -317,12 +334,13 @@ class _VoiceSpeaker extends StatelessWidget {
   Widget build(BuildContext c) => AnimatedBuilder(
     animation: animation,
     builder: (c, _) => CustomPaint(
-      size: const Size(24, 24),
+      size: const Size.square(22),
       painter: _SpeakerPainter(animation.value, playing),
     ),
   );
 }
 
+/// Dot plus two sound arcs, the voice note marker of the reference bubble.
 class _SpeakerPainter extends CustomPainter {
   const _SpeakerPainter(this.progress, this.playing);
   final double progress;
@@ -331,32 +349,20 @@ class _SpeakerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.scale(size.width / 24, size.height / 24);
     const ink = QChatColors.ink;
-    canvas.drawPath(
-      Path()
-        ..moveTo(2.8, 9.6)
-        ..lineTo(6.6, 9.6)
-        ..lineTo(11.6, 5)
-        ..lineTo(11.6, 19)
-        ..lineTo(6.6, 14.4)
-        ..lineTo(2.8, 14.4)
-        ..close(),
-      Paint()..color = ink,
-    );
+    const origin = Offset(8.4, 12);
+    canvas.drawCircle(origin, 1.8, Paint()..color = ink);
     final wave = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.8
+      ..strokeWidth = 2.2
       ..strokeCap = StrokeCap.round;
     for (var i = 0; i < 2; i++) {
-      final phase = playing ? (progress + i * .5) % 1 : 0.0;
-      final opacity = playing
-          ? .35 + .65 * (1 - phase)
-          : (i == 0 ? .9 : .45);
-      final radius =
-          5.2 + i * 3.1 + (playing ? phase * 1.4 : 0);
+      final radius = 4.0 + i * 3.7;
+      final pulse = playing ? (progress + i * .5) % 1 : 0.0;
+      final opacity = playing ? 1 - .55 * pulse : 1.0;
       canvas.drawArc(
-        Rect.fromCircle(center: const Offset(11.8, 12), radius: radius),
-        -.85,
-        1.7,
+        Rect.fromCircle(center: origin, radius: radius + (playing ? pulse * 1.2 : 0)),
+        -.72,
+        1.44,
         false,
         wave..color = ink.withValues(alpha: opacity),
       );
