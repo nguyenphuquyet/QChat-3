@@ -1,10 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'dart:math' as math;
 import 'package:tdesign_flutter/tdesign_flutter.dart' show TIcons;
-import 'chat_icons.dart';
 
-/// Icons of the app: the ChatIcons font where it has a glyph, and the local
-/// line paintings / TDesign set as fallback for the rest.
+/// Original line icons drawn locally, independent of Material and WeChat assets.
 class QChatIcon extends StatelessWidget {
   const QChatIcon(
     this.name, {
@@ -20,41 +18,31 @@ class QChatIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final glyph = switch (name) {
-      'chats' => filled ? ChatIcons.tabChatActive : ChatIcons.tabChat,
-      'contacts' => filled ? ChatIcons.tabContactsActive : ChatIcons.tabContacts,
-      'discover' => filled ? ChatIcons.tabDiscoverActive : ChatIcons.tabDiscover,
-      'me' => filled ? ChatIcons.tabMeActive : ChatIcons.tabMe,
-      'addFriend' => ChatIcons.newFriend,
-      'groups' => ChatIcons.groupChat,
-      'tag' || 'tags' => ChatIcons.tag,
-      'service' || 'official' => ChatIcons.serviceAccount,
-      'transfer' => ChatIcons.fileTransfer,
-      'chatPair' => ChatIcons.chatPair,
-      'payments' => ChatIcons.payService,
-      'favorites' => ChatIcons.favorites,
-      'image' || 'photo' => ChatIcons.photo,
-      'sticker' || 'emoji' => ChatIcons.sticker,
-      'settings' => ChatIcons.settings,
-      'moments' => ChatIcons.moments,
-      'channels' => ChatIcons.channels,
-      'scan' => ChatIcons.scan,
-      'stories' => ChatIcons.topStories,
-      'search' => ChatIcons.search,
-      'searchStar' => ChatIcons.searchSpark,
-      'nearby' => ChatIcons.nearby,
-      'miniApps' => ChatIcons.miniProgram,
-      'call' => ChatIcons.callOut,
-      'chevron' => ChatIcons.chevronRight,
+      'chats' => filled ? TIcons.chat_bubble_filled : TIcons.chat_bubble,
+      'contacts' => filled ? TIcons.user_list_filled : TIcons.user_list,
+      'me' => filled ? TIcons.user_filled : TIcons.user,
+      'discover' => filled ? TIcons.compass_filled : TIcons.compass,
+      'addFriend' => TIcons.user_add,
+      'groups' => TIcons.usergroup_filled,
+      'tag' => TIcons.tag_filled,
+      'service' => TIcons.shop,
+      'official' => TIcons.book_open,
+      'chevron' => TIcons.chevron_right,
+      'image' => filled ? TIcons.image_filled : TIcons.image,
       'camera' => TIcons.camera_filled,
       'location' => TIcons.location_filled,
       'file' => TIcons.folder_filled,
       'music' => TIcons.music,
+      'miniApps' => TIcons.link,
+      'call' => TIcons.call,
       'videoCall' => TIcons.video,
+      'payments' => TIcons.chat_checked,
       'mail' => TIcons.mail,
       'mobile' => TIcons.mobile,
       'radar' => TIcons.radar,
       'qr' => TIcons.qrcode,
       'keyboard' => TIcons.keyboard,
+      'transfer' => TIcons.folder,
       'lock' => TIcons.lock_on,
       'unlock' => TIcons.lock_off,
       'close' => TIcons.close,

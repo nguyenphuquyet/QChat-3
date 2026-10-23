@@ -1,5 +1,6 @@
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import '../localization/strings.dart';
 import 'qchat_colors.dart';
 import 'qchat_glass.dart';
@@ -600,9 +601,20 @@ class QChatBottomNavigation extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    QChatIcon(
-                      const ['chats', 'contacts', 'discover', 'me'][i],
-                      filled: index == i,
+                    Icon(
+                      (index == i
+                          ? const [
+                              CupertinoIcons.chat_bubble_fill,
+                              CupertinoIcons.person_2_fill,
+                              CupertinoIcons.compass_fill,
+                              CupertinoIcons.person_fill,
+                            ]
+                          : const [
+                              CupertinoIcons.chat_bubble,
+                              CupertinoIcons.person_2,
+                              CupertinoIcons.compass,
+                              CupertinoIcons.person,
+                            ])[i],
                       size: 26,
                       color: index == i ? QChatColors.green : ink(c),
                     ),
