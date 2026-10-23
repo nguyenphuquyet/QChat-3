@@ -315,6 +315,30 @@ class QChatClient {
     recalls.add(conversationId);
   }
 
+  /// Drops deleted messages from memory and the offline history without
+  /// forcing a full conversation reload.
+  Future<void> applyDelete(String conversationId, Set<String> ids) async {
+    bool gone(Map<String, dynamic> m) =>
+        ids.contains(m['id']?.toString()) ||
+        ids.contains(m['clientId']?.toString());
+    confirmed.removeWhere((_, m) => gone(m));
+    outgoing.removeWhere((_, m) => gone(m));
+    messageChanges.add(null);
+    try {
+      final database = local;
+      final key = 'messages:$conversationId';
+      final rows = await database?.read(key);
+      if (rows is List) {
+        await database?.cache(key, [
+          for (final row in rows)
+            if (!gone(Map<String, dynamic>.from(row)))
+              Map<String, dynamic>.from(row),
+        ]);
+      }
+      await database?.removeCache('/conversations');
+    } catch (_) {}
+  }
+
   Future<void> applyMoneyClaim(Map<String, dynamic> event) async {
     final conversationId = event['conversationId']?.toString();
     final messageId = event['messageId']?.toString();

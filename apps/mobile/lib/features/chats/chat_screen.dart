@@ -973,16 +973,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     )) {
       return;
     }
-    await operation(() async {
+    final client = ref.read(clientProvider);
+    final ids = {for (final row in rows) row['id'].toString()};
+    try {
       for (final row in rows) {
-        await ref.read(clientProvider).dio.delete('/messages/${row['id']}');
+        await client.dio.delete('/messages/${row['id']}');
       }
-    });
-    if (mounted) {
+      if (!mounted) return;
+      // Remove the rows locally instead of refetching the whole conversation,
+      // so the list keeps its scroll position and media stays untouched.
       setState(() {
+        messages = [
+          for (final m in messages)
+            if (!ids.contains(m['id'].toString())) m,
+        ];
         selecting = false;
         selected.clear();
       });
+      await client.applyDelete(widget.id, ids);
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
     }
   }
 
