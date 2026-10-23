@@ -361,6 +361,43 @@ class QChatClient {
     return {if (base is Map) ...Map<String, dynamic>.from(base), ...transfer};
   }
 
+  /// Fetches the latest claim data for a money message so a red packet opened
+  /// on another device shows the same state here.
+  Future<Map<String, dynamic>> refreshMoneyMessage(
+    Map<String, dynamic> message,
+  ) async {
+    final conversationId = message['conversationId']?.toString();
+    final sequence = message['sequence'];
+    if (conversationId == null || sequence is! int) return message;
+    try {
+      final rows = await get(
+        '/conversations/$conversationId/messages?before=${sequence + 1}',
+        cached: false,
+      );
+      if (rows is! List) return message;
+      for (final row in rows) {
+        if (row is! Map || row['id'] != message['id']) continue;
+        final fresh = Map<String, dynamic>.from(row);
+        final transfer = fresh['moneyTransfer'];
+        if (transfer is Map) {
+          await applyMoneyClaim({
+            'conversationId': conversationId,
+            'messageId': fresh['id'],
+            'status': transfer['status'],
+            'claimedAt': transfer['claimedAt'],
+            'claimedCount': transfer['claimedCount'],
+            'recipientCount': transfer['recipientCount'],
+            'claims': transfer['claims'],
+          });
+        }
+        return fresh;
+      }
+    } catch (_) {
+      // Keep the cached copy when the network is unavailable.
+    }
+    return message;
+  }
+
   Map<String, dynamic> _withRecall(Map<String, dynamic> message) {
     final at = recalled[message['id']];
     if (at == null) return message;

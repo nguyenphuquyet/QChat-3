@@ -754,6 +754,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Future<void> openMoneyMessage(Map m, Map sender, bool mine) async {
     if (m['kind'] == 'RED_PACKET') {
+      // Another device may have claimed it already; fetch the latest claim
+      // before deciding between the cover and the opened receipt.
+      final message = await ref
+          .read(clientProvider)
+          .refreshMoneyMessage(Map<String, dynamic>.from(m));
+      if (!mounted) return;
       final result = await Navigator.of(context).push<String>(
         PageRouteBuilder(
           opaque: false,
@@ -764,10 +770,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           reverseTransitionDuration: const Duration(milliseconds: 180),
           pageBuilder: (_, animation, _) =>
               RedPacketScreen(
-                message: m,
+                message: message,
                 sender: sender,
                 mine: mine,
-                onClaim: () => claimMoneyMessage(m),
+                onClaim: () => claimMoneyMessage(message),
               ),
           transitionsBuilder: (_, animation, _, child) => FadeTransition(
             opacity: animation,
