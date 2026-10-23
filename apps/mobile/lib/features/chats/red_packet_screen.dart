@@ -32,7 +32,9 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
   @override
   void initState() {
     super.initState();
-    opened = MoneyMessageState.claimedByMe(widget.message);
+    // The sender always sees what they sent; a receiver who already claimed
+    // goes straight to the opened view instead of the cover again.
+    opened = widget.mine || MoneyMessageState.claimedByMe(widget.message);
     openedAmount = MoneyMessageState.receivedAmount(widget.message);
   }
 
@@ -45,6 +47,13 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
     return note.isEmpty ? 'Best wishes' : note;
   }
 
+  String get sentProgress {
+    final claimed = MoneyMessageState.claimedCount(widget.message);
+    final total = MoneyMessageState.recipientCount(widget.message);
+    if (total <= 1) return claimed > 0 ? 'Đã nhận' : 'Chưa nhận';
+    return 'Đã nhận $claimed/$total suất';
+  }
+
   void openWallet() {
     final router = GoRouter.of(context);
     Navigator.of(context).pop();
@@ -52,7 +61,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
   }
 
   Future<void> open() async {
-    if (widget.mine || opening) return;
+    if (opened || widget.mine || opening) return;
     setState(() => opening = true);
     final amount = await widget.onClaim();
     if (!mounted) return;
@@ -240,7 +249,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                   UserAvatar(widget.sender, size: 22),
                   const SizedBox(width: 7),
                   Text(
-                    'Đã gửi bởi $senderName',
+                    widget.mine ? 'Hồng bao của bạn' : 'Đã gửi bởi $senderName',
                     style: const TextStyle(
                       color: Color(0xffb2b2b2),
                       fontSize: 14,
@@ -259,13 +268,29 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                 ),
               ),
               const SizedBox(height: 16),
+              if (widget.mine)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 2),
+                  child: Text(
+                    'Tổng hồng bao',
+                    style: TextStyle(
+                      color: Color(0xffb2b2b2),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    moneyText(openedAmount ?? payload.amount, withUnit: false),
+                    moneyText(
+                      widget.mine
+                          ? payload.amount
+                          : (openedAmount ?? payload.amount),
+                      withUnit: false,
+                    ),
                     style: const TextStyle(
                       color: Color(0xffc9a063),
                       fontSize: 42,
@@ -284,59 +309,76 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                 ],
               ),
               const SizedBox(height: 6),
-              GestureDetector(
-                onTap: openWallet,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+              if (widget.mine)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 10,
+                  ),
                   child: Text(
-                    'Đã chuyển vào Ví  ›',
-                    style: TextStyle(
+                    sentProgress,
+                    style: const TextStyle(
                       color: Color(0xffb2b2b2),
                       fontSize: 13,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 22),
-              Container(
-                width: 262,
-                height: 1,
-                color: const Color(0xffeeeeee),
-              ),
-              const SizedBox(height: 22),
-              GestureDetector(
-                onTap: () => Navigator.of(context).pop('sticker'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 9,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xfff6f6f6),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '☺',
-                        style: TextStyle(
-                          fontSize: 16,
-                          color: Color(0xffa0a0a0),
-                        ),
+                )
+              else
+                GestureDetector(
+                  onTap: openWallet,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 10),
+                    child: Text(
+                      'Đã chuyển vào Ví  ›',
+                      style: TextStyle(
+                        color: Color(0xffb2b2b2),
+                        fontSize: 13,
                       ),
-                      SizedBox(width: 7),
-                      Text(
-                        'Trả lời bằng một Nhãn dán',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xff8f8f8f),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+              if (!widget.mine) ...[
+                const SizedBox(height: 22),
+                Container(
+                  width: 262,
+                  height: 1,
+                  color: const Color(0xffeeeeee),
+                ),
+                const SizedBox(height: 22),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).pop('sticker'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xfff6f6f6),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '☺',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Color(0xffa0a0a0),
+                          ),
+                        ),
+                        SizedBox(width: 7),
+                        Text(
+                          'Trả lời bằng một Nhãn dán',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xff8f8f8f),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

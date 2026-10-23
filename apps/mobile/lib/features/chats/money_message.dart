@@ -50,6 +50,12 @@ class MoneyMessageState {
     return (claims.first['amount'] as num?)?.toInt();
   }
 
+  static int claimedCount(Map message) =>
+      ((_transfer(message)?['claimedCount'] as num?)?.toInt() ?? 0);
+
+  static int recipientCount(Map message) =>
+      ((_transfer(message)?['recipientCount'] as num?)?.toInt() ?? 1);
+
   static bool isCompleted(Map message) {
     final transfer = _transfer(message);
     if (transfer == null) return false;

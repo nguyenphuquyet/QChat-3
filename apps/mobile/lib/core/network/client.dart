@@ -40,6 +40,10 @@ class QChatClient {
   final Map<String, String> recalled = {};
   final Map<String, Map<String, dynamic>> outgoing = {};
   final Map<String, Map<String, dynamic>> confirmed = {};
+
+  /// Latest claim progress per message id, so reopening a money message reflects
+  /// a claim immediately without waiting for a history reload.
+  final Map<String, Map<String, dynamic>> _moneyTransfers = {};
   final Map<String, Map<String, int>> receipts = {};
   final Map<String, int> clearedSequences = {};
   final Map<String, Future<List<Map<String, dynamic>>>> syncing = {};
@@ -149,6 +153,7 @@ class QChatClient {
     await local?.close();
     outgoing.clear();
     confirmed.clear();
+    _moneyTransfers.clear();
     receipts.clear();
     clearedSequences.clear();
     recalled.clear();
@@ -314,16 +319,24 @@ class QChatClient {
     final conversationId = event['conversationId']?.toString();
     final messageId = event['messageId']?.toString();
     if (conversationId == null || messageId == null) return;
-    final transfer = {
+    final claims = event['claims'];
+    final previous = _moneyTransfers[messageId];
+    final transfer = <String, dynamic>{
+      ...?previous,
       'status': event['status']?.toString() ?? 'CLAIMED',
       'claimedAt': event['claimedAt']?.toString(),
-      'claimedCount': event['claimedCount'],
-      'recipientCount': event['recipientCount'],
+      'claimedCount': event['claimedCount'] ?? previous?['claimedCount'],
+      'recipientCount': event['recipientCount'] ?? previous?['recipientCount'],
+      // The POST /claim reply carries the caller's own claim. Socket events do
+      // not, so keep the previous copy instead of erasing the opened state.
+      if (claims is List && claims.isNotEmpty) 'claims': claims,
     };
+    _moneyTransfers[messageId] = transfer;
     Map<String, dynamic> update(Map<String, dynamic> message) =>
         message['id']?.toString() == messageId
-        ? {...message, 'moneyTransfer': transfer}
+        ? {...message, 'moneyTransfer': _moneyOf(message, transfer)}
         : message;
+
     confirmed.updateAll((_, message) => update(message));
     outgoing.updateAll((_, message) => update(message));
     final database = local;
@@ -335,10 +348,17 @@ class QChatClient {
           for (final row in cached) update(Map<String, dynamic>.from(row)),
         ]);
       }
-    } catch (_) {
-    }
+    } catch (_) {}
     messageChanges.add(null);
     changes.add(null);
+  }
+
+  Map<String, dynamic> _moneyOf(
+    Map<String, dynamic> message,
+    Map<String, dynamic> transfer,
+  ) {
+    final base = message['moneyTransfer'];
+    return {if (base is Map) ...Map<String, dynamic>.from(base), ...transfer};
   }
 
   Map<String, dynamic> _withRecall(Map<String, dynamic> message) {
@@ -526,7 +546,11 @@ class QChatClient {
       if (m['conversationId'] == id &&
           (m['sequence'] == null ||
               (m['sequence'] as int) > (clearedSequences[id] ?? 0))) {
-        rows[m['clientId'] ?? m['id']] = _withRecall(m);
+        final message = _withRecall(m);
+        final transfer = _moneyTransfers[message['id']?.toString()];
+        rows[m['clientId'] ?? m['id']] = transfer == null
+            ? message
+            : {...message, 'moneyTransfer': _moneyOf(message, transfer)};
       }
     }
     final result = rows.values.toList();
@@ -723,6 +747,7 @@ class QChatClient {
     userId = null;
     outgoing.clear();
     confirmed.clear();
+    _moneyTransfers.clear();
     receipts.clear();
   }
 
