@@ -691,6 +691,96 @@ class QChatLoading extends StatelessWidget {
   );
 }
 
+class QChatQuote extends StatelessWidget {
+  const QChatQuote({
+    super.key,
+    required this.name,
+    required this.text,
+    this.onTap,
+    this.onCancel,
+    this.cancelLabel = 'Hủy trích dẫn',
+    this.maxLines = 2,
+  });
+  final String name, text, cancelLabel;
+  final int maxLines;
+  final VoidCallback? onTap, onCancel;
+  @override
+  Widget build(BuildContext c) {
+    final dark = Theme.of(c).brightness == Brightness.dark;
+    final compact = onCancel != null;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(10, compact ? 5 : 8, compact ? 5 : 10, compact ? 5 : 8),
+        decoration: BoxDecoration(
+          color: dark
+              ? Colors.white.withValues(alpha: .09)
+              : const Color(0xffe9e9e9),
+          borderRadius: BorderRadius.circular(compact ? 8 : 6),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    if (name.isNotEmpty)
+                      TextSpan(
+                        text: '$name: ',
+                        style: TextStyle(
+                          color: ink(c).withValues(alpha: .5),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    TextSpan(
+                      text: text,
+                      style: const TextStyle(color: QChatColors.muted),
+                    ),
+                  ],
+                ),
+                maxLines: compact ? 1 : maxLines,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: compact ? 13.5 : 13,
+                  height: compact ? 1.3 : 1.4,
+                ),
+              ),
+            ),
+            if (onCancel != null) ...[
+              const SizedBox(width: 6),
+              Semantics(
+                button: true,
+                label: cancelLabel,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onCancel,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: dark
+                          ? Colors.white.withValues(alpha: .35)
+                          : const Color(0xffb3b3b3),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const QChatIcon(
+                      'close',
+                      size: 11,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class QChatChatBubble extends StatelessWidget {
   const QChatChatBubble({
     super.key,

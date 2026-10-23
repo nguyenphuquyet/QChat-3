@@ -23,6 +23,7 @@ class ChatInputBar extends StatelessWidget {
     required this.onHoldEnd,
     this.onChanged,
     this.mediaBusy = false,
+    this.replyPreview,
   });
 
   final TextEditingController controller;
@@ -32,6 +33,9 @@ class ChatInputBar extends StatelessWidget {
   final VoidCallback onVoice, onEmoji, onPlus, onSend;
   final VoidCallback onHoldStart, onHoldEnd;
   final ValueChanged<String>? onChanged;
+
+  /// Khung trích dẫn tin nhắn đang trả lời, hiển thị ngay dưới ô nhập.
+  final Widget? replyPreview;
 
   static const double fieldHeight = 40;
 
@@ -96,7 +100,9 @@ class ChatInputBar extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(2, 8, 4, 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+        crossAxisAlignment: replyPreview == null
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         children: [
           _ComposerIcon(
             key: const ValueKey('chat-voice'),
@@ -106,7 +112,18 @@ class ChatInputBar extends StatelessWidget {
             width: 44,
           ),
           const SizedBox(width: 2),
-          Expanded(child: field),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                field,
+                if (replyPreview != null) ...[
+                  const SizedBox(height: 6),
+                  replyPreview!,
+                ],
+              ],
+            ),
+          ),
           const SizedBox(width: 4),
           _ComposerIcon(
             key: const ValueKey('chat-emoji'),

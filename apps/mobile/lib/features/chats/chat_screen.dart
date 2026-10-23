@@ -371,13 +371,51 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     });
   }
 
-  String quoteLabel(String id) {
-    final matches = messages.where((m) => m['id'] == id);
-    if (matches.isEmpty) return tr(context, 'quoteUnavailable');
-    final original = matches.first;
-    if (original['recalledAt'] != null) return tr(context, 'recalled');
-    return original['text']?.toString() ?? tr(context, 'reply');
+  Map? quotedMessage(String id) {
+    for (final message in messages) {
+      if (message['id'] == id) return message;
+    }
+    return null;
   }
+
+  String quoteLabel(String id) {
+    final original = quotedMessage(id);
+    if (original == null) return tr(context, 'quoteUnavailable');
+    if (original['recalledAt'] != null) return tr(context, 'recalled');
+    final text = original['text']?.toString() ?? '';
+    return text.isEmpty ? tr(context, 'reply') : text;
+  }
+
+  String quoteSender(String id) {
+    final original = quotedMessage(id);
+    if (original == null) return '';
+    final senderId = original['senderId'];
+    for (final member in members.cast<Map>()) {
+      if (member['userId'] != senderId) continue;
+      final user = member['user'];
+      final nickname = user is Map ? user['nickname']?.toString() : null;
+      if (nickname != null && nickname.isNotEmpty) return nickname;
+    }
+    final sender = original['sender'];
+    final nickname = sender is Map ? sender['nickname']?.toString() : null;
+    if (nickname != null && nickname.isNotEmpty) return nickname;
+    return senderId == ref.read(clientProvider).userId ? myName : title;
+  }
+
+  /// Khung trích dẫn nằm ngay dưới bong bóng tin nhắn.
+  Widget quoteBlock(String id) => ConstrainedBox(
+    constraints: BoxConstraints(
+      maxWidth: MediaQuery.sizeOf(context).width * .68 + 24,
+    ),
+    child: Padding(
+      padding: const EdgeInsets.only(top: 4, left: 12, right: 12),
+      child: QChatQuote(
+        name: quoteSender(id),
+        text: quoteLabel(id),
+        onTap: () => jumpToQuote(id),
+      ),
+    ),
+  );
 
   Future<void> jumpToQuote(String id) async {
     if (locatingQuote) return;
@@ -1298,28 +1336,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             builder: (anchor) => GestureDetector(
                                               onLongPress: () =>
                                                   openMessageMenu(m, anchor),
-                                              child: Stack(
-                                                alignment: Alignment.center,
+                                              child: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                crossAxisAlignment: mine
+                                                    ? CrossAxisAlignment.end
+                                                    : CrossAxisAlignment.start,
                                                 children: [
-                                                  Opacity(
-                                                    opacity:
-                                                        recalling.contains(
-                                                          m['id'],
-                                                        )
-                                                        ? .45
-                                                        : 1,
-                                                    child: bubble,
+                                                  Stack(
+                                                    alignment: Alignment.center,
+                                                    children: [
+                                                      Opacity(
+                                                        opacity:
+                                                            recalling.contains(
+                                                              m['id'],
+                                                            )
+                                                            ? .45
+                                                            : 1,
+                                                        child: bubble,
+                                                      ),
+                                                      if (recalling.contains(
+                                                        m['id'],
+                                                      ))
+                                                        const SizedBox(
+                                                          width: 16,
+                                                          height: 16,
+                                                          child:
+                                                              CircularProgressIndicator(
+                                                                strokeWidth:
+                                                                    1.5,
+                                                              ),
+                                                        ),
+                                                    ],
                                                   ),
-                                                  if (recalling.contains(
-                                                    m['id'],
-                                                  ))
-                                                    const SizedBox(
-                                                      width: 16,
-                                                      height: 16,
-                                                      child:
-                                                          CircularProgressIndicator(
-                                                            strokeWidth: 1.5,
-                                                          ),
+                                                  if (m['replyToId'] != null)
+                                                    quoteBlock(
+                                                      m['replyToId']
+                                                          .toString(),
                                                     ),
                                                 ],
                                               ),
@@ -1347,44 +1399,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                              if (m['replyToId'] != null)
-                                                GestureDetector(
-                                                  onTap: () => jumpToQuote(
-                                                    m['replyToId'].toString(),
-                                                  ),
-                                                  child: Container(
-                                                    padding:
-                                                        const EdgeInsets.all(8),
-                                                    margin:
-                                                        const EdgeInsets.only(
-                                                          bottom: 8,
-                                                        ),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.black
-                                                          .withValues(
-                                                            alpha: .06,
-                                                          ),
-                                                      border: const Border(
-                                                        left: BorderSide(
-                                                          color:
-                                                              QChatColors.muted,
-                                                          width: 2,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    child: Text(
-                                                      '↳ ${quoteLabel(m['replyToId'].toString())}',
-                                                      maxLines: 2,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        color:
-                                                            QChatColors.muted,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
                                               if (m['mediaId'] != null &&
                                                   m['recalledAt'] == null)
                                                 GestureDetector(
@@ -1493,14 +1507,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   ),
                                 ],
                               ),
-                            if (reply != null)
-                              QChatListTile(
-                                title: tr(c, 'reply'),
-                                trailing: QChatButton(
-                                  tr(c, 'cancel'),
-                                  onTap: () => setState(() => reply = null),
-                                ),
-                              ),
                             ChatInputBar(
                               mediaBusy: uploading || pickingMedia,
                               controller: input,
@@ -1519,6 +1525,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               onHoldStart: beginVoiceHold,
                               onHoldEnd: endVoiceHold,
                               onChanged: (_) => setState(() {}),
+                              replyPreview: reply == null
+                                  ? null
+                                  : QChatQuote(
+                                      name: quoteSender(reply!),
+                                      text: quoteLabel(reply!),
+                                      cancelLabel: tr(c, 'cancel'),
+                                      onCancel: () =>
+                                          setState(() => reply = null),
+                                    ),
                             ),
                           ],
                         ),
