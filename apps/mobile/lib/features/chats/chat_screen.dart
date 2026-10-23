@@ -1026,18 +1026,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       : GestureDetector(
                           behavior: HitTestBehavior.translucent,
                           onTap: dismissInput,
-                          child: AnimatedPadding(
-                            duration: insetDuration,
-                            curve: Curves.easeOut,
-                            padding: EdgeInsets.only(
-                              bottom: composerHeight + reserved,
-                            ),
-                            child: Align(
-                              alignment: Alignment.topCenter,
-                              child: ListView.builder(
+                          child: Align(
+                            alignment: Alignment.topCenter,
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween<double>(
+                                end: composerHeight + reserved,
+                              ),
+                              duration: insetDuration,
+                              curve: Curves.easeOut,
+                              builder: (c, bottomInset, _) =>
+                                  ListView.builder(
                                 controller: scroll,
                                 padding: EdgeInsets.only(
                                   top: error == null ? headerInset : 0,
+                                  bottom: bottomInset,
                                 ),
                                 // reverse: điểm bắt đầu là tin mới nhất -> mở chat không phải
                                 // cuộn từ trên xuống. Ít tin thì shrinkWrap + Align để vẫn
