@@ -731,9 +731,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Future<void> openMoneyMessage(Map m, Map sender, bool mine) async {
     if (m['kind'] == 'RED_PACKET') {
       final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => RedPacketScreen(message: m, sender: sender),
+        PageRouteBuilder(
+          opaque: false,
+          barrierDismissible: true,
+          barrierColor: const Color(0x80000000),
+          barrierLabel: 'Hồng bao',
+          transitionDuration: const Duration(milliseconds: 220),
+          reverseTransitionDuration: const Duration(milliseconds: 180),
+          pageBuilder: (_, animation, __) =>
+              RedPacketScreen(message: m, sender: sender),
+          transitionsBuilder: (_, animation, __, child) => FadeTransition(
+            opacity: animation,
+            child: ScaleTransition(
+              scale: Tween<double>(begin: .97, end: 1).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOut),
+              ),
+              child: child,
+            ),
+          ),
         ),
       );
       if (!mounted) return;

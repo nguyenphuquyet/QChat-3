@@ -40,28 +40,44 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
 
   @override
   Widget build(BuildContext c) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: opened ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
-      child: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 260),
-        switchInCurve: Curves.easeOut,
-        switchOutCurve: Curves.easeIn,
-        transitionBuilder: (child, animation) => FadeTransition(
-          opacity: animation,
-          child: ScaleTransition(
-            scale: Tween<double>(begin: .96, end: 1).animate(animation),
-            child: child,
+    return Material(
+      color: Colors.transparent,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: opened
+            ? SystemUiOverlayStyle.dark
+            : SystemUiOverlayStyle.light,
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                switchInCurve: Curves.easeOut,
+                switchOutCurve: Curves.easeIn,
+                transitionBuilder: (child, animation) => FadeTransition(
+                  opacity: animation,
+                  child: ScaleTransition(
+                    scale: Tween<double>(
+                      begin: .96,
+                      end: 1,
+                    ).animate(animation),
+                    child: child,
+                  ),
+                ),
+                child: opened ? _opened(c) : _cover(c),
+              ),
+            ),
           ),
         ),
-        child: opened ? _opened(c) : _cover(c),
       ),
     );
   }
 
-  Widget _cover(BuildContext c) => Scaffold(
+  Widget _cover(BuildContext c) => SizedBox.expand(
     key: const ValueKey('red-packet-cover'),
-    backgroundColor: redPacketRed,
-    body: SafeArea(
+    child: ColoredBox(
+      color: redPacketRed,
       child: Column(
         children: [
           Align(
@@ -152,10 +168,11 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
     ),
   );
 
-  Widget _opened(BuildContext c) => Scaffold(
+  Widget _opened(BuildContext c) => SizedBox.expand(
     key: const ValueKey('red-packet-opened'),
-    backgroundColor: const Color(0xffffffff),
-    body: Stack(
+    child: ColoredBox(
+      color: const Color(0xffffffff),
+      child: Stack(
       children: [
         Positioned(
           top: 0,
@@ -296,6 +313,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
         ),
       ],
     ),
+  ),
   );
 }
 
