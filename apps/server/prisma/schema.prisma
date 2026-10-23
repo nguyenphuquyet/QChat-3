@@ -38,6 +38,7 @@ model User {
   tokens AccountToken[]
   devices PushDevice[]
   feedback Feedback[]
+  wallet Wallet?
 }
 model UserSession {
   id String @id @default(uuid()) @db.Uuid
@@ -213,6 +214,27 @@ model CallSession {
   status String @default("RINGING")
   createdAt DateTime @default(now())
   endedAt DateTime?
+}
+model Wallet {
+  userId String @id @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  balance Int @default(0)
+  bonusGranted Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  transactions WalletTransaction[]
+}
+model WalletTransaction {
+  id String @id @default(uuid()) @db.Uuid
+  walletId String @db.Uuid
+  wallet Wallet @relation(fields:[walletId],references:[userId],onDelete:Cascade)
+  amount Int
+  kind String @default("TRANSFER")
+  note String @default("")
+  peerId String? @db.Uuid
+  peerName String @default("")
+  createdAt DateTime @default(now())
+  @@index([walletId,createdAt])
 }
 model Report {
   id String @id @default(uuid()) @db.Uuid

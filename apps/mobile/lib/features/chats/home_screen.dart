@@ -86,7 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     ('chats', 'newChat', () => c.push('/groups/new')),
     ('addFriend', 'addFriend', () => c.push('/friends')),
     ('scan', 'scan', () => c.push('/scan')),
-    ('payments', 'payments', () => openFeature(c, 'payments')),
+    ('payments', 'payments', () => c.push('/payments')),
   ]);
   @override
   Widget build(BuildContext c) {
@@ -624,7 +624,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       sectionGap,
-      const MenuRow('payments', icon: 'payments', color: QChatColors.green),
+      MenuRow(
+        'payments',
+        icon: 'payments',
+        color: QChatColors.green,
+        onTap: () => c.push('/payments'),
+      ),
       sectionGap,
       MenuRow(
         'favorites',

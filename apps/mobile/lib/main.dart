@@ -22,6 +22,10 @@ import 'features/profile/profile_screen.dart';
 import 'features/profile/user_profile_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
+import 'features/payments/payments_screen.dart';
+import 'features/payments/money_screen.dart';
+import 'features/payments/wallet_screen.dart';
+import 'features/payments/transfer_screen.dart';
 import 'features/search/search_screen.dart';
 
 GoRoute qchatRoute({
@@ -118,6 +122,26 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => const ProfileScreen(qr: true),
         ),
         qchatRoute(path: '/scan', builder: (_, s) => const ScanScreen()),
+        qchatRoute(
+          path: '/payments',
+          builder: (_, s) => const PaymentsScreen(),
+        ),
+        qchatRoute(
+          path: '/payments/money',
+          builder: (_, s) => const MoneyScreen(),
+        ),
+        qchatRoute(
+          path: '/payments/wallet',
+          builder: (_, s) => const WalletScreen(),
+        ),
+        qchatRoute(
+          path: '/payments/transfer',
+          builder: (_, s) => TransferScreen(
+            to: s.uri.queryParameters['to'] ?? '',
+            conversationId: s.uri.queryParameters['conversation'],
+            redPacket: s.uri.queryParameters['red'] == '1',
+          ),
+        ),
         qchatRoute(
           path: '/settings',
           builder: (_, s) => const SettingsScreen(),

@@ -21,6 +21,9 @@ import 'message_actions_menu.dart';
 import 'chat_composer.dart';
 import 'attachment_preview.dart';
 import 'message_attachment.dart';
+import 'money_message.dart';
+import 'red_packet_screen.dart';
+import 'transfer_receipt_screen.dart';
 import 'chat_details_screen.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/qchat_animations.dart';
@@ -53,6 +56,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   String? error, reply;
   bool loading = true, emoji = false, uploading = false, pickingMedia = false;
   bool attachments = false, voice = false;
+  int attachPage = 0;
   String myName = 'Q';
   Color? chatBackground;
   ImageProvider? chatBackgroundImage;
@@ -276,6 +280,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       attachments = true;
       emoji = false;
       voice = false;
+      attachPage = 0;
     });
     inputFocus.unfocus();
   }
@@ -699,55 +704,147 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return a != null && b != null && a.difference(b).inMinutes.abs() >= 5;
   }
 
+  String? get peerQchatId {
+    for (final member in members) {
+      if (member is! Map) continue;
+      if (member['userId'] == ref.read(clientProvider).userId) continue;
+      final user = member['user'];
+      final id = user is Map ? user['qchatId']?.toString() : null;
+      if (id != null && id.isNotEmpty) return id;
+    }
+    return null;
+  }
+
+  void openMoney(BuildContext c, {bool redPacket = false}) {
+    final peer = peerQchatId;
+    c.push(
+      '/payments/transfer'
+      '?to=${Uri.encodeQueryComponent(peer ?? '')}'
+      '${peer == null ? '' : '&conversation=${widget.id}'}'
+      '${redPacket ? '&red=1' : ''}',
+    );
+  }
+
+  void callPeer(BuildContext c, bool video) =>
+      c.push('/call/${widget.id}?video=$video');
+
+  Future<void> openMoneyMessage(Map m, Map sender, bool mine) async {
+    if (m['kind'] == 'RED_PACKET') {
+      final result = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => RedPacketScreen(message: m, sender: sender),
+        ),
+      );
+      if (!mounted) return;
+      if (result == 'sticker') {
+        setState(() {
+          emoji = true;
+          attachments = false;
+          voice = false;
+        });
+        inputFocus.unfocus();
+      }
+      return;
+    }
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => TransferReceiptScreen(message: m, mine: mine),
+      ),
+    );
+  }
+
   Widget attachmentPanel(BuildContext c, double safeBottom) {
-    final actions = <(String, String, VoidCallback)>[
-      ('image', 'image', attachImage),
-      ('camera', 'camera', takePhoto),
-      ('location', 'location', () => openFeature(c, 'location')),
-      ('favorites', 'favorites', () => c.push('/favorites')),
-      ('me', 'contactCard', () => openFeature(c, 'contactCard')),
-      ('file', 'file', () => attach()),
-      ('music', 'music', () => attach(extensions: ['mp3'])),
+    final pages = <List<(String, String, VoidCallback)>>[
+      [
+        ('image', 'image', attachImage),
+        ('camera', 'camera', takePhoto),
+        ('videoCall', 'videoCall', () => callPeer(c, true)),
+        ('call', 'call', () => callPeer(c, false)),
+        ('location', 'location', () => openFeature(c, 'location')),
+        ('gift', 'redPacket', () => openMoney(c, redPacket: true)),
+        ('payments', 'transferMoney', () => openMoney(c)),
+        ('favorites', 'favorites', () => c.push('/favorites')),
+      ],
+      [
+        ('me', 'contactCard', () => openFeature(c, 'contactCard')),
+        ('file', 'file', () => attach()),
+        ('music', 'music', () => attach(extensions: ['mp3'])),
+      ],
     ];
-    return GridView.count(
-      padding: EdgeInsets.fromLTRB(12, 16, 12, 8 + safeBottom),
-      crossAxisCount: 4,
-      childAspectRatio: .88,
+    return Column(
       children: [
-        for (final a in actions)
-          GestureDetector(
-            onTap: uploading || pickingMedia ? null : a.$3,
-            child: Column(
-              children: [
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    color: surface(c),
-                    borderRadius: BorderRadius.circular(17),
-                  ),
-                  child: Center(
-                    child: QChatIcon(
-                      a.$1,
-                      size: 29,
-                      color: const Color(0xff505050),
-                      filled: true,
-                    ),
-                  ),
+        Expanded(
+          child: PageView(
+            onPageChanged: (value) => setState(() => attachPage = value),
+            children: [
+              for (final page in pages)
+                GridView.count(
+                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 4),
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 4,
+                  childAspectRatio: .88,
+                  children: [
+                    for (final a in page)
+                      GestureDetector(
+                        onTap: uploading || pickingMedia ? null : a.$3,
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 62,
+                              height: 62,
+                              decoration: BoxDecoration(
+                                color: surface(c),
+                                borderRadius: BorderRadius.circular(17),
+                              ),
+                              child: Center(
+                                child: QChatIcon(
+                                  a.$1,
+                                  size: 29,
+                                  color: const Color(0xff505050),
+                                  filled: true,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              tr(c, a.$2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Color(0xff888888),
+                                decoration: TextDecoration.none,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  tr(c, a.$2),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xff888888),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
+        ),
+        Padding(
+          padding: EdgeInsets.fromLTRB(0, 2, 0, 8 + safeBottom),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var i = 0; i < pages.length; i++)
+                Container(
+                  width: 7,
+                  height: 7,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: i == attachPage
+                        ? const Color(0xff666666)
+                        : const Color(0xffd2d2d2),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1071,6 +1168,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       mine =
                                           m['senderId'] ==
                                           ref.read(clientProvider).userId;
+                                  final sender = members.cast<Map>().firstWhere(
+                                    (member) =>
+                                        member['userId'] == m['senderId'],
+                                    orElse: () => {
+                                      'user':
+                                          m['sender'] ??
+                                          {
+                                            'nickname': mine ? myName : title,
+                                          },
+                                    },
+                                  )['user'];
+                                  final money =
+                                      m['kind'] == 'TRANSFER' ||
+                                      m['kind'] == 'RED_PACKET';
                                   return AnimatedContainer(
                                     key: messageKeys.putIfAbsent(
                                       m['id'].toString(),
@@ -1117,7 +1228,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               m['mediaId'] != null &&
                                               m['recalledAt'] == null &&
                                               (m['kind'] == 'IMAGE' ||
-                                                  m['kind'] == 'VIDEO'),
+                                                  m['kind'] == 'VIDEO') ||
+                                              money,
                                           bubbleWrapper: (bubble) => Builder(
                                             builder: (anchor) => GestureDetector(
                                               onLongPress: () =>
@@ -1152,24 +1264,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                           mine: mine,
                                           avatar: UserAvatar(
                                             openProfile: !mine,
-                                            members.cast<Map>().firstWhere(
-                                              (member) =>
-                                                  member['userId'] ==
-                                                  m['senderId'],
-                                              orElse: () => {
-                                                'user':
-                                                    m['sender'] ??
-                                                    {
-                                                      'nickname': mine
-                                                          ? myName
-                                                          : title,
-                                                    },
-                                              },
-                                            )['user'],
+                                            sender,
                                             size: 42,
                                           ),
                                           name: mine ? myName : title,
-                                          child: Column(
+                                          child: money
+                                              ? MoneyMessageCard(
+                                                  message: m,
+                                                  mine: mine,
+                                                  onTap: () =>
+                                                      openMoneyMessage(
+                                                        m,
+                                                        sender,
+                                                        mine,
+                                                      ),
+                                                )
+                                              : Column(
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [

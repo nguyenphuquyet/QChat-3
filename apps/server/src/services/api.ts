@@ -10,6 +10,7 @@ import { conversationsRoute } from "../modules/conversations";
 import { messagesRoute } from "../modules/messages";
 import { momentsRoute } from "../modules/moments";
 import { mediaRoute } from "../modules/media";
+import { walletRoute } from "../modules/wallet";
 import { usersRoute } from "../modules/users";
 import { publicUser } from "./messages";
 import { searchRoute } from "../modules/search";
@@ -82,6 +83,9 @@ export async function handle(request: Request) {
         break;
       case "media":
         result = await mediaRoute(userId, method, path, body);
+        break;
+      case "wallet":
+        result = await walletRoute(userId, method, path, body);
         break;
       case "auth":
         if (path[1] === "logout" && method === "POST") {

@@ -238,6 +238,8 @@ const translations = <String, List<String>>{
   'miniApps': ['Mini programs', 'Chương trình nhỏ', '小程序'],
   'out': ['QChat Out', 'QChat Out', 'QChat Out'],
   'payments': ['Payments and services', 'Thanh toán và Dịch vụ', '支付与服务'],
+  'redPacket': ['Red packet', 'Hồng bao', '红包'],
+  'transferMoney': ['Transfer', 'Chuyển tiền', '转账'],
   'stickers': ['Sticker gallery', 'Thư viện Nhãn', '表情'],
   'status': ['Status', 'Trạng thái', '状态'],
   'account': ['Account', 'Tài khoản', '账号'],

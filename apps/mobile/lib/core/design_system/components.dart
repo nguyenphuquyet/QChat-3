@@ -39,9 +39,11 @@ class QChatPage extends StatelessWidget {
     this.navigationBackground,
     this.edgeToEdge = false,
     this.glassHeader = true,
+    this.titleColor,
   });
   final Widget child;
   final String? title;
+  final Color? titleColor;
   final Widget? leading, trailing, bottom;
   final Color? background, statusBackground, navigationBackground;
   final ImageProvider? backgroundImage;
@@ -57,7 +59,12 @@ class QChatPage extends StatelessWidget {
     final bottomBrightness = ThemeData.estimateBrightnessForColor(bottomColor);
     final appBar = title == null
         ? null
-        : QChatAppBar(title: title!, leading: leading, trailing: trailing);
+        : QChatAppBar(
+            title: title!,
+            leading: leading,
+            trailing: trailing,
+            color: titleColor,
+          );
     final glassBar = appBar != null && glassHeader;
     final barHeight = media.padding.top + 54;
     final base = media.removePadding(
@@ -153,9 +160,11 @@ class QChatAppBar extends StatelessWidget {
     required this.title,
     this.leading,
     this.trailing,
+    this.color,
   });
   final String title;
   final Widget? leading, trailing;
+  final Color? color;
   @override
   Widget build(BuildContext c) => SizedBox(
     height: 54,
@@ -166,7 +175,7 @@ class QChatAppBar extends StatelessWidget {
           child: Text(
             title,
             textAlign: TextAlign.center,
-            style: QChatTypography.title,
+            style: QChatTypography.title.copyWith(color: color),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),

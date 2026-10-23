@@ -296,6 +296,26 @@ class _IconPainter extends CustomPainter {
         canvas.drawRect(const Rect.fromLTWH(18.4, 15.3, 1.5, 1.5), p);
         canvas.drawRect(const Rect.fromLTWH(15.3, 18.4, 1.5, 1.5), p);
         break;
+      case 'transferMoney':
+        canvas.drawPath(
+          Path()
+            ..moveTo(20, 9)
+            ..lineTo(4.5, 9)
+            ..moveTo(9, 4.5)
+            ..lineTo(4.5, 9)
+            ..lineTo(9, 13.5),
+          p,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(4, 15)
+            ..lineTo(19.5, 15)
+            ..moveTo(15, 10.5)
+            ..lineTo(19.5, 15)
+            ..lineTo(15, 19.5),
+          p,
+        );
+        break;
       case 'gift':
         canvas.drawRRect(
           RRect.fromRectAndRadius(

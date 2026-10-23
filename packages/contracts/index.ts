@@ -33,6 +33,8 @@ export const messageSchema = z
         "GIF",
         "CONTACT",
         "LOCATION",
+        "TRANSFER",
+        "RED_PACKET",
       ])
       .default("TEXT"),
     text: z.string().max(10000).default(""),
@@ -44,7 +46,7 @@ export const messageSchema = z
     (v) =>
       v.kind === "TEXT"
         ? v.text.trim().length > 0
-        : ["CONTACT", "LOCATION"].includes(v.kind)
+        : ["CONTACT", "LOCATION", "TRANSFER", "RED_PACKET"].includes(v.kind)
           ? v.text.length > 0
           : !!v.mediaId,
     "Message content required",

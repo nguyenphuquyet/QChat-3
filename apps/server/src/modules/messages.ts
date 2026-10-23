@@ -40,6 +40,11 @@ export async function messagesRoute(
   }
   if (sub === "forward" && method === "POST") {
     requireCondition(!m.recalledAt, 400, "RECALLED");
+    requireCondition(
+      !["TRANSFER", "RED_PACKET"].includes(m.kind),
+      400,
+      "NOT_FORWARDABLE",
+    );
     const v = z
       .object({ conversationId: uuid, clientId: uuid })
       .strict()
