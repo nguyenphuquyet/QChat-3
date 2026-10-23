@@ -708,11 +708,40 @@ class QChatQuote extends StatelessWidget {
   Widget build(BuildContext c) {
     final dark = Theme.of(c).brightness == Brightness.dark;
     final compact = onCancel != null;
+    final content = Text.rich(
+      TextSpan(
+        children: [
+          if (name.isNotEmpty)
+            TextSpan(
+              text: '$name: ',
+              style: TextStyle(
+                color: ink(c).withValues(alpha: .5),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          TextSpan(
+            text: text,
+            style: const TextStyle(color: QChatColors.muted),
+          ),
+        ],
+      ),
+      maxLines: compact ? 1 : maxLines,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontSize: compact ? 13.5 : 13,
+        height: compact ? 1.3 : 1.4,
+      ),
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.fromLTRB(10, compact ? 5 : 8, compact ? 5 : 10, compact ? 5 : 8),
+        padding: EdgeInsets.fromLTRB(
+          10,
+          compact ? 5 : 8,
+          compact ? 5 : 10,
+          compact ? 5 : 8,
+        ),
         decoration: BoxDecoration(
           color: dark
               ? Colors.white.withValues(alpha: .09)
@@ -720,33 +749,14 @@ class QChatQuote extends StatelessWidget {
           borderRadius: BorderRadius.circular(compact ? 8 : 6),
         ),
         child: Row(
+          mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
           children: [
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    if (name.isNotEmpty)
-                      TextSpan(
-                        text: '$name: ',
-                        style: TextStyle(
-                          color: ink(c).withValues(alpha: .5),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    TextSpan(
-                      text: text,
-                      style: const TextStyle(color: QChatColors.muted),
-                    ),
-                  ],
-                ),
-                maxLines: compact ? 1 : maxLines,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: compact ? 13.5 : 13,
-                  height: compact ? 1.3 : 1.4,
-                ),
-              ),
-            ),
+            // Khung trong bong bóng co theo nội dung; khung trong ô nhập luôn
+            // rộng hết chỗ để nút hủy nằm sát lề phải.
+            if (compact)
+              Expanded(child: content)
+            else
+              Flexible(child: content),
             if (onCancel != null) ...[
               const SizedBox(width: 6),
               Semantics(
