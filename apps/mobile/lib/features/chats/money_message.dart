@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
-import '../../core/design_system/qchat_icons.dart';
 import '../payments/payments_screen.dart';
 
 /// Orange of the money bubbles (transfer and red packet share it).
-const moneyOrange = Color(0xfff5a623);
+const moneyOrange = Color(0xfff5a83a);
 const redPacketRed = Color(0xffd93b30);
 const _deepRed = Color(0xffc0342a);
+const _footerInk = Color(0xfff8d9a8);
 
 /// The message text of TRANSFER / RED_PACKET rows is a small JSON payload:
 /// `{"amount": 520000, "note": "...", "transferId": "..."}`.
@@ -113,15 +113,16 @@ class MoneyMessageCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: moneyOrange,
               borderRadius: BorderRadius.circular(5),
-              border: Border.all(color: const Color(0x33ffffff)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-                  child: red
-                      ? Row(
+                  child: SizedBox(
+                    height: 58,
+                    child: red
+                        ? Row(
                           children: [
                             const _Envelope(),
                             const SizedBox(width: 12),
@@ -169,11 +170,7 @@ class MoneyMessageCard extends StatelessWidget {
                                 ),
                               ),
                               child: const Center(
-                                child: QChatIcon(
-                                  'transferMoney',
-                                  size: 25,
-                                  color: Color(0xffffffff),
-                                ),
+                                child: _TransferArrows(),
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -193,14 +190,15 @@ class MoneyMessageCard extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    completed
+                                    mine
+                                        ? 'Bạn đã thực hiện chuyển khoản'
+                                        : completed
                                         ? 'Đã nhận'
-                                        : mine
-                                        ? 'Đợi đối phương nhận'
                                         : 'Chấp nhận chuyển tiền',
                                     style: const TextStyle(
                                       color: Color(0xf2ffffff),
                                       fontSize: 13,
+                                      height: 1.25,
                                     ),
                                   ),
                                 ],
@@ -208,8 +206,10 @@ class MoneyMessageCard extends StatelessWidget {
                             ),
                           ],
                         ),
+                  ),
                 ),
                 Container(
+                  width: double.infinity,
                   height: .5,
                   color: const Color(0x40ffffff),
                 ),
@@ -218,7 +218,7 @@ class MoneyMessageCard extends StatelessWidget {
                   child: Text(
                     red ? 'QChat Hồng bao' : 'QChat Chuyển tiền',
                     style: const TextStyle(
-                      color: Color(0xd9ffffff),
+                      color: _footerInk,
                       fontSize: 11,
                     ),
                   ),
@@ -240,46 +240,125 @@ class _Envelope extends StatelessWidget {
     width: 46,
     height: 56,
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(3),
+      borderRadius: BorderRadius.circular(4),
       gradient: const LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
-        colors: [Color(0xffe4553e), _deepRed],
+        colors: [Color(0xffe8614f), _deepRed],
       ),
     ),
-    child: Column(
+    child: Stack(
       children: [
-        Container(
-          height: 14,
-          decoration: const BoxDecoration(
-            color: Color(0x33ffffff),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
+        Positioned.fill(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: CustomPaint(painter: const _EnvelopeFlap()),
           ),
         ),
-        const Spacer(),
         Center(
           child: Container(
-            width: 19,
-            height: 19,
+            width: 21,
+            height: 21,
+            alignment: Alignment.center,
             decoration: const BoxDecoration(
-              color: Color(0xfff2d9a2),
+              color: Color(0xfff8dfb0),
               shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: _deepRed,
-                  borderRadius: BorderRadius.circular(1.4),
-                ),
+            child: const Text(
+              '₫',
+              style: TextStyle(
+                color: Color(0xffb33a2b),
+                fontSize: 11,
+                height: 1,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
         ),
-        const Spacer(),
-        Container(height: 9),
       ],
     ),
   );
+}
+
+/// Subtle envelope flap so the icon reads as a red packet, not a plain card.
+class _EnvelopeFlap extends CustomPainter {
+  const _EnvelopeFlap();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final flap = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height * .30)
+      ..quadraticBezierTo(
+        size.width / 2,
+        size.height * .50,
+        0,
+        size.height * .30,
+      )
+      ..close();
+    canvas.drawPath(flap, Paint()..color = const Color(0x14ffffff));
+    final edge = Path()
+      ..moveTo(0, size.height * .30)
+      ..quadraticBezierTo(
+        size.width / 2,
+        size.height * .50,
+        size.width,
+        size.height * .30,
+      );
+    canvas.drawPath(
+      edge,
+      Paint()
+        ..color = const Color(0x33ffffff)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_EnvelopeFlap old) => false;
+}
+
+/// The two circulating arrows of the transfer bubble (top right, bottom left).
+class _TransferArrows extends StatelessWidget {
+  const _TransferArrows();
+  @override
+  Widget build(BuildContext c) => CustomPaint(
+    size: const Size.square(25),
+    painter: const _TransferArrowsPainter(),
+  );
+}
+
+class _TransferArrowsPainter extends CustomPainter {
+  const _TransferArrowsPainter();
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24;
+    final paint = Paint()
+      ..color = const Color(0xffffffff)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6 * s
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(
+      Path()
+        ..moveTo(4.5 * s, 8.5 * s)
+        ..lineTo(19.5 * s, 8.5 * s)
+        ..moveTo(15 * s, 4 * s)
+        ..lineTo(19.5 * s, 8.5 * s)
+        ..lineTo(15 * s, 13 * s),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(19.5 * s, 15.5 * s)
+        ..lineTo(4.5 * s, 15.5 * s)
+        ..moveTo(9 * s, 11 * s)
+        ..lineTo(4.5 * s, 15.5 * s)
+        ..lineTo(9 * s, 20 * s),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TransferArrowsPainter old) => false;
 }

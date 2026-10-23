@@ -242,7 +242,8 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 58),
+              if (widget.mine) const Spacer(),
+              if (!widget.mine) const SizedBox(height: 92),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -379,6 +380,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                   ),
                 ),
               ],
+              if (widget.mine) const Spacer(),
             ],
           ),
         ),
