@@ -640,7 +640,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       // The Me tab lists only what this account posted, not the shared feed.
       MenuRow(
         'moments',
-        icon: 'image',
+        icon: 'moments',
         onTap: () {
           final id = u['id']?.toString() ?? '';
           c.push(
