@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -6,22 +7,34 @@ import '../../core/design_system/qchat_icons.dart';
 import '../payments/payments_screen.dart';
 import 'money_message.dart';
 
-/// Full-screen red packet: a red cover with an "Mở" button, then the opened
-/// receipt with the amount and a sticker reply shortcut.
+/// Compact red-packet popup with a cover, receipt, and sticker shortcut.
 class RedPacketScreen extends StatefulWidget {
   const RedPacketScreen({
     super.key,
     required this.message,
     required this.sender,
+    required this.mine,
+    required this.onClaim,
   });
   final Map message;
   final Map sender;
+  final bool mine;
+  final Future<int?> Function() onClaim;
   @override
   State<RedPacketScreen> createState() => _RedPacketScreenState();
 }
 
 class _RedPacketScreenState extends State<RedPacketScreen> {
   bool opened = false;
+  bool opening = false;
+  int? openedAmount;
+
+  @override
+  void initState() {
+    super.initState();
+    opened = MoneyMessageState.claimedByMe(widget.message);
+    openedAmount = MoneyMessageState.receivedAmount(widget.message);
+  }
 
   String get senderName => widget.sender['nickname']?.toString() ?? 'QChat';
 
@@ -38,6 +51,20 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
     router.push('/payments/wallet');
   }
 
+  Future<void> open() async {
+    if (widget.mine || opening) return;
+    setState(() => opening = true);
+    final amount = await widget.onClaim();
+    if (!mounted) return;
+    setState(() {
+      opening = false;
+      if (amount != null) {
+        opened = true;
+        openedAmount = amount;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext c) {
     return Material(
@@ -47,25 +74,27 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
             ? SystemUiOverlayStyle.dark
             : SystemUiOverlayStyle.light,
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(6),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 260),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeIn,
-                transitionBuilder: (child, animation) => FadeTransition(
-                  opacity: animation,
-                  child: ScaleTransition(
-                    scale: Tween<double>(
-                      begin: .96,
-                      end: 1,
-                    ).animate(animation),
-                    child: child,
+          child: LayoutBuilder(
+            builder: (context, constraints) => Center(
+              child: SizedBox(
+                width: math.min(336, constraints.maxWidth - 32),
+                height: math.min(470, constraints.maxHeight - 32),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 260),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) => FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(
+                        scale: Tween<double>(begin: .96, end: 1).animate(animation),
+                        child: child,
+                      ),
+                    ),
+                    child: opened ? _opened(c) : _cover(c),
                   ),
                 ),
-                child: opened ? _opened(c) : _cover(c),
               ),
             ),
           ),
@@ -135,7 +164,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
           Padding(
             padding: const EdgeInsets.only(bottom: 54),
             child: GestureDetector(
-              onTap: () => setState(() => opened = true),
+              onTap: widget.mine || opening ? null : open,
               child: Container(
                 width: 92,
                 height: 92,
@@ -150,9 +179,9 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                     ),
                   ],
                 ),
-                child: const Center(
+                child: Center(
                   child: Text(
-                    'Mở',
+                    opening ? '...' : widget.mine ? 'Đã gửi' : 'Mở',
                     style: TextStyle(
                       color: Color(0xffa8512f),
                       fontSize: 20,
@@ -236,7 +265,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    moneyText(payload.amount, withUnit: false),
+                    moneyText(openedAmount ?? payload.amount, withUnit: false),
                     style: const TextStyle(
                       color: Color(0xffc9a063),
                       fontSize: 42,

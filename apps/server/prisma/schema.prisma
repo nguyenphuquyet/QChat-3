@@ -137,8 +137,37 @@ model Message {
   recalledAt DateTime?
   createdAt DateTime @default(now())
   states MessageUserState[]
+  moneyTransfer MoneyTransfer?
   @@unique([senderId,clientId])
   @@unique([conversationId,sequence])
+}
+model MoneyTransfer {
+  id String @id @default(uuid()) @db.Uuid
+  messageId String? @unique @db.Uuid
+  message Message? @relation(fields:[messageId],references:[id],onDelete:SetNull)
+  senderId String @db.Uuid
+  recipientId String? @db.Uuid
+  amount Int
+  kind String
+  note String @default("")
+  status String @default("PENDING")
+  claimedAt DateTime?
+  recipientCount Int @default(1)
+  claimedCount Int @default(0)
+  createdAt DateTime @default(now())
+  claims MoneyTransferClaim[]
+  @@index([recipientId,status])
+  @@index([senderId,createdAt])
+}
+model MoneyTransferClaim {
+  transferId String @db.Uuid
+  userId String @db.Uuid
+  transfer MoneyTransfer @relation(fields:[transferId],references:[id],onDelete:Cascade)
+  amount Int
+  status String @default("PENDING")
+  claimedAt DateTime?
+  @@id([transferId,userId])
+  @@index([userId,status])
 }
 model MessageUserState {
   messageId String @db.Uuid

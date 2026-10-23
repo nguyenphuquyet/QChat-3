@@ -728,6 +728,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void callPeer(BuildContext c, bool video) =>
       c.push('/call/${widget.id}?video=$video');
 
+  Future<int?> claimMoneyMessage(Map message) async {
+    try {
+      final result = Map<String, dynamic>.from(
+        await ref.read(clientProvider).post('/messages/${message['id']}/claim', {}),
+      );
+      await ref.read(clientProvider).applyMoneyClaim(result);
+      final claims = result['claims'];
+      if (claims is List && claims.isNotEmpty && claims.first is Map) {
+        return (claims.first['amount'] as num?)?.toInt();
+      }
+    } on DioException catch (exception) {
+      if (mounted) {
+        setState(() {
+          error = exception.response?.statusCode == 403
+              ? 'Hồng bao hoặc chuyển tiền này không dành cho bạn.'
+              : 'Không thể nhận tiền lúc này.';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => error = 'Không thể nhận tiền lúc này.');
+    }
+    return null;
+  }
+
   Future<void> openMoneyMessage(Map m, Map sender, bool mine) async {
     if (m['kind'] == 'RED_PACKET') {
       final result = await Navigator.of(context).push<String>(
@@ -739,7 +763,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           transitionDuration: const Duration(milliseconds: 220),
           reverseTransitionDuration: const Duration(milliseconds: 180),
           pageBuilder: (_, animation, _) =>
-              RedPacketScreen(message: m, sender: sender),
+              RedPacketScreen(
+                message: m,
+                sender: sender,
+                mine: mine,
+                onClaim: () => claimMoneyMessage(m),
+              ),
           transitionsBuilder: (_, animation, _, child) => FadeTransition(
             opacity: animation,
             child: ScaleTransition(
@@ -764,7 +793,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => TransferReceiptScreen(message: m, mine: mine),
+        builder: (_) => TransferReceiptScreen(
+          message: m,
+          mine: mine,
+          onClaim: () => claimMoneyMessage(m),
+        ),
       ),
     );
   }

@@ -3,6 +3,7 @@ import { db } from "../services/db";
 import { membership, sendMessage } from "../services/messages";
 import { requireCondition } from "../security/errors";
 import { uuid } from "../../../../packages/contracts";
+import { claimMoneyTransfer } from "./wallet";
 export async function messagesRoute(
   userId: string,
   method: string,
@@ -13,6 +14,18 @@ export async function messagesRoute(
   const m = await db.message.findUnique({ where: { id: uuid.parse(id) } });
   requireCondition(m, 404, "NOT_FOUND");
   await membership(userId, m.conversationId);
+  if (sub === "claim" && method === "POST") {
+    requireCondition(
+      ["TRANSFER", "RED_PACKET"].includes(m.kind),
+      400,
+      "INVALID_MONEY_MESSAGE",
+    );
+    return {
+      ...(await claimMoneyTransfer(userId, m.id)),
+      messageId: m.id,
+      conversationId: m.conversationId,
+    };
+  }
   if (sub === "recall" && method === "POST") {
     requireCondition(
       m.senderId === userId && Date.now() - m.createdAt.getTime() < 120000,

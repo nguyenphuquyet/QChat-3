@@ -10,15 +10,35 @@ class TransferReceiptScreen extends StatefulWidget {
     super.key,
     required this.message,
     required this.mine,
+    required this.onClaim,
   });
   final Map message;
   final bool mine;
+  final Future<int?> Function() onClaim;
   @override
   State<TransferReceiptScreen> createState() => _TransferReceiptScreenState();
 }
 
 class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
   bool accepted = false;
+  bool accepting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    accepted = MoneyMessageState.claimedByMe(widget.message);
+  }
+
+  Future<void> accept() async {
+    if (accepting) return;
+    setState(() => accepting = true);
+    final amount = await widget.onClaim();
+    if (!mounted) return;
+    setState(() {
+      accepting = false;
+      accepted = amount != null;
+    });
+  }
 
   static const _background = Color(0xfffdf7f7);
   static const _green = Color(0xff34c759);
@@ -39,6 +59,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
             ?.toLocal() ??
         DateTime.now();
     final amount = moneyText(payload.amount);
+    final completed = accepted || MoneyMessageState.isCompleted(widget.message);
     return Scaffold(
       backgroundColor: _background,
       body: SafeArea(
@@ -67,12 +88,12 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: accepted ? _green : _blue,
+                          color: completed ? _green : _blue,
                           width: 2.4,
                         ),
-                        color: accepted ? _green : Colors.transparent,
+                        color: completed ? _green : Colors.transparent,
                       ),
-                      child: accepted
+                      child: completed
                           ? const Icon(
                               Icons.check_rounded,
                               color: Colors.white,
@@ -85,7 +106,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                             ),
                     ),
                     const SizedBox(height: 22),
-                    if (accepted) ...[
+                    if (completed) ...[
                       const Text(
                         'Bạn đã nhận chuyển khoản. Tiền đã được cộng vào Số dư.',
                         textAlign: TextAlign.center,
@@ -116,7 +137,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (accepted)
+                    if (completed)
                       const Text(
                         'Số dư khả dụng',
                         style: TextStyle(
@@ -126,7 +147,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       ),
                     const SizedBox(height: 26),
                     _TimeRow(label: 'Thời gian chuyển', value: _clock(created)),
-                    if (accepted) ...[
+                    if (completed) ...[
                       const SizedBox(height: 10),
                       _TimeRow(
                         label: 'Thời gian nhận',
@@ -134,7 +155,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       ),
                     ],
                     const Spacer(),
-                    if (!accepted && !widget.mine) ...[
+                    if (!completed && !widget.mine) ...[
                       SizedBox(
                         width: double.infinity,
                         height: 44,
@@ -146,10 +167,10 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
-                              onTap: () => setState(() => accepted = true),
-                              child: const Center(
+                              onTap: accepting ? null : accept,
+                              child: Center(
                                 child: Text(
-                                  'Xác nhận đã nhận',
+                                  accepting ? 'Đang nhận…' : 'Xác nhận đã nhận',
                                   style: TextStyle(
                                     color: Color(0xffffffff),
                                     fontSize: 14,
@@ -163,7 +184,7 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       ),
                       const SizedBox(height: 14),
                       const Text(
-                        'Tiền sẽ được hoàn lại cho người gửi nếu không nhận trong 24 giờ. Hoàn tiền ngay',
+                        'Khoản chuyển chỉ có thể được nhận một lần.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Color(0xffb8b8b8),

@@ -9,11 +9,12 @@ const redPacketRed = Color(0xffd93b30);
 const _deepRed = Color(0xffc0342a);
 
 /// The message text of TRANSFER / RED_PACKET rows is a small JSON payload:
-/// `{"amount": 520000, "note": "..."}`.
+/// `{"amount": 520000, "note": "...", "transferId": "..."}`.
 class MoneyPayload {
-  const MoneyPayload(this.amount, this.note);
+  const MoneyPayload(this.amount, this.note, [this.transferId]);
   final int amount;
   final String note;
+  final String? transferId;
 
   static MoneyPayload parse(Object? text) {
     try {
@@ -22,10 +23,40 @@ class MoneyPayload {
         return MoneyPayload(
           (value['amount'] as num?)?.toInt() ?? 0,
           value['note']?.toString().trim() ?? '',
+          value['transferId']?.toString(),
         );
       }
     } catch (_) {}
     return const MoneyPayload(0, '');
+  }
+}
+
+class MoneyMessageState {
+  const MoneyMessageState._();
+
+  static Map? _transfer(Map message) => message['moneyTransfer'] as Map?;
+
+  static bool claimedByMe(Map message) {
+    final claims = _transfer(message)?['claims'];
+    return claims is List &&
+        claims.isNotEmpty &&
+        claims.first is Map &&
+        claims.first['status'] == 'CLAIMED';
+  }
+
+  static int? receivedAmount(Map message) {
+    final claims = _transfer(message)?['claims'];
+    if (claims is! List || claims.isEmpty || claims.first is! Map) return null;
+    return (claims.first['amount'] as num?)?.toInt();
+  }
+
+  static bool isCompleted(Map message) {
+    final transfer = _transfer(message);
+    if (transfer == null) return false;
+    if (message['kind'] == 'RED_PACKET') {
+      return ((transfer['claimedCount'] as num?)?.toInt() ?? 0) > 0;
+    }
+    return transfer['status'] == 'CLAIMED';
   }
 }
 
@@ -51,12 +82,15 @@ class MoneyMessageCard extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     final payload = MoneyPayload.parse(message['text']);
+    final completed = MoneyMessageState.isCompleted(message);
     // Match the bubble's 68% cap so narrow phones never clip the card.
     final width = (MediaQuery.sizeOf(c).width * .68 - 24).clamp(190.0, 244.0);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Stack(
+      child: Opacity(
+        opacity: completed ? .48 : 1,
+        child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
@@ -86,16 +120,32 @@ class MoneyMessageCard extends StatelessWidget {
                             const _Envelope(),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: Text(
-                                greeting,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Color(0xffffffff),
-                                  fontSize: 16.5,
-                                  height: 1.3,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    greeting,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Color(0xffffffff),
+                                      fontSize: 16.5,
+                                      height: 1.3,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                  if (completed)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 3),
+                                      child: Text(
+                                        'Đã mở hồng bao',
+                                        style: TextStyle(
+                                          color: Color(0xf2ffffff),
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                           ],
@@ -137,8 +187,10 @@ class MoneyMessageCard extends StatelessWidget {
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
-                                    mine
-                                        ? 'Đã chuyển'
+                                    completed
+                                        ? 'Đã nhận'
+                                        : mine
+                                        ? 'Đợi đối phương nhận'
                                         : 'Chấp nhận chuyển tiền',
                                     style: const TextStyle(
                                       color: Color(0xf2ffffff),
@@ -169,6 +221,7 @@ class MoneyMessageCard extends StatelessWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }

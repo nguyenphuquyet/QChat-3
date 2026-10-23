@@ -269,6 +269,9 @@ class QChatClient {
     socket!.on('message:recall', (event) async {
       await applyRecall(event['conversationId'], event['id']);
     });
+    socket!.on('money:claimed', (event) async {
+      if (event is Map) await applyMoneyClaim(Map<String, dynamic>.from(event));
+    });
     socket!.onDisconnect((_) async {
       if (stopping) return;
       _connectionLost();
@@ -305,6 +308,37 @@ class QChatClient {
       // Keep the acknowledged recall visible even if disk storage fails.
     }
     recalls.add(conversationId);
+  }
+
+  Future<void> applyMoneyClaim(Map<String, dynamic> event) async {
+    final conversationId = event['conversationId']?.toString();
+    final messageId = event['messageId']?.toString();
+    if (conversationId == null || messageId == null) return;
+    final transfer = {
+      'status': event['status']?.toString() ?? 'CLAIMED',
+      'claimedAt': event['claimedAt']?.toString(),
+      'claimedCount': event['claimedCount'],
+      'recipientCount': event['recipientCount'],
+    };
+    Map<String, dynamic> update(Map<String, dynamic> message) =>
+        message['id']?.toString() == messageId
+        ? {...message, 'moneyTransfer': transfer}
+        : message;
+    confirmed.updateAll((_, message) => update(message));
+    outgoing.updateAll((_, message) => update(message));
+    final database = local;
+    try {
+      final key = 'messages:$conversationId';
+      final cached = await database?.read(key);
+      if (cached is List) {
+        await database?.cache(key, [
+          for (final row in cached) update(Map<String, dynamic>.from(row)),
+        ]);
+      }
+    } catch (_) {
+    }
+    messageChanges.add(null);
+    changes.add(null);
   }
 
   Map<String, dynamic> _withRecall(Map<String, dynamic> message) {

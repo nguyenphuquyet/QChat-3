@@ -212,10 +212,14 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
               onTap: sending ? null : submit,
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Tiền được chuyển ngay vào ví QChat của người nhận và không hoàn lại.',
+            Text(
+              widget.conversationId == null
+                  ? 'Tiền được chuyển ngay vào ví QChat của người nhận và không hoàn lại.'
+                  : widget.redPacket
+                  ? 'Người nhận chỉ có thể mở một lần; hồng bao trong nhóm được chia ngẫu nhiên theo từng suất.'
+                  : 'Tiền được cộng vào ví QChat khi người nhận xác nhận.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 height: 1.4,
                 color: QChatColors.muted,

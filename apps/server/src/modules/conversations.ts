@@ -35,7 +35,21 @@ export async function conversationsRoute(
           messages: {
             where: { states: { none: { userId, hidden: true } } },
             orderBy: { sequence: "desc" }, take: 1,
-            include: { media: { select: { mime: true } } },
+            include: {
+              media: { select: { mime: true } },
+              moneyTransfer: {
+                select: {
+                  status: true,
+                  claimedAt: true,
+                  claimedCount: true,
+                  recipientCount: true,
+                  claims: {
+                    where: { userId },
+                    select: { amount: true, status: true, claimedAt: true },
+                  },
+                },
+              },
+            },
           },
         },
         orderBy: { updatedAt: "desc" },
@@ -149,7 +163,21 @@ export async function conversationsRoute(
         },
         orderBy: { sequence: before ? "desc" : "asc" },
         take: 50,
-        include: { sender: { select: publicUser } },
+        include: {
+          sender: { select: publicUser },
+          moneyTransfer: {
+            select: {
+              status: true,
+              claimedAt: true,
+              claimedCount: true,
+              recipientCount: true,
+              claims: {
+                where: { userId },
+                select: { amount: true, status: true, claimedAt: true },
+              },
+            },
+          },
+        },
       });
     }
   }
