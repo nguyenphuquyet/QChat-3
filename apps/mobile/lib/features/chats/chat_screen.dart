@@ -967,6 +967,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Dùng max() để khi bàn phím đóng dần, ô nhập vẫn nằm trên safe area chứ
     // không tụt xuống sát đáy rồi bật ngược lên.
     final reserved = panelOpen ? panelHeight : math.max(keyboard, safeBottom);
+    // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
+    // khung hình; chỉ riêng lúc mở/đóng panel mới cần nội suy để ô nhập và
+    // danh sách tin nhắn cùng trượt, không bị giật lệch nhau.
+    final insetDuration = keyboard > 0 || inputFocus.hasFocus
+        ? Duration.zero
+        : qchatDuration(c);
     measureComposer();
     return QChatPage(
       title: title,
@@ -1020,13 +1026,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                       : GestureDetector(
                           behavior: HitTestBehavior.translucent,
                           onTap: dismissInput,
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: ListView.builder(
+                          child: AnimatedPadding(
+                            duration: insetDuration,
+                            curve: Curves.easeOut,
+                            padding: EdgeInsets.only(
+                              bottom: composerHeight + reserved,
+                            ),
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: ListView.builder(
                                 controller: scroll,
                                 padding: EdgeInsets.only(
                                   top: error == null ? headerInset : 0,
-                                  bottom: composerHeight + reserved,
                                 ),
                                 // reverse: điểm bắt đầu là tin mới nhất -> mở chat không phải
                                 // cuộn từ trên xuống. Ít tin thì shrinkWrap + Align để vẫn
@@ -1221,6 +1232,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                     ),
                                   );
                                 },
+                              ),
                             ),
                           ),
                         ),
@@ -1322,9 +1334,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                         // | safe area, để tin nhắn trượt xuống dưới được cả
                         // phần này thay vì một mảng đục ở đáy.
                         AnimatedContainer(
-                          duration: keyboard > 0 || inputFocus.hasFocus
-                              ? Duration.zero
-                              : qchatDuration(c),
+                          duration: insetDuration,
                           curve: Curves.easeOut,
                           height: reserved,
                           child: panelOpen
