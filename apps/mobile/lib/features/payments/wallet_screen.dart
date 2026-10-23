@@ -115,7 +115,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
           color: const Color(0xffe8b323),
           title: 'Số dư',
           subtitle: moneyText(balance),
-          onTap: () => c.push('/payments/money'),
+          onTap: () => c.push('/payments/balance'),
         ),
       ),
       Container(

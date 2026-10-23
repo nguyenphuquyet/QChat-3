@@ -24,6 +24,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
 import 'features/payments/payments_screen.dart';
 import 'features/payments/money_screen.dart';
+import 'features/payments/balance_screen.dart';
 import 'features/payments/wallet_screen.dart';
 import 'features/payments/transfer_screen.dart';
 import 'features/search/search_screen.dart';
@@ -129,6 +130,10 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         qchatRoute(
           path: '/payments/money',
           builder: (_, s) => const MoneyScreen(),
+        ),
+        qchatRoute(
+          path: '/payments/balance',
+          builder: (_, s) => const BalanceScreen(),
         ),
         qchatRoute(
           path: '/payments/wallet',

@@ -68,6 +68,9 @@ class QChatIcon extends StatelessWidget {
       'male' => TIcons.gender_male,
       'delete' => TIcons.delete,
       'heart' => filled ? TIcons.heart_filled : TIcons.heart,
+      'eye' => TIcons.browse,
+      'eyeOff' => TIcons.browse_off,
+      'refresh' => TIcons.refresh,
       _ => null,
     };
     if (glyph != null) return Icon(glyph, size: size, color: color);
@@ -381,27 +384,6 @@ class _IconPainter extends CustomPainter {
         canvas.drawArc(const Rect.fromLTWH(6, 7, 12, 11), 0.2, 2.7, false, p);
         canvas.drawCircle(const Offset(8, 8), .6, p);
         canvas.drawCircle(const Offset(16, 8), .6, p);
-        break;
-      case 'scan':
-        canvas.drawPath(
-          Path()
-            ..moveTo(3, 15)
-            ..cubicTo(0, 3, 3, 1, 8, 3)
-            ..lineTo(12, 7)
-            ..lineTo(19, 7)
-            ..cubicTo(23, 7, 23, 12, 20, 14)
-            ..lineTo(8, 14)
-            ..cubicTo(6, 14, 5, 11, 3, 15),
-          p,
-        );
-        canvas.drawPath(
-          Path()
-            ..moveTo(21, 10)
-            ..cubicTo(24, 22, 21, 24, 16, 22)
-            ..lineTo(12, 18)
-            ..lineTo(5, 18),
-          p,
-        );
         break;
       case 'qr':
         for (final r in [
