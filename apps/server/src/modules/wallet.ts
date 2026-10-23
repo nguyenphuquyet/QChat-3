@@ -199,11 +199,11 @@ export async function walletRoute(
       );
       if (conversation?.kind === "GROUP") {
         recipients = memberIds.filter((memberId) => memberId !== userId);
-        requireCondition(recipients.isNotEmpty, 400, "NO_RED_PACKET_RECIPIENTS");
+        requireCondition(recipients.length > 0, 400, "NO_RED_PACKET_RECIPIENTS");
       }
     }
     await ensureWallet(userId);
-    await Future.all(recipients.map(ensureWallet));
+    await Promise.all(recipients.map(ensureWallet));
     const sender = await db.user.findUniqueOrThrow({
       where: { id: userId },
       select: { nickname: true },
@@ -260,14 +260,16 @@ export async function walletRoute(
           peerName: peer.nickname,
         },
       });
-      const shares = input.kind === "RED_PACKET" && recipients.length > 1
+      const soleRecipient = recipients[0];
+      const shares =
+        input.kind === "RED_PACKET" && recipients.length > 1
           ? splitRedPacket(input.amount, recipients)
-          : [{ userId: recipients.single, amount: input.amount }];
+          : [{ userId: soleRecipient, amount: input.amount }];
       const pending = await tx.moneyTransfer.create({
         data: {
           id: randomUUID(),
           senderId: userId,
-          recipientId: recipients.length == 1 ? recipients.single : null,
+          recipientId: recipients.length === 1 ? soleRecipient : null,
           amount: input.amount,
           kind: input.kind,
           note: input.note,
