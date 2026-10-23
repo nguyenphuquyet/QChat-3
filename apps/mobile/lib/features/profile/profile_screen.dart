@@ -250,9 +250,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TCell(title: const Text('Nhận Ảnh & Tệp tin gần đây'), description: const Text('Quét mã QR để gửi ảnh, video và tệp cho tôi.'), image: const QChatIcon('file', color: Color(0xff168fe5), size: 24), onTap: () {}),
+              TCell(title: const Text('Nhận Ảnh & Tệp tin gần đây'), subtitle: const Text('Quét mã QR để gửi ảnh, video và tệp cho tôi.'), image: const QChatIcon('file', color: Color(0xff168fe5), size: 24), onTap: () {}),
               const SizedBox(height: 12),
-              TCell(title: const Text('Nhận Hồng bao xung quanh'), description: const Text('Quét mã QR để gửi Lì xì cho tôi.'), image: const QChatIcon('gift', color: Color(0xfffa5151), size: 24), onTap: () {}),
+              TCell(title: const Text('Nhận Hồng bao xung quanh'), subtitle: const Text('Quét mã QR để gửi Lì xì cho tôi.'), image: const QChatIcon('gift', color: Color(0xfffa5151), size: 24), onTap: () {}),
             ],
           );
         }
