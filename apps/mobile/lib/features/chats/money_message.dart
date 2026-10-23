@@ -208,10 +208,13 @@ class MoneyMessageCard extends StatelessWidget {
                         ),
                   ),
                 ),
-                Container(
-                  width: double.infinity,
-                  height: .5,
-                  color: const Color(0x40ffffff),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Container(
+                    width: double.infinity,
+                    height: .5,
+                    color: const Color(0x33ffffff),
+                  ),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 5, 12, 6),
