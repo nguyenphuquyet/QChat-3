@@ -69,6 +69,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   double keyboardHeight = 0;
   double composerHeight = 56;
   Timer? panelTimer;
+  Timer? voiceLimitTimer;
   @override
   void initState() {
     super.initState();
@@ -113,6 +114,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     WidgetsBinding.instance.removeObserver(this);
     panelTimer?.cancel();
     voiceHoldTimer?.cancel();
+    voiceLimitTimer?.cancel();
     ++voiceHoldToken;
     highlightTimer?.cancel();
     if (recordingVoice) unawaited(recorder.stop());
@@ -197,7 +199,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         if (canceledPath != null) await File(canceledPath).delete().catchError((_) => File(canceledPath));
         return;
       }
-      if (mounted) setState(() { recordingVoice = true; voiceStartedAt = DateTime.now(); });
+      if (mounted) {
+        setState(() {
+          recordingVoice = true;
+          voiceStartedAt = DateTime.now();
+        });
+        voiceLimitTimer?.cancel();
+        voiceLimitTimer = Timer(const Duration(seconds: 60), () {
+          if (mounted && recordingVoice) unawaited(stopVoiceRecording());
+        });
+      }
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
     }
@@ -205,6 +216,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   Future<void> stopVoiceRecording() async {
     if (!recordingVoice) return;
+    voiceLimitTimer?.cancel();
+    voiceLimitTimer = null;
     final path = await recorder.stop();
     final startedAt = voiceStartedAt;
     if (mounted) setState(() { recordingVoice = false; voiceStartedAt = null; });
@@ -226,10 +239,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final client = ref.read(clientProvider);
       const name = 'voice-message.m4a';
       const mime = 'audio/mp4';
+      final seconds = (DateTime.now().difference(startedAt).inMilliseconds / 1000)
+          .round()
+          .clamp(1, 60);
       final intent = await client.post('/media/upload-intent', {'name': name, 'size': bytes.length, 'mime': mime});
       await Dio().put(intent['url'], data: bytes, options: Options(headers: {'Content-Type': mime}));
       await client.post('/media/complete', {'mediaId': intent['id']});
-      await client.send(widget.id, name, kind: 'AUDIO', mediaId: intent['id']);
+      await client.send(widget.id, '$seconds', kind: 'AUDIO', mediaId: intent['id']);
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
     } finally {
