@@ -332,6 +332,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? ''
             : last['recalledAt'] != null
             ? tr(c, 'recalled')
+            : (last['kind'] == 'IMAGE' || last['media']?['mime']?.toString().startsWith('image/') == true)
+            ? 'Ảnh'
+            : (last['kind'] == 'VIDEO' || last['media']?['mime']?.toString().startsWith('video/') == true)
+            ? 'Video'
+            : last['kind'] == 'AUDIO'
+            ? tr(c, 'voiceMessage')
             : last['text']?.toString().isNotEmpty == true
             ? last['text']
             : '[${last['kind']}]',

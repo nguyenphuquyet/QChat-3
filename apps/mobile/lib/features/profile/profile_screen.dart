@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:tdesign_flutter/tdesign_flutter.dart';
@@ -27,6 +30,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool initialized = false;
   String? error;
   bool uploading = false;
+  final qrCardKey = GlobalKey();
+  int qrStyle = 0;
+  static const qrStyles = [Color(0xff111111), Color(0xff168fe5), Color(0xffe8b323)];
+
+  Future<void> saveQr() async {
+    try {
+      await WidgetsBinding.instance.endOfFrame;
+      final boundary = qrCardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+      final image = await boundary.toImage(pixelRatio: 3);
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      if (data == null) return;
+      await FilePicker.saveFile(fileName: 'qchat-qr.png', bytes: data.buffer.asUint8List(), mimeType: 'image/png');
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
   Future<void> avatar() async {
     if (uploading) return;
     setState(() {
@@ -177,22 +198,62 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           initialized = true;
         }
         if (widget.qr) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                UserAvatar(u, size: 64),
-                const SizedBox(height: 16),
-                Text(u['nickname']),
-                const SizedBox(height: 24),
-                QrImageView(
-                  data: 'qchat://user/${u['qchatId']}',
-                  size: 240,
-                  backgroundColor: Colors.white,
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 28),
+            children: [
+              RepaintBoundary(
+                key: qrCardKey,
+                child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+                decoration: BoxDecoration(
+                  color: surface(c),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-                Text(u['qchatId']),
-              ],
-            ),
+                child: Column(
+                  children: [
+                    Row(children: [
+                      const QChatIcon('qr', color: Color(0xffe8b323), size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text('Kết bạn với tôi', style: Theme.of(c).textTheme.titleLarge)),
+                      const QChatIcon('chevron', color: QChatColors.muted, size: 18),
+                    ]),
+                    const SizedBox(height: 28),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      UserAvatar(u, size: 48),
+                      const SizedBox(width: 12),
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(u['nickname'], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                        Text((u['region'] as String?)?.isNotEmpty == true ? u['region'] : 'Việt Nam', style: const TextStyle(color: QChatColors.muted)),
+                      ]),
+                    ]),
+                    const SizedBox(height: 22),
+                    QrImageView(
+                      data: 'qchat://user/${u['qchatId']}',
+                      size: 250,
+                      backgroundColor: Colors.white,
+                      eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: qrStyles[qrStyle]),
+                      dataModuleStyle: QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: qrStyles[qrStyle]),
+                    ),
+                    const SizedBox(height: 14),
+                    const Text('Quét mã QR để thêm tôi làm bạn bè.', textAlign: TextAlign.center, style: TextStyle(color: QChatColors.muted, fontSize: 15)),
+                    const SizedBox(height: 22),
+                    const Divider(height: 1),
+                    Row(children: [
+                      Expanded(child: TButton(variant: TButtonVariant.text, onPressed: () => c.push('/scan'), child: const Text('Quét'))),
+                      const SizedBox(height: 1, child: VerticalDivider(width: 1)),
+                      Expanded(child: TButton(variant: TButtonVariant.text, onPressed: () => setState(() => qrStyle = (qrStyle + 1) % qrStyles.length), child: const Text('Thay đổi phong cách'))),
+                      const SizedBox(height: 1, child: VerticalDivider(width: 1)),
+                      Expanded(child: TButton(variant: TButtonVariant.text, onPressed: saveQr, child: const Text('Lưu hình ảnh'))),
+                    ]),
+                  ],
+                ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TCell(title: const Text('Nhận Ảnh & Tệp tin gần đây'), description: const Text('Quét mã QR để gửi ảnh, video và tệp cho tôi.'), image: const QChatIcon('file', color: Color(0xff168fe5), size: 24), onTap: () {}),
+              const SizedBox(height: 12),
+              TCell(title: const Text('Nhận Hồng bao xung quanh'), description: const Text('Quét mã QR để gửi Lì xì cho tôi.'), image: const QChatIcon('gift', color: Color(0xfffa5151), size: 24), onTap: () {}),
+            ],
           );
         }
         return ListView(

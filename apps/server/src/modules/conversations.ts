@@ -35,6 +35,7 @@ export async function conversationsRoute(
           messages: {
             where: { states: { none: { userId, hidden: true } } },
             orderBy: { sequence: "desc" }, take: 1,
+            include: { media: { select: { mime: true } } },
           },
         },
         orderBy: { updatedAt: "desc" },

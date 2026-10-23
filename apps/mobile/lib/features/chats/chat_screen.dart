@@ -1,6 +1,7 @@
 import '../../core/design_system/qchat_glass.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:async';
+import 'dart:io';
 import 'package:uuid/uuid.dart';
 import '../../core/design_system/dialogs.dart';
 import 'dart:math' as math;
@@ -11,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
+import 'package:record/record.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
@@ -58,6 +60,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   int wallpaperRequest = 0;
   bool wallpaperLoaded = false;
   final inputFocus = FocusNode();
+  final recorder = AudioRecorder();
+  bool recordingVoice = false;
+  DateTime? voiceStartedAt;
+  Timer? voiceHoldTimer;
+  int voiceHoldToken = 0;
   final composerKey = GlobalKey();
   double keyboardHeight = 0;
   double composerHeight = 56;
@@ -105,7 +112,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     messageUpdates?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     panelTimer?.cancel();
+    voiceHoldTimer?.cancel();
+    ++voiceHoldToken;
     highlightTimer?.cancel();
+    if (recordingVoice) unawaited(recorder.stop());
+    recorder.dispose();
     inputFocus.dispose();
     input.dispose();
     scroll.dispose();
@@ -124,7 +135,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void didChangeMetrics() {
     if (!mounted) return;
-    if (scroll.hasClients && scroll.position.pixels < 100) scrollToEnd();
     settlePanels();
   }
 
@@ -155,6 +165,77 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       attachments = false;
     });
     voice ? inputFocus.unfocus() : inputFocus.requestFocus();
+  }
+
+  void beginVoiceHold() {
+    final token = ++voiceHoldToken;
+    voiceHoldTimer?.cancel();
+    voiceHoldTimer = Timer(const Duration(milliseconds: 250), () {
+      unawaited(startVoiceRecording(token));
+    });
+  }
+
+  void endVoiceHold() {
+    ++voiceHoldToken;
+    voiceHoldTimer?.cancel();
+    unawaited(stopVoiceRecording());
+  }
+
+  Future<void> startVoiceRecording(int token) async {
+    if (!voice || recordingVoice || uploading) return;
+    try {
+      if (!await recorder.hasPermission()) {
+        if (token != voiceHoldToken) return;
+        if (mounted) setState(() => error = tr(context, 'microphonePermission'));
+        return;
+      }
+      if (token != voiceHoldToken) return;
+      final path = '${Directory.systemTemp.path}${Platform.pathSeparator}qchat-voice-${const Uuid().v4()}.m4a';
+      await recorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: path);
+      if (token != voiceHoldToken) {
+        final canceledPath = await recorder.stop();
+        if (canceledPath != null) await File(canceledPath).delete().catchError((_) => File(canceledPath));
+        return;
+      }
+      if (mounted) setState(() { recordingVoice = true; voiceStartedAt = DateTime.now(); });
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  Future<void> stopVoiceRecording() async {
+    if (!recordingVoice) return;
+    final path = await recorder.stop();
+    final startedAt = voiceStartedAt;
+    if (mounted) setState(() { recordingVoice = false; voiceStartedAt = null; });
+    if (path == null || startedAt == null) return;
+    final file = File(path);
+    if (!await file.exists()) return;
+    final bytes = await file.readAsBytes();
+    if (bytes.isEmpty || !mounted) {
+      await file.delete().catchError((_) => file);
+      return;
+    }
+    if (bytes.length > maxMediaBytes) {
+      if (mounted) setState(() => error = tr(context, 'mediaTooLarge'));
+      await file.delete().catchError((_) => file);
+      return;
+    }
+    setState(() { uploading = true; error = null; });
+    try {
+      final client = ref.read(clientProvider);
+      const name = 'voice-message.m4a';
+      const mime = 'audio/mp4';
+      final intent = await client.post('/media/upload-intent', {'name': name, 'size': bytes.length, 'mime': mime});
+      await Dio().put(intent['url'], data: bytes, options: Options(headers: {'Content-Type': mime}));
+      await client.post('/media/complete', {'mediaId': intent['id']});
+      await client.send(widget.id, name, kind: 'AUDIO', mediaId: intent['id']);
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    } finally {
+      await file.delete().catchError((_) => file);
+      if (mounted) setState(() => uploading = false);
+    }
   }
 
   void toggleEmoji() {
@@ -343,8 +424,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (mediaId == wallpaperMediaId && chatBackgroundImage != null) return;
     final request = ++wallpaperRequest;
     wallpaperMediaId = mediaId;
-    setState(() => chatBackgroundImage = null);
-    if (mediaId == null) return;
+    if (mediaId == null) {
+      setState(() => chatBackgroundImage = null);
+      return;
+    }
     unawaited(
       MediaCache.load(ref.read(clientProvider), mediaId)
           .then((bytes) {
@@ -930,8 +1013,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: loading
-                      ? const QChatLoading()
+                                  child: loading
+                      ? const QChatLoading(label: 'Đang tải')
                       : messages.isEmpty
                       ? QChatEmptyState(tr(c, 'emptyChats'))
                       : GestureDetector(
@@ -939,17 +1022,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           onTap: dismissInput,
                           child: Align(
                             alignment: Alignment.topCenter,
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween<double>(end: reserved),
-                              duration: keyboard > 0 || inputFocus.hasFocus
-                                  ? Duration.zero
-                                  : qchatDuration(c),
-                              curve: Curves.easeOut,
-                              builder: (_, reserve, _) => ListView.builder(
+                            child: ListView.builder(
                                 controller: scroll,
                                 padding: EdgeInsets.only(
                                   top: error == null ? headerInset : 0,
-                                  bottom: composerHeight + reserve,
+                                  bottom: composerHeight + reserved,
                                 ),
                                 // reverse: điểm bắt đầu là tin mới nhất -> mở chat không phải
                                 // cuộn từ trên xuống. Ít tin thì shrinkWrap + Align để vẫn
@@ -1144,7 +1221,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                     ),
                                   );
                                 },
-                              ),
                             ),
                           ),
                         ),
@@ -1231,12 +1307,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               emojiLabel: 'Emoji',
                               plusLabel: tr(c, 'file'),
                               sendLabel: tr(c, 'send'),
-                              holdLabel: tr(c, 'holdToTalk'),
+                              holdLabel: recordingVoice ? tr(c, 'recording') : tr(c, 'holdToTalk'),
                               onVoice: toggleVoice,
                               onEmoji: toggleEmoji,
                               onPlus: togglePlus,
                               onSend: send,
-                              onHold: () => openFeature(c, 'voice'),
+                              onHoldStart: beginVoiceHold,
+                              onHoldEnd: endVoiceHold,
                               onChanged: (_) => setState(() {}),
                             ),
                           ],

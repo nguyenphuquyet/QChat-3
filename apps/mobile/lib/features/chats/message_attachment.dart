@@ -1,11 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:video_player/video_player.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/network/video_meta.dart';
 import '../../core/network/cached_video.dart';
+import '../../core/localization/strings.dart';
 import 'media_screen.dart';
 
 class MessageAttachment extends ConsumerStatefulWidget {
@@ -26,6 +28,9 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
   VideoPlayerController? video;
   CachedVideo? cachedVideo;
   VideoMeta? meta;
+  final AudioPlayer audio = AudioPlayer();
+  bool audioLoading = false;
+  bool audioPlaying = false;
   @override
   void initState() {
     super.initState();
@@ -34,6 +39,11 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
         VideoMeta.fromJson(MediaCache.infoFromMemory(widget.id));
     if (widget.kind == 'VIDEO') loadVideo();
     if (widget.kind == 'IMAGE') loadImage();
+    if (widget.kind == 'AUDIO') {
+      audio.playerStateStream.listen((state) {
+        if (mounted) setState(() => audioPlaying = state.playing);
+      });
+    }
   }
 
   Future<void> loadImage() async {
@@ -88,7 +98,31 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
   @override
   void dispose() {
     cachedVideo?.dispose();
+    audio.dispose();
     super.dispose();
+  }
+
+  Future<void> toggleAudio() async {
+    if (audioLoading) return;
+    try {
+      if (audioPlaying) {
+        await audio.pause();
+        return;
+      }
+      if (audio.audioSource == null) {
+        setState(() => audioLoading = true);
+        final access = await ref.read(clientProvider).get('/media/${widget.id}/access', cached: false);
+        await audio.setUrl(access['url'].toString());
+      }
+      if (audio.processingState == ProcessingState.completed) {
+        await audio.seek(Duration.zero);
+      }
+      await audio.play();
+    } catch (_) {
+      if (mounted) qchatSheet(context, [(tr(context, 'audioPlaybackError'), () {})]);
+    } finally {
+      if (mounted) setState(() => audioLoading = false);
+    }
   }
 
   @override
@@ -189,6 +223,22 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment> {
             ),
           ),
         ),
+      );
+    }
+    if (widget.kind == 'AUDIO') {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 210),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          TButton(
+            variant: TButtonVariant.text,
+            onPressed: audioLoading ? null : toggleAudio,
+            child: audioLoading
+                ? const TLoading(size: 22)
+                : QChatIcon('voice', size: 24),
+          ),
+          const SizedBox(width: 8),
+          Flexible(child: Text(tr(c, 'voiceMessage'), maxLines: 1, overflow: TextOverflow.ellipsis)),
+        ]),
       );
     }
     return ConstrainedBox(

@@ -651,18 +651,28 @@ class QChatEmptyState extends StatelessWidget {
 }
 
 class QChatLoading extends StatelessWidget {
-  const QChatLoading({super.key});
+  const QChatLoading({super.key, this.label});
+  final String? label;
   @override
-  Widget build(BuildContext c) => const Center(
-    widthFactor: 1,
-    heightFactor: 1,
-    child: SizedBox.square(
-      dimension: 20,
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        color: QChatColors.muted,
-      ),
-    ),
+  Widget build(BuildContext c) => Center(
+    child: label == null
+        ? const TLoading(size: 20, icon: TLoadingIcon.circle)
+        : Container(
+            width: 164,
+            height: 160,
+            decoration: BoxDecoration(
+              color: const Color(0xff3c3a3b),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const TLoading(size: 52, icon: TLoadingIcon.circle),
+                const SizedBox(height: 12),
+                Text(label!, style: const TextStyle(color: Colors.white, fontSize: 15)),
+              ],
+            ),
+          ),
   );
 }
 

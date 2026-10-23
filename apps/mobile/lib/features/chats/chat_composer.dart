@@ -19,7 +19,8 @@ class ChatInputBar extends StatelessWidget {
     required this.onEmoji,
     required this.onPlus,
     required this.onSend,
-    required this.onHold,
+    required this.onHoldStart,
+    required this.onHoldEnd,
     this.onChanged,
     this.mediaBusy = false,
   });
@@ -28,7 +29,8 @@ class ChatInputBar extends StatelessWidget {
   final FocusNode focusNode;
   final bool voice, hasText, mediaBusy;
   final String voiceLabel, emojiLabel, plusLabel, sendLabel, holdLabel;
-  final VoidCallback onVoice, onEmoji, onPlus, onSend, onHold;
+  final VoidCallback onVoice, onEmoji, onPlus, onSend;
+  final VoidCallback onHoldStart, onHoldEnd;
   final ValueChanged<String>? onChanged;
 
   static const double fieldHeight = 40;
@@ -45,9 +47,11 @@ class ChatInputBar extends StatelessWidget {
     );
 
     final Widget field = voice
-        ? GestureDetector(
+        ? Listener(
             behavior: HitTestBehavior.opaque,
-            onTap: onHold,
+            onPointerDown: (_) => onHoldStart(),
+            onPointerUp: (_) => onHoldEnd(),
+            onPointerCancel: (_) => onHoldEnd(),
             child: Container(
               height: fieldHeight,
               alignment: Alignment.center,
