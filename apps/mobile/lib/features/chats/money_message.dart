@@ -162,20 +162,7 @@ class MoneyMessageCard extends StatelessWidget {
                           )
                         : Row(
                             children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: const Color(0xffffffff),
-                                    width: 1.6,
-                                  ),
-                                ),
-                                child: const Center(
-                                  child: _TransferArrows(),
-                                ),
-                              ),
+                              const _TransferArrows(),
                               const SizedBox(width: 11),
                               Expanded(
                                 child: Column(
@@ -338,12 +325,13 @@ class _EnvelopeFlap extends CustomPainter {
   bool shouldRepaint(_EnvelopeFlap old) => false;
 }
 
-/// The two stacked transfer arrows: top points left, bottom points right.
+/// The transfer mark of `weixin-transfer-icon.svg`: a ring with two arrows,
+/// top pointing left and bottom pointing right.
 class _TransferArrows extends StatelessWidget {
   const _TransferArrows();
   @override
   Widget build(BuildContext c) => CustomPaint(
-    size: const Size.square(26),
+    size: const Size.square(40),
     painter: const _TransferArrowsPainter(),
   );
 }
@@ -352,34 +340,34 @@ class _TransferArrowsPainter extends CustomPainter {
   const _TransferArrowsPainter();
   @override
   void paint(Canvas canvas, Size size) {
-    final s = size.width / 24;
-    final ink = Paint()..color = const Color(0xffffffff);
-    final shaft = Paint()
+    final s = size.width / 100;
+    final paint = Paint()
       ..color = const Color(0xffffffff)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7 * s
-      ..strokeCap = StrokeCap.round;
-
-    /// One straight arrow with a solid triangular head, like the reference.
-    void arrow(double tail, double tip, double y) {
-      canvas.drawLine(
-        Offset(tail * s, y * s),
-        Offset(tip * s, y * s),
-        shaft,
-      );
-      final neck = tip + (tail - tip).sign * 4.6;
-      canvas.drawPath(
-        Path()
-          ..moveTo(tip * s, y * s)
-          ..lineTo(neck * s, (y - 2.9) * s)
-          ..lineTo(neck * s, (y + 2.9) * s)
-          ..close(),
-        ink,
-      );
-    }
-
-    arrow(21.4, 3.0, 9.2);
-    arrow(2.6, 21.0, 14.8);
+      ..strokeWidth = 4 * s
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawCircle(Offset(50 * s, 50 * s), 43 * s, paint);
+    canvas.drawPath(
+      Path()
+        ..moveTo(70 * s, 37 * s)
+        ..lineTo(30 * s, 37 * s)
+        ..moveTo(30 * s, 37 * s)
+        ..lineTo(39 * s, 28 * s)
+        ..moveTo(30 * s, 37 * s)
+        ..lineTo(39 * s, 46 * s),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(30 * s, 63 * s)
+        ..lineTo(70 * s, 63 * s)
+        ..moveTo(70 * s, 63 * s)
+        ..lineTo(61 * s, 54 * s)
+        ..moveTo(70 * s, 63 * s)
+        ..lineTo(61 * s, 72 * s),
+      paint,
+    );
   }
 
   @override
