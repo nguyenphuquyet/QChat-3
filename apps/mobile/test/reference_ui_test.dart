@@ -109,6 +109,10 @@ void main() {
           rootBundle.load('packages/tdesign_flutter_icons/fonts/t.ttf'),
         ))
         .load();
+    await (FontLoader('packages/lucide_icons_flutter/Lucide')..addFont(
+          rootBundle.load('packages/lucide_icons_flutter/assets/lucide.ttf'),
+        ))
+        .load();
   });
   testWidgets('reference layouts and attachment panel render at phone width', (
     tester,

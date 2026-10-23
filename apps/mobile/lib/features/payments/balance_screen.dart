@@ -128,7 +128,7 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             QChatIcon(
-                              'refresh',
+                              'refreshCw',
                               size: 15,
                               color: QChatColors.muted,
                             ),
@@ -203,8 +203,8 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen> {
               children: [
                 Row(
                   children: [
-                    Icon(
-                      TIcons.wallet,
+                    QChatIcon(
+                      'wallet',
                       size: 17,
                       color: Colors.white.withValues(alpha: .85),
                     ),
@@ -265,7 +265,7 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen> {
                 Row(
                   children: [
                     QChatIcon(
-                      'lock',
+                      'shieldCheck',
                       size: 13,
                       color: Colors.white.withValues(alpha: .7),
                     ),
@@ -369,14 +369,14 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen> {
       children: [
         _action(
           c,
-          'transferMoney',
+          'arrowLeftRight',
           paymentBlue,
           'Chuyển tiền',
           () => c.push('/payments/transfer?to=${Uri.encodeQueryComponent('')}'),
         ),
         _action(
           c,
-          'qr',
+          'qrCode',
           paymentGreen,
           'Nhận tiền',
           () => c.push('/payments/money'),
@@ -431,7 +431,7 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen> {
         padding: const EdgeInsets.symmetric(vertical: 34),
         child: const QChatEmptyState(
           'Chưa có giao dịch',
-          icon: 'payments',
+          icon: 'wallet',
         ),
       );
     }
@@ -499,8 +499,8 @@ class _BalanceScreenState extends ConsumerState<BalanceScreen> {
     final icon = redPacket
         ? 'gift'
         : incoming
-        ? 'download'
-        : 'transferMoney';
+        ? 'banknoteDown'
+        : 'arrowLeftRight';
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 13, 16, 13),
       decoration: BoxDecoration(

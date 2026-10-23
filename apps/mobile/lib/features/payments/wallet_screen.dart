@@ -111,7 +111,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
       Container(
         color: surface(c),
         child: _WalletRow(
-          icon: 'payments',
+          icon: 'wallet',
           color: const Color(0xffe8b323),
           title: 'Số dư',
           subtitle: moneyText(balance),
@@ -121,7 +121,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
       Container(
         color: surface(c),
         child: _WalletRow(
-          icon: 'file',
+          icon: 'creditCard',
           color: paymentBlue,
           title: 'Thẻ ngân hàng',
           subtitle: 'Chưa liên kết thẻ',
@@ -134,19 +134,19 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
         child: Column(
           children: [
             _WalletRow(
-              icon: 'settings',
+              icon: 'gear',
               color: paymentBlue,
               title: 'Cài đặt thanh toán',
               onTap: () => openFeature(c, 'paymentSettings'),
             ),
             _WalletRow(
-              icon: 'me',
+              icon: 'userRound',
               color: paymentBlue,
               title: 'Thông tin ID',
               onTap: () => c.push('/profile'),
             ),
             _WalletRow(
-              icon: 'service',
+              icon: 'headset',
               color: QChatColors.green,
               title: 'Trung tâm dịch vụ khách hàng',
               onTap: () => openFeature(c, 'customerService'),
@@ -196,7 +196,7 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: QChatIcon(
-                  incoming ? 'download' : 'transfer',
+                  incoming ? 'banknoteDown' : 'arrowLeftRight',
                   size: 21,
                   color: incoming ? QChatColors.green : QChatColors.danger,
                 ),
@@ -276,7 +276,7 @@ class _WalletRow extends StatelessWidget {
             ),
           const SizedBox(width: 6),
           const QChatIcon(
-            'chevron',
+            'chevronRight',
             size: 18,
             color: Color(0xffb8b8b8),
           ),

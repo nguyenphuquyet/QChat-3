@@ -75,7 +75,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
         children: [
           Row(
             children: [
-              const QChatIcon('payments', color: paymentGreen, size: 26),
+              const QChatIcon('wallet', color: paymentGreen, size: 26),
               const SizedBox(width: 12),
               Text(
                 'Ví QChat',
@@ -88,7 +88,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
               ),
               const SizedBox(width: 8),
               const QChatIcon(
-                'chevron',
+                'chevronRight',
                 size: 18,
                 color: QChatColors.muted,
               ),
@@ -192,7 +192,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                         ),
                         const SizedBox(width: 4),
                         const QChatIcon(
-                          'chevron',
+                          'chevronRight',
                           size: 17,
                           color: QChatColors.muted,
                         ),
@@ -248,7 +248,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
             Column(
               children: [
                 _MoneyAction(
-                  icon: 'download',
+                  icon: 'banknoteDown',
                   label: 'Nhận tiền',
                   onTap: () => receive(c, user, wallet),
                 ),
@@ -258,17 +258,17 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
                   onTap: () => openFeature(c, 'redPacket'),
                 ),
                 _MoneyAction(
-                  icon: 'payments',
+                  icon: 'landmark',
                   label: 'Chuyển đến thẻ/ngân hàng',
                   onTap: () => openFeature(c, 'bankTransfer'),
                 ),
                 _MoneyAction(
-                  icon: 'heart',
+                  icon: 'ticketPercent',
                   label: 'Mã thưởng',
                   onTap: () => openFeature(c, 'rewardCode'),
                 ),
                 _MoneyAction(
-                  icon: 'file',
+                  icon: 'receipt',
                   label: 'Chia hóa đơn',
                   onTap: () => openFeature(c, 'splitBill'),
                 ),
@@ -329,7 +329,7 @@ class _MoneyAction extends StatelessWidget {
               ),
             ),
           ),
-          const QChatIcon('chevron', color: Colors.white70, size: 18),
+          const QChatIcon('chevronRight', color: Colors.white70, size: 18),
         ],
       ),
     ),
@@ -355,7 +355,7 @@ class _BottomLink extends StatelessWidget {
             decoration: TextDecoration.none,
           ),
         ),
-        const QChatIcon('chevron', color: Colors.white70, size: 16),
+        const QChatIcon('chevronRight', color: Colors.white70, size: 16),
       ],
     ),
   );

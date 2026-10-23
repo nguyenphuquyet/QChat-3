@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'dart:math' as math;
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart' show TIcons;
 
 /// Original line icons drawn locally, independent of Material and WeChat assets.
@@ -36,11 +37,11 @@ class QChatIcon extends StatelessWidget {
       'miniApps' => TIcons.link,
       'call' => TIcons.call,
       'videoCall' => TIcons.video,
-      'payments' => TIcons.chat_checked,
+      'payments' => LucideIcons.wallet,
       'mail' => TIcons.mail,
       'mobile' => TIcons.mobile,
       'radar' => TIcons.radar,
-      'qr' => TIcons.qrcode,
+      'qr' => LucideIcons.qrCode,
       'keyboard' => TIcons.keyboard,
       'transfer' => TIcons.folder,
       'lock' => TIcons.lock_on,
@@ -56,9 +57,37 @@ class QChatIcon extends StatelessWidget {
       'male' => TIcons.gender_male,
       'delete' => TIcons.delete,
       'heart' => filled ? TIcons.heart_filled : TIcons.heart,
-      'eye' => TIcons.browse,
-      'eyeOff' => TIcons.browse_off,
+      'eye' => LucideIcons.eye,
+      'eyeOff' => LucideIcons.eyeOff,
       'refresh' => TIcons.refresh,
+      'refreshCw' => LucideIcons.refreshCw,
+      // Lucide icon library, used by the payment & services surfaces.
+      'scan' => LucideIcons.scanQrCode,
+      'scanQrCode' => LucideIcons.scanQrCode,
+      'qrCode' => LucideIcons.qrCode,
+      'wallet' => LucideIcons.wallet,
+      'creditCard' => LucideIcons.creditCard,
+      'piggyBank' => LucideIcons.piggyBank,
+      'coins' => LucideIcons.coins,
+      'receipt' => LucideIcons.receiptText,
+      'smartphone' => LucideIcons.smartphone,
+      'landmark' => LucideIcons.landmark,
+      'heartHandshake' => LucideIcons.heartHandshake,
+      'stethoscope' => LucideIcons.stethoscope,
+      'plane' => LucideIcons.plane,
+      'trainFront' => LucideIcons.trainFront,
+      'carFront' => LucideIcons.carFront,
+      'hotel' => LucideIcons.hotel,
+      'gift' => LucideIcons.gift,
+      'ticketPercent' => LucideIcons.ticketPercent,
+      'banknoteDown' => LucideIcons.banknoteArrowDown,
+      'banknoteUp' => LucideIcons.banknoteArrowUp,
+      'arrowLeftRight' => LucideIcons.arrowLeftRight,
+      'userRound' => LucideIcons.userRound,
+      'headset' => LucideIcons.headset,
+      'gear' => LucideIcons.settings,
+      'shieldCheck' => LucideIcons.shieldCheck,
+      'chevronRight' => LucideIcons.chevronRight,
       _ => null,
     };
     if (glyph != null) return Icon(glyph, size: size, color: color);
