@@ -83,7 +83,6 @@ class _WalletScreenState extends ConsumerState<WalletScreen> {
         balance: balance,
         hidden: hidden,
         onToggle: () => setState(() => hidden = !hidden),
-        onTap: () => c.push('/payments/balance'),
       ),
       const SizedBox(height: 12),
       _quickActions(c),
@@ -336,115 +335,104 @@ class _BalanceCard extends StatelessWidget {
     required this.balance,
     required this.hidden,
     required this.onToggle,
-    required this.onTap,
   });
   final int balance;
   final bool hidden;
-  final VoidCallback onToggle, onTap;
+  final VoidCallback onToggle;
   @override
-  Widget build(BuildContext c) => GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.fromLTRB(18, 15, 14, 15),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xff3ac065), Color(0xff1b9a47)],
-        ),
-        borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: paymentGreen.withValues(alpha: .22),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
+  Widget build(BuildContext c) => Container(
+    padding: const EdgeInsets.fromLTRB(18, 15, 14, 15),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xff3ac065), Color(0xff1b9a47)],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
+      borderRadius: BorderRadius.circular(18),
+      boxShadow: [
+        BoxShadow(
+          color: paymentGreen.withValues(alpha: .22),
+          blurRadius: 18,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Số dư khả dụng',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.white.withValues(alpha: .85),
+                decoration: TextDecoration.none,
+              ),
+            ),
+            const Spacer(),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: QChatIcon(
+                  hidden ? 'eyeOff' : 'eye',
+                  size: 19,
+                  color: Colors.white.withValues(alpha: .85),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              hidden ? '••••••' : moneyText(balance, withUnit: false),
+              style: const TextStyle(
+                fontSize: 32,
+                height: 1.15,
+                fontWeight: FontWeight.w600,
+                letterSpacing: -.5,
+                color: Colors.white,
+                decoration: TextDecoration.none,
+              ),
+            ),
+            if (!hidden)
               Text(
-                'Số dư khả dụng',
+                ' đ',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
                   color: Colors.white.withValues(alpha: .85),
                   decoration: TextDecoration.none,
                 ),
               ),
-              const Spacer(),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onToggle,
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: QChatIcon(
-                    hidden ? 'eyeOff' : 'eye',
-                    size: 19,
-                    color: Colors.white.withValues(alpha: .85),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              const QChatIcon(
-                'chevronRight',
-                size: 18,
-                color: Colors.white70,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                hidden ? '••••••' : moneyText(balance, withUnit: false),
-                style: const TextStyle(
-                  fontSize: 32,
-                  height: 1.15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -.5,
-                  color: Colors.white,
-                  decoration: TextDecoration.none,
-                ),
-              ),
-              if (!hidden)
-                Text(
-                  ' đ',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withValues(alpha: .85),
-                    decoration: TextDecoration.none,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              QChatIcon(
-                'shieldCheck',
-                size: 13,
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            QChatIcon(
+              'shieldCheck',
+              size: 13,
+              color: Colors.white.withValues(alpha: .7),
+            ),
+            const SizedBox(width: 5),
+            Text(
+              'Ví QChat · Số dư nội bộ',
+              style: TextStyle(
+                fontSize: 12,
                 color: Colors.white.withValues(alpha: .7),
+                decoration: TextDecoration.none,
               ),
-              const SizedBox(width: 5),
-              Text(
-                'Ví QChat · Số dư nội bộ',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.white.withValues(alpha: .7),
-                  decoration: TextDecoration.none,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     ),
   );
 }
