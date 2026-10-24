@@ -255,7 +255,6 @@ const translations = <String, List<String>>{
   'friendPermissions': ['Friend permissions', 'Quyền của bạn bè', '朋友权限'],
   'storage': ['Storage', 'Bộ nhớ', '存储空间'],
   'more': ['More', 'Nhiều hơn', '更多'],
-  'loading': ['Loading...', 'Đang tải...', '加载中...'],
   'features': ['Features', 'Tính năng', '功能'],
   'conversations': ['Chats', 'Cuộc trò chuyện', '聊天'],
   'calls': ['Voice and video calls', 'Cuộc gọi thoại và video', '音视频通话'],

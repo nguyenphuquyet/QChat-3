@@ -18,7 +18,7 @@ class UserProfileScreen extends ConsumerStatefulWidget {
 class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   Map? user;
   List momentMedia = [];
-  bool friend = false, sent = false, busy = false, loading = true;
+  bool friend = false, sent = false, busy = false;
   bool expanded = true;
   String? error;
   StreamSubscription<void>? updates;
@@ -80,15 +80,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               found != null &&
               friends.any((f) => f['friendId'] == found!['id']);
           error = found == null ? tr(context, 'userNotFound') : null;
-          loading = false;
         });
       }
     } catch (_) {
       if (mounted && current == revision) {
-        setState(() {
-          error = tr(context, 'networkError');
-          loading = false;
-        });
+        setState(() => error = tr(context, 'networkError'));
       }
     }
   }
@@ -322,7 +318,6 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       glassHeader: false,
       child: ListView(
         children: [
-          if (loading) QChatLoading(label: tr(c, 'loading')),
           if (u != null) ...[
             Container(
               color: surface(c),
