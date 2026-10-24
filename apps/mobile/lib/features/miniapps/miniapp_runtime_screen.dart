@@ -12,6 +12,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
+import '../../core/design_system/dialogs.dart';
 import '../../core/localization/strings.dart';
 import 'miniapp_api.dart';
 import 'miniapp_asset_server.dart';
@@ -336,45 +337,50 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'qchat.api' => 'permissionQchatApi',
       _ => null,
     };
-    final allowed = await showDialog<bool>(
-      context: context,
-      builder: (dialog) => AlertDialog(
-        title: Text(tr(dialog, 'miniAppsPermissionTitle')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '$_name ${tr(dialog, 'miniAppsPermissionBody')}:',
-              style: const TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.check_circle_outline, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    key == null ? permission : tr(dialog, key),
-                    style: const TextStyle(fontSize: 14),
+    final allowed = await showQChatDialog<bool>(
+      context,
+      title: tr(context, 'miniAppsPermissionTitle'),
+      content: Builder(
+        builder: (dialog) => Padding(
+          padding: const EdgeInsets.fromLTRB(24, 14, 24, 26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '$_name ${tr(dialog, 'miniAppsPermissionBody')}:',
+                style: TextStyle(fontSize: 14, color: ink(dialog)),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const QChatIcon(
+                    'shieldCheck',
+                    size: 18,
+                    color: QChatColors.muted,
                   ),
-                ),
-              ],
-            ),
-          ],
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      key == null ? permission : tr(dialog, key),
+                      style: TextStyle(fontSize: 14, color: ink(dialog)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, false),
-            child: Text(tr(dialog, 'miniAppsDeny')),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialog, true),
-            child: Text(tr(dialog, 'miniAppsAllow')),
-          ),
-        ],
       ),
+      actions: [
+        QChatDialogAction(label: tr(context, 'miniAppsDeny'), result: false),
+        QChatDialogAction(
+          label: tr(context, 'miniAppsAllow'),
+          primary: true,
+          result: true,
+        ),
+      ],
     );
     if (allowed != true) return false;
     try {

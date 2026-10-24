@@ -247,7 +247,6 @@ class VideoMedia extends StatefulWidget {
 class _VideoMediaState extends State<VideoMedia> {
   VideoPlayerController? controller;
   CachedVideo? cachedVideo;
-  final speedKey = GlobalKey();
   bool failed = false;
   double speed = 1;
 
@@ -296,33 +295,19 @@ class _VideoMediaState extends State<VideoMedia> {
       '${d.inSeconds.remainder(60).toString().padLeft(2, '0')}';
 
   Future<void> pickSpeed(BuildContext c) async {
-    final box = speedKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay = Overlay.of(c).context.findRenderObject() as RenderBox;
-    final origin = box?.localToGlobal(Offset.zero, ancestor: overlay);
-    final chosen = await showMenu<double>(
-      context: c,
-      color: const Color(0xff2b2b2b),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      position: RelativeRect.fromLTRB(
-        (origin?.dx ?? overlay.size.width - 120) - 40,
-        (origin?.dy ?? overlay.size.height) - 250,
-        overlay.size.width - (origin?.dx ?? overlay.size.width - 120),
-        0,
-      ),
-      items: [
-        for (final value in const [0.5, 0.75, 1.0, 1.5, 2.0])
-          PopupMenuItem(
-            value: value,
-            height: 44,
-            child: Text(
-              '${value}x',
-              style: TextStyle(
-                fontSize: 15,
-                color: value == speed ? QChatColors.green : Colors.white,
-              ),
+    final chosen = await showQChatSheet<double>(
+      c,
+      (sheet) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final value in const [0.5, 0.75, 1.0, 1.5, 2.0])
+            QChatOverlayAction(
+              label: '${value}x',
+              selected: value == speed,
+              onTap: () => Navigator.pop(sheet, value),
             ),
-          ),
-      ],
+        ],
+      ),
     );
     final player = controller;
     if (chosen == null || player == null) return;
@@ -410,7 +395,6 @@ class _VideoMediaState extends State<VideoMedia> {
                             ),
                             const Spacer(),
                             GestureDetector(
-                              key: speedKey,
                               behavior: HitTestBehavior.opaque,
                               onTap: () => pickSpeed(c),
                               child: Padding(
