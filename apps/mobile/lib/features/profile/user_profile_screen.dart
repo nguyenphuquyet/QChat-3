@@ -322,7 +322,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       glassHeader: false,
       child: ListView(
         children: [
-          if (loading) const QChatLoading(),
+          if (loading) QChatLoading(label: tr(c, 'loading')),
           if (u != null) ...[
             Container(
               color: surface(c),
@@ -419,7 +419,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             ],
           ],
           if (busy)
-            const Padding(padding: EdgeInsets.all(16), child: QChatLoading()),
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: QChatDots()),
+            ),
           if (error != null)
             TCell(title: Text(error!), arrow: true, onTap: load),
         ],
