@@ -275,7 +275,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         ? const QChatLoading()
         : error != null
         ? QChatError(error: error!, retry: load)
-        : RefreshIndicator(
+        : QChatRefresh(
             onRefresh: load,
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),

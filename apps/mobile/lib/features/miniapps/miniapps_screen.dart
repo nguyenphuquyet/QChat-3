@@ -342,10 +342,8 @@ class _MiniAppsScreenState extends ConsumerState<MiniAppsScreen> {
               .toList(growable: false);
     final more = _items.length < _total;
     final count = featured.isEmpty ? _total : _total - featured.length;
-    return RefreshIndicator(
+    return QChatRefresh(
       onRefresh: () => _load(),
-      color: QChatColors.green,
-      backgroundColor: surface(c),
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
@@ -371,7 +369,7 @@ class _MiniAppsScreenState extends ConsumerState<MiniAppsScreen> {
                   if (!_loadingMore) unawaited(_load(more: true));
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 18),
-                    child: QChatLoading(),
+                    child: Center(child: QChatDots()),
                   );
                 }
                 final app = listItems[index];

@@ -5,6 +5,7 @@ import '../localization/strings.dart';
 import 'qchat_colors.dart';
 import 'qchat_glass.dart';
 import 'qchat_icons.dart';
+import 'qchat_shadows.dart';
 import 'qchat_typography.dart';
 import 'overlays.dart';
 export 'overlays.dart';
@@ -688,6 +689,208 @@ class QChatLoading extends StatelessWidget {
               ],
             ),
           ),
+  );
+}
+
+/// Small inline loader: TDesign's bouncing dots in QChat green, so loading
+/// states stay in the app's own design language instead of the Material ring.
+class QChatDots extends StatelessWidget {
+  const QChatDots({super.key, this.size = 22});
+
+  final double size;
+
+  @override
+  Widget build(BuildContext c) => Theme(
+    data: Theme.of(c).copyWith(
+      extensions: [
+        ...Theme.of(c).extensions.values.where((e) => e is! TLoadingThemeData),
+        const TLoadingThemeData(iconColor: QChatColors.green),
+      ],
+    ),
+    child: TLoading(size: size, icon: TLoadingIcon.point),
+  );
+}
+
+/// Pull-to-refresh drawn with the app's own visuals: a round surface holding
+/// the TDesign dot loader slides out from under the header as the list is
+/// pulled down, so the Material/Google spinner never appears.
+///
+/// The child must be a top-anchored scrollable; a short list should still use
+/// `AlwaysScrollableScrollPhysics` so the pull is reported.
+class QChatRefresh extends StatefulWidget {
+  const QChatRefresh({
+    super.key,
+    required this.onRefresh,
+    required this.child,
+    this.threshold = 58,
+    this.maxDrag = 120,
+  });
+
+  final Future<void> Function() onRefresh;
+  final Widget child;
+
+  /// Pull distance that arms the refresh.
+  final double threshold;
+
+  /// Ceiling for the pull distance.
+  final double maxDrag;
+
+  @override
+  State<QChatRefresh> createState() => _QChatRefreshState();
+}
+
+class _QChatRefreshState extends State<QChatRefresh>
+    with SingleTickerProviderStateMixin {
+  static const _pill = 38.0;
+  static const _resistance = .65;
+
+  /// Visual pull progress, 0 (hidden) to 1 (fully out and refreshing).
+  late final AnimationController _position = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 180),
+  );
+
+  double _drag = 0;
+  bool _armed = false;
+  bool _refreshing = false;
+
+  @override
+  void dispose() {
+    _position.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    if (_refreshing) return false;
+    if (notification is ScrollStartNotification) {
+      if (notification.dragDetails != null && _drag != 0) {
+        _drag = 0;
+        _position.value = 0;
+      }
+      // Only a user drag that begins at the top can pull the indicator.
+      _armed =
+          notification.dragDetails != null &&
+          notification.metrics.extentBefore <= 0;
+      return false;
+    }
+    if (notification is OverscrollNotification) {
+      // Clamping platforms report the pull as overscroll.
+      if (!_armed) return false;
+      if (notification.metrics.extentBefore > 0) return _cancel();
+      _pull(-notification.overscroll);
+      return false;
+    }
+    if (notification is ScrollUpdateNotification) {
+      final metrics = notification.metrics;
+      if (metrics.extentBefore > 0 ||
+          metrics.pixels > metrics.minScrollExtent) {
+        return _armed ? _cancel() : false;
+      }
+      if (notification.dragDetails == null) {
+        // Bouncing platforms report the spring-back without drag details.
+        return _armed && _drag >= widget.threshold ? _start() : _cancel();
+      }
+      _pull(-(notification.scrollDelta ?? 0));
+      return false;
+    }
+    if (notification is ScrollEndNotification && _armed) {
+      return _drag >= widget.threshold ? _start() : _cancel();
+    }
+    return false;
+  }
+
+  void _pull(double delta) {
+    if (delta <= 0) return;
+    final next = (_drag + delta * _resistance).clamp(0.0, widget.maxDrag);
+    if (next == _drag) return;
+    _drag = next;
+    _position.value = (_drag / widget.threshold).clamp(0.0, 1.0);
+  }
+
+  bool _cancel() {
+    _armed = false;
+    _drag = 0;
+    if (_position.value > 0) {
+      _position.animateBack(
+        0,
+        duration: Duration(milliseconds: (60 + 140 * _position.value).round()),
+      );
+    }
+    return false;
+  }
+
+  bool _start() {
+    _armed = false;
+    _refreshing = true;
+    _position.animateTo(1, duration: const Duration(milliseconds: 120));
+    _finish();
+    return false;
+  }
+
+  Future<void> _finish() async {
+    try {
+      await widget.onRefresh();
+    } catch (_) {
+      // The screen keeps its own error state.
+    }
+    if (!mounted) return;
+    _refreshing = false;
+    _drag = 0;
+    await _position.animateBack(
+      0,
+      duration: const Duration(milliseconds: 200),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+    onNotification: _onScroll,
+    child: Stack(
+      clipBehavior: Clip.hardEdge,
+      children: [
+        widget.child,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _position,
+              child: _indicator(context),
+              builder: (context, child) {
+                final t = _position.value;
+                if (t <= .002) return const SizedBox.shrink();
+                return Transform.translate(
+                  offset: Offset(0, -_pill - 10 + t * (_pill + 18)),
+                  child: Opacity(
+                    opacity: t,
+                    child: Center(
+                      child: Transform.scale(
+                        scale: .8 + .2 * t,
+                        child: child,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _indicator(BuildContext c) => Container(
+    width: _pill,
+    height: _pill,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: surface(c),
+      shape: BoxShape.circle,
+      border: Border.all(color: ink(c).withValues(alpha: .07), width: .5),
+      boxShadow: QChatShadows.overlay,
+    ),
+    child: const QChatDots(size: 22),
   );
 }
 
