@@ -5,6 +5,7 @@ import {
   Activity,
   ArrowDownToLine,
   ArrowRight,
+  Boxes,
   Check,
   CheckCircle2,
   ChevronLeft,
@@ -27,19 +28,34 @@ import {
   Search,
   Server,
   ShieldCheck,
+  Trash2,
+  UserCog,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
 
-type Section =
-  | "overview"
+type Permission =
   | "users"
+  | "miniapps"
   | "reports"
   | "feedback"
-  | "audit"
   | "landing"
+  | "audit"
   | "system";
+type Section = "overview" | Permission;
+type Me = { userId: string; role: string; permissions: Permission[] };
+const permissions: { id: Permission; label: string; hint: string }[] = [
+  { id: "users", label: "Người dùng", hint: "Tìm, khóa và đăng xuất tài khoản" },
+  { id: "miniapps", label: "Mini App", hint: "Duyệt bản build và yêu cầu quyền" },
+  { id: "reports", label: "Báo cáo", hint: "Xử lý báo cáo vi phạm" },
+  { id: "feedback", label: "Phản hồi", hint: "Xử lý góp ý người dùng" },
+  { id: "landing", label: "Trang chủ", hint: "Sửa liên kết tải app" },
+  { id: "audit", label: "Nhật ký", hint: "Xem lịch sử thao tác quản trị" },
+  { id: "system", label: "Hệ thống", hint: "Kiểm tra sức khỏe dịch vụ" },
+];
+const permissionLabel = (id: string) =>
+  permissions.find((item) => item.id === id)?.label ?? id;
 type SiteLink = {
   platform: "web" | "android" | "ios" | "github";
   label: string;
@@ -57,6 +73,11 @@ type Stats = {
   pendingReports: number;
   pendingFeedback: number;
   activeSessions: number;
+  usersToday: number;
+  totalMiniApps: number;
+  pendingMiniApps: number;
+  pendingMiniAppPermissions: number;
+  me: Me;
   activity: { date: string; messages: number }[];
 };
 type User = {
@@ -65,15 +86,88 @@ type User = {
   qchatId: string;
   email: string;
   role: string;
+  adminPermissions: Permission[];
   disabled: boolean;
   createdAt: string;
+};
+type UserDetail = {
+  user: User;
+  sessions: {
+    id: string;
+    deviceName: string;
+    createdAt: string;
+    expiresAt: string | null;
+  }[];
+  counts: {
+    messages: number;
+    moments: number;
+    conversations: number;
+    miniApps: number;
+    media: number;
+    reports: number;
+  };
+  wallet: { balance: number; bonusGranted: boolean } | null;
+};
+type QueueVersion = {
+  id: string;
+  version: string;
+  status: string;
+  createdAt: string;
+  requestedPermissions: string[];
+  miniApp: {
+    appId: string;
+    name: string;
+    developerName: string;
+    iconUrl: string;
+    category: string;
+    status: string;
+  };
+};
+type QueuePermission = {
+  id: string;
+  permission: string;
+  reason: string;
+  createdAt: string;
+  miniApp: { appId: string; name: string };
+};
+type MiniAppRow = {
+  id: string;
+  appId: string;
+  name: string;
+  category: string;
+  status: string;
+  currentVersion: string | null;
+  updatedAt: string;
+  developer: { qchatId: string; nickname: string };
+  versions: { version: string; status: string; createdAt: string }[];
+};
+type Person = {
+  id: string;
+  qchatId: string;
+  nickname: string;
+  email: string;
+  disabled: boolean;
 };
 type Report = {
   id: string;
   targetId: string;
+  reporterId: string;
   reason: string;
   status: string;
   createdAt: string;
+  conversation: {
+    id: string;
+    kind: string;
+    title: string;
+    createdAt: string;
+    members: {
+      role: string;
+      user: { id: string; qchatId: string; nickname: string };
+    }[];
+    _count: { members: number };
+  } | null;
+  targetUser: Person | null;
+  reporter: Person | null;
 };
 type Feedback = {
   id: string;
@@ -91,14 +185,25 @@ type Audit = {
   targetId: string;
   createdAt: string;
 };
-const navigation: { id: Section; label: string; icon: LucideIcon }[] = [
+const navigation: {
+  id: Section;
+  label: string;
+  icon: LucideIcon;
+  permission?: Permission;
+}[] = [
   { id: "overview", label: "Tổng quan", icon: LayoutDashboard },
-  { id: "users", label: "Người dùng", icon: Users },
-  { id: "reports", label: "Báo cáo vi phạm", icon: Flag },
-  { id: "feedback", label: "Phản hồi", icon: Inbox },
-  { id: "audit", label: "Nhật ký quản trị", icon: FileClock },
-  { id: "landing", label: "Trang chủ", icon: Globe2 },
-  { id: "system", label: "Hệ thống", icon: Server },
+  { id: "users", label: "Người dùng", icon: Users, permission: "users" },
+  {
+    id: "miniapps",
+    label: "Mini App",
+    icon: Boxes,
+    permission: "miniapps",
+  },
+  { id: "reports", label: "Báo cáo vi phạm", icon: Flag, permission: "reports" },
+  { id: "feedback", label: "Phản hồi", icon: Inbox, permission: "feedback" },
+  { id: "audit", label: "Nhật ký quản trị", icon: FileClock, permission: "audit" },
+  { id: "landing", label: "Trang chủ", icon: Globe2, permission: "landing" },
+  { id: "system", label: "Hệ thống", icon: Server, permission: "system" },
 ];
 const number = (value: number) => value.toLocaleString("vi-VN");
 const date = (value: string) => new Date(value).toLocaleString("vi-VN");
@@ -106,6 +211,19 @@ const bytes = (value: number) =>
   value < 1024 ** 3
     ? `${(value / 1024 ** 2).toFixed(1)} MB`
     : `${(value / 1024 ** 3).toFixed(2)} GB`;
+const miniStatus = (status: string) =>
+  (
+    {
+      DRAFT: "Nháp",
+      REVIEWING: "Chờ duyệt",
+      APPROVED: "Đã duyệt",
+      REJECTED: "Từ chối",
+      PUBLISHED: "Đã phát hành",
+      SUSPENDED: "Tạm dừng",
+      UPLOADED: "Đã tải lên",
+      REVOKED: "Đã thu hồi",
+    } as Record<string, string>
+  )[status] ?? status;
 const inputStyle =
   "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50";
 const buttonStyle =
@@ -187,6 +305,14 @@ function failure(error: unknown) {
         FORBIDDEN: "Tài khoản này không có quyền quản trị.",
         INVALID_REFRESH: "Phiên đã bị thu hồi. Vui lòng đăng nhập lại.",
         SELF_LOCK: "Bạn không thể khóa tài khoản đang sử dụng.",
+        SELF_ROLE: "Bạn không thể tự đổi vai trò của mình.",
+        SELF_DELETE: "Bạn không thể xóa tài khoản đang sử dụng.",
+        ADMIN_REQUIRED:
+          "Chỉ quản trị viên toàn quyền mới thay đổi được vai trò hoặc quyền.",
+        LAST_ADMIN: "Không thể gỡ quyền của quản trị viên cuối cùng.",
+        NOT_FOUND: "Không tìm thấy dữ liệu cần thao tác.",
+        INVALID_STATE: "Mục này vừa được xử lý ở nơi khác. Hãy làm mới.",
+        REASON_REQUIRED: "Cần nhập lý do từ chối (ít nhất 3 ký tự).",
         RATE_LIMITED: "Bạn thao tác quá nhanh. Vui lòng thử lại sau.",
       } as Record<string, string>
     )[code] ?? "Không thực hiện được yêu cầu. Vui lòng thử lại."
@@ -219,7 +345,26 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [healthy, setHealthy] = useState<boolean | null>(null);
   const [updated, setUpdated] = useState<Date | null>(null);
-  const [confirm, setConfirm] = useState<User | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [selected, setSelected] = useState<User | null>(null);
+  const [detail, setDetail] = useState<UserDetail | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [detailError, setDetailError] = useState("");
+  const [draftRole, setDraftRole] = useState("USER");
+  const [draftPermissions, setDraftPermissions] = useState<Permission[]>([]);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [queue, setQueue] = useState<{
+    versions: QueueVersion[];
+    permissions: QueuePermission[];
+  } | null>(null);
+  const [apps, setApps] = useState<MiniAppRow[]>([]);
+  const [appTotal, setAppTotal] = useState(0);
+  const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [miniBusy, setMiniBusy] = useState("");
+  const [appQuery, setAppQuery] = useState("");
+  const [appSearch, setAppSearch] = useState("");
+  const [manageApp, setManageApp] = useState<MiniAppRow | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
   const revision = useRef(0);
 
   async function raw(
@@ -276,13 +421,30 @@ export default function Dashboard() {
     setError("");
     try {
       if (target === "overview") {
-        const [summary, reportRows] = await Promise.all([
-          api("/admin/stats"),
-          api("/admin/reports"),
-        ]);
+        const summary: Stats = await api("/admin/stats");
         if (current !== revision.current) return;
         setStats(summary);
-        setReports(reportRows);
+        setMe(summary.me);
+        // A scoped manager may not hold the reports section at all.
+        if (
+          summary.me.role === "ADMIN" ||
+          summary.me.permissions.includes("reports")
+        ) {
+          const reportRows = await api("/admin/reports");
+          if (current !== revision.current) return;
+          setReports(reportRows);
+        } else {
+          setReports([]);
+        }
+      } else if (target === "miniapps") {
+        const [review, list] = await Promise.all([
+          api("/admin/miniapps/review"),
+          api(`/admin/miniapps?q=${encodeURIComponent(appSearch)}`),
+        ]);
+        if (current !== revision.current) return;
+        setQueue(review);
+        setApps(list.items);
+        setAppTotal(list.total);
       } else if (target === "users") {
         const result = await api(
           `/admin/users?page=${page}&q=${encodeURIComponent(search)}`,
@@ -329,7 +491,8 @@ export default function Dashboard() {
     let active = true;
     void (async () => {
       try {
-        await api("/admin/stats");
+        const summary: Stats = await api("/admin/stats");
+        if (active) setMe(summary.me);
         if (active) setSignedIn(true);
       } catch {
         if (!active) return;
@@ -347,6 +510,15 @@ export default function Dashboard() {
   useEffect(() => {
     if (signedIn) void load();
   }, [signedIn, section, page, search]);
+  useEffect(() => {
+    // Losing a section (or signing in as a manager) must never leave the
+    // console on a screen the account cannot read.
+    if (!me || section === "overview" || me.role === "ADMIN") return;
+    if (!me.permissions.includes(section)) setSection("overview");
+  }, [me, section]);
+  useEffect(() => {
+    if (signedIn && section === "miniapps") void load("miniapps");
+  }, [appSearch]);
 
   async function login() {
     setBusy(true);
@@ -361,7 +533,9 @@ export default function Dashboard() {
       if (!response.ok) throw new Error(data.error);
       session.current = data;
       try {
-        setStats(await api("/admin/stats"));
+        const summary: Stats = await api("/admin/stats");
+        setStats(summary);
+        setMe(summary.me);
       } catch (e) {
         await raw("/auth/logout", "POST", {}, data.accessToken);
         session.current = null;
@@ -385,6 +559,11 @@ export default function Dashboard() {
       session.current = null;
       window.sessionStorage.removeItem(sessionKey);
       setSignedIn(false);
+      setMe(null);
+      setSelected(null);
+      setDetail(null);
+      setQueue(null);
+      setApps([]);
       setStats(null);
       setUsers([]);
       setReports([]);
@@ -403,7 +582,6 @@ export default function Dashboard() {
     setNotice("");
     try {
       await api(path, "PATCH", body);
-      setConfirm(null);
       setNotice("Đã cập nhật thành công.");
       await load();
     } catch (e) {
@@ -443,8 +621,165 @@ export default function Dashboard() {
     setNotice("");
     setError("");
   }
-  const currentNav = navigation.find((item) => item.id === section)!;
+  async function refreshStats() {
+    try {
+      setStats(await api("/admin/stats"));
+    } catch {
+      // Dashboard counters are decorative; keep the current values.
+    }
+  }
+  async function openUser(user: User) {
+    setSelected(user);
+    setDetail(null);
+    setDetailError("");
+    setDeleteArmed(false);
+    setNotice("");
+    setError("");
+    setDetailBusy(true);
+    try {
+      const data: UserDetail = await api(`/admin/users/${user.id}`);
+      setDetail(data);
+      setDraftRole(data.user.role);
+      setDraftPermissions(data.user.adminPermissions ?? []);
+    } catch (e) {
+      setDetailError(failure(e));
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+  function closeUser() {
+    setSelected(null);
+    setDetail(null);
+    setDetailError("");
+    setDeleteArmed(false);
+  }
+  async function reloadDetail(id: string) {
+    const data: UserDetail = await api(`/admin/users/${id}`);
+    setDetail(data);
+    setDraftRole(data.user.role);
+    setDraftPermissions(data.user.adminPermissions ?? []);
+  }
+  async function updateUser(id: string, body: unknown, message: string) {
+    setActionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/admin/users/${id}`, "PATCH", body);
+      setNotice(message);
+      await reloadDetail(id);
+      await load("users");
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+  async function revokeSessions(id: string) {
+    setActionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api(`/admin/users/${id}/sessions`, "POST", {});
+      setNotice(`Đã thu hồi ${number(result.revoked)} phiên đăng nhập.`);
+      await reloadDetail(id);
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+  async function deleteUser(user: User) {
+    setActionBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/admin/users/${user.id}`, "DELETE");
+      closeUser();
+      setNotice(`Đã xóa vĩnh viễn tài khoản @${user.qchatId}.`);
+      await load("users");
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setActionBusy(false);
+    }
+  }
+  async function decideVersion(version: QueueVersion, approve: boolean) {
+    setMiniBusy(version.id);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/admin/miniapps/versions/${version.id}/decision`, "POST", {
+        approve,
+        reason: (reasons[version.id] ?? "").trim(),
+      });
+      setNotice(
+        `${approve ? "Đã duyệt" : "Đã từ chối"} ${version.miniApp.name} ${version.version}.`,
+      );
+      setReasons((rows) => ({ ...rows, [version.id]: "" }));
+      await load("miniapps");
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setMiniBusy("");
+    }
+  }
+  async function manageMiniApp(
+    app: MiniAppRow,
+    action: "suspend" | "restore",
+  ) {
+    setMiniBusy(app.id);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/admin/miniapps/apps/${app.appId}/${action}`, "POST",
+        action === "suspend" ? { reason: suspendReason.trim() } : {},
+      );
+      setNotice(
+        `${action === "suspend" ? "Đã tạm dừng" : "Đã khôi phục"} ${app.name}.`,
+      );
+      setManageApp(null);
+      setSuspendReason("");
+      await load("miniapps");
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setMiniBusy("");
+    }
+  }
+  async function decidePermission(request: QueuePermission, approve: boolean) {
+    setMiniBusy(request.id);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/admin/miniapps/permissions/${request.id}`, "POST", {
+        approve,
+      });
+      setNotice(
+        `${approve ? "Đã cấp" : "Đã từ chối"} quyền ${request.permission} cho ${request.miniApp.name}.`,
+      );
+      await load("miniapps");
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setMiniBusy("");
+    }
+  }
+  const visibleNavigation = navigation.filter(
+    (item) =>
+      !item.permission ||
+      me?.role === "ADMIN" ||
+      me?.permissions.includes(item.permission),
+  );
+  const currentNav =
+    navigation.find((item) => item.id === section) ?? navigation[0]!;
   const openReports = reports.filter((row) => row.status === "OPEN");
+  const fullAdmin = me?.role === "ADMIN";
 
   if (restoring)
     return (
@@ -582,7 +917,7 @@ export default function Dashboard() {
           Không gian làm việc
         </p>
         <nav aria-label="Quản trị" className="space-y-2">
-          {navigation.map(({ id, label, icon: Icon }) => (
+          {visibleNavigation.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               aria-current={section === id ? "page" : undefined}
@@ -601,6 +936,15 @@ export default function Dashboard() {
                   {stats!.pendingFeedback}
                 </span>
               )}
+              {id === "miniapps" &&
+                (stats?.pendingMiniApps ?? 0) +
+                  (stats?.pendingMiniAppPermissions ?? 0) >
+                  0 && (
+                  <span className="ml-auto rounded-md bg-white/15 px-1.5 text-xs">
+                    {(stats!.pendingMiniApps ?? 0) +
+                      (stats!.pendingMiniAppPermissions ?? 0)}
+                  </span>
+                )}
             </button>
           ))}
         </nav>
@@ -641,7 +985,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:block">
-              Quản trị viên
+              {fullAdmin ? "Quản trị viên" : "Quản lý"}
             </span>
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#e3eee8] font-bold text-[#245e47]">
               {identifier.slice(0, 1).toUpperCase()}
@@ -661,7 +1005,9 @@ export default function Dashboard() {
                 {section === "overview"
                   ? "Một góc nhìn rõ ràng về cộng đồng của bạn."
                   : section === "users"
-                    ? "Tìm kiếm và quản lý quyền truy cập tài khoản."
+                    ? "Tìm kiếm, phân quyền và quản lý tài khoản."
+                    : section === "miniapps"
+                    ? "Duyệt bản build và yêu cầu quyền của Mini App."
                     : section === "reports"
                       ? "Xem xét phản ánh để cộng đồng an toàn hơn."
                       : section === "feedback"
@@ -702,12 +1048,12 @@ export default function Dashboard() {
 
           {section === "overview" && stats && (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {[
                   {
                     label: "Tổng người dùng",
                     value: number(stats.users),
-                    detail: `${number(stats.disabledUsers)} tài khoản bị khóa`,
+                    detail: `${number(stats.usersToday)} mới hôm nay · ${number(stats.disabledUsers)} bị khóa`,
                     icon: Users,
                   },
                   {
@@ -715,6 +1061,12 @@ export default function Dashboard() {
                     value: number(stats.messages),
                     detail: `${number(stats.conversations)} cuộc trò chuyện`,
                     icon: MessagesSquare,
+                  },
+                  {
+                    label: "Mini App",
+                    value: number(stats.totalMiniApps),
+                    detail: `${number(stats.pendingMiniApps)} bản build và ${number(stats.pendingMiniAppPermissions)} yêu cầu quyền chờ duyệt`,
+                    icon: Boxes,
                   },
                   {
                     label: "Dung lượng media",
@@ -727,6 +1079,12 @@ export default function Dashboard() {
                     value: number(stats.pendingReports),
                     detail: "Cần quản trị viên xem xét",
                     icon: Flag,
+                  },
+                  {
+                    label: "Phản hồi chờ xử lý",
+                    value: number(stats.pendingFeedback),
+                    detail: "Góp ý người dùng gửi từ ứng dụng",
+                    icon: Inbox,
                   },
                 ].map(({ label, value, detail, icon: Icon }) => (
                   <Card key={label} className="p-5">
@@ -906,21 +1264,17 @@ export default function Dashboard() {
                         <td className="px-5 py-4 text-xs">
                           {user.role === "ADMIN"
                             ? "Quản trị viên"
-                            : "Thành viên"}
+                            : user.adminPermissions.length
+                              ? `Quản lý · ${user.adminPermissions.length} mục`
+                              : "Thành viên"}
                         </td>
                         <td className="px-5 py-4">
                           <button
-                            className="text-xs font-semibold text-emerald-700 disabled:text-slate-400"
-                            disabled={
-                              user.id === session.current?.userId || actionBusy
-                            }
-                            onClick={() => setConfirm(user)}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700"
+                            disabled={actionBusy}
+                            onClick={() => void openUser(user)}
                           >
-                            {user.id === session.current?.userId
-                              ? "Bạn"
-                              : user.disabled
-                                ? "Mở khóa"
-                                : "Khóa tài khoản"}
+                            <UserCog size={14} /> Quản lý
                           </button>
                         </td>
                       </tr>
@@ -958,6 +1312,268 @@ export default function Dashboard() {
             </Card>
           )}
 
+          {section === "miniapps" && (
+            <div className="space-y-6">
+              <Card>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+                  <div>
+                    <h2 className="font-bold">Bản build chờ duyệt</h2>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {queue
+                        ? `${queue.versions.length} bản build đang chờ quyết định`
+                        : "Đang tải hàng chờ"}
+                    </p>
+                  </div>
+                  <button
+                    className={buttonStyle}
+                    disabled={busy}
+                    onClick={() => void load("miniapps")}
+                  >
+                    <RefreshCw size={15} className={busy ? "animate-spin" : ""} />
+                    Làm mới
+                  </button>
+                </div>
+                {busy && !queue ? (
+                  <Spinner label="Đang tải hàng chờ duyệt" />
+                ) : !queue || queue.versions.length === 0 ? (
+                  <Empty>Không có bản build nào chờ duyệt.</Empty>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {queue.versions.map((version) => (
+                      <div key={version.id} className="p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold">
+                              {version.miniApp.name}{" "}
+                              <span className="font-mono text-xs text-slate-400">
+                                v{version.version}
+                              </span>
+                            </p>
+                            <p className="mt-1 break-all text-xs text-slate-400">
+                              {version.miniApp.appId} ·{" "}
+                              {version.miniApp.developerName ||
+                                "Chưa có tên nhà phát triển"}{" "}
+                              · {version.miniApp.category}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">
+                              Gửi {date(version.createdAt)}
+                            </p>
+                          </div>
+                          <Badge warning>Chờ duyệt</Badge>
+                        </div>
+                        <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                          Quyền yêu cầu:{" "}
+                          {version.requestedPermissions.length
+                            ? version.requestedPermissions.join(", ")
+                            : "không có"}
+                        </p>
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                          <label className="flex-1 text-xs font-semibold text-slate-600">
+                            Lý do (bắt buộc khi từ chối)
+                            <textarea
+                              className={`${inputStyle} mt-1.5 min-h-[64px] resize-y`}
+                              maxLength={500}
+                              value={reasons[version.id] ?? ""}
+                              onChange={(e) =>
+                                setReasons((rows) => ({
+                                  ...rows,
+                                  [version.id]: e.target.value,
+                                }))
+                              }
+                            />
+                          </label>
+                          <div className="flex gap-2">
+                            <button
+                              className={buttonStyle}
+                              disabled={miniBusy === version.id}
+                              onClick={() => void decideVersion(version, false)}
+                            >
+                              Từ chối
+                            </button>
+                            <button
+                              className={primaryStyle}
+                              disabled={miniBusy === version.id}
+                              onClick={() => void decideVersion(version, true)}
+                            >
+                              <Check size={15} />
+                              Duyệt
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <div className="border-b border-slate-100 p-5">
+                  <h2 className="font-bold">Yêu cầu quyền</h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Quyền bổ sung do nhà phát triển xin sau khi phát hành
+                  </p>
+                </div>
+                {busy && !queue ? (
+                  <Spinner label="Đang tải yêu cầu quyền" />
+                ) : !queue || queue.permissions.length === 0 ? (
+                  <Empty>Không có yêu cầu quyền nào đang chờ.</Empty>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {queue.permissions.map((request) => (
+                      <div
+                        key={request.id}
+                        className="flex flex-wrap items-start justify-between gap-4 p-5"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">
+                            {request.miniApp.name}{" "}
+                            <span className="font-mono text-xs text-emerald-700">
+                              {request.permission}
+                            </span>
+                          </p>
+                          <p className="mt-1 break-all text-xs text-slate-400">
+                            {request.miniApp.appId} · {request.reason}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {date(request.createdAt)}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            className={buttonStyle}
+                            disabled={miniBusy === request.id}
+                            onClick={() => void decidePermission(request, false)}
+                          >
+                            Từ chối
+                          </button>
+                          <button
+                            className={primaryStyle}
+                            disabled={miniBusy === request.id}
+                            onClick={() => void decidePermission(request, true)}
+                          >
+                            <Check size={15} />
+                            Cấp quyền
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+                  <div>
+                    <h2 className="font-bold">Danh sách Mini App</h2>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {number(appTotal)} ứng dụng · 20 mục mỗi trang
+                    </p>
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setAppSearch(appQuery.trim());
+                    }}
+                    className="flex flex-wrap gap-2"
+                  >
+                    <input
+                      aria-label="Tìm Mini App"
+                      className={`${inputStyle} w-56 py-2`}
+                      maxLength={80}
+                      onChange={(e) => setAppQuery(e.target.value)}
+                      placeholder="Tên, app id, nhà phát triển…"
+                      value={appQuery}
+                    />
+                    <button className={buttonStyle}>
+                      <Search size={15} /> Tìm
+                    </button>
+                  </form>
+                </div>
+                {busy && apps.length === 0 ? (
+                  <Spinner label="Đang tải Mini App" />
+                ) : apps.length === 0 ? (
+                  <Empty>Chưa có Mini App nào được đăng ký.</Empty>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full whitespace-nowrap text-left text-sm">
+                      <thead className="bg-slate-50/70 text-xs text-slate-500">
+                        <tr>
+                          {[
+                            "Mini App",
+                            "Nhà phát triển",
+                            "Trạng thái",
+                            "Bản mới nhất",
+                            "Cập nhật",
+                            "Thao tác",
+                          ].map((label) => (
+                            <th key={label} className="px-5 py-4 font-semibold">
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {apps.map((app) => (
+                          <tr key={app.id} className="hover:bg-slate-50/50">
+                            <td className="px-5 py-4">
+                              <p className="font-semibold">{app.name}</p>
+                              <p className="mt-1 font-mono text-[11px] text-slate-400">
+                                {app.appId}
+                              </p>
+                            </td>
+                            <td className="px-5 py-4 text-xs text-slate-500">
+                              {app.developer.nickname}
+                              <span className="block text-slate-400">
+                                @{app.developer.qchatId}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4">
+                              <Badge
+                                warning={app.status !== "PUBLISHED"}
+                              >
+                                {miniStatus(app.status)}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-4 font-mono text-xs text-slate-500">
+                              {app.versions[0]
+                                ? `${app.versions[0].version} · ${miniStatus(app.versions[0].status)}`
+                                : "—"}
+                            </td>
+                            <td className="px-5 py-4 text-xs text-slate-500">
+                              {date(app.updatedAt)}
+                            </td>
+                            <td className="px-5 py-4">
+                              {app.status === "SUSPENDED" ? (
+                                <button
+                                  className="text-xs font-semibold text-emerald-700 disabled:text-slate-300"
+                                  disabled={miniBusy === app.id}
+                                  onClick={() => void manageMiniApp(app, "restore")}
+                                >
+                                  Khôi phục
+                                </button>
+                              ) : (
+                                <button
+                                  className="text-xs font-semibold text-red-600 disabled:text-slate-300"
+                                  disabled={miniBusy === app.id}
+                                  onClick={() => {
+                                    setManageApp(app);
+                                    setSuspendReason("");
+                                  }}
+                                >
+                                  Tạm dừng
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
           {section === "reports" && (
             <Card>
               <div className="border-b border-slate-100 p-5">
@@ -982,8 +1598,35 @@ export default function Dashboard() {
                         <p className="whitespace-pre-wrap break-words text-sm font-semibold">
                           {row.reason}
                         </p>
-                        <p className="mt-2 break-all text-xs text-slate-400">
-                          Đối tượng: {row.targetId}
+                        <p className="mt-2 text-xs font-semibold text-slate-600">
+                          {row.conversation
+                            ? `${row.conversation.kind === "DIRECT" ? "Trò chuyện riêng" : "Nhóm"}${row.conversation.title ? ` · ${row.conversation.title}` : ""} · ${number(row.conversation._count.members)} thành viên`
+                            : row.targetUser
+                              ? `Tài khoản ${row.targetUser.nickname} (@${row.targetUser.qchatId})`
+                              : "Không tìm thấy đoạn chat — có thể đã bị xóa"}
+                        </p>
+                        {row.conversation && (
+                          <p className="mt-1 break-words text-xs text-slate-500">
+                            Thành viên:{" "}
+                            {row.conversation.members
+                              .map(
+                                (member) =>
+                                  `${member.user.nickname} (@${member.user.qchatId})`,
+                              )
+                              .join(", ")}
+                            {row.conversation._count.members >
+                              row.conversation.members.length &&
+                              `, +${row.conversation._count.members - row.conversation.members.length}`}
+                          </p>
+                        )}
+                        <p className="mt-1 text-xs text-slate-400">
+                          Người báo cáo:{" "}
+                          {row.reporter
+                            ? `${row.reporter.nickname} (@${row.reporter.qchatId})`
+                            : row.reporterId}
+                        </p>
+                        <p className="mt-1 break-all font-mono text-[11px] text-slate-400">
+                          Mã đoạn chat: {row.targetId}
                         </p>
                         <p className="mt-1 text-xs text-slate-400">
                           {date(row.createdAt)}
@@ -1147,6 +1790,15 @@ export default function Dashboard() {
                                 REPORT_DISMISSED: "Bỏ qua báo cáo",
                                 FEEDBACK_RESOLVED: "Xử lý phản hồi",
                                 FEEDBACK_DISMISSED: "Bỏ qua phản hồi",
+                                USER_DELETE: "Xóa tài khoản",
+                                USER_ROLE_UPDATE: "Đổi vai trò",
+                                USER_PERMISSIONS_UPDATE: "Cập nhật quyền quản lý",
+                                USER_SESSIONS_REVOKED: "Thu hồi phiên đăng nhập",
+                                SITE_LINK_UPDATE: "Sửa liên kết trang chủ",
+                                MINIAPP_APPROVED: "Duyệt Mini App",
+                                MINIAPP_REJECTED: "Từ chối Mini App",
+                                MINIAPP_PERMISSION_APPROVED: "Cấp quyền Mini App",
+                                MINIAPP_PERMISSION_REJECTED: "Từ chối quyền Mini App",
                               } as Record<string, string>
                             )[row.action] ?? row.action}
                           </td>
@@ -1358,46 +2010,314 @@ export default function Dashboard() {
           </footer>
         </main>
       </div>
-      {confirm && (
+      {selected && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-5"
-          onClick={() => !actionBusy && setConfirm(null)}
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/40 p-5 sm:items-center"
+          onClick={() => !actionBusy && closeUser()}
         >
           <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="confirm-title"
+            aria-labelledby="user-title"
+            className="my-6 w-full max-w-2xl rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <header className="flex items-start justify-between gap-4 border-b border-slate-100 p-6">
+              <div className="min-w-0">
+                <h2 id="user-title" className="truncate text-xl font-bold">
+                  {selected.nickname}
+                </h2>
+                <p className="mt-1 break-all text-xs text-slate-400">
+                  @{selected.qchatId} · {selected.email}
+                </p>
+              </div>
+              <button
+                aria-label="Đóng"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100"
+                disabled={actionBusy}
+                onClick={closeUser}
+              >
+                <X size={20} />
+              </button>
+            </header>
+            <div className="max-h-[72vh] space-y-6 overflow-y-auto p-6">
+              {detailBusy && !detail && <Spinner label="Đang tải hồ sơ" />}
+              {detailError && (
+                <p
+                  role="alert"
+                  className="rounded-xl bg-red-50 p-3 text-sm text-red-700"
+                >
+                  {detailError}
+                </p>
+              )}
+              {detail && (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge warning={detail.user.disabled}>
+                      {detail.user.disabled ? "Đã khóa" : "Hoạt động"}
+                    </Badge>
+                    <Badge warning={detail.user.role !== "ADMIN"}>
+                      {detail.user.role === "ADMIN"
+                        ? "Quản trị viên"
+                        : detail.user.adminPermissions.length
+                          ? `Quản lý · ${detail.user.adminPermissions.map(permissionLabel).join(", ")}`
+                          : "Thành viên"}
+                    </Badge>
+                    <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs text-slate-500">
+                      Tham gia {date(detail.user.createdAt)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {(
+                      [
+                        ["Tin nhắn", detail.counts.messages],
+                        ["Khoảnh khắc", detail.counts.moments],
+                        ["Cuộc trò chuyện", detail.counts.conversations],
+                        ["Mini App", detail.counts.miniApps],
+                        ["Tệp media", detail.counts.media],
+                        ["Bị báo cáo", detail.counts.reports],
+                      ] as [string, number][]
+                    ).map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-xl border border-slate-100 p-3"
+                      >
+                        <p className="text-[11px] font-semibold text-slate-400">
+                          {label}
+                        </p>
+                        <p className="mt-1 text-lg font-bold">
+                          {number(value)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <h3 className="text-sm font-bold">
+                        Phiên đăng nhập ({detail.sessions.length})
+                      </h3>
+                      <button
+                        className="text-xs font-semibold text-emerald-700 disabled:text-slate-300"
+                        disabled={
+                          actionBusy || detail.sessions.length === 0
+                        }
+                        onClick={() => void revokeSessions(detail.user.id)}
+                      >
+                        Đăng xuất mọi thiết bị
+                      </button>
+                    </div>
+                    {detail.sessions.length === 0 ? (
+                      <p className="mt-2 text-xs text-slate-400">
+                        Không có phiên nào đang hoạt động.
+                      </p>
+                    ) : (
+                      <ul className="mt-2 space-y-1.5">
+                        {detail.sessions.map((item) => (
+                          <li
+                            key={item.id}
+                            className="flex flex-wrap justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500"
+                          >
+                            <span className="font-semibold text-slate-600">
+                              {item.deviceName}
+                            </span>
+                            <span>{date(item.createdAt)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                  {fullAdmin && detail.user.id !== me?.userId && (
+                    <div className="space-y-4 rounded-xl border border-slate-200 p-4">
+                      <h3 className="text-sm font-bold">
+                        Vai trò & quyền quản lý
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {(
+                          [
+                            ["USER", "Thành viên"],
+                            ["ADMIN", "Quản trị viên toàn quyền"],
+                          ] as [string, string][]
+                        ).map(([value, label]) => (
+                          <button
+                            key={value}
+                            className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${draftRole === value ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                            disabled={actionBusy}
+                            onClick={() => setDraftRole(value)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        {permissions.map((permission) => (
+                          <label
+                            key={permission.id}
+                            className={`flex items-start gap-2 rounded-xl border border-slate-200 p-3 text-xs ${draftRole === "ADMIN" ? "opacity-50" : ""}`}
+                          >
+                            <input
+                              checked={
+                                draftRole === "ADMIN" ||
+                                draftPermissions.includes(permission.id)
+                              }
+                              className="mt-0.5 h-4 w-4 accent-emerald-600"
+                              disabled={actionBusy || draftRole === "ADMIN"}
+                              onChange={(e) =>
+                                setDraftPermissions((rows) =>
+                                  e.target.checked
+                                    ? [...rows, permission.id]
+                                    : rows.filter((id) => id !== permission.id),
+                                )
+                              }
+                              type="checkbox"
+                            />
+                            <span>
+                              <span className="font-semibold">
+                                {permission.label}
+                              </span>
+                              <span className="mt-0.5 block text-slate-400">
+                                {permission.hint}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-slate-400">
+                        {draftRole === "ADMIN"
+                          ? "Quản trị viên toàn quyền luôn có tất cả các mục và có thể phân quyền cho người khác."
+                          : "Người được cấp mục nào chỉ thấy và thao tác được mục đó; không thể đổi vai trò hay xóa tài khoản."}
+                      </p>
+                      <button
+                        className={primaryStyle}
+                        disabled={actionBusy}
+                        onClick={() =>
+                          void updateUser(
+                            detail.user.id,
+                            {
+                              role: draftRole,
+                              adminPermissions:
+                                draftRole === "ADMIN" ? [] : draftPermissions,
+                            },
+                            "Đã cập nhật vai trò và quyền quản lý.",
+                          )
+                        }
+                      >
+                        <Save size={15} />
+                        Lưu phân quyền
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <button
+                      className={buttonStyle}
+                      disabled={
+                        actionBusy || detail.user.id === me?.userId
+                      }
+                      onClick={() =>
+                        void updateUser(
+                          detail.user.id,
+                          { disabled: !detail.user.disabled },
+                          detail.user.disabled
+                            ? "Đã mở khóa tài khoản."
+                            : "Đã khóa tài khoản và thu hồi phiên đăng nhập.",
+                        )
+                      }
+                    >
+                      <LockKeyhole size={15} />
+                      {detail.user.disabled ? "Mở khóa" : "Khóa tài khoản"}
+                    </button>
+                    {fullAdmin &&
+                      detail.user.id !== me?.userId &&
+                      (deleteArmed ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-red-600">
+                            Xóa vĩnh viễn tin nhắn, media và Mini App của tài khoản?
+                          </span>
+                          <button
+                            className={buttonStyle}
+                            disabled={actionBusy}
+                            onClick={() => setDeleteArmed(false)}
+                          >
+                            Hủy
+                          </button>
+                          <button
+                            className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                            disabled={actionBusy}
+                            onClick={() => void deleteUser(detail.user)}
+                          >
+                            <Trash2 size={15} />
+                            Xác nhận xóa
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          className="inline-flex items-center gap-2 text-sm font-semibold text-red-600 disabled:text-slate-300"
+                          disabled={actionBusy}
+                          onClick={() => setDeleteArmed(true)}
+                        >
+                          <Trash2 size={15} />
+                          Xóa tài khoản
+                        </button>
+                      ))}
+                  </div>
+                  <p className="text-xs leading-5 text-slate-400">
+                    Xóa tài khoản là vĩnh viễn: tin nhắn, khoảnh khắc, tệp media
+                    và Mini App thuộc tài khoản sẽ bị xóa khỏi hệ thống.
+                  </p>
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+      {manageApp && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-5"
+          onClick={() => !miniBusy && setManageApp(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="app-title"
             className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="confirm-title" className="text-xl font-bold">
-              {confirm.disabled ? "Mở khóa" : "Khóa"} tài khoản?
+            <h2 id="app-title" className="text-xl font-bold">
+              Tạm dừng {manageApp.name}?
             </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              {confirm.nickname} (@{confirm.qchatId}){" "}
-              {confirm.disabled
-                ? "sẽ có thể truy cập QChat trở lại."
-                : "sẽ không thể truy cập QChat cho đến khi được mở khóa."}
+            <p className="mt-2 break-all text-xs text-slate-500">
+              {manageApp.appId} · {manageApp.developer.nickname} (@
+              {manageApp.developer.qchatId})
             </p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              Ứng dụng sẽ ngừng phục vụ người dùng cho đến khi được bạn khôi
+              phục. Nhà phát triển vẫn thấy ứng dụng trong Developer Center.
+            </p>
+            <label className="mt-5 block text-xs font-semibold text-slate-600">
+              Lý do (bắt buộc, được ghi vào nhật ký)
+              <textarea
+                className={`${inputStyle} mt-1.5 min-h-[72px] resize-y`}
+                maxLength={300}
+                onChange={(e) => setSuspendReason(e.target.value)}
+                value={suspendReason}
+              />
+            </label>
             <div className="mt-6 flex justify-end gap-3">
               <button
-                autoFocus
                 className={buttonStyle}
-                disabled={actionBusy}
-                onClick={() => setConfirm(null)}
+                disabled={miniBusy === manageApp.id}
+                onClick={() => setManageApp(null)}
               >
                 Hủy
               </button>
               <button
-                className={primaryStyle}
-                disabled={actionBusy}
-                onClick={() =>
-                  void act(`/admin/users/${confirm.id}`, {
-                    disabled: !confirm.disabled,
-                  })
+                className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                disabled={
+                  miniBusy === manageApp.id || suspendReason.trim().length < 3
                 }
+                onClick={() => void manageMiniApp(manageApp, "suspend")}
               >
-                Xác nhận
+                <Boxes size={15} />
+                Tạm dừng
               </button>
             </div>
           </section>

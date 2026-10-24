@@ -50,6 +50,7 @@ export async function authenticate(token: string) {
     userId: session.userId,
     sessionId: session.id,
     role: session.user.role,
+    permissions: session.user.adminPermissions,
   };
 }
 export async function createSession(userId: string, deviceName: string) {

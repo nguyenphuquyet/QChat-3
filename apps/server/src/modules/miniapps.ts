@@ -902,6 +902,19 @@ async function developerRoute(
   return undefined;
 }
 
+/// Entry point for the admin console. The caller authorizes the `miniapps`
+/// section first; this reuses the same queue and decision rules as the
+/// developer review endpoint, which itself stays limited to the ADMIN role.
+export async function miniAppReviewRoute(
+  userId: string,
+  method: string,
+  path: string[],
+  body: unknown,
+  url: URL,
+) {
+  return reviewRoute(userId, "ADMIN", method, path, body, url);
+}
+
 async function reviewRoute(
   userId: string,
   role: string,

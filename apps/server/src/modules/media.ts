@@ -35,6 +35,17 @@ const types = [
   "audio/mpeg",
   "application/pdf",
 ] as const;
+/// Best-effort removal of stored objects after their rows are gone. A failed
+/// delete only leaves an unreferenced object behind, so it must not fail the
+/// account operation that triggered it.
+export async function deleteMediaObjects(keys: string[]) {
+  if (!keys.length || !process.env.S3_ENDPOINT) return;
+  await Promise.allSettled(
+    keys.map((key) =>
+      storage().send(new DeleteObjectCommand({ Bucket: Bucket(), Key: key })),
+    ),
+  );
+}
 export function validSignature(mime: string, bytes: Uint8Array) {
   const b = Buffer.from(bytes);
   switch (mime) {

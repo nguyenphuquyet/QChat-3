@@ -15,9 +15,20 @@ import { usersRoute } from "../modules/users";
 import { publicUser } from "./messages";
 import { searchRoute } from "../modules/search";
 import { maybeExpireMoneyTransfers } from "./money-expiry";
-import { miniAppsRoute } from "../modules/miniapps";
+import { miniAppsRoute, miniAppReviewRoute } from "../modules/miniapps";
+import { deleteMediaObjects } from "../modules/media";
+import { deleteBuild } from "./miniapp-storage";
+import {
+  ADMIN_SECTIONS,
+  canManage,
+  isManager,
+  normalizePermissions,
+} from "../security/permissions";
 import { isLinkPlatform, readSiteLinks } from "./site-links";
 import { uuid } from "../../../../packages/contracts";
+const isUuid = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
 export async function handle(request: Request) {
   try {
     // Unclaimed money goes back to the sender after 24 hours. The sweep is
@@ -205,6 +216,18 @@ export async function handle(request: Request) {
             .object({ targetId: uuid, reason: z.string().min(1).max(2000) })
             .strict()
             .parse(body);
+          // Reports target a conversation. Requiring membership stops a client
+          // from reporting a chat it cannot see.
+          const member = await db.conversationMember.findUnique({
+            where: {
+              conversationId_userId: {
+                conversationId: v.targetId,
+                userId,
+              },
+            },
+            select: { conversationId: true },
+          });
+          requireCondition(member, 404, "NOT_FOUND");
           result = await db.report.create({
             data: { ...v, reporterId: userId },
           });
@@ -222,8 +245,11 @@ export async function handle(request: Request) {
           });
         }
         break;
-      case "admin":
-        requireCondition(auth.role === "ADMIN");
+      case "admin": {
+        // Every admin endpoint requires at least one management section. The
+        // exact section is checked per route so a manager cannot reach screens
+        // that were not granted to them.
+        requireCondition(isManager(auth), 403, "FORBIDDEN");
         if (method === "GET" && path[1] === "stats") {
           const today = new Date();
           today.setUTCHours(0, 0, 0, 0);
@@ -241,6 +267,9 @@ export async function handle(request: Request) {
           );
           result = {
             users: await db.user.count(),
+            usersToday: await db.user.count({
+              where: { createdAt: { gte: today } },
+            }),
             messages: await db.message.count(),
             conversations: await db.conversation.count(),
             disabledUsers: await db.user.count({ where: { disabled: true } }),
@@ -257,13 +286,29 @@ export async function handle(request: Request) {
                 OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
               },
             }),
+            totalMiniApps: await db.miniApp.count(),
+            pendingMiniApps: await db.miniAppVersion.count({
+              where: { status: "REVIEWING" },
+            }),
+            pendingMiniAppPermissions: await db.miniAppPermissionRequest.count({
+              where: { status: "PENDING" },
+            }),
+            me: {
+              userId,
+              role: auth.role,
+              permissions:
+                auth.role === "ADMIN"
+                  ? [...ADMIN_SECTIONS]
+                  : normalizePermissions(auth.permissions),
+            },
             activity,
             storage:
               (await db.media.aggregate({ _sum: { size: true } }))._sum.size ??
               0,
           };
         }
-        if (method === "GET" && path[1] === "users") {
+        if (method === "GET" && path[1] === "users" && !path[2]) {
+          requireCondition(canManage(auth, "users"), 403, "FORBIDDEN");
           const page = z.coerce
             .number()
             .int()
@@ -300,6 +345,7 @@ export async function handle(request: Request) {
                 nickname: true,
                 email: true,
                 role: true,
+                adminPermissions: true,
                 disabled: true,
                 createdAt: true,
               },
@@ -308,12 +354,121 @@ export async function handle(request: Request) {
           ]);
           result = { items, total, page, pageSize: 20 };
         }
-        if (method === "GET" && path[1] === "reports")
-          result = await db.report.findMany({
+        if (method === "GET" && path[1] === "users" && path[2]) {
+          requireCondition(canManage(auth, "users"), 403, "FORBIDDEN");
+          const id = uuid.parse(path[2]);
+          const user = await db.user.findUnique({
+            where: { id },
+            select: {
+              id: true,
+              qchatId: true,
+              nickname: true,
+              email: true,
+              role: true,
+              adminPermissions: true,
+              disabled: true,
+              createdAt: true,
+            },
+          });
+          requireCondition(user, 404, "NOT_FOUND");
+          const [sessions, counts, wallet] = await Promise.all([
+            db.userSession.findMany({
+              where: { userId: id, revokedAt: null },
+              orderBy: { createdAt: "desc" },
+              take: 10,
+              select: {
+                id: true,
+                deviceName: true,
+                createdAt: true,
+                expiresAt: true,
+              },
+            }),
+            Promise.all([
+              db.message.count({ where: { senderId: id } }),
+              db.moment.count({ where: { authorId: id } }),
+              db.conversationMember.count({ where: { userId: id } }),
+              db.miniApp.count({ where: { developerId: id } }),
+              db.media.count({ where: { ownerId: id } }),
+              db.report.count({ where: { targetId: id } }),
+            ]).then(
+              ([messages, moments, conversations, miniApps, media, reports]) => ({
+                messages,
+                moments,
+                conversations,
+                miniApps,
+                media,
+                reports,
+              }),
+            ),
+            db.wallet.findUnique({
+              where: { userId: id },
+              select: { balance: true, bonusGranted: true },
+            }),
+          ]);
+          result = { user, sessions, counts, wallet };
+        }
+        if (method === "GET" && path[1] === "reports") {
+          requireCondition(canManage(auth, "reports"), 403, "FORBIDDEN");
+          const rows = await db.report.findMany({
             take: 100,
             orderBy: { createdAt: "desc" },
           });
-        if (method === "GET" && path[1] === "feedback")
+          // The app reports a conversation id. Resolve it so a moderator can
+          // identify the exact chat without exposing message bodies.
+          const targets = [...new Set(rows.map((row) => row.targetId))].filter(
+            isUuid,
+          );
+          const people = [
+            ...new Set([...rows.map((row) => row.reporterId), ...targets]),
+          ].filter(isUuid);
+          const [conversations, users] = await Promise.all([
+            targets.length
+              ? db.conversation.findMany({
+                  where: { id: { in: targets } },
+                  select: {
+                    id: true,
+                    kind: true,
+                    title: true,
+                    createdAt: true,
+                    members: {
+                      take: 12,
+                      select: {
+                        role: true,
+                        user: {
+                          select: { id: true, qchatId: true, nickname: true },
+                        },
+                      },
+                    },
+                    _count: { select: { members: true } },
+                  },
+                })
+              : [],
+            people.length
+              ? db.user.findMany({
+                  where: { id: { in: people } },
+                  select: {
+                    id: true,
+                    qchatId: true,
+                    nickname: true,
+                    email: true,
+                    disabled: true,
+                  },
+                })
+              : [],
+          ]);
+          const conversationById = new Map(
+            conversations.map((row) => [row.id, row]),
+          );
+          const userById = new Map(users.map((row) => [row.id, row]));
+          result = rows.map((row) => ({
+            ...row,
+            conversation: conversationById.get(row.targetId) ?? null,
+            targetUser: userById.get(row.targetId) ?? null,
+            reporter: userById.get(row.reporterId) ?? null,
+          }));
+        }
+        if (method === "GET" && path[1] === "feedback") {
+          requireCondition(canManage(auth, "feedback"), 403, "FORBIDDEN");
           result = await db.feedback.findMany({
             take: 100,
             orderBy: { createdAt: "desc" },
@@ -323,7 +478,9 @@ export async function handle(request: Request) {
               },
             },
           });
+        }
         if (method === "PATCH" && path[1] === "feedback") {
+          requireCondition(canManage(auth, "feedback"), 403, "FORBIDDEN");
           const v = z
             .object({ status: z.enum(["RESOLVED", "DISMISSED"]) })
             .strict()
@@ -344,28 +501,179 @@ export async function handle(request: Request) {
           ]);
           result = { ok: true };
         }
-        if (method === "GET" && path[1] === "audit")
+        if (method === "GET" && path[1] === "audit") {
+          requireCondition(canManage(auth, "audit"), 403, "FORBIDDEN");
           result = await db.auditLog.findMany({
             take: 100,
             orderBy: { createdAt: "desc" },
           });
+        }
         if (method === "PATCH" && path[1] === "users") {
-          const v = z.object({ disabled: z.boolean() }).strict().parse(body);
+          requireCondition(canManage(auth, "users"), 403, "FORBIDDEN");
+          const v = z
+            .object({
+              disabled: z.boolean().optional(),
+              role: z.enum(["USER", "ADMIN"]).optional(),
+              adminPermissions: z
+                .array(z.enum(ADMIN_SECTIONS))
+                .max(ADMIN_SECTIONS.length)
+                .optional(),
+            })
+            .strict()
+            .parse(body);
+          requireCondition(
+            v.disabled !== undefined ||
+              v.role !== undefined ||
+              v.adminPermissions !== undefined,
+            400,
+            "NOTHING_TO_UPDATE",
+          );
           const targetId = uuid.parse(path[2]);
-          requireCondition(targetId !== userId, 400, "SELF_LOCK");
-          await db.$transaction([
-            db.user.update({ where: { id: targetId }, data: v }),
-            db.auditLog.create({
+          const target = await db.user.findUnique({
+            where: { id: targetId },
+            select: { id: true, role: true },
+          });
+          requireCondition(target, 404, "NOT_FOUND");
+          // Roles and management sections are privileges: only a full
+          // administrator grants them, and never to their own account.
+          if (v.role !== undefined || v.adminPermissions !== undefined) {
+            requireCondition(auth.role === "ADMIN", 403, "ADMIN_REQUIRED");
+            requireCondition(targetId !== userId, 400, "SELF_ROLE");
+          }
+          if (v.disabled !== undefined)
+            requireCondition(
+              targetId !== userId || v.disabled === false,
+              400,
+              "SELF_LOCK",
+            );
+          if (target.role === "ADMIN" && v.role === "USER")
+            requireCondition(
+              (await db.user.count({ where: { role: "ADMIN" } })) > 1,
+              409,
+              "LAST_ADMIN",
+            );
+          const permissions =
+            v.adminPermissions === undefined
+              ? undefined
+              : normalizePermissions(v.adminPermissions);
+          const actions: string[] = [];
+          if (v.disabled !== undefined)
+            actions.push(v.disabled ? "USER_LOCK" : "USER_UNLOCK");
+          if (v.role !== undefined) actions.push("USER_ROLE_UPDATE");
+          if (permissions !== undefined)
+            actions.push("USER_PERMISSIONS_UPDATE");
+          await db.$transaction(async (tx) => {
+            await tx.user.update({
+              where: { id: targetId },
               data: {
-                actorId: userId,
-                action: v.disabled ? "USER_LOCK" : "USER_UNLOCK",
-                targetId,
+                ...(v.disabled === undefined ? {} : { disabled: v.disabled }),
+                ...(v.role === undefined ? {} : { role: v.role }),
+                ...(permissions === undefined
+                  ? {}
+                  : { adminPermissions: permissions }),
               },
-            }),
-          ]);
+            });
+            if (v.disabled === true)
+              await tx.userSession.updateMany({
+                where: { userId: targetId, revokedAt: null },
+                data: { revokedAt: new Date() },
+              });
+            for (const action of actions)
+              await tx.auditLog.create({
+                data: { actorId: userId, action, targetId },
+              });
+          });
           result = { ok: true };
         }
+        if (method === "POST" && path[1] === "users" && path[3] === "sessions") {
+          requireCondition(canManage(auth, "users"), 403, "FORBIDDEN");
+          const targetId = uuid.parse(path[2]);
+          const revoked = await db.userSession.updateMany({
+            where: { userId: targetId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+          await db.auditLog.create({
+            data: { actorId: userId, action: "USER_SESSIONS_REVOKED", targetId },
+          });
+          result = { ok: true, revoked: revoked.count };
+        }
+        if (method === "DELETE" && path[1] === "users") {
+          // Permanent removal is full-admin only. Media rows, messages and
+          // objects are cleared first because their foreign keys would
+          // otherwise block the account row from being deleted.
+          requireCondition(auth.role === "ADMIN", 403, "ADMIN_REQUIRED");
+          const targetId = uuid.parse(path[2]);
+          requireCondition(targetId !== userId, 400, "SELF_DELETE");
+          const target = await db.user.findUnique({
+            where: { id: targetId },
+            select: { role: true, qchatId: true },
+          });
+          requireCondition(target, 404, "NOT_FOUND");
+          if (target.role === "ADMIN")
+            requireCondition(
+              (await db.user.count({ where: { role: "ADMIN" } })) > 1,
+              409,
+              "LAST_ADMIN",
+            );
+          const [media, versions] = await Promise.all([
+            db.media.findMany({
+              where: { ownerId: targetId },
+              select: { id: true, key: true },
+            }),
+            db.miniAppVersion.findMany({
+              where: { miniApp: { developerId: targetId } },
+              select: { storageKey: true },
+            }),
+          ]);
+          const mediaIds = media.map((file) => file.id);
+          await db.$transaction(async (tx) => {
+            await tx.message.deleteMany({ where: { senderId: targetId } });
+            await tx.moment.deleteMany({ where: { authorId: targetId } });
+            if (mediaIds.length) {
+              await tx.momentMedia.deleteMany({
+                where: { mediaId: { in: mediaIds } },
+              });
+              await tx.message.updateMany({
+                where: { mediaId: { in: mediaIds } },
+                data: { mediaId: null },
+              });
+              await tx.conversation.updateMany({
+                where: { wallpaperMediaId: { in: mediaIds } },
+                data: { wallpaperMediaId: null },
+              });
+              await tx.user.updateMany({
+                where: { avatarId: { in: mediaIds } },
+                data: { avatarId: null },
+              });
+              await tx.media.deleteMany({ where: { id: { in: mediaIds } } });
+            }
+            // Rows without a foreign key would otherwise point at a user that
+            // no longer exists.
+            await tx.messageUserState.deleteMany({ where: { userId: targetId } });
+            await tx.momentLike.deleteMany({ where: { userId: targetId } });
+            await tx.moneyTransferClaim.deleteMany({
+              where: { userId: targetId },
+            });
+            await tx.report.deleteMany({
+              where: { OR: [{ targetId }, { reporterId: targetId }] },
+            });
+            await tx.user.delete({ where: { id: targetId } });
+            await tx.auditLog.create({
+              data: {
+                actorId: userId,
+                action: "USER_DELETE",
+                targetId: target.qchatId,
+              },
+            });
+          });
+          await deleteMediaObjects(media.map((file) => file.key));
+          await Promise.allSettled(
+            versions.map((version) => deleteBuild(version.storageKey)),
+          );
+          result = { ok: true, deleted: target.qchatId };
+        }
         if (method === "PATCH" && path[1] === "reports") {
+          requireCondition(canManage(auth, "reports"), 403, "FORBIDDEN");
           const v = z
             .object({ status: z.enum(["RESOLVED", "DISMISSED"]) })
             .strict()
@@ -379,9 +687,122 @@ export async function handle(request: Request) {
           ]);
           result = { ok: true };
         }
-        if (method === "GET" && path[1] === "links")
+        if (method === "GET" && path[1] === "miniapps" && path[2] === "review") {
+          requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
+          result = await miniAppReviewRoute(
+            userId,
+            "GET",
+            ["miniapps", "review", "queue"],
+            {},
+            url,
+          );
+        }
+        if (method === "GET" && path[1] === "miniapps" && !path[2]) {
+          requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
+          const page = z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(100000)
+            .parse(url.searchParams.get("page") ?? 1);
+          const status = url.searchParams.get("status") ?? "";
+          const query = z
+            .string()
+            .max(80)
+            .parse(url.searchParams.get("q") ?? "")
+            .trim();
+          const where = {
+            ...(/^[A-Z_]{3,20}$/.test(status) ? { status } : {}),
+            ...(query
+              ? {
+                  OR: [
+                    { name: { contains: query, mode: "insensitive" as const } },
+                    {
+                      appId: { contains: query, mode: "insensitive" as const },
+                    },
+                    {
+                      developerName: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                  ],
+                }
+              : {}),
+          };
+          const [items, total] = await Promise.all([
+            db.miniApp.findMany({
+              where,
+              skip: (page - 1) * 20,
+              take: 20,
+              orderBy: { updatedAt: "desc" },
+              select: {
+                id: true,
+                appId: true,
+                name: true,
+                category: true,
+                status: true,
+                currentVersion: true,
+                updatedAt: true,
+                developer: { select: { qchatId: true, nickname: true } },
+                versions: {
+                  take: 1,
+                  orderBy: { createdAt: "desc" },
+                  select: { version: true, status: true, createdAt: true },
+                },
+              },
+            }),
+            db.miniApp.count({ where }),
+          ]);
+          result = { items, total, page, pageSize: 20 };
+        }
+        if (
+          method === "POST" &&
+          path[1] === "miniapps" &&
+          path[2] === "versions" &&
+          path[4] === "decision"
+        ) {
+          requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
+          result = await miniAppReviewRoute(
+            userId,
+            "POST",
+            ["miniapps", "review", "versions", uuid.parse(path[3]), "decision"],
+            body,
+            url,
+          );
+        }
+        if (method === "POST" && path[1] === "miniapps" && path[2] === "apps") {
+          requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
+          const action = path[4];
+          requireCondition(
+            action === "suspend" || action === "restore",
+            404,
+            "NOT_FOUND",
+          );
+          result = await miniAppReviewRoute(
+            userId,
+            "POST",
+            ["miniapps", "review", "apps", path[3], action],
+            body,
+            url,
+          );
+        }
+        if (method === "POST" && path[1] === "miniapps" && path[2] === "permissions") {
+          requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
+          result = await miniAppReviewRoute(
+            userId,
+            "POST",
+            ["miniapps", "review", "permissions", uuid.parse(path[3])],
+            body,
+            url,
+          );
+        }
+        if (method === "GET" && path[1] === "links") {
+          requireCondition(canManage(auth, "landing"), 403, "FORBIDDEN");
           result = await readSiteLinks();
+        }
         if (method === "PATCH" && path[1] === "links") {
+          requireCondition(canManage(auth, "landing"), 403, "FORBIDDEN");
           const platform = path[2] ?? "";
           requireCondition(isLinkPlatform(platform), 400, "UNKNOWN_PLATFORM");
           const v = z
@@ -415,6 +836,7 @@ export async function handle(request: Request) {
           result = { ok: true };
         }
         break;
+      }
     }
     if (result === undefined) throw new ApiError(404, "NOT_FOUND");
     return Response.json(result, { headers: { "Cache-Control": "no-store" } });
