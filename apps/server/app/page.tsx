@@ -73,7 +73,6 @@ export default async function LandingPage() {
   const web = links.find((link) => link.platform === "web")!;
   const android = links.find((link) => link.platform === "android")!;
   const ios = links.find((link) => link.platform === "ios")!;
-  const github = links.find((link) => link.platform === "github")!;
   const webReady = web.enabled && web.url.length > 0;
 
   const downloads = [
@@ -264,10 +263,6 @@ export default async function LandingPage() {
             <h2 className="mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl">
               Đủ thứ cần cho một ứng dụng trò chuyện thật
             </h2>
-            <p className="mt-4 text-base leading-7 text-slate-600">
-              Không phải bản demo: REST API, gateway thời gian thực, PostgreSQL, Redis
-              và kho tệp riêng tư đều chạy trên hạ tầng của bạn.
-            </p>
           </div>
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {features.map(({ icon: Icon, title, body }) => (
@@ -390,19 +385,6 @@ export default async function LandingPage() {
               );
             })}
           </div>
-          {github.enabled && github.url && (
-            <p className="mt-6 text-xs leading-5 text-slate-500">
-              Mã nguồn và bản build tự động:{" "}
-              <a
-                className="font-semibold text-emerald-700 hover:underline"
-                href={github.url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {github.label}
-              </a>
-            </p>
-          )}
         </section>
       </main>
 
@@ -426,16 +408,6 @@ export default async function LandingPage() {
             <a className="hover:text-emerald-700" href="/developer">
               Developer Center
             </a>
-            {github.enabled && github.url && (
-              <a
-                className="hover:text-emerald-700"
-                href={github.url}
-                rel="noreferrer"
-                target="_blank"
-              >
-                {github.label}
-              </a>
-            )}
           </nav>
         </div>
       </footer>
