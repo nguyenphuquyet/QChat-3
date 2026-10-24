@@ -537,8 +537,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
           children: [
             Positioned.fill(child: _body(context)),
             Positioned(
-              // Just below the status bar: the buttons now sit a touch higher.
-              top: MediaQuery.paddingOf(context).top + 2,
+              top: MediaQuery.paddingOf(context).top + 8,
               right: 10,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
