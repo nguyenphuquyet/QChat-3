@@ -70,6 +70,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Timer? voiceHoldTimer;
   int voiceHoldToken = 0;
   final composerKey = GlobalKey();
+  double lastKeyboardInset = 0;
   double composerHeight = 56;
   Timer? panelTimer;
   Timer? voiceLimitTimer;
@@ -1170,6 +1171,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           message['recalledAt'] == null,
     );
     final keyboard = MediaQuery.viewInsetsOf(c).bottom;
+    final keyboardRising = keyboard > lastKeyboardInset;
+    lastKeyboardInset = keyboard;
     final safeBottom = MediaQuery.viewPaddingOf(c).bottom;
     // The glass bar floats over the list, so reserve its height at the top of
     // the content instead of letting the newest messages sit under the blur.
@@ -1184,9 +1187,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // không tụt xuống sát đáy rồi bật ngược lên.
     final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
-    // khung hình; chỉ riêng lúc mở/đóng panel mới cần nội suy để ô nhập và
-    // danh sách tin nhắn cùng trượt, không bị giật lệch nhau.
-    final insetDuration = keyboard > 0 || inputFocus.hasFocus
+    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc chuyển từ bàn phím
+    // sang panel (panel thấp hơn bàn phím) thì trượt xuống có animation để
+    // thanh nhập không bị giật một phát.
+    final insetDuration = keyboardRising || (!panelOpen && keyboard > 0)
         ? Duration.zero
         : qchatDuration(c);
     measureComposer();
