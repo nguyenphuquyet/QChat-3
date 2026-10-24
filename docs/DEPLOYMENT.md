@@ -62,11 +62,17 @@ without rewriting their signed Host or URI. The storage console is disabled.
 cd /opt/qchat
 docker compose --env-file .env -f infra/compose.vps.yaml build server
 docker compose --env-file .env -f infra/compose.vps.yaml up -d --no-build
+# nginx resolves the `server` upstream once at startup, so it keeps the old
+# container address after a recreate. Restart the gateway or every request 502s.
+docker compose --env-file .env -f infra/compose.vps.yaml restart gateway
 docker compose --env-file .env -f infra/compose.vps.yaml ps -a
 curl --fail https://chat.nguyenphuquyet.online/api/health
 # Real end-to-end verification; creates and removes its own temporary records:
 docker compose --env-file .env -f infra/compose.vps.yaml exec -T server node --input-type=module < infra/smoke-test.mjs
 ```
+
+`migrate` runs `prisma migrate deploy` before `server` and `realtime` start, so a
+new `apps/server/prisma/migrations` folder is applied by `up -d` alone.
 
 Configure SMTP in `/opt/qchat/.env` and recreate the backend services to enable
 verification and password-reset email. No SMTP credentials are included in Git.
