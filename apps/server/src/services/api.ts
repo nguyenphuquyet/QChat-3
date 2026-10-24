@@ -15,6 +15,7 @@ import { usersRoute } from "../modules/users";
 import { publicUser } from "./messages";
 import { searchRoute } from "../modules/search";
 import { maybeExpireMoneyTransfers } from "./money-expiry";
+import { miniAppsRoute } from "../modules/miniapps";
 import { uuid } from "../../../../packages/contracts";
 export async function handle(request: Request) {
   try {
@@ -91,6 +92,16 @@ export async function handle(request: Request) {
         break;
       case "wallet":
         result = await walletRoute(userId, method, path, body);
+        break;
+      case "miniapps":
+        result = await miniAppsRoute(
+          userId,
+          auth.role,
+          method,
+          path,
+          body,
+          url,
+        );
         break;
       case "auth":
         if (path[1] === "logout" && method === "POST") {

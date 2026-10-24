@@ -26,6 +26,8 @@ import 'features/payments/payments_screen.dart';
 import 'features/payments/money_screen.dart';
 import 'features/payments/wallet_screen.dart';
 import 'features/payments/transfer_screen.dart';
+import 'features/miniapps/miniapps_screen.dart';
+import 'features/miniapps/miniapp_runtime_screen.dart';
 import 'features/search/search_screen.dart';
 
 GoRoute qchatRoute({
@@ -154,6 +156,12 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         qchatRoute(
           path: '/feature/:kind',
           builder: (_, s) => FeatureScreen(kind: s.pathParameters['kind']!),
+        ),
+        qchatRoute(path: '/miniApps', builder: (_, s) => const MiniAppsScreen()),
+        qchatRoute(
+          path: '/miniApps/:appId',
+          builder: (_, s) =>
+              MiniAppRuntimeScreen(appId: s.pathParameters['appId']!),
         ),
         qchatRoute(
           path: '/sessions',

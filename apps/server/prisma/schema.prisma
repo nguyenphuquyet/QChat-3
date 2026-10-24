@@ -39,6 +39,10 @@ model User {
   devices PushDevice[]
   feedback Feedback[]
   wallet Wallet?
+  miniApps MiniApp[] @relation("miniAppOwner")
+  miniAppMemberships MiniAppMember[]
+  miniAppRecents UserRecentMiniApp[]
+  miniAppFavorites UserFavoriteMiniApp[]
 }
 model UserSession {
   id String @id @default(uuid()) @db.Uuid
@@ -300,4 +304,160 @@ model Outbox {
   createdAt DateTime @default(now())
   deliveredAt DateTime?
   @@index([deliveredAt,createdAt])
+}
+
+model MiniApp {
+  id String @id @default(uuid()) @db.Uuid
+  appId String @unique
+  name String
+  description String @default("")
+  iconUrl String @default("")
+  category String @default("utilities")
+  developerName String @default("")
+  supportUrl String @default("")
+  privacyUrl String @default("")
+  contactEmail String @default("")
+  status String @default("DRAFT")
+  currentVersion String?
+  requestedPermissions String[] @default([])
+  developerId String @db.Uuid
+  developer User @relation("miniAppOwner", fields:[developerId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  versions MiniAppVersion[]
+  members MiniAppMember[]
+  releases MiniAppRelease[]
+  permissionRequests MiniAppPermissionRequest[]
+  apiKeys MiniAppApiKey[]
+  recents UserRecentMiniApp[]
+  favorites UserFavoriteMiniApp[]
+  analytics MiniAppAnalyticsEvent[]
+  @@index([status,updatedAt])
+  @@index([category,status])
+  @@index([developerId,updatedAt])
+}
+
+model MiniAppVersion {
+  id String @id @default(uuid()) @db.Uuid
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  version String
+  storageKey String
+  sha256 String
+  size Int
+  manifest Json
+  entry String
+  minRuntimeVersion String @default("1.0.0")
+  requestedPermissions String[] @default([])
+  status String @default("UPLOADED")
+  channel String @default("DEVELOPMENT")
+  uploadedBy String @db.Uuid
+  createdAt DateTime @default(now())
+  publishedAt DateTime?
+  revokedAt DateTime?
+  revokeReason String @default("")
+  reviews MiniAppReview[]
+  releases MiniAppRelease[]
+  @@unique([miniAppId,version])
+  @@index([miniAppId,createdAt])
+  @@index([status])
+}
+
+model MiniAppReview {
+  id String @id @default(uuid()) @db.Uuid
+  versionId String @db.Uuid
+  version MiniAppVersion @relation(fields:[versionId],references:[id],onDelete:Cascade)
+  reviewerId String @db.Uuid
+  decision String
+  reason String @default("")
+  createdAt DateTime @default(now())
+  @@index([versionId,createdAt])
+}
+
+model MiniAppRelease {
+  id String @id @default(uuid()) @db.Uuid
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  versionId String @db.Uuid
+  version MiniAppVersion @relation(fields:[versionId],references:[id],onDelete:Cascade)
+  versionLabel String
+  action String
+  actorId String @db.Uuid
+  note String @default("")
+  createdAt DateTime @default(now())
+  @@index([miniAppId,createdAt])
+}
+
+model MiniAppPermissionRequest {
+  id String @id @default(uuid()) @db.Uuid
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  permission String
+  reason String
+  status String @default("PENDING")
+  requestedBy String @db.Uuid
+  reviewedBy String? @db.Uuid
+  createdAt DateTime @default(now())
+  reviewedAt DateTime?
+  @@index([miniAppId,createdAt])
+  @@index([status,createdAt])
+}
+
+model MiniAppMember {
+  id String @id @default(uuid()) @db.Uuid
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  role String @default("DEVELOPER")
+  createdAt DateTime @default(now())
+  @@unique([miniAppId,userId])
+}
+
+model MiniAppApiKey {
+  id String @id @default(uuid()) @db.Uuid
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  name String
+  prefix String @unique
+  secretHash String
+  createdBy String @db.Uuid
+  createdAt DateTime @default(now())
+  lastUsedAt DateTime?
+  revokedAt DateTime?
+  @@index([miniAppId])
+}
+
+model UserRecentMiniApp {
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  openedAt DateTime @default(now())
+  openCount Int @default(1)
+  @@id([userId,miniAppId])
+  @@index([userId,openedAt])
+}
+
+model UserFavoriteMiniApp {
+  userId String @db.Uuid
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  createdAt DateTime @default(now())
+  @@id([userId,miniAppId])
+}
+
+model MiniAppAnalyticsEvent {
+  id String @id @default(uuid()) @db.Uuid
+  miniAppId String @db.Uuid
+  miniApp MiniApp @relation(fields:[miniAppId],references:[id],onDelete:Cascade)
+  version String @default("")
+  event String
+  userId String? @db.Uuid
+  errorCode String @default("")
+  durationMs Int @default(0)
+  createdAt DateTime @default(now())
+  @@index([miniAppId,createdAt])
+  @@index([event,createdAt])
 }

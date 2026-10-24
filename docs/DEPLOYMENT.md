@@ -82,6 +82,90 @@ above. Never use `down -v` on this deployment. If a migration is incompatible wi
 the old application, rollback requires a matching database backup as well as the
 previous image.
 
+## Mini Apps
+
+Mini App builds are immutable ZIP objects and are not reproducible from Git, so
+they must be backed up together with PostgreSQL. Two storage modes exist and the
+server picks one automatically:
+
+- **S3 (default when configured)** — if `S3_ENDPOINT`, `S3_ACCESS_KEY` and
+  `S3_SECRET_KEY` are set, builds are written to the private bucket
+  (`S3_BUCKET`, default `qchat-private`) under `miniapps/<appId>/<uuid>.zip`.
+  The client receives a presigned URL valid for 120 seconds.
+- **Filesystem** — without S3 credentials, builds are written to
+  `MINIAPP_STORAGE_DIR` and served through the HMAC-signed
+  `/api/miniapps/blob` endpoint. `MINIAPP_SIGNING_SECRET` must be a long random
+  value; rotating it invalidates outstanding download links only.
+
+The VPS compose file mounts the named volume `miniapps` at
+`/var/lib/qchat/miniapps` and sets `MINIAPP_STORAGE_DIR` accordingly, so the
+fallback survives container recreation even when S3 is unavailable. Do not use
+`down -v`.
+
+```sh
+cd /opt/qchat
+
+# Required once: add both values to the private .env (never commit them).
+#   MINIAPP_STORAGE_DIR=/var/lib/qchat/miniapps
+#   MINIAPP_SIGNING_SECRET=<long random secret>
+
+# Apply the Mini App schema. `migrate` runs on every `up`, so this is only
+# needed to confirm the migration folder exists before deploying:
+docker compose --env-file .env -f infra/compose.vps.yaml run --rm migrate \
+  npx prisma migrate status --schema apps/server/prisma/schema.prisma
+
+# Build and deploy as usual, then restart the gateway (upstream address change).
+docker compose --env-file .env -f infra/compose.vps.yaml build server
+docker compose --env-file .env -f infra/compose.vps.yaml up -d --no-build
+docker compose --env-file .env -f infra/compose.vps.yaml restart gateway
+docker compose --env-file .env -f infra/compose.vps.yaml ps -a
+curl --fail https://chat.nguyenphuquyet.online/api/health
+```
+
+The migration that creates the Mini App tables is
+`apps/server/prisma/migrations/202610240002_mini_apps`. It is additive: it adds
+new tables and indexes and does not rewrite existing message, wallet or media
+rows. A rollback to an image built before this migration leaves the new tables
+unused, which is safe; dropping them is a separate, destructive operation.
+
+After deployment, verify the flow with a Developer Center login at
+`/developer` (upload, submit, admin approve, release) or run the API smoke
+script against the public origin:
+
+```sh
+cd /opt/qchat
+docker compose --env-file .env -f infra/compose.vps.yaml exec -T server \
+  env BASE_URL=http://127.0.0.1:3000 node scripts/miniapps-smoke.mjs
+```
+
+The smoke script creates its own throwaway developer account, promotes it to
+ADMIN directly in the database to exercise the review console, runs the whole
+upload → review → release → download → rollback → revoke flow, then deletes its
+records. It therefore needs the same `DATABASE_URL` as the server and should be
+run only against a disposable or freshly backed-up environment. Run it from the
+host instead (with `BASE_URL=https://chat.nguyenphuquyet.online` and the
+production `DATABASE_URL`) if the script is not present in the image.
+
+Back up builds with the database:
+
+```sh
+# PostgreSQL (includes app, version, review, release and API-key rows)
+docker compose --env-file .env -f infra/compose.vps.yaml exec -T postgres \
+  pg_dump -U qchat -Fc qchat > qchat.dump
+
+# Filesystem fallback, when used
+docker run --rm -v qchat_miniapps:/data -v "$PWD":/backup alpine \
+  tar czf /backup/miniapps.tgz -C /data .
+
+# S3 mode: use an S3 client with the private credentials
+# aws --endpoint-url "$S3_ENDPOINT" s3 sync s3://qchat-private/miniapps ./miniapps
+```
+
+Restore the database first, then the build objects with their original keys;
+`MiniAppVersion.storageKey` points at those keys, so renaming or flattening the
+prefix breaks downloads. Validate one released app end-to-end before switching
+traffic back.
+
 ## Original standalone TLS example
 
 1. Install Docker Engine and Compose on a Linux VPS. Configure DNS names for API/realtime and private media. Restrict database, Redis, MinIO console and service ports to the Docker network.
@@ -97,7 +181,7 @@ The current Compose deployment has not been executed in this Windows environment
 
 ## Backup and restore
 
-Take encrypted PostgreSQL dumps with `docker compose -f infra/compose.yaml exec -T postgres pg_dump -U qchat -Fc qchat > qchat.dump`. Back up the private MinIO bucket with an S3-compatible backup client and retain its encryption/access configuration. Store backups off-host with restricted access. Redis holds transient coordination; its loss must not delete messages.
+Take encrypted PostgreSQL dumps with `docker compose -f infra/compose.yaml exec -T postgres pg_dump -U qchat -Fc qchat > qchat.dump`. Back up the private MinIO bucket with an S3-compatible backup client and retain its encryption/access configuration. Mini App builds live in the same bucket (`miniapps/` prefix) or in the `miniapps` volume when S3 is not configured; back them up with the database, because `MiniAppVersion.storageKey` is meaningless without the objects. Store backups off-host with restricted access. Redis holds transient coordination; its loss must not delete messages.
 
 Restore to an isolated environment first using `pg_restore --clean --if-exists --no-owner`, restore media objects with unchanged keys, and validate counts and account/message access before switching DNS. Revoke sessions and rotate secrets if the backup was exposed. Practice restore drills; backups are not verified until restored.
 

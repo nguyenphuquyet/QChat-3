@@ -538,7 +538,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       sectionGap,
       const MenuRow('nearby', icon: 'nearby'),
       sectionGap,
-      const MenuRow('miniApps', icon: 'miniApps', color: Color(0xff7c70ec)),
+      MenuRow(
+        'miniApps',
+        icon: 'miniApps',
+        color: const Color(0xff7c70ec),
+        onTap: () => c.push('/miniApps'),
+      ),
       sectionGap,
       const MenuRow('out', icon: 'call', color: QChatColors.green),
     ],

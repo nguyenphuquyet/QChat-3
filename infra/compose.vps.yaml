@@ -71,6 +71,10 @@ services:
     environment:
       NODE_OPTIONS: --max-old-space-size=384
       NEXT_TELEMETRY_DISABLED: '1'
+      # Used only when S3 is not configured; keep builds across container
+      # recreation and include this volume in backups.
+      MINIAPP_STORAGE_DIR: /var/lib/qchat/miniapps
+    volumes: ['miniapps:/var/lib/qchat/miniapps']
     depends_on:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
@@ -107,3 +111,4 @@ volumes:
   postgres:
   redis:
   media:
+  miniapps:

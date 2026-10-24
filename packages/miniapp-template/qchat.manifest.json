@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "appId": "mp_0000000000000000",
+  "name": "QChat Mini App Starter",
+  "description": "A React + Vite starter for QChat Mini Apps.",
+  "version": "1.0.0",
+  "entry": "index.html",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": [
+    "toast",
+    "storage",
+    "user.profile",
+    "media.choose",
+    "share"
+  ]
+}
