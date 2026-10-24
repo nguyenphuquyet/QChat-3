@@ -28,6 +28,14 @@ export default function App() {
     })();
   }, []);
 
+  useEffect(() => {
+    // The host renders the mini app edge to edge, so honour the safe areas it
+    // reports (env(safe-area-inset-*) stays 0 in the Android WebView).
+    const root = document.documentElement;
+    root.style.setProperty("--safe-top", `${system?.safeAreaTop ?? 0}px`);
+    root.style.setProperty("--safe-bottom", `${system?.safeAreaBottom ?? 0}px`);
+  }, [system]);
+
   async function run(action: () => Promise<void>) {
     setStatus("");
     try {

@@ -1,5 +1,11 @@
 :root {
   color-scheme: light dark;
+  /* The host floats its menu and close buttons over the top right corner.
+     Keep --capsule wide enough for both, and keep --safe-* in sync with
+     QChat.getSystemInfo() (App.tsx overwrites them with the host values). */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --capsule: 92px;
   --bg: #f5f7f8;
   --card: #ffffff;
   --ink: #192d29;
@@ -28,7 +34,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  padding: max(16px, var(--safe-top)) 16px max(16px, var(--safe-bottom));
 }
 
 main {
@@ -42,7 +48,8 @@ header {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 4px 4px;
+  /* Right padding keeps the host's floating buttons clear of this row. */
+  padding: 8px var(--capsule) 4px 4px;
 }
 
 .mark {

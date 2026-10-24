@@ -208,6 +208,11 @@ are JSON. A different app cannot read another app's namespace.
    decision. The WebView never receives a QChat access token.
 8. Handle back (WebView history, then close), close, background/resume events,
    favorites, recent apps and telemetry.
+9. Draw no host header: the mini app owns the whole screen and the host only
+   floats a menu button and a close button over its top right corner. Reload and
+   favorite live in that menu. `QChat.getSystemInfo()` reports `safeAreaTop` and
+   `safeAreaBottom` so packages can keep their own content clear of the status
+   bar, the navigation bar and the floating buttons.
 
 The runtime uses a host-side share sheet with copy-to-clipboard rather than a
 native share plugin; this is intentional for the current dependency set.

@@ -13,6 +13,8 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
+import '../../core/design_system/qchat_animations.dart';
+import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
 import 'miniapp_api.dart';
 import 'miniapp_asset_server.dart';
@@ -527,40 +529,58 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_handleBack());
       },
+      // The mini program owns the whole screen; the host only floats a menu
+      // button and a close button in the top right corner.
       child: QChatPage(
-        title: _name.isEmpty ? tr(context, 'miniAppsTitle') : _name,
-        glassHeader: false,
-        leading: QChatIconButton(
-          'close',
-          label: tr(context, 'miniAppsClose'),
-          onTap: _handleBack,
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
+        edgeToEdge: true,
+        child: Stack(
           children: [
-            QChatIconButton(
-              'star',
-              label: tr(
-                context,
-                _favorite ? 'miniAppsUnfavorite' : 'miniAppsFavorite',
+            Positioned.fill(child: _body(context)),
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 8,
+              right: 10,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _FloatButton(
+                    icon: 'more',
+                    label: tr(context, 'more'),
+                    onTap: () => _openMenu(context),
+                  ),
+                  const SizedBox(width: 8),
+                  _FloatButton(
+                    icon: 'close',
+                    label: tr(context, 'miniAppsClose'),
+                    onTap: _close,
+                  ),
+                ],
               ),
-              color: _favorite ? const Color(0xffe0a500) : null,
-              onTap: _toggleFavorite,
-            ),
-            QChatIconButton(
-              'refresh',
-              label: tr(context, 'miniAppsReload'),
-              onTap: () {
-                setState(() => _webError = false);
-                final web = _web;
-                if (web != null) unawaited(web.reload());
-              },
             ),
           ],
         ),
-        child: _body(context),
       ),
     );
+  }
+
+  // qchatTopMenu translates each label, so pass the string keys.
+  void _openMenu(BuildContext c) => qchatTopMenu(c, [
+    (
+      'star',
+      _favorite ? 'miniAppsUnfavorite' : 'miniAppsFavorite',
+      () => unawaited(_toggleFavorite()),
+    ),
+    ('refresh', 'miniAppsReload', _reload),
+    ('close', 'miniAppsClose', _close),
+  ]);
+
+  void _reload() {
+    setState(() => _webError = false);
+    final web = _web;
+    if (web != null) {
+      unawaited(web.reload());
+      return;
+    }
+    unawaited(_load());
   }
 
   Widget _body(BuildContext context) {
@@ -570,25 +590,21 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         'extract' => tr(context, 'miniAppsVerifying'),
         _ => tr(context, 'miniAppsDownloading'),
       };
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 18),
-            Text(label, style: const TextStyle(fontSize: 14)),
-            if (_offline) ...[
-              const SizedBox(height: 8),
-              Text(
+      return Stack(
+        children: [
+          QChatLoading(label: label),
+          if (_offline)
+            Positioned(
+              left: 24,
+              right: 24,
+              bottom: 48,
+              child: Text(
                 tr(context, 'miniAppsOffline'),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: QChatColors.muted,
-                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: QChatColors.muted),
               ),
-            ],
-          ],
-        ),
+            ),
+        ],
       );
     }
     final error = _error;
@@ -685,4 +701,57 @@ int _compareVersion(String a, String b) {
     if (x != y) return x.compareTo(y);
   }
   return 0;
+}
+
+/// Round translucent control floating over the mini program: a white glyph on
+/// a dark tint, tinted further while pressed (the app draws no ripples).
+class _FloatButton extends StatefulWidget {
+  const _FloatButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final String icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  State<_FloatButton> createState() => _FloatButtonState();
+}
+
+class _FloatButtonState extends State<_FloatButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed != value) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: widget.label,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => _setPressed(true),
+      onTapUp: (_) => _setPressed(false),
+      onTapCancel: () => _setPressed(false),
+      onTap: widget.onTap,
+      child: AnimatedContainer(
+        duration: qchatDuration(context),
+        width: 34,
+        height: 34,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: _pressed ? const Color(0x9e000000) : const Color(0x5e000000),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withValues(alpha: .16),
+            width: .5,
+          ),
+        ),
+        child: QChatIcon(widget.icon, size: 17, color: Colors.white),
+      ),
+    ),
+  );
 }

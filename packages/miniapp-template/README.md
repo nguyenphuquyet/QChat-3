@@ -38,6 +38,18 @@ vite.config.ts        base: "./" so assets work on the runtime origin
 scripts/package.mjs   Dependency-free ZIP writer
 ```
 
+## Host chrome and safe areas
+
+The runtime draws no header of its own: the mini app owns the whole screen and
+the host only floats a menu button and a close button over the top right
+corner. Keep that strip (about `92 x 46` logical pixels, starting at the top
+safe area) free of controls — the starter does it with the `--capsule` CSS
+variable.
+
+`QChat.getSystemInfo()` reports `safeAreaTop` and `safeAreaBottom`; the starter
+writes them into the `--safe-top` / `--safe-bottom` CSS variables because
+`env(safe-area-inset-*)` resolves to `0` inside the Android WebView.
+
 ## Manifest rules
 
 - `entry` must be a relative HTML file (`index.html` in this starter).
