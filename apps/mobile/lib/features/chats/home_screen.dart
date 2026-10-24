@@ -11,6 +11,7 @@ import '../../core/design_system/reference_widgets.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/localization/strings.dart';
+import 'money_message.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -338,6 +339,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? 'Video'
             : last['kind'] == 'AUDIO'
             ? tr(c, 'voiceMessage')
+            : last['kind'] == 'TRANSFER' || last['kind'] == 'RED_PACKET'
+            ? moneySummary(last)
             : last['text']?.toString().isNotEmpty == true
             ? last['text']
             : '[${last['kind']}]',

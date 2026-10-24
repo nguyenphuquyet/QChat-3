@@ -8,6 +8,7 @@ import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../chats/money_message.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -257,6 +258,14 @@ class _DataListScreenState extends ConsumerState<DataListScreen> {
         );
   }
 
+  String _favoriteTitle(BuildContext c, Map item) {
+    if (item['kind'] == 'TRANSFER' || item['kind'] == 'RED_PACKET') {
+      return moneySummary(item);
+    }
+    final text = item['text'] as String? ?? '';
+    return text.isEmpty ? tr(c, 'file') : text;
+  }
+
   @override
   Widget build(BuildContext c) => QChatPage(
     title: tr(c, widget.kind),
@@ -280,9 +289,7 @@ class _DataListScreenState extends ConsumerState<DataListScreen> {
               QChatListTile(
                 title: widget.kind == 'sessions'
                     ? item['deviceName']
-                    : ((item['text'] as String? ?? '').isEmpty
-                          ? tr(c, 'file')
-                          : item['text']),
+                    : _favoriteTitle(c, item),
                 subtitle: item['current'] == true
                     ? tr(c, 'currentSession')
                     : item['createdAt'],

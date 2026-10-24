@@ -59,7 +59,17 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
             ?.toLocal() ??
         DateTime.now();
     final amount = moneyText(payload.amount);
-    final completed = accepted || MoneyMessageState.isCompleted(widget.message);
+    final refunded = MoneyMessageState.isRefunded(widget.message);
+    final completed =
+        !refunded &&
+        (accepted || MoneyMessageState.isCompleted(widget.message));
+    final claimedAt =
+        DateTime.tryParse(
+          (widget.message['moneyTransfer'] as Map?)?['claimedAt']?.toString() ??
+              '',
+        )?.toLocal() ??
+        DateTime.now();
+    final refundedAt = MoneyMessageState.refundedAt(widget.message)?.toLocal();
     return Scaffold(
       backgroundColor: _background,
       body: SafeArea(
@@ -88,7 +98,11 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: completed ? _green : _blue,
+                          color: completed
+                              ? _green
+                              : refunded
+                              ? const Color(0xffc9a063)
+                              : _blue,
                           width: 2.4,
                         ),
                         color: completed ? _green : Colors.transparent,
@@ -98,6 +112,12 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                               Icons.check_rounded,
                               color: Colors.white,
                               size: 34,
+                            )
+                          : refunded
+                          ? const Icon(
+                              Icons.undo_rounded,
+                              color: Color(0xffc9a063),
+                              size: 30,
                             )
                           : const Icon(
                               Icons.access_time_rounded,
@@ -117,7 +137,18 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                    ] else
+                    ] else if (refunded)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          'Khoản chuyển đã hết hạn',
+                          style: TextStyle(
+                            color: Color(0xff8c8c8c),
+                            fontSize: 13,
+                          ),
+                        ),
+                      )
+                    else
                       const Padding(
                         padding: EdgeInsets.only(bottom: 12),
                         child: Text(
@@ -137,10 +168,14 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    if (completed)
-                      const Text(
-                        'Số dư khả dụng',
-                        style: TextStyle(
+                    if (completed || refunded)
+                      Text(
+                        refunded
+                            ? (widget.mine
+                                  ? 'Đã hoàn về Ví'
+                                  : 'Đã hoàn về người gửi')
+                            : 'Số dư khả dụng',
+                        style: const TextStyle(
                           color: Color(0xffb0b0b0),
                           fontSize: 12,
                         ),
@@ -151,48 +186,81 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                       const SizedBox(height: 10),
                       _TimeRow(
                         label: 'Thời gian nhận',
-                        value: _clock(DateTime.now()),
+                        value: _clock(claimedAt),
+                      ),
+                    ],
+                    if (refunded && refundedAt != null) ...[
+                      const SizedBox(height: 10),
+                      _TimeRow(
+                        label: 'Thời gian hoàn tiền',
+                        value: _clock(refundedAt),
                       ),
                     ],
                     const Spacer(),
-                    if (!completed && !widget.mine) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        height: 44,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: _green,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: accepting ? null : accept,
-                              child: Center(
-                                child: Text(
-                                  accepting ? 'Đang nhận…' : 'Xác nhận đã nhận',
-                                  style: TextStyle(
-                                    color: Color(0xffffffff),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
+                    if (!completed && !refunded) ...[
+                      if (!widget.mine) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 44,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: _green,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: accepting ? null : accept,
+                                child: Center(
+                                  child: Text(
+                                    accepting
+                                        ? 'Đang nhận…'
+                                        : 'Xác nhận đã nhận',
+                                    style: const TextStyle(
+                                      color: Color(0xffffffff),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Khoản chuyển chỉ có thể được nhận một lần.',
+                        const SizedBox(height: 14),
+                        const Text(
+                          'Khoản chuyển chỉ có thể được nhận một lần.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xffb8b8b8),
+                            fontSize: 11,
+                            height: 1.45,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                      Text(
+                        MoneyMessageState.refundWindowText(widget.message),
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Color(0xffb8b8b8),
                           fontSize: 11,
                           height: 1.45,
                         ),
                       ),
                     ],
+                    if (refunded)
+                      Text(
+                        widget.mine
+                            ? 'Người nhận chưa nhận tiền trong 24 giờ. Số tiền đã được hoàn lại vào Ví của bạn.'
+                            : 'Bạn chưa nhận khoản chuyển này trong 24 giờ. Tiền đã được hoàn về người gửi.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xffb8b8b8),
+                          fontSize: 11,
+                          height: 1.45,
+                        ),
+                      ),
                     const SizedBox(height: 20),
                   ],
                 ),

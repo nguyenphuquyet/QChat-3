@@ -14,9 +14,14 @@ import { walletRoute } from "../modules/wallet";
 import { usersRoute } from "../modules/users";
 import { publicUser } from "./messages";
 import { searchRoute } from "../modules/search";
+import { maybeExpireMoneyTransfers } from "./money-expiry";
 import { uuid } from "../../../../packages/contracts";
 export async function handle(request: Request) {
   try {
+    // Unclaimed money goes back to the sender after 24 hours. The sweep is
+    // throttled to one run per minute and the timer in instrumentation.ts is
+    // the primary trigger, so this stays cheap on the request path.
+    await maybeExpireMoneyTransfers();
     const url = new URL(request.url),
       path = url.pathname.replace(/^\/api\//, "").split("/"),
       method = request.method;

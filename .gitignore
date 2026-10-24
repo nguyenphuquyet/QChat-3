@@ -6,6 +6,9 @@ node_modules/
 .dart_tool/
 build/
 *.log
+*.tsbuildinfo
+*.tmpdir/
+apps/mobile/test/failures/
 apps/mobile/android/local.properties
 apps/mobile/ios/Pods/
 apps/mobile/ios/Flutter/Generated.xcconfig

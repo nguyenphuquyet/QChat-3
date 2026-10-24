@@ -12,6 +12,7 @@ import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import '../../core/network/media_upload.dart';
 import 'group_members_screen.dart';
+import 'money_message.dart';
 
 class ChatDetailsScreen extends ConsumerStatefulWidget {
   const ChatDetailsScreen({super.key, required this.id});
@@ -631,7 +632,11 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
               for (final row in rows)
                 TCell(
                   image: UserAvatar(row['sender'] ?? {}, size: 42),
-                  title: Text(row['text'] ?? ''),
+                  title: Text(
+                    row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET'
+                        ? moneySummary(row)
+                        : (row['text'] ?? ''),
+                  ),
                   subtitle: Text(row['sender']?['nickname'] ?? ''),
                 ),
             ],

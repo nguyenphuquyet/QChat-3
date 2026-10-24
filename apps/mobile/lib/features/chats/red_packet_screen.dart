@@ -33,10 +33,18 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
   void initState() {
     super.initState();
     // The sender always sees what they sent; a receiver who already claimed
-    // goes straight to the opened view instead of the cover again.
-    opened = widget.mine || MoneyMessageState.claimedByMe(widget.message);
+    // goes straight to the opened view instead of the cover again. An expired
+    // packet also opens straight into the receipt so it cannot be tapped.
+    opened =
+        widget.mine ||
+        MoneyMessageState.claimedByMe(widget.message) ||
+        MoneyMessageState.isRefunded(widget.message);
     openedAmount = MoneyMessageState.receivedAmount(widget.message);
   }
+
+  bool get refunded => MoneyMessageState.isRefunded(widget.message);
+  bool get claimed => MoneyMessageState.claimedByMe(widget.message);
+  bool get expiredForMe => refunded && !widget.mine && !claimed;
 
   String get senderName => widget.sender['nickname']?.toString() ?? 'QChat';
 
@@ -50,6 +58,11 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
   String get sentProgress {
     final claimed = MoneyMessageState.claimedCount(widget.message);
     final total = MoneyMessageState.recipientCount(widget.message);
+    if (refunded) {
+      if (claimed == 0) return 'Đã hoàn tiền';
+      if (total <= 1) return 'Đã nhận';
+      return 'Đã nhận $claimed/$total · hoàn phần còn lại';
+    }
     if (total <= 1) return claimed > 0 ? 'Đã nhận' : 'Chưa nhận';
     return 'Đã nhận $claimed/$total suất';
   }
@@ -61,7 +74,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
   }
 
   Future<void> open() async {
-    if (opened || widget.mine || opening) return;
+    if (opened || widget.mine || opening || refunded) return;
     setState(() => opening = true);
     final amount = await widget.onClaim();
     if (!mounted) return;
@@ -171,34 +184,50 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.only(bottom: 54),
-            child: GestureDetector(
-              onTap: widget.mine || opening ? null : open,
-              child: Container(
-                width: 92,
-                height: 92,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xfff6e3b0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x33000000),
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
+            padding: const EdgeInsets.only(bottom: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                GestureDetector(
+                  onTap: widget.mine || opening ? null : open,
+                  child: Container(
+                    width: 92,
+                    height: 92,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xfff6e3b0),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Center(
-                  child: Text(
-                    opening ? '...' : widget.mine ? 'Đã gửi' : 'Mở',
-                    style: TextStyle(
-                      color: Color(0xffa8512f),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w500,
+                    child: Center(
+                      child: Text(
+                        opening ? '...' : widget.mine ? 'Đã gửi' : 'Mở',
+                        style: TextStyle(
+                          color: Color(0xffa8512f),
+                          fontSize: 20,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                if (!widget.mine) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    MoneyMessageState.refundWindowText(widget.message),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xd9ffffff),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -280,35 +309,49 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                     ),
                   ),
                 ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    moneyText(
-                      widget.mine
-                          ? payload.amount
-                          : (openedAmount ?? payload.amount),
-                      withUnit: false,
-                    ),
-                    style: const TextStyle(
-                      color: Color(0xffc9a063),
-                      fontSize: 42,
-                      height: 1.1,
+              if (expiredForMe)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    'Hồng bao đã hết hạn',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Color(0xff8f8f8f),
+                      fontSize: 24,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const Text(
-                    ' đ',
-                    style: TextStyle(
-                      color: Color(0xffc9a063),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
+                )
+              else
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      moneyText(
+                        widget.mine
+                            ? payload.amount
+                            : (openedAmount ?? payload.amount),
+                        withUnit: false,
+                      ),
+                      style: const TextStyle(
+                        color: Color(0xffc9a063),
+                        fontSize: 42,
+                        height: 1.1,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
-                ],
-              ),
+                    const Text(
+                      ' đ',
+                      style: TextStyle(
+                        color: Color(0xffc9a063),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 6),
               if (widget.mine)
                 Padding(
@@ -316,9 +359,37 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                     vertical: 4,
                     horizontal: 10,
                   ),
+                  child: Column(
+                    children: [
+                      Text(
+                        sentProgress,
+                        style: const TextStyle(
+                          color: Color(0xffb2b2b2),
+                          fontSize: 13,
+                        ),
+                      ),
+                      if (!refunded)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 3),
+                          child: Text(
+                            MoneyMessageState.refundWindowText(widget.message),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Color(0xffc8c8c8),
+                              fontSize: 11,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                )
+              else if (expiredForMe)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 24),
                   child: Text(
-                    sentProgress,
-                    style: const TextStyle(
+                    'Tiền chưa nhận đã được hoàn về người gửi.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
                       color: Color(0xffb2b2b2),
                       fontSize: 13,
                     ),

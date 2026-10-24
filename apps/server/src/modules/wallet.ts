@@ -71,6 +71,7 @@ export async function claimMoneyTransfer(userId: string, messageId: string) {
       "MONEY_TRANSFER_NOT_FOUND",
     );
     const claim = transfer.claims[0];
+    requireCondition(transfer.status !== "REFUNDED", 410, "MONEY_EXPIRED");
     requireCondition(claim, 403, "RECIPIENT_REQUIRED");
 
     if (claim.status === "PENDING") {
@@ -298,9 +299,13 @@ export async function walletRoute(
       await db.$transaction(async (tx) => {
         const refunded = await tx.moneyTransfer.updateMany({
           where: { id: transfer.id, status: "PENDING" },
-          data: { status: "REFUNDED" },
+          data: { status: "REFUNDED", refundedAt: new Date() },
         });
         if (!refunded.count) return;
+        await tx.moneyTransferClaim.updateMany({
+          where: { transferId: transfer.id, status: "PENDING" },
+          data: { status: "REFUNDED" },
+        });
         await tx.wallet.update({
           where: { userId },
           data: { balance: { increment: input.amount } },

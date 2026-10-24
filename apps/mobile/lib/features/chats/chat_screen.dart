@@ -382,6 +382,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final original = quotedMessage(id);
     if (original == null) return tr(context, 'quoteUnavailable');
     if (original['recalledAt'] != null) return tr(context, 'recalled');
+    final kind = original['kind'];
+    if (kind == 'TRANSFER' || kind == 'RED_PACKET') return moneySummary(original);
     final text = original['text']?.toString() ?? '';
     return text.isEmpty ? tr(context, 'reply') : text;
   }
@@ -778,9 +780,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       }
     } on DioException catch (exception) {
       if (mounted) {
+        final status = exception.response?.statusCode;
         setState(() {
-          error = exception.response?.statusCode == 403
+          error = status == 403
               ? 'Hồng bao hoặc chuyển tiền này không dành cho bạn.'
+              : status == 410
+              ? 'Hồng bao hoặc chuyển tiền đã hết hạn và được hoàn về người gửi.'
               : 'Không thể nhận tiền lúc này.';
         });
       }
@@ -791,13 +796,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 
   Future<void> openMoneyMessage(Map m, Map sender, bool mine) async {
+    // Another device may have claimed or the 24h sweep may have refunded this
+    // while the chat was open, so always read the latest state first.
+    final message = await ref
+        .read(clientProvider)
+        .refreshMoneyMessage(Map<String, dynamic>.from(m));
+    if (!mounted) return;
     if (m['kind'] == 'RED_PACKET') {
-      // Another device may have claimed it already; fetch the latest claim
-      // before deciding between the cover and the opened receipt.
-      final message = await ref
-          .read(clientProvider)
-          .refreshMoneyMessage(Map<String, dynamic>.from(m));
-      if (!mounted) return;
       final result = await Navigator.of(context).push<String>(
         PageRouteBuilder(
           opaque: false,
@@ -838,9 +843,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (_) => TransferReceiptScreen(
-          message: m,
+          message: message,
           mine: mine,
-          onClaim: () => claimMoneyMessage(m),
+          onClaim: () => claimMoneyMessage(message),
         ),
       ),
     );
@@ -987,10 +992,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       );
       if (target == null) return;
       for (final row in rows) {
-        await client.post('/messages/${row['id']}/forward', {
-          'conversationId': target,
-          'clientId': const Uuid().v4(),
-        });
+        // A money bubble cannot be copied as a real transfer: forward the
+        // receipt as text so the new chat still shows what was sent.
+        if (row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET') {
+          await client.send(target, moneySummary(row));
+        } else {
+          await client.post('/messages/${row['id']}/forward', {
+            'conversationId': target,
+            'clientId': const Uuid().v4(),
+          });
+        }
       }
       if (mounted) {
         setState(() {
@@ -1037,7 +1048,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void openMessageMenu(Map<String, dynamic> m, BuildContext anchor) {
     final sent = m['pending'] != true && m['recalledAt'] == null;
     final created = DateTime.tryParse(m['createdAt']?.toString() ?? '');
-    final text = (m['text'] ?? '').toString().trim();
+    final money = m['kind'] == 'TRANSFER' || m['kind'] == 'RED_PACKET';
+    final payload = MoneyPayload.parse(m['text']);
+    // A money bubble stores a JSON payload, so copy/search/quote must use a
+    // readable summary instead of the raw transfer record.
+    final copyText = money ? moneySummary(m) : (m['text'] ?? '').toString().trim();
+    final searchText = money
+        ? (payload.note.isNotEmpty ? payload.note : '${payload.amount}')
+        : (m['text'] ?? '').toString();
+    final text = copyText;
     final actions = <MessageAction>[
       if (sent)
         MessageAction(
@@ -1077,17 +1096,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 ),
           ),
         ),
-        MessageAction(
-          id: 'search',
-          icon: TIcons.search,
-          label: tr(context, 'search'),
-          onTap: () => Navigator.of(context).push(
-            CupertinoPageRoute<void>(
-              builder: (_) =>
-                  ChatHistoryScreen(id: widget.id, query: m['text'] ?? ''),
+        if (searchText.isNotEmpty)
+          MessageAction(
+            id: 'search',
+            icon: TIcons.search,
+            label: tr(context, 'search'),
+            onTap: () => Navigator.of(context).push(
+              CupertinoPageRoute<void>(
+                builder: (_) => ChatHistoryScreen(id: widget.id, query: searchText),
+              ),
             ),
           ),
-        ),
         MessageAction(
           id: 'selectMessages',
           icon: TIcons.check_rectangle,

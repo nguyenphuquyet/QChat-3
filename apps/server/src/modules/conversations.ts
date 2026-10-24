@@ -41,6 +41,8 @@ export async function conversationsRoute(
                 select: {
                   status: true,
                   claimedAt: true,
+                  refundedAt: true,
+                  createdAt: true,
                   claimedCount: true,
                   recipientCount: true,
                   claims: {
@@ -169,6 +171,8 @@ export async function conversationsRoute(
             select: {
               status: true,
               claimedAt: true,
+              refundedAt: true,
+              createdAt: true,
               claimedCount: true,
               recipientCount: true,
               claims: {

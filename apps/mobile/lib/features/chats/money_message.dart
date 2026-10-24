@@ -36,6 +36,17 @@ class MoneyMessageState {
 
   static Map? _transfer(Map message) => message['moneyTransfer'] as Map?;
 
+  static DateTime? _time(Object? value) =>
+      DateTime.tryParse(value?.toString() ?? '');
+
+  static DateTime? createdAt(Map message) {
+    final transfer = _transfer(message);
+    return _time(transfer?['createdAt']) ?? _time(message['createdAt']);
+  }
+
+  static DateTime? refundedAt(Map message) =>
+      _time(_transfer(message)?['refundedAt']);
+
   static bool claimedByMe(Map message) {
     final claims = _transfer(message)?['claims'];
     return claims is List &&
@@ -56,6 +67,9 @@ class MoneyMessageState {
   static int recipientCount(Map message) =>
       ((_transfer(message)?['recipientCount'] as num?)?.toInt() ?? 1);
 
+  static bool isRefunded(Map message) =>
+      _transfer(message)?['status'] == 'REFUNDED';
+
   static bool isCompleted(Map message) {
     final transfer = _transfer(message);
     if (transfer == null) return false;
@@ -64,6 +78,38 @@ class MoneyMessageState {
     }
     return transfer['status'] == 'CLAIMED';
   }
+
+  /// Time left before an unclaimed transfer goes back to the sender. The
+  /// server enforces the same 24 hour window, this only drives the copy.
+  static Duration? refundRemaining(Map message) {
+    final created = createdAt(message);
+    if (created == null) return null;
+    final left = created.add(const Duration(hours: 24)).difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  static String refundWindowText(Map message) {
+    final left = refundRemaining(message);
+    if (left == null) return 'Tự động hoàn tiền sau 24 giờ nếu chưa nhận';
+    if (left == Duration.zero) return 'Đang hoàn tiền về người gửi';
+    final hours = left.inHours;
+    final minutes = left.inMinutes % 60;
+    final span = hours > 0
+        ? '$hours giờ $minutes phút'
+        : '${minutes < 1 ? 1 : minutes} phút';
+    return 'Tự động hoàn tiền sau $span nếu chưa nhận';
+  }
+}
+
+/// Human readable one-line summary of a money message, used for quotes,
+/// clipboard, search, favorites and forwarding.
+String moneySummary(Map message) {
+  final payload = MoneyPayload.parse(message['text']);
+  final label = message['kind'] == 'RED_PACKET' ? 'Hồng bao' : 'Chuyển tiền';
+  final amount = moneyText(payload.amount);
+  return payload.note.isEmpty
+      ? '$label $amount'
+      : '$label $amount · ${payload.note}';
 }
 
 class MoneyMessageCard extends StatelessWidget {
@@ -89,13 +135,14 @@ class MoneyMessageCard extends StatelessWidget {
   Widget build(BuildContext c) {
     final payload = MoneyPayload.parse(message['text']);
     final completed = MoneyMessageState.isCompleted(message);
+    final refunded = MoneyMessageState.isRefunded(message);
     // Match the bubble's 68% cap so narrow phones never clip the card.
     final width = (MediaQuery.sizeOf(c).width * .68 - 24).clamp(186.0, 240.0);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: Opacity(
-        opacity: completed ? .48 : 1,
+        opacity: completed || refunded ? .48 : 1,
         child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -142,14 +189,16 @@ class MoneyMessageCard extends StatelessWidget {
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    if (completed)
-                                      const Padding(
-                                        padding: EdgeInsets.only(top: 2),
+                                    if (completed || refunded)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 2),
                                         child: Text(
-                                          'Đã mở hồng bao',
+                                          refunded
+                                              ? 'Đã hoàn tiền'
+                                              : 'Đã mở hồng bao',
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
+                                          style: const TextStyle(
                                             color: Color(0xf2ffffff),
                                             fontSize: 12.5,
                                           ),
@@ -189,7 +238,9 @@ class MoneyMessageCard extends StatelessWidget {
                                         fit: BoxFit.scaleDown,
                                         alignment: Alignment.centerLeft,
                                         child: Text(
-                                          mine
+                                          refunded
+                                              ? 'Đã hoàn tiền'
+                                              : mine
                                               ? 'Bạn đã thực hiện chuyển khoản'
                                               : completed
                                               ? 'Đã nhận'

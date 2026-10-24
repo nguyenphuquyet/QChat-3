@@ -152,12 +152,14 @@ model MoneyTransfer {
   note String @default("")
   status String @default("PENDING")
   claimedAt DateTime?
+  refundedAt DateTime?
   recipientCount Int @default(1)
   claimedCount Int @default(0)
   createdAt DateTime @default(now())
   claims MoneyTransferClaim[]
   @@index([recipientId,status])
   @@index([senderId,createdAt])
+  @@index([status,createdAt])
 }
 model MoneyTransferClaim {
   transferId String @db.Uuid

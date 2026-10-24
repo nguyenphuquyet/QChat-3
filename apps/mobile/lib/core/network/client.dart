@@ -277,6 +277,9 @@ class QChatClient {
     socket!.on('money:claimed', (event) async {
       if (event is Map) await applyMoneyClaim(Map<String, dynamic>.from(event));
     });
+    socket!.on('money:refunded', (event) async {
+      if (event is Map) await applyMoneyClaim(Map<String, dynamic>.from(event));
+    });
     socket!.onDisconnect((_) async {
       if (stopping) return;
       _connectionLost();
@@ -349,6 +352,7 @@ class QChatClient {
       ...?previous,
       'status': event['status']?.toString() ?? 'CLAIMED',
       'claimedAt': event['claimedAt']?.toString(),
+      'refundedAt': event['refundedAt']?.toString() ?? previous?['refundedAt'],
       'claimedCount': event['claimedCount'] ?? previous?['claimedCount'],
       'recipientCount': event['recipientCount'] ?? previous?['recipientCount'],
       // The POST /claim reply carries the caller's own claim. Socket events do
@@ -385,6 +389,16 @@ class QChatClient {
     return {if (base is Map) ...Map<String, dynamic>.from(base), ...transfer};
   }
 
+  bool _moneyExpired(Map<String, dynamic> message) {
+    final transfer = message['moneyTransfer'];
+    if (transfer is! Map || transfer['status'] != 'PENDING') return false;
+    final created = DateTime.tryParse(
+      (transfer['createdAt'] ?? message['createdAt'] ?? '').toString(),
+    );
+    return created != null &&
+        DateTime.now().difference(created) >= const Duration(hours: 24);
+  }
+
   /// Fetches the latest claim data for a money message so a red packet opened
   /// on another device shows the same state here.
   Future<Map<String, dynamic>> refreshMoneyMessage(
@@ -409,6 +423,7 @@ class QChatClient {
             'messageId': fresh['id'],
             'status': transfer['status'],
             'claimedAt': transfer['claimedAt'],
+            'refundedAt': transfer['refundedAt'],
             'claimedCount': transfer['claimedCount'],
             'recipientCount': transfer['recipientCount'],
             'claims': transfer['claims'],
@@ -743,9 +758,41 @@ class QChatClient {
           }
           old.removeWhere((x) => x['id'] == m['id']);
           old.add(m);
+          // The server is the source of truth for money state: refresh the
+          // overlay so a stale PENDING copy cannot hide a refund or a claim.
+          final transfer = m['moneyTransfer'];
+          if (transfer is Map) {
+            _moneyTransfers[m['id'].toString()] = Map<String, dynamic>.from(
+              transfer,
+            );
+          }
           cursor = m['sequence'];
         }
         if (batch.length < 50) break;
+      }
+      // Unclaimed money expires after 24 hours on the server. Cached rows can
+      // still say PENDING when the app was closed, so pull the latest state
+      // once when an expired transfer is on screen.
+      if (cursor > 0 && old.any(_moneyExpired)) {
+        try {
+          final latest = await get(
+            '/conversations/$id/messages?before=${cursor + 1}',
+            cached: false,
+          );
+          for (final raw in latest as List) {
+            final row = Map<String, dynamic>.from(raw as Map);
+            final transfer = row['moneyTransfer'];
+            if (transfer is Map) {
+              _moneyTransfers[row['id'].toString()] = Map<String, dynamic>.from(
+                transfer,
+              );
+            }
+            final index = old.indexWhere((x) => x['id'] == row['id']);
+            if (index >= 0) old[index] = row;
+          }
+        } catch (_) {
+          // Keep the cached copy when the network is unavailable.
+        }
       }
       await local!.mergeMessages(id, old.map(_withRecall).toList());
       await local!.cache('cursor:$id', cursor);
