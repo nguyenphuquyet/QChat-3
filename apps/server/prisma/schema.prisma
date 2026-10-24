@@ -296,6 +296,15 @@ model AuditLog {
   targetId String
   createdAt DateTime @default(now())
 }
+model SiteLink {
+  id String @id @default(uuid()) @db.Uuid
+  platform String @unique
+  label String
+  url String @default("")
+  note String @default("")
+  enabled Boolean @default(true)
+  updatedAt DateTime @updatedAt
+}
 model Outbox {
   id String @id @default(uuid()) @db.Uuid
   event String

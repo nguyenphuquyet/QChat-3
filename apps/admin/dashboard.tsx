@@ -10,8 +10,10 @@ import {
   ChevronLeft,
   ChevronRight,
   Database,
+  ExternalLink,
   FileClock,
   Flag,
+  Globe2,
   Inbox,
   LayoutDashboard,
   Loader2,
@@ -21,6 +23,7 @@ import {
   MessageCircle,
   MessagesSquare,
   RefreshCw,
+  Save,
   Search,
   Server,
   ShieldCheck,
@@ -29,7 +32,21 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type Section = "overview" | "users" | "reports" | "feedback" | "audit" | "system";
+type Section =
+  | "overview"
+  | "users"
+  | "reports"
+  | "feedback"
+  | "audit"
+  | "landing"
+  | "system";
+type SiteLink = {
+  platform: "web" | "android" | "ios" | "github";
+  label: string;
+  url: string;
+  note: string;
+  enabled: boolean;
+};
 type Session = { accessToken: string; refreshToken: string; userId: string };
 type Stats = {
   users: number;
@@ -80,6 +97,7 @@ const navigation: { id: Section; label: string; icon: LucideIcon }[] = [
   { id: "reports", label: "Báo cáo vi phạm", icon: Flag },
   { id: "feedback", label: "Phản hồi", icon: Inbox },
   { id: "audit", label: "Nhật ký quản trị", icon: FileClock },
+  { id: "landing", label: "Trang chủ", icon: Globe2 },
   { id: "system", label: "Hệ thống", icon: Server },
 ];
 const number = (value: number) => value.toLocaleString("vi-VN");
@@ -192,6 +210,8 @@ export default function Dashboard() {
   const [reports, setReports] = useState<Report[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
+  const [links, setLinks] = useState<SiteLink[]>([]);
+  const [linkBusy, setLinkBusy] = useState("");
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -282,6 +302,10 @@ export default function Dashboard() {
         const result = await api("/admin/audit");
         if (current !== revision.current) return;
         setAudit(result);
+      } else if (target === "landing") {
+        const result = await api("/admin/links");
+        if (current !== revision.current) return;
+        setLinks(result);
       } else {
         const result = await raw("/health");
         const body = await result.json();
@@ -387,6 +411,31 @@ export default function Dashboard() {
     } finally {
       setActionBusy(false);
     }
+  }
+  async function saveLink(link: SiteLink) {
+    setLinkBusy(link.platform);
+    setNotice("");
+    setError("");
+    try {
+      await api(`/admin/links/${link.platform}`, "PATCH", {
+        label: link.label,
+        url: link.url,
+        note: link.note,
+        enabled: link.enabled,
+      });
+      setNotice(`Đã lưu liên kết ${link.label}.`);
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setLinkBusy("");
+    }
+  }
+  function editLink(platform: SiteLink["platform"], patch: Partial<SiteLink>) {
+    setLinks((rows) =>
+      rows.map((row) =>
+        row.platform === platform ? { ...row, ...patch } : row,
+      ),
+    );
   }
   function navigate(value: Section) {
     setSection(value);
@@ -619,6 +668,8 @@ export default function Dashboard() {
                         ? "Đọc góp ý người dùng gửi từ ứng dụng."
                         : section === "audit"
                         ? "Theo dõi các thay đổi do quản trị viên thực hiện."
+                        : section === "landing"
+                        ? "Quản lý liên kết hiển thị trên trang giới thiệu."
                         : "Kiểm tra khả năng phục vụ của hệ thống."}
               </p>
             </div>
@@ -1115,6 +1166,128 @@ export default function Dashboard() {
                 </div>
               )}
             </Card>
+          )}
+
+          {section === "landing" && (
+            <div className="space-y-5">
+              <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+                <div>
+                  <h2 className="text-sm font-bold">
+                    Liên kết trên trang giới thiệu
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    Người dùng thấy các nút này ở trang chủ và mục tải app.
+                    Tắt hiển thị nếu chưa có bản build.
+                  </p>
+                </div>
+                <a
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600"
+                  href="/"
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  Xem trang chủ <ExternalLink size={15} />
+                </a>
+              </Card>
+              {busy && links.length === 0 ? (
+                <Card className="p-7">
+                  <Spinner label="Đang tải liên kết" />
+                </Card>
+              ) : (
+                <div className="grid gap-5 lg:grid-cols-2">
+                  {links.map((link) => (
+                    <Card key={link.platform} className="p-7">
+                      <div className="mb-5 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[11px] font-bold uppercase tracking-[.15em] text-emerald-600">
+                            {link.platform}
+                          </p>
+                          <h2 className="mt-1 text-lg font-bold">
+                            {link.label}
+                          </h2>
+                        </div>
+                        <Badge warning={!link.enabled}>
+                          {link.enabled ? "Đang hiển thị" : "Đang ẩn"}
+                        </Badge>
+                      </div>
+                      <div className="space-y-4">
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Tên hiển thị
+                          <input
+                            className={`${inputStyle} mt-2`}
+                            maxLength={40}
+                            onChange={(e) =>
+                              editLink(link.platform, { label: e.target.value })
+                            }
+                            value={link.label}
+                          />
+                        </label>
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Liên kết
+                          <input
+                            className={`${inputStyle} mt-2 font-mono text-xs`}
+                            maxLength={500}
+                            onChange={(e) =>
+                              editLink(link.platform, { url: e.target.value })
+                            }
+                            placeholder="https://…"
+                            value={link.url}
+                          />
+                        </label>
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Ghi chú
+                          <textarea
+                            className={`${inputStyle} mt-2 min-h-[86px] resize-y`}
+                            maxLength={300}
+                            onChange={(e) =>
+                              editLink(link.platform, { note: e.target.value })
+                            }
+                            value={link.note}
+                          />
+                        </label>
+                        <label className="flex items-center gap-3 text-sm font-semibold text-slate-700">
+                          <input
+                            checked={link.enabled}
+                            className="h-4 w-4 accent-emerald-600"
+                            onChange={(e) =>
+                              editLink(link.platform, {
+                                enabled: e.target.checked,
+                              })
+                            }
+                            type="checkbox"
+                          />
+                          Hiển thị trên trang chủ
+                        </label>
+                      </div>
+                      <div className="mt-6 flex flex-wrap items-center gap-4">
+                        <button
+                          className={primaryStyle}
+                          disabled={linkBusy === link.platform}
+                          onClick={() => void saveLink(link)}
+                        >
+                          {linkBusy === link.platform ? (
+                            <Loader2 className="animate-spin" size={16} />
+                          ) : (
+                            <Save size={16} />
+                          )}
+                          Lưu
+                        </button>
+                        {link.url && (
+                          <a
+                            className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-600"
+                            href={link.url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            Mở liên kết <ExternalLink size={15} />
+                          </a>
+                        )}
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
           {section === "system" &&

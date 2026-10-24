@@ -2,6 +2,7 @@
 @import "@fontsource-variable/manrope";
 @source '../../admin';
 @source '../../developer';
+@source './page.tsx';
 
 @custom-variant dark (&:where(.dark, .dark *));
 

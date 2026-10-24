@@ -16,6 +16,7 @@ import { publicUser } from "./messages";
 import { searchRoute } from "../modules/search";
 import { maybeExpireMoneyTransfers } from "./money-expiry";
 import { miniAppsRoute } from "../modules/miniapps";
+import { isLinkPlatform, readSiteLinks } from "./site-links";
 import { uuid } from "../../../../packages/contracts";
 export async function handle(request: Request) {
   try {
@@ -374,6 +375,41 @@ export async function handle(request: Request) {
             db.report.update({ where: { id: targetId }, data: v }),
             db.auditLog.create({
               data: { actorId: userId, action: `REPORT_${v.status}`, targetId },
+            }),
+          ]);
+          result = { ok: true };
+        }
+        if (method === "GET" && path[1] === "links")
+          result = await readSiteLinks();
+        if (method === "PATCH" && path[1] === "links") {
+          const platform = path[2] ?? "";
+          requireCondition(isLinkPlatform(platform), 400, "UNKNOWN_PLATFORM");
+          const v = z
+            .object({
+              label: z.string().trim().min(1).max(40),
+              url: z.string().trim().max(500),
+              note: z.string().trim().max(300),
+              enabled: z.boolean(),
+            })
+            .strict()
+            .parse(body);
+          requireCondition(
+            v.url === "" || /^(https?:\/\/\S+|\/\S*)$/i.test(v.url),
+            400,
+            "INVALID_URL",
+          );
+          await db.$transaction([
+            db.siteLink.upsert({
+              where: { platform },
+              create: { platform, ...v },
+              update: v,
+            }),
+            db.auditLog.create({
+              data: {
+                actorId: userId,
+                action: "SITE_LINK_UPDATE",
+                targetId: platform,
+              },
             }),
           ]);
           result = { ok: true };
