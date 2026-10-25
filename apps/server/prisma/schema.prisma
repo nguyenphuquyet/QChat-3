@@ -306,19 +306,6 @@ model SiteLink {
   enabled Boolean @default(true)
   updatedAt DateTime @updatedAt
 }
-/// Payment services shown on the mobile payments screen. The admin console
-/// stores overrides for the built-in catalogue so labels, grouping and
-/// availability can change without a mobile release.
-model PaymentService {
-  id String @id @default(uuid()) @db.Uuid
-  key String @unique
-  label String
-  group String @default("Dịch vụ hàng ngày")
-  note String @default("")
-  enabled Boolean @default(true)
-  sortOrder Int @default(0)
-  updatedAt DateTime @updatedAt
-}
 model Outbox {
   id String @id @default(uuid()) @db.Uuid
   event String

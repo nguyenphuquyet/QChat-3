@@ -25,11 +25,6 @@ import {
   normalizePermissions,
 } from "../security/permissions";
 import { isLinkPlatform, readSiteLinks } from "./site-links";
-import {
-  isPaymentServiceKey,
-  paymentServiceGroups,
-  readPaymentServices,
-} from "./payment-services";
 import { uuid } from "../../../../packages/contracts";
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -854,7 +849,7 @@ export async function handle(request: Request) {
           requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
           const today = new Date();
           today.setUTCHours(0, 0, 0, 0);
-          const [balances, wallets, transactions, volume, pending, services] =
+          const [balances, wallets, transactions, volume, pending] =
             await Promise.all([
               db.wallet.aggregate({ _sum: { balance: true } }),
               db.wallet.count(),
@@ -868,7 +863,6 @@ export async function handle(request: Request) {
                 _count: { _all: true },
                 _sum: { amount: true },
               }),
-              readPaymentServices(),
             ]);
           result = {
             summary: {
@@ -878,9 +872,6 @@ export async function handle(request: Request) {
               volumeToday: volume._sum.amount ?? 0,
               pendingTransfers: pending._count._all,
               pendingAmount: pending._sum.amount ?? 0,
-              services: services.length,
-              activeServices: services.filter((service) => service.enabled)
-                .length,
             },
           };
         }
@@ -945,40 +936,6 @@ export async function handle(request: Request) {
             return tx.wallet.findUniqueOrThrow({ where: { userId: targetId } });
           });
           result = { balance: wallet.balance };
-        }
-        if (method === "GET" && path[1] === "services") {
-          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
-          result = await readPaymentServices();
-        }
-        if (method === "PATCH" && path[1] === "services" && path[2]) {
-          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
-          const key = path[2];
-          requireCondition(isPaymentServiceKey(key), 400, "UNKNOWN_SERVICE");
-          const v = z
-            .object({
-              label: z.string().trim().min(1).max(40),
-              group: z.enum(paymentServiceGroups),
-              note: z.string().trim().max(300),
-              enabled: z.boolean(),
-              sortOrder: z.number().int().min(0).max(10000),
-            })
-            .strict()
-            .parse(body);
-          await db.$transaction([
-            db.paymentService.upsert({
-              where: { key },
-              create: { key, ...v },
-              update: v,
-            }),
-            db.auditLog.create({
-              data: {
-                actorId: userId,
-                action: "PAYMENT_SERVICE_UPDATE",
-                targetId: key,
-              },
-            }),
-          ]);
-          result = { ok: true };
         }
         if (method === "PATCH" && path[1] === "reports") {
           requireCondition(canManage(auth, "reports"), 403, "FORBIDDEN");

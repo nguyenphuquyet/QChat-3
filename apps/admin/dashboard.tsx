@@ -63,8 +63,8 @@ const permissions: { id: Permission; label: string; hint: string }[] = [
   },
   {
     id: "payments",
-    label: "Thanh toán & dịch vụ",
-    hint: "Ví, giao dịch và danh mục dịch vụ",
+    label: "Thanh toán",
+    hint: "Ví và lịch sử giao dịch",
   },
   { id: "reports", label: "Báo cáo", hint: "Xử lý báo cáo vi phạm" },
   { id: "feedback", label: "Phản hồi", hint: "Xử lý góp ý người dùng" },
@@ -210,8 +210,6 @@ type PaymentSummary = {
   volumeToday: number;
   pendingTransfers: number;
   pendingAmount: number;
-  services: number;
-  activeServices: number;
 };
 type PaymentUser = {
   id: string;
@@ -236,14 +234,6 @@ type PaymentWallet = {
   updatedAt: string;
   user: PaymentUser;
 };
-type PaymentService = {
-  key: string;
-  label: string;
-  group: string;
-  note: string;
-  enabled: boolean;
-  sortOrder: number;
-};
 const navigation: {
   id: Section;
   label: string;
@@ -260,7 +250,7 @@ const navigation: {
   },
   {
     id: "payments",
-    label: "Thanh toán & dịch vụ",
+    label: "Thanh toán",
     icon: Wallet,
     permission: "payments",
   },
@@ -307,11 +297,6 @@ const paymentKindLabel = (kind: string) =>
       ADMIN_DEBIT: "Admin trừ",
     }) as Record<string, string>
   )[kind] ?? kind;
-const paymentServiceGroups = [
-  "Dịch vụ tài chính",
-  "Dịch vụ hàng ngày",
-  "Du lịch & Di chuyển",
-];
 const miniStatus = (status: string) =>
   (
     ({
@@ -414,7 +399,6 @@ function failure(error: unknown) {
         NOT_FOUND: "Không tìm thấy dữ liệu cần thao tác.",
         INVALID_STATE: "Mục này vừa được xử lý ở nơi khác. Hãy làm mới.",
         INSUFFICIENT_FUNDS: "Số dư ví không đủ để thực hiện giao dịch.",
-        UNKNOWN_SERVICE: "Dịch vụ không nằm trong danh mục quản lý.",
         REASON_REQUIRED: "Cần nhập lý do từ chối (ít nhất 3 ký tự).",
         RATE_LIMITED: "Bạn thao tác quá nhanh. Vui lòng thử lại sau.",
       } as Record<string, string>
@@ -471,7 +455,6 @@ export default function Dashboard() {
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(
     null,
   );
-  const [paymentServices, setPaymentServices] = useState<PaymentService[]>([]);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [txTotal, setTxTotal] = useState(0);
   const [txPage, setTxPage] = useState(1);
@@ -487,7 +470,6 @@ export default function Dashboard() {
   const [adjustTarget, setAdjustTarget] = useState<PaymentWallet | null>(null);
   const [adjustAmount, setAdjustAmount] = useState("");
   const [adjustNote, setAdjustNote] = useState("");
-  const [serviceBusy, setServiceBusy] = useState("");
   const revision = useRef(0);
 
   async function raw(
@@ -569,7 +551,7 @@ export default function Dashboard() {
         setApps(list.items);
         setAppTotal(list.total);
       } else if (target === "payments") {
-        const [summary, tx, walletList, services] = await Promise.all([
+        const [summary, tx, walletList] = await Promise.all([
           api("/admin/payments"),
           api(
             `/admin/payments/transactions?page=${txPage}&q=${encodeURIComponent(txSearch)}&kind=${encodeURIComponent(txKind)}`,
@@ -577,7 +559,6 @@ export default function Dashboard() {
           api(
             `/admin/payments/wallets?page=${walletPage}&q=${encodeURIComponent(walletSearch)}`,
           ),
-          api("/admin/services"),
         ]);
         if (current !== revision.current) return;
         setPaymentSummary(summary.summary);
@@ -585,7 +566,6 @@ export default function Dashboard() {
         setTxTotal(tx.total);
         setWallets(walletList.items);
         setWalletTotal(walletList.total);
-        setPaymentServices(services);
       } else if (target === "users") {
         const result = await api(
           `/admin/users?page=${page}&q=${encodeURIComponent(search)}`,
@@ -711,7 +691,6 @@ export default function Dashboard() {
       setPaymentSummary(null);
       setTransactions([]);
       setWallets([]);
-      setPaymentServices([]);
       setAdjustTarget(null);
       setStats(null);
       setUsers([]);
@@ -958,31 +937,6 @@ export default function Dashboard() {
       setPayBusy("");
     }
   }
-  function editService(key: string, patch: Partial<PaymentService>) {
-    setPaymentServices((rows) =>
-      rows.map((row) => (row.key === key ? { ...row, ...patch } : row)),
-    );
-  }
-  async function saveService(service: PaymentService) {
-    setServiceBusy(service.key);
-    setError("");
-    setNotice("");
-    try {
-      await api(`/admin/services/${service.key}`, "PATCH", {
-        label: service.label,
-        group: service.group,
-        note: service.note,
-        enabled: service.enabled,
-        sortOrder: service.sortOrder,
-      });
-      setNotice(`Đã lưu dịch vụ ${service.label}.`);
-      await load("payments");
-    } catch (e) {
-      setError(failure(e));
-    } finally {
-      setServiceBusy("");
-    }
-  }
   const visibleNavigation = navigation.filter(
     (item) =>
       !item.permission ||
@@ -1224,7 +1178,7 @@ export default function Dashboard() {
                     : section === "miniapps"
                       ? "Duyệt bản build và yêu cầu quyền của Mini App."
                       : section === "payments"
-                        ? "Theo dõi ví, giao dịch và cấu hình dịch vụ thanh toán."
+                        ? "Theo dõi số dư ví và lịch sử giao dịch."
                         : section === "reports"
                           ? "Xem xét phản ánh để cộng đồng an toàn hơn."
                           : section === "feedback"
@@ -1798,7 +1752,7 @@ export default function Dashboard() {
 
           {section === "payments" && (
             <div className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {[
                   {
                     label: "Tổng số dư ví",
@@ -1817,12 +1771,6 @@ export default function Dashboard() {
                     value: number(paymentSummary?.transactions ?? 0),
                     detail: `${number(paymentSummary?.pendingTransfers ?? 0)} lượt chuyển đang chờ nhận · ${money(paymentSummary?.pendingAmount ?? 0)}`,
                     icon: Receipt,
-                  },
-                  {
-                    label: "Dịch vụ đang bật",
-                    value: `${number(paymentSummary?.activeServices ?? 0)}/${number(paymentSummary?.services ?? 0)}`,
-                    detail: "Danh mục dịch vụ thanh toán",
-                    icon: CreditCard,
                   },
                 ].map(({ label, value, detail, icon: Icon }) => (
                   <Card key={label} className="p-5">
@@ -2090,133 +2038,6 @@ export default function Dashboard() {
                   </div>
                 </div>
               </Card>
-
-              <Card>
-                <div className="border-b border-slate-100 p-5">
-                  <h2 className="font-bold">Danh mục dịch vụ thanh toán</h2>
-                  <p className="mt-1 text-xs leading-5 text-slate-400">
-                    Tên, nhóm và trạng thái hiển thị của từng dịch vụ trong ứng
-                    dụng. Tắt dịch vụ để ẩn khỏi danh mục mà không cần phát hành
-                    bản mới.
-                  </p>
-                </div>
-                {busy && paymentServices.length === 0 ? (
-                  <Spinner label="Đang tải dịch vụ" />
-                ) : paymentServices.length === 0 ? (
-                  <Empty>Chưa có dịch vụ nào.</Empty>
-                ) : (
-                  <div className="grid gap-4 p-5 lg:grid-cols-2">
-                    {paymentServices.map((service) => (
-                      <div
-                        key={service.key}
-                        className="rounded-xl border border-slate-200 p-4"
-                      >
-                        <div className="mb-3 flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-bold">{service.label}</p>
-                            <p className="mt-1 font-mono text-[11px] text-slate-400">
-                              {service.key}
-                            </p>
-                          </div>
-                          <Badge warning={!service.enabled}>
-                            {service.enabled ? "Đang bật" : "Đang tắt"}
-                          </Badge>
-                        </div>
-                        <div className="space-y-3">
-                          <label className="block text-xs font-semibold text-slate-600">
-                            Tên hiển thị
-                            <input
-                              className={`${inputStyle} mt-1.5 py-2`}
-                              maxLength={40}
-                              onChange={(e) =>
-                                editService(service.key, {
-                                  label: e.target.value,
-                                })
-                              }
-                              value={service.label}
-                            />
-                          </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <label className="block text-xs font-semibold text-slate-600">
-                              Nhóm
-                              <select
-                                className={`${inputStyle} mt-1.5 py-2`}
-                                onChange={(e) =>
-                                  editService(service.key, {
-                                    group: e.target.value,
-                                  })
-                                }
-                                value={service.group}
-                              >
-                                {paymentServiceGroups.map((group) => (
-                                  <option key={group} value={group}>
-                                    {group}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="block text-xs font-semibold text-slate-600">
-                              Thứ tự
-                              <input
-                                className={`${inputStyle} mt-1.5 py-2`}
-                                max={10000}
-                                min={0}
-                                onChange={(e) =>
-                                  editService(service.key, {
-                                    sortOrder: Number(e.target.value) || 0,
-                                  })
-                                }
-                                type="number"
-                                value={service.sortOrder}
-                              />
-                            </label>
-                          </div>
-                          <label className="block text-xs font-semibold text-slate-600">
-                            Ghi chú
-                            <textarea
-                              className={`${inputStyle} mt-1.5 min-h-[62px] resize-y py-2`}
-                              maxLength={300}
-                              onChange={(e) =>
-                                editService(service.key, {
-                                  note: e.target.value,
-                                })
-                              }
-                              value={service.note}
-                            />
-                          </label>
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                              <input
-                                checked={service.enabled}
-                                className="h-4 w-4 accent-emerald-600"
-                                onChange={(e) =>
-                                  editService(service.key, {
-                                    enabled: e.target.checked,
-                                  })
-                                }
-                                type="checkbox"
-                              />
-                              Hiển thị trong ứng dụng
-                            </label>
-                            <button
-                              className={buttonStyle}
-                              disabled={serviceBusy === service.key}
-                              onClick={() => void saveService(service)}
-                            >
-                              {serviceBusy === service.key ? (
-                                <Loader2 className="animate-spin" size={15} />
-                              ) : (
-                                <Save size={15} />
-                              )}
-                              Lưu
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
             </div>
           )}
 
@@ -2444,8 +2265,6 @@ export default function Dashboard() {
                                   "Thu hồi phiên đăng nhập",
                                 SITE_LINK_UPDATE: "Sửa liên kết trang chủ",
                                 PAYMENT_WALLET_ADJUST: "Điều chỉnh số dư ví",
-                                PAYMENT_SERVICE_UPDATE:
-                                  "Cập nhật dịch vụ thanh toán",
                                 MINIAPP_APPROVED: "Duyệt Mini App",
                                 MINIAPP_REJECTED: "Từ chối Mini App",
                                 MINIAPP_PERMISSION_APPROVED:

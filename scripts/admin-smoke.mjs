@@ -233,13 +233,6 @@ try {
     payments.status === 200 && typeof payments.data.summary?.totalBalance === "number",
     "payment summary is readable",
   );
-  const services = await request("/admin/services", "GET", undefined, admin.token);
-  check(
-    services.status === 200 &&
-      Array.isArray(services.data) &&
-      services.data.length > 0,
-    "payment service catalogue is readable",
-  );
   const transactionList = await request(
     "/admin/payments/transactions",
     "GET",
