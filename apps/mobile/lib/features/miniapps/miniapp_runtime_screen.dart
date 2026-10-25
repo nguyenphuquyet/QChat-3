@@ -245,6 +245,15 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     _bridge = bridge;
 
     await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+    // A two-finger pinch leaves the page scaled down inside the WebView: the
+    // app keeps its zoomed layout, buttons no longer line up with the screen
+    // edge and the uncovered strip stays blank. Mini apps are laid out for the
+    // full viewport, so the host owns scaling and pinch zoom stays off.
+    try {
+      await controller.enableZoom(false);
+    } catch (_) {
+      // Platform implementations that predate enableZoom keep their defaults.
+    }
     await controller.setBackgroundColor(
       dark ? const Color(0xff111111) : Colors.white,
     );

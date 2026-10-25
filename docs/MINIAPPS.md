@@ -213,7 +213,10 @@ are JSON. A different app cannot read another app's namespace.
    floats a menu button and a close button over its top right corner. Reload and
    favorite live in that menu. `QChat.getSystemInfo()` reports `safeAreaTop` and
    `safeAreaBottom` so packages can keep their own content clear of the status
-   bar, the navigation bar and the floating buttons.
+   bar, the navigation bar and the floating buttons. Pinch zoom is disabled on
+   the WebView (`enableZoom(false)`): zooming left the page scaled down with a
+   blank strip and misaligned controls, and mini apps are laid out for the full
+   viewport.
 
 The runtime uses a host-side share sheet with copy-to-clipboard rather than a
 native share plugin; this is intentional for the current dependency set.

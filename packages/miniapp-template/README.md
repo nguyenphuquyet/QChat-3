@@ -33,7 +33,7 @@ npm install @qchat/miniapp-sdk
 
 ```
 qchat.manifest.json   App id, version, entry and requested permissions
-src/App.tsx           Example calls to the SDK
+src/App.tsx           Demo screen: host-safe header, cards and SDK calls
 vite.config.ts        base: "./" so assets work on the runtime origin
 scripts/package.mjs   Dependency-free ZIP writer
 ```
@@ -43,8 +43,17 @@ scripts/package.mjs   Dependency-free ZIP writer
 The runtime draws no header of its own: the mini app owns the whole screen and
 the host only floats a menu button and a close button over the top right
 corner. Keep that strip (about `92 x 46` logical pixels, starting at the top
-safe area) free of controls — the starter does it with the `--capsule` CSS
-variable.
+safe area) free of controls — the starter's sticky `.app-bar` does it with the
+`--capsule` CSS variable, so the app title and the host buttons never overlap.
+
+`App.tsx` is a demo screen rather than a blank page: header with the app name,
+a hero card with live counters, a checklist, bridge actions and a device card.
+Keep the header when you replace the content, otherwise your first row of
+buttons slides under the host's menu and close buttons.
+
+The runtime disables pinch zoom, so the page is always laid out at the device
+width. Design for the viewport and scroll vertically instead of expecting the
+user to zoom.
 
 `QChat.getSystemInfo()` reports `safeAreaTop` and `safeAreaBottom`; the starter
 writes them into the `--safe-top` / `--safe-bottom` CSS variables because
