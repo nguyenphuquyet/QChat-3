@@ -17,8 +17,11 @@ import {
   buildLocation,
   deleteBuild,
   putBuild,
+  readBuild,
   storageMode,
 } from "../services/miniapp-storage";
+import { readPreviewFile } from "../services/miniapp-preview";
+import { readSiteLinks } from "../services/site-links";
 import { inspectBuild, PackageError } from "../services/miniapp-package";
 import { publicUser } from "../services/messages";
 
@@ -414,6 +417,17 @@ async function developerRoute(
       orderBy: { createdAt: "desc" },
       take: 100,
     });
+  }
+
+  if (section === "ide" && method === "GET") {
+    const links = await readSiteLinks();
+    const ide = links.find((link) => link.platform === "ide");
+    return {
+      label: ide?.label ?? "QChat Mini App IDE",
+      url: ide?.url ?? "",
+      note: ide?.note ?? "",
+      enabled: ide?.enabled ?? false,
+    };
   }
 
   if (section !== "apps") return undefined;
@@ -927,6 +941,47 @@ async function developerRoute(
   }
 
   return undefined;
+}
+
+/// Reviewer preview. Only administrators can open a build that is waiting in
+/// the review queue; the ZIP is read from private storage and one file at a
+/// time is returned, never an extraction directory.
+export async function miniAppPreview(
+  userId: string,
+  role: string,
+  versionId: string,
+  requested: string,
+) {
+  reviewer(role);
+  const build = await db.miniAppVersion.findUnique({
+    where: { id: z.string().uuid().parse(versionId) },
+    include: { miniApp: { select: { appId: true, name: true } } },
+  });
+  requireCondition(build, 404, "NOT_FOUND");
+  requireCondition(build.status === "REVIEWING", 409, "INVALID_STATE");
+  const parts = requested.split("/").filter(Boolean);
+  requireCondition(
+    !parts.some((part) => part === "." || part === "..") &&
+      !requested.includes("\\"),
+    400,
+    "ZIP_INVALID_NAME",
+  );
+  const archive = await readBuild(build.storageKey);
+  const file = readPreviewFile(
+    archive,
+    {
+      appId: build.miniApp.appId,
+      name: build.miniApp.name,
+      version: build.version,
+      entry: build.entry,
+      runtimeVersion,
+      minRuntimeVersion: build.minRuntimeVersion,
+      permissions: build.requestedPermissions,
+    },
+    parts.join("/"),
+  );
+  requireCondition(file, 404, "NOT_FOUND");
+  return { ...file, appId: build.miniApp.appId, version: build.version };
 }
 
 /// Entry point for the admin console. The caller authorizes the `miniapps`

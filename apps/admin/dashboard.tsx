@@ -50,14 +50,14 @@ const permissions: { id: Permission; label: string; hint: string }[] = [
   { id: "miniapps", label: "Mini App", hint: "Duyệt bản build và yêu cầu quyền" },
   { id: "reports", label: "Báo cáo", hint: "Xử lý báo cáo vi phạm" },
   { id: "feedback", label: "Phản hồi", hint: "Xử lý góp ý người dùng" },
-  { id: "landing", label: "Trang chủ", hint: "Sửa liên kết tải app" },
+  { id: "landing", label: "Trang chủ", hint: "Sửa liên kết tải app và IDE" },
   { id: "audit", label: "Nhật ký", hint: "Xem lịch sử thao tác quản trị" },
   { id: "system", label: "Hệ thống", hint: "Kiểm tra sức khỏe dịch vụ" },
 ];
 const permissionLabel = (id: string) =>
   permissions.find((item) => item.id === id)?.label ?? id;
 type SiteLink = {
-  platform: "web" | "android" | "ios" | "github";
+  platform: "web" | "android" | "ios" | "github" | "ide";
   label: string;
   url: string;
   note: string;
@@ -1825,11 +1825,12 @@ export default function Dashboard() {
               <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
                 <div>
                   <h2 className="text-sm font-bold">
-                    Liên kết trên trang giới thiệu
+                    Liên kết tải app và IDE phát triển
                   </h2>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
                     Người dùng thấy các nút này ở trang chủ và mục tải app.
-                    Tắt hiển thị nếu chưa có bản build.
+                    Riêng IDE hiện nút tải trong Developer Center. Tắt hiển thị
+                    nếu chưa có bản build hoặc liên kết.
                   </p>
                 </div>
                 <a
@@ -1908,7 +1909,9 @@ export default function Dashboard() {
                             }
                             type="checkbox"
                           />
-                          Hiển thị trên trang chủ
+                          {link.platform === "ide"
+                            ? "Hiển thị nút tải trong Developer Center"
+                            : "Hiển thị trên trang chủ"}
                         </label>
                       </div>
                       <div className="mt-6 flex flex-wrap items-center gap-4">

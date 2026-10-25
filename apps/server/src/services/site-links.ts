@@ -2,7 +2,7 @@ import { db } from "./db";
 
 /// Landing page links are stored in PostgreSQL so an administrator can change
 /// them from the admin console without rebuilding the application.
-export const linkPlatforms = ["web", "android", "ios", "github"] as const;
+export const linkPlatforms = ["web", "android", "ios", "github", "ide"] as const;
 export type LinkPlatform = (typeof linkPlatforms)[number];
 export type SiteLink = {
   platform: LinkPlatform;
@@ -39,6 +39,12 @@ const defaults: Record<LinkPlatform, Omit<SiteLink, "platform">> = {
     url: repository,
     note: "Mã nguồn QChat và các bản build tự động.",
     enabled: true,
+  },
+  ide: {
+    label: "QChat Mini App IDE",
+    url: "",
+    note: "Trình soạn thảo và bộ công cụ chính thức để phát triển Mini App trên máy của bạn.",
+    enabled: false,
   },
 };
 

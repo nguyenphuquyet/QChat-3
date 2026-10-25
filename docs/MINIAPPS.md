@@ -15,6 +15,8 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP and manifest security checks |
 | SDK | `packages/miniapp-sdk` | `@qchat/miniapp-sdk` typed bridge client |
+| IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
+| Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Serves one stored build file inside an isolated frame |
 | Starter | `packages/miniapp-template` | React + Vite project and dependency-free ZIP packager |
 | Runtime | `apps/mobile/lib/features/miniapps` | Download, verify, cache, loopback server, WebView bridge |
 | Contracts | `packages/contracts/miniapps.ts` | Permissions, categories, manifest schema, API allowlist |
@@ -86,6 +88,7 @@ a multipart `file` field.
 | Method | Path |
 | --- | --- |
 | `GET` | `/api/miniapps/developer/dashboard` |
+| `GET` | `/api/miniapps/developer/ide` |
 | `GET` | `/api/miniapps/developer/audit` |
 | `GET` / `POST` | `/api/miniapps/developer/apps` |
 | `GET` / `PATCH` | `/api/miniapps/developer/apps/:appId` |
@@ -107,6 +110,27 @@ a multipart `file` field.
 
 Every release, revoke, review decision, suspension and API-key action writes an
 `AuditLog` row prefixed with `MINIAPP_`. Rate limits apply per user.
+
+### Reviewer preview
+
+The Developer Center review queue can run a build before it is approved. The
+preview is available only to administrators, only for a build in `REVIEWING`,
+and only through the cookie proxy:
+
+```
+GET /api/developer/miniapps/review/versions/:versionId/preview/<entry file>
+```
+
+The stored ZIP is read from private storage and one file is returned per
+request; nothing is extracted to disk. HTML entries receive a small script that
+simulates `window.QChatNative` (`getAppInfo`, `getSystemInfo`, storage, toast)
+so the UI renders without the Flutter host. The frame is sandboxed with an
+opaque origin, so the preview cannot read the reviewer's session or call QChat
+APIs.
+
+The IDE tab downloads whatever link an administrator saves under the `ide`
+platform in the admin console; the link is served by
+`GET /api/miniapps/developer/ide` so the Developer Center never needs a rebuild.
 
 ## Package format
 

@@ -22,6 +22,12 @@ import {
   buildLocation,
   verifyBlobToken,
 } from "../apps/server/src/services/miniapp-storage";
+import {
+  injectPreviewBridge,
+  previewContentType,
+  readPreviewFile,
+  type PreviewMeta,
+} from "../apps/server/src/services/miniapp-preview";
 
 type Entry = {
   name: string;
@@ -361,6 +367,55 @@ test("permission catalog and API allowlist stay in sync", () => {
   );
   for (const permission of Object.values(miniappApiAllowlist))
     assert.ok(miniappPermissionIds.includes(permission));
+});
+
+test("review preview serves stored files and injects the bridge into HTML", () => {
+  const meta: PreviewMeta = {
+    appId: manifest.appId,
+    name: manifest.name,
+    version: manifest.version,
+    entry: "index.html",
+    runtimeVersion: "1.0.0",
+    minRuntimeVersion: manifest.minRuntimeVersion,
+    permissions: manifest.requestedPermissions,
+  };
+  const zip = makeZip([
+    { name: "qchat.manifest.json", data: JSON.stringify(manifest) },
+    {
+      name: "index.html",
+      data: '<!doctype html><html><head><script src="./assets/app.js"></script></head><body><div id="root"></div></body></html>',
+      method: 8,
+    },
+    { name: "assets/app.js", data: "console.log('preview')", method: 8 },
+  ]);
+  const page = readPreviewFile(zip, meta, "");
+  assert.equal(page?.name, "index.html");
+  assert.equal(page?.type, "text/html; charset=utf-8");
+  const html = page!.bytes.toString("utf8");
+  assert.ok(html.indexOf("__QCHAT_PREVIEW__") < html.indexOf("./assets/app.js"));
+  const script = readPreviewFile(zip, meta, "assets/app.js");
+  assert.equal(script?.type, "text/javascript; charset=utf-8");
+  assert.equal(script?.bytes.toString("utf8"), "console.log('preview')");
+  assert.equal(readPreviewFile(zip, meta, "missing.js"), null);
+  assert.equal(previewContentType("assets/app.js"), "text/javascript; charset=utf-8");
+  assert.equal(previewContentType("unknown.bin"), "application/octet-stream");
+});
+
+test("preview bridge escapes manifest strings and works without a head", () => {
+  const meta: PreviewMeta = {
+    appId: manifest.appId,
+    name: "</script><img src=x onerror=alert(1)>",
+    version: manifest.version,
+    entry: "index.html",
+    runtimeVersion: "1.0.0",
+    minRuntimeVersion: manifest.minRuntimeVersion,
+    permissions: [],
+  };
+  const injected = injectPreviewBridge("<html><head></head><body></body></html>", meta);
+  assert.equal(injected.includes("</script><img"), false);
+  const bare = injectPreviewBridge("<h1>hi</h1>", meta);
+  assert.ok(bare.startsWith("<script>"));
+  assert.ok(bare.endsWith("<h1>hi</h1>"));
 });
 
 test("filesystem build links are signed and expire", async () => {

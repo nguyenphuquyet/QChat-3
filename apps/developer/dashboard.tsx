@@ -15,6 +15,7 @@ import {
   Code2,
   Copy,
   Download,
+  Eye,
   FileArchive,
   Globe2,
   KeyRound,
@@ -43,7 +44,7 @@ import {
 } from "lucide-react";
 
 type Lang = "vi" | "en";
-type Section = "overview" | "apps" | "reviews" | "audit" | "docs";
+type Section = "overview" | "apps" | "reviews" | "audit" | "docs" | "ide";
 type Tab = "overview" | "builds" | "releases" | "permissions" | "analytics" | "team" | "keys";
 
 type User = {
@@ -152,6 +153,12 @@ type Dashboard = {
     note: string;
     createdAt: string;
   }[];
+};
+type IdeLink = {
+  label: string;
+  url: string;
+  note: string;
+  enabled: boolean;
 };
 type Analytics = {
   since: string;
@@ -347,6 +354,22 @@ const copy = {
     docsPublish: "Quy trình phát hành",
     docsSecurity: "Bảo mật",
     docsUpload: "Tải build bằng CI",
+    ide: "IDE phát triển",
+    ideTitle: "IDE phát triển Mini App",
+    ideSubtitle:
+      "Tải trình soạn thảo và bộ công cụ QChat để xây dựng Mini App trên máy của bạn.",
+    ideDownload: "Tải IDE",
+    ideUnavailable:
+      "Quản trị viên chưa cấu hình liên kết tải IDE. Vui lòng quay lại sau.",
+    ideReady: "Liên kết tải do quản trị viên cung cấp.",
+    ideHint:
+      "Mở IDE, tạo dự án từ template, chạy thử rồi đóng gói ZIP để tải build lên đây.",
+    preview: "Xem trước",
+    previewTitle: "Xem trước bản build",
+    previewNote:
+      "Bản xem trước chạy mã thật trong khung cô lập. API của QChat được mô phỏng.",
+    openInNewTab: "Mở tab mới",
+    close: "Đóng",
   },
   en: {
     workspace: "Developer workspace",
@@ -499,6 +522,22 @@ const copy = {
     docsPublish: "Release flow",
     docsSecurity: "Security",
     docsUpload: "Upload from CI",
+    ide: "Development IDE",
+    ideTitle: "Mini App development IDE",
+    ideSubtitle:
+      "Download the QChat editor and tooling to build Mini Apps on your machine.",
+    ideDownload: "Download IDE",
+    ideUnavailable:
+      "The administrator has not configured an IDE download link yet. Check back later.",
+    ideReady: "The download link is provided by an administrator.",
+    ideHint:
+      "Open the IDE, scaffold a project from the template, test it, then package a ZIP and upload the build here.",
+    preview: "Preview",
+    previewTitle: "Preview build",
+    previewNote:
+      "The preview runs the real code in an isolated frame. QChat APIs are simulated.",
+    openInNewTab: "Open in new tab",
+    close: "Close",
   },
 } as const;
 
@@ -813,6 +852,7 @@ export default function DeveloperCenter() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
   const [queue, setQueue] = useState<Queue | null>(null);
+  const [ide, setIde] = useState<IdeLink | null>(null);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [newSecret, setNewSecret] = useState("");
   const [copied, setCopied] = useState("");
@@ -960,6 +1000,20 @@ export default function DeveloperCenter() {
     }
   }
 
+  async function loadIde() {
+    const current = ++revision.current;
+    setBusy(true);
+    setError("");
+    try {
+      const data = await api<IdeLink>("/miniapps/developer/ide");
+      if (current === revision.current) setIde(data);
+    } catch (e) {
+      if (current === revision.current) failed(e);
+    } finally {
+      if (current === revision.current) setBusy(false);
+    }
+  }
+
   async function loadQueue() {
     const current = ++revision.current;
     setBusy(true);
@@ -993,6 +1047,7 @@ export default function DeveloperCenter() {
     if (section === "overview") void loadOverview();
     else if (section === "apps" && !selected) void loadApps();
     else if (section === "reviews") void loadQueue();
+    else if (section === "ide") void loadIde();
     else if (section === "audit") void loadAudit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, section, selected, search, statusFilter]);
@@ -1022,6 +1077,7 @@ export default function DeveloperCenter() {
     else if (section === "apps" && selected) await loadDetail(selected);
     else if (section === "apps") await loadApps();
     else if (section === "reviews") await loadQueue();
+    else if (section === "ide") await loadIde();
     else await loadAudit();
   }
 
@@ -1193,6 +1249,7 @@ export default function DeveloperCenter() {
     ...(user.reviewer
       ? [{ id: "reviews" as Section, label: t("reviews"), icon: ClipboardCheck }]
       : []),
+    { id: "ide", label: t("ide"), icon: Download },
     { id: "audit", label: t("audit"), icon: ScrollText },
     { id: "docs", label: t("docs"), icon: BookOpen },
   ];
@@ -1404,6 +1461,15 @@ export default function DeveloperCenter() {
                 lang={lang}
                 act={act}
                 failed={failed}
+              />
+            )}
+            {section === "ide" && (
+              <IdeSection
+                ide={ide}
+                loading={busy}
+                t={t}
+                lang={lang}
+                onRefresh={() => void loadIde()}
               />
             )}
             {section === "audit" && (
@@ -3005,6 +3071,99 @@ function Keys({
   );
 }
 
+function IdeSection({
+  ide,
+  loading,
+  t,
+  lang,
+  onRefresh,
+}: {
+  ide: IdeLink | null;
+  loading: boolean;
+  t: (key: CopyKey) => string;
+  lang: Lang;
+  onRefresh: () => void;
+}) {
+  const vi = lang === "vi";
+  const link =
+    ide && ide.enabled && /^(https?:\/\/|\/)/i.test(ide.url) ? ide.url : "";
+  return (
+    <>
+      <PageHead title={t("ideTitle")} subtitle={t("ideSubtitle")} />
+      <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+        <section className={card}>
+          {loading && !ide ? (
+            <Loading />
+          ) : (
+            <>
+              <div className="flex items-start gap-4">
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950 dark:text-emerald-300">
+                  <Download size={26} />
+                </span>
+                <div>
+                  <h2 className="text-lg font-extrabold">
+                    {ide?.label || "QChat Mini App IDE"}
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-slate-500 dark:text-slate-400">
+                    {ide?.note || t("ideHint")}
+                  </p>
+                </div>
+              </div>
+              {link ? (
+                <div className="mt-6 flex flex-wrap items-center gap-3">
+                  <a
+                    className={primary}
+                    href={link}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {t("ideDownload")} <ArrowRight size={16} />
+                  </a>
+                  <span className="text-xs text-slate-400">{t("ideReady")}</span>
+                </div>
+              ) : (
+                <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                  {t("ideUnavailable")}
+                </p>
+              )}
+              <button className={`${secondary} mt-5`} onClick={onRefresh}>
+                <RefreshCw size={15} className={loading ? "animate-spin" : ""} />{" "}
+                {t("refresh")}
+              </button>
+            </>
+          )}
+        </section>
+        <section className={card}>
+          <h2 className="flex items-center gap-2 text-sm font-bold">
+            <Sparkles size={17} className="text-emerald-600" />{" "}
+            {vi ? "Quy trình" : "Workflow"}
+          </h2>
+          <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+            {t("ideHint")}
+          </p>
+          <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-slate-600 dark:text-slate-300">
+            <li>
+              {vi
+                ? "Tạo ứng dụng để nhận app ID (mp_…) và tải IDE về máy."
+                : "Create an app to get an app ID (mp_…) and download the IDE."}
+            </li>
+            <li>
+              {vi
+                ? "Viết mã, khai báo quyền và chạy thử trong IDE."
+                : "Write code, declare permissions and test it in the IDE."}
+            </li>
+            <li>
+              {vi
+                ? "Đóng gói ZIP, tải build lên tab Build rồi gửi duyệt."
+                : "Package a ZIP, upload it in the Build tab and submit for review."}
+            </li>
+          </ol>
+        </section>
+      </div>
+    </>
+  );
+}
+
 function ReviewQueue({
   queue,
   loading,
@@ -3021,6 +3180,27 @@ function ReviewQueue({
   failed: (error: unknown) => void;
 }) {
   const [reason, setReason] = useState("");
+  const [preview, setPreview] = useState<{
+    id: string;
+    name: string;
+    version: string;
+    entry: string;
+  } | null>(null);
+  const [previewKey, setPreviewKey] = useState(0);
+  const previewUrl = preview
+    ? `/api/developer/miniapps/review/versions/${preview.id}/preview/${preview.entry
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/")}`
+    : "";
+  useEffect(() => {
+    if (!preview) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPreview(null);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [preview]);
   if (loading && !queue) return <Loading />;
   return (
     <>
@@ -3065,6 +3245,20 @@ function ReviewQueue({
                   </div>
                   <p className="mt-2 break-all font-mono text-[10px] text-slate-400">sha256 {build.sha256}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      className={`${secondary} px-3 py-1.5 text-xs`}
+                      onClick={() => {
+                        setPreview({
+                          id: build.id,
+                          name: build.miniApp.name,
+                          version: build.version,
+                          entry: build.entry,
+                        });
+                        setPreviewKey((key) => key + 1);
+                      }}
+                    >
+                      <Eye size={14} /> {t("preview")}
+                    </button>
                     <input
                       className={`${input} max-w-64 py-1.5 text-xs`}
                       placeholder={t("rejectReason")}
@@ -3185,6 +3379,65 @@ function ReviewQueue({
           )}
         </div>
       </div>
+      {preview && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${preview.name} ${preview.version}`}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="flex w-full max-w-[440px] flex-col overflow-hidden rounded-[2rem] border border-slate-700 bg-slate-900 p-2 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center gap-1.5 px-3 py-2 text-white">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">{preview.name}</p>
+                <p className="truncate text-[11px] text-slate-400">
+                  {t("previewTitle")} · v{preview.version}
+                </p>
+              </div>
+              <button
+                className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
+                onClick={() => setPreviewKey((key) => key + 1)}
+                title={t("refresh")}
+                aria-label={t("refresh")}
+              >
+                <RefreshCw size={16} />
+              </button>
+              <a
+                className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
+                href={previewUrl}
+                target="_blank"
+                rel="noreferrer"
+                title={t("openInNewTab")}
+                aria-label={t("openInNewTab")}
+              >
+                <ArrowRight size={16} />
+              </a>
+              <button
+                className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
+                onClick={() => setPreview(null)}
+                title={t("close")}
+                aria-label={t("close")}
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <iframe
+              key={previewKey}
+              title={`${preview.name} v${preview.version}`}
+              src={previewUrl}
+              sandbox="allow-scripts allow-forms allow-modals allow-popups"
+              className="h-[min(72vh,640px)] w-full rounded-[1.6rem] border-0 bg-white"
+            />
+            <p className="px-3 pb-2 pt-2 text-center text-[10px] leading-4 text-slate-400">
+              {t("previewNote")}
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { handle } from "../../../../src/services/api";
-import { uploadBuild } from "../../../../src/modules/miniapps";
+import { miniAppPreview, uploadBuild } from "../../../../src/modules/miniapps";
 import { accessToken, digest } from "../../../../src/security/auth";
 import { ApiError } from "../../../../src/security/errors";
 import { db } from "../../../../src/services/db";
@@ -19,7 +19,7 @@ async function session() {
   if (!token) return null;
   const record = await db.userSession.findUnique({
     where: { refreshHash: digest(token) },
-    include: { user: { select: { id: true, disabled: true } } },
+    include: { user: { select: { id: true, role: true, disabled: true } } },
   });
   if (
     !record ||
@@ -30,6 +30,7 @@ async function session() {
     return null;
   return {
     userId: record.userId,
+    role: record.user.role,
     token: await accessToken(record.userId, record.id),
   };
 }
@@ -65,6 +66,35 @@ async function proxy(request: Request, path: string[]) {
 
   const url = new URL(request.url);
   try {
+    const previewMatch =
+      method === "GET"
+        ? /^miniapps\/review\/versions\/([0-9a-f-]{36})\/preview(?:\/(.*))?$/.exec(
+            joined,
+          )
+        : null;
+    if (previewMatch) {
+      const file = await miniAppPreview(
+        user.userId,
+        user.role,
+        previewMatch[1],
+        previewMatch[2] ?? "",
+      );
+      return new Response(new Uint8Array(file.bytes), {
+        headers: {
+          "Content-Type": file.type,
+          "Content-Length": String(file.bytes.length),
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          "Referrer-Policy": "no-referrer",
+          // The frame runs with an opaque origin. CORS stays open so Vite's
+          // module scripts and fonts load inside that sandbox; the endpoint
+          // still requires the reviewer's httpOnly session cookie.
+          "Access-Control-Allow-Origin": "*",
+          "Content-Security-Policy":
+            "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads",
+        },
+      });
+    }
     const uploadMatch = method === "POST" ? uploadPath.exec(joined) : null;
     if (uploadMatch)
       return Response.json(await uploadBuild(user.userId, uploadMatch[1], await request.formData()), {
