@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "../services/db";
 import { ApiError, requireCondition } from "../security/errors";
@@ -1189,6 +1190,13 @@ export async function uploadBuild(
     return { build, manifest: inspected.manifest };
   } catch (error) {
     await deleteBuild(storageKey).catch(() => {});
+    // Two uploads of the same version can race past the check above; the unique
+    // index rejects one of them and it still has to read as a duplicate version.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    )
+      throw new ApiError(409, "VERSION_EXISTS");
     throw error;
   }
 }

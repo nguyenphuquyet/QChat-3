@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
-  ArrowUp,
   BookOpen,
   Boxes,
   Check,
@@ -251,7 +250,6 @@ const copy = {
     noResults: "Không tìm thấy ứng dụng phù hợp.",
     editApp: "Chỉnh sửa ứng dụng",
     saved: "Đã lưu thay đổi",
-    bumpVersion: "Nâng version",
     deleteApp: "Xoá ứng dụng",
     deleteAppNote:
       "Xoá vĩnh viễn ứng dụng này cùng toàn bộ build và dữ liệu liên quan? Hành động này không thể hoàn tác.",
@@ -404,7 +402,6 @@ const copy = {
     noResults: "No matching apps.",
     editApp: "Edit app",
     saved: "Changes saved",
-    bumpVersion: "Bump version",
     deleteApp: "Delete app",
     deleteAppNote:
       "Permanently delete this app along with all builds and related data? This cannot be undone.",
@@ -550,10 +547,237 @@ function when(value: string | null, lang: Lang) {
     timeStyle: "short",
   });
 }
-function nextVersion(current: string | null | undefined) {
-  const match = /^(\d{1,4})\.(\d{1,4})\.(\d{1,4})/.exec(current ?? "");
-  if (!match) return "1.0.0";
-  return `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
+// Every API error code the Developer Center can receive is translated here so
+// a failure never reaches the screen as a bare code such as VERSION_EXISTS.
+const errorMessages: Record<string, { vi: string; en: string }> = {
+  UNAUTHORIZED: {
+    vi: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.",
+    en: "Your session has expired. Please sign in again.",
+  },
+  INVALID_CREDENTIALS: {
+    vi: "QChat ID/email hoặc mật khẩu không đúng.",
+    en: "Incorrect QChat ID/email or password.",
+  },
+  ACCOUNT_DISABLED: {
+    vi: "Tài khoản này đã bị vô hiệu hoá.",
+    en: "This account is disabled.",
+  },
+  CSRF_REQUIRED: {
+    vi: "Yêu cầu bị chặn vì thiếu mã bảo vệ. Hãy tải lại trang rồi thử lại.",
+    en: "The request was blocked because its security token was missing. Reload the page and try again.",
+  },
+  FORBIDDEN: {
+    vi: "Bạn không có quyền thực hiện thao tác này.",
+    en: "You do not have permission to do this.",
+  },
+  NOT_FOUND: {
+    vi: "Không tìm thấy dữ liệu cần thao tác. Hãy làm mới trang.",
+    en: "The item could not be found. Refresh the page.",
+  },
+  VALIDATION_ERROR: {
+    vi: "Dữ liệu chưa hợp lệ. Kiểm tra lại các trường bắt buộc.",
+    en: "The data is not valid. Check the required fields.",
+  },
+  INVALID_URL: {
+    vi: "Đường dẫn phải là một URL HTTPS hợp lệ.",
+    en: "The address must be a valid HTTPS URL.",
+  },
+  RATE_LIMITED: {
+    vi: "Bạn thao tác quá nhanh. Vui lòng thử lại sau vài phút.",
+    en: "Too many requests. Please try again in a few minutes.",
+  },
+  SERVICE_ERROR: {
+    vi: "Máy chủ gặp sự cố khi xử lý yêu cầu. Vui lòng thử lại.",
+    en: "The server ran into a problem. Please try again.",
+  },
+  VERSION_EXISTS: {
+    vi: "Phiên bản này đã tồn tại trong ứng dụng. Hãy dùng số phiên bản mới hơn rồi tải lên lại.",
+    en: "This version already exists for the app. Use a new version number and upload again.",
+  },
+  VERSION_MISMATCH: {
+    vi: "Số phiên bản trong qchat.manifest.json khác với phiên bản bạn nhập.",
+    en: "The version in qchat.manifest.json does not match the version you entered.",
+  },
+  APP_ID_MISMATCH: {
+    vi: "appId trong qchat.manifest.json không khớp với ứng dụng đang tải lên.",
+    en: "The appId in qchat.manifest.json does not match the app you are uploading to.",
+  },
+  NO_VERSION: {
+    vi: "Ứng dụng chưa có bản build nào.",
+    en: "The app has no builds yet.",
+  },
+  NO_PUBLISHED_VERSION: {
+    vi: "Ứng dụng chưa có phiên bản nào được phát hành.",
+    en: "The app has no published version yet.",
+  },
+  NOT_PUBLISHED: {
+    vi: "Phiên bản này chưa được phát hành.",
+    en: "This version has not been published.",
+  },
+  VERSION_REVOKED: {
+    vi: "Phiên bản này đã bị thu hồi, không thể phát hành lại.",
+    en: "This version was revoked and cannot be released again.",
+  },
+  APP_SUSPENDED: {
+    vi: "Ứng dụng đang bị tạm ngưng.",
+    en: "The app is suspended.",
+  },
+  APP_QUOTA: {
+    vi: "Bạn đã đạt giới hạn số ứng dụng được tạo.",
+    en: "You have reached the app limit for your account.",
+  },
+  INVALID_STATE: {
+    vi: "Trạng thái vừa thay đổi ở nơi khác. Hãy làm mới trang rồi thử lại.",
+    en: "The state changed somewhere else. Refresh the page and try again.",
+  },
+  REASON_REQUIRED: {
+    vi: "Cần nhập lý do dài ít nhất 3 ký tự.",
+    en: "Enter a reason of at least 3 characters.",
+  },
+  ALREADY_DECLARED: {
+    vi: "Quyền này đã được khai báo trong manifest.",
+    en: "This permission is already declared in the manifest.",
+  },
+  ALREADY_OWNER: {
+    vi: "Người này đã là chủ sở hữu ứng dụng.",
+    en: "This person already owns the app.",
+  },
+  ALREADY_EXISTS: {
+    vi: "Mục này đã tồn tại.",
+    en: "This item already exists.",
+  },
+  OWNER_ONLY: {
+    vi: "Chỉ chủ sở hữu ứng dụng mới thực hiện được thao tác này.",
+    en: "Only the app owner can do this.",
+  },
+  OWNER_REQUIRED: {
+    vi: "Thao tác này cần quyền chủ sở hữu ứng dụng.",
+    en: "This action requires app owner rights.",
+  },
+  REVIEWER_REQUIRED: {
+    vi: "Chỉ quản trị viên mới duyệt được mục này.",
+    en: "Only administrators can review this item.",
+  },
+  USER_NOT_FOUND: {
+    vi: "Không tìm thấy tài khoản QChat này.",
+    en: "No QChat account matches that ID or email.",
+  },
+  NOTHING_TO_UPDATE: {
+    vi: "Không có thay đổi nào để lưu.",
+    en: "There is nothing to update.",
+  },
+  FILE_REQUIRED: {
+    vi: "Chưa chọn tệp ZIP để tải lên.",
+    en: "Choose a ZIP file to upload.",
+  },
+  BUILD_TOO_LARGE: {
+    vi: "Gói build vượt quá giới hạn 20 MB.",
+    en: "The build exceeds the 20 MB limit.",
+  },
+  BUILD_EMPTY: {
+    vi: "Gói build rỗng, không có tệp nào.",
+    en: "The build is empty and contains no files.",
+  },
+  MANIFEST_MISSING: {
+    vi: "Gói ZIP thiếu tệp qchat.manifest.json ở thư mục gốc.",
+    en: "The ZIP is missing qchat.manifest.json at its root.",
+  },
+  MANIFEST_INVALID_JSON: {
+    vi: "qchat.manifest.json không phải JSON hợp lệ.",
+    en: "qchat.manifest.json is not valid JSON.",
+  },
+  MANIFEST_INVALID: {
+    vi: "Nội dung qchat.manifest.json chưa hợp lệ. Kiểm tra lại các trường bắt buộc.",
+    en: "The contents of qchat.manifest.json are not valid. Check the required fields.",
+  },
+  MANIFEST_TOO_LARGE: {
+    vi: "qchat.manifest.json vượt quá dung lượng cho phép.",
+    en: "qchat.manifest.json is larger than allowed.",
+  },
+  ENTRY_MISSING: {
+    vi: "Tệp entry khai báo trong manifest không có trong gói ZIP.",
+    en: "The entry file declared in the manifest is missing from the ZIP.",
+  },
+  ENTRY_INVALID: {
+    vi: "Tệp entry trong manifest không hợp lệ (phải là tệp HTML).",
+    en: "The manifest entry file is not valid (it must be an HTML file).",
+  },
+  DUPLICATE_ENTRY: {
+    vi: "Gói ZIP có hai tệp trùng tên.",
+    en: "The ZIP contains two files with the same name.",
+  },
+  ZIP_INVALID: {
+    vi: "Tệp tải lên không phải gói ZIP hợp lệ.",
+    en: "The uploaded file is not a valid ZIP archive.",
+  },
+  ZIP_INVALID_NAME: {
+    vi: "Gói ZIP chứa đường dẫn không hợp lệ (../, đường dẫn tuyệt đối).",
+    en: "The ZIP contains an unsafe path (../ or an absolute path).",
+  },
+  ZIP_DUPLICATE_FILE: {
+    vi: "Gói ZIP có hai tệp trùng tên (không phân biệt hoa thường).",
+    en: "The ZIP contains duplicate file names (case-insensitive).",
+  },
+  ZIP_ENCRYPTED: {
+    vi: "Gói ZIP có tệp được mã hoá, không được phép.",
+    en: "The ZIP contains encrypted files, which are not allowed.",
+  },
+  ZIP_SYMLINK: {
+    vi: "Gói ZIP chứa symlink, không được phép.",
+    en: "The ZIP contains a symlink, which is not allowed.",
+  },
+  ZIP_FILE_TYPE: {
+    vi: "Gói ZIP chứa tệp thực thi hoặc loại tệp không được phép.",
+    en: "The ZIP contains an executable or a disallowed file type.",
+  },
+  ZIP_TOO_LARGE: {
+    vi: "Gói ZIP hoặc dữ liệu giải nén vượt quá giới hạn.",
+    en: "The ZIP or its inflated contents exceed the size limit.",
+  },
+  ZIP_ENTRY_TOO_LARGE: {
+    vi: "Một tệp trong gói ZIP vượt quá dung lượng cho phép.",
+    en: "A file inside the ZIP is larger than allowed.",
+  },
+  ZIP_TOO_MANY_FILES: {
+    vi: "Gói ZIP chứa quá nhiều tệp.",
+    en: "The ZIP contains too many files.",
+  },
+  ZIP_CHECKSUM: {
+    vi: "Gói ZIP bị hỏng (sai checksum). Hãy build lại rồi tải lên.",
+    en: "The ZIP is corrupted (checksum mismatch). Rebuild it and upload again.",
+  },
+  ZIP_COMPRESSION: {
+    vi: "Gói ZIP dùng kiểu nén không được hỗ trợ.",
+    en: "The ZIP uses an unsupported compression method.",
+  },
+  ZIP_EMPTY: {
+    vi: "Gói ZIP không có tệp nào.",
+    en: "The ZIP contains no files.",
+  },
+  ZIP64_UNSUPPORTED: {
+    vi: "Gói ZIP định dạng ZIP64 chưa được hỗ trợ.",
+    en: "ZIP64 archives are not supported.",
+  },
+};
+
+function describeError(error: unknown, lang: Lang) {
+  const code =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : "SERVICE_ERROR";
+  const message = errorMessages[code];
+  if (message) return message[lang];
+  return lang === "vi"
+    ? `Không thực hiện được yêu cầu (${code}). Vui lòng thử lại.`
+    : `The request could not be completed (${code}). Please try again.`;
+}
+
+function duplicateVersionError(version: string, lang: Lang) {
+  return lang === "vi"
+    ? `Phiên bản ${version} đã tồn tại trong ứng dụng này. Chọn số phiên bản khác rồi tải lên lại.`
+    : `Version ${version} already exists for this app. Pick a different version number and upload again.`;
 }
 function Badge({ value }: { value: string }) {
   return (
@@ -649,8 +873,7 @@ export default function DeveloperCenter() {
     window.setTimeout(() => setNotice(""), 4000);
   }
   function failed(e: unknown) {
-    const code = e instanceof Error ? e.message : "SERVICE_ERROR";
-    setError(code);
+    setError(describeError(e, lang));
   }
 
   async function login(event: FormEvent) {
@@ -806,7 +1029,13 @@ export default function DeveloperCenter() {
     setBusy(true);
     setError("");
     try {
-      await run();
+      const result = await run();
+      if (result instanceof Response && !result.ok) {
+        const data = (await result.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error ?? "SERVICE_ERROR");
+      }
       flash(message);
       await refresh();
     } catch (e) {
@@ -2050,15 +2279,25 @@ function Builds({
   const [channel, setChannel] = useState("DEVELOPMENT");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const trimmed = version.trim();
+  const duplicate = trimmed
+    ? detail.versions.find((build) => build.version === trimmed)
+    : undefined;
 
   async function upload(event: FormEvent) {
     event.preventDefault();
     if (!file) return;
+    if (duplicate) {
+      setUploadError(duplicateVersionError(trimmed, lang));
+      return;
+    }
     setUploading(true);
+    setUploadError("");
     try {
       const form = new FormData();
-      form.set("version", version.trim());
+      form.set("version", trimmed);
       form.set("channel", channel);
       form.set("file", file);
       const response = await fetch(
@@ -2066,10 +2305,19 @@ function Builds({
         { method: "POST", headers: { "x-qchat-csrf": "1" }, body: form },
       );
       const data = (await response.json().catch(() => ({}))) as { error?: string };
-      if (!response.ok) throw new Error(data.error ?? "SERVICE_ERROR");
-      flash(`${detail.app.appId} v${version.trim()}`);
+      if (!response.ok) {
+        const code = data.error ?? "SERVICE_ERROR";
+        setUploadError(
+          code === "VERSION_EXISTS"
+            ? duplicateVersionError(trimmed, lang)
+            : describeError(code, lang),
+        );
+        throw new Error(code);
+      }
+      flash(`${detail.app.appId} v${trimmed}`);
       setVersion("");
       setFile(null);
+      setUploadError("");
       if (inputRef.current) inputRef.current.value = "";
       await onRefresh();
     } catch (e) {
@@ -2082,22 +2330,9 @@ function Builds({
   return (
     <>
       <div className={`${card} mb-5`}>
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-bold">{t("uploadBuild")}</h2>
-            <p className="mt-1 text-xs text-slate-400">{t("uploadHint")}</p>
-          </div>
-          <button
-            type="button"
-            className={secondary}
-            onClick={() =>
-              setVersion(
-                nextVersion(detail.app.currentVersion ?? detail.versions[0]?.version),
-              )
-            }
-          >
-            <ArrowUp size={15} /> {t("bumpVersion")}
-          </button>
+        <div>
+          <h2 className="text-sm font-bold">{t("uploadBuild")}</h2>
+          <p className="mt-1 text-xs text-slate-400">{t("uploadHint")}</p>
         </div>
         <form onSubmit={upload} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end">
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
@@ -2108,8 +2343,21 @@ function Builds({
               placeholder="1.0.0"
               pattern="\d{1,4}\.\d{1,4}\.\d{1,4}(-[0-9A-Za-z.\-]{1,20})?"
               value={version}
-              onChange={(e) => setVersion(e.target.value)}
+              aria-invalid={duplicate ? true : undefined}
+              aria-describedby={duplicate ? "upload-version-duplicate" : undefined}
+              onChange={(e) => {
+                setVersion(e.target.value);
+                setUploadError("");
+              }}
             />
+            {duplicate && (
+              <span
+                id="upload-version-duplicate"
+                className="mt-1 block text-[11px] font-medium text-red-600 dark:text-red-400"
+              >
+                {duplicateVersionError(trimmed, lang)}
+              </span>
+            )}
           </label>
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
             {t("channel")}
@@ -2129,14 +2377,26 @@ function Builds({
               type="file"
               accept=".zip,application/zip"
               required
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                setFile(e.target.files?.[0] ?? null);
+                setUploadError("");
+              }}
             />
           </label>
-          <button className={primary} disabled={uploading}>
+          <button className={primary} disabled={uploading || Boolean(duplicate)}>
             {uploading ? <Loader2 size={16} className="animate-spin" /> : <UploadCloud size={16} />}
             {uploading ? t("uploading") : t("upload")}
           </button>
         </form>
+        {uploadError && (
+          <p
+            role="alert"
+            className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-300"
+          >
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+            <span>{uploadError}</span>
+          </p>
+        )}
       </div>
       <div className={`${card} overflow-x-auto`}>
         {!detail.versions.length ? (
