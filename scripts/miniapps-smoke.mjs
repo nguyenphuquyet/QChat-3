@@ -209,7 +209,14 @@ try {
   assert(manifest.status === 200 && manifest.data.manifest.buildHash.length === 64, "manifest");
 
   const location = await request(`/miniapps/store/${appId}/build`, { token });
-  assert(location.status === 200 && location.data.url.includes("/api/miniapps/blob"), "signed build url");
+  // The filesystem adapter returns an HMAC URL served by the API, while the S3
+  // adapter returns a presigned URL on the object store.
+  assert(
+    location.status === 200 &&
+      (location.data.url.includes("/api/miniapps/blob") ||
+        /^https?:\/\//.test(location.data.url)),
+    "signed build url",
+  );
   const download = await fetch(location.data.url);
   assert(download.status === 200, `download ${download.status}`);
   const downloaded = Buffer.from(await download.arrayBuffer());
