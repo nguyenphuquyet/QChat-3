@@ -1,7 +1,12 @@
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { handle } from "../../../../src/services/api";
-import { miniAppPreview, uploadBuild } from "../../../../src/modules/miniapps";
+import {
+  miniAppPreview,
+  miniAppPreviewToken,
+  uploadBuild,
+} from "../../../../src/modules/miniapps";
+import { verifyPreviewToken } from "../../../../src/services/miniapp-preview";
 import { accessToken, digest } from "../../../../src/security/auth";
 import { ApiError } from "../../../../src/security/errors";
 import { db } from "../../../../src/services/db";
@@ -12,6 +17,11 @@ export const dynamic = "force-dynamic";
 const cookieName = "qchat_developer";
 const uploadPath =
   /^miniapps\/developer\/apps\/(mp_[a-z0-9]{12,24})\/builds$/;
+const previewPath =
+  /^miniapps\/review\/versions\/([0-9a-f-]{36})\/preview(?:\/(.*))?$/;
+const previewTokenPath =
+  /^miniapps\/review\/versions\/([0-9a-f-]{36})\/preview-token$/;
+const previewTokenPattern = /^\d{1,12}-[a-f0-9]{64}$/;
 
 async function session() {
   const store = await cookies();
@@ -55,52 +65,80 @@ function failure(error: unknown) {
   return Response.json({ error: "SERVICE_ERROR" }, { status: 500 });
 }
 
+/// The preview frame runs with an opaque origin, so it never sends the
+/// reviewer's cookie with its module, stylesheet or font requests. Those files
+/// are served with a build-scoped token in the path instead. They are already
+/// sandboxed, never touch the Developer Center origin, and stay short-lived.
+function previewResponse(file: { bytes: Uint8Array; type: string }) {
+  return new Response(new Uint8Array(file.bytes), {
+    headers: {
+      "Content-Type": file.type,
+      "Content-Length": String(file.bytes.length),
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "Referrer-Policy": "no-referrer",
+      "Access-Control-Allow-Origin": "*",
+      "Content-Security-Policy":
+        "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads",
+    },
+  });
+}
+
 async function proxy(request: Request, path: string[]) {
   const joined = path.join("/");
   if (!joined.startsWith("miniapps")) return new Response(null, { status: 404 });
+  const method = request.method;
+  const previewMatch = method === "GET" ? previewPath.exec(joined) : null;
+
+  // Token preview files are requested by the sandbox before the browser has
+  // any way to attach the session cookie, so they are authorized here, ahead
+  // of the cookie session check.
+  if (previewMatch) {
+    const segments = (previewMatch[2] ?? "").split("/").filter(Boolean);
+    const token = segments[0] ?? "";
+    if (previewTokenPattern.test(token)) {
+      if (!verifyPreviewToken(previewMatch[1], token))
+        return Response.json({ error: "FORBIDDEN" }, { status: 403 });
+      try {
+        const file = await miniAppPreview(
+          previewMatch[1],
+          segments.slice(1).join("/"),
+        );
+        return previewResponse(file);
+      } catch (error) {
+        return failure(error);
+      }
+    }
+  }
+
   const user = await session();
   if (!user) return Response.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  const method = request.method;
-  if (!["GET", "HEAD"].includes(method) && request.headers.get("x-qchat-csrf") !== "1")
+  if (
+    !["GET", "HEAD"].includes(method) &&
+    request.headers.get("x-qchat-csrf") !== "1"
+  )
     return Response.json({ error: "CSRF_REQUIRED" }, { status: 403 });
 
   const url = new URL(request.url);
   try {
-    const previewMatch =
-      method === "GET"
-        ? /^miniapps\/review\/versions\/([0-9a-f-]{36})\/preview(?:\/(.*))?$/.exec(
-            joined,
-          )
-        : null;
     if (previewMatch) {
-      const file = await miniAppPreview(
-        user.userId,
-        user.role,
-        previewMatch[1],
-        previewMatch[2] ?? "",
-      );
-      return new Response(new Uint8Array(file.bytes), {
-        headers: {
-          "Content-Type": file.type,
-          "Content-Length": String(file.bytes.length),
-          "Cache-Control": "no-store",
-          "X-Content-Type-Options": "nosniff",
-          "Referrer-Policy": "no-referrer",
-          // The frame runs with an opaque origin. CORS stays open so Vite's
-          // module scripts and fonts load inside that sandbox; the endpoint
-          // still requires the reviewer's httpOnly session cookie.
-          "Access-Control-Allow-Origin": "*",
-          "Content-Security-Policy":
-            "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads",
-        },
-      });
+      if (user.role !== "ADMIN")
+        return Response.json({ error: "REVIEWER_REQUIRED" }, { status: 403 });
+      const file = await miniAppPreview(previewMatch[1], previewMatch[2] ?? "");
+      return previewResponse(file);
     }
+    const tokenMatch = method === "GET" ? previewTokenPath.exec(joined) : null;
+    if (tokenMatch)
+      return Response.json(
+        await miniAppPreviewToken(user.role, tokenMatch[1]),
+        { headers: { "Cache-Control": "no-store" } },
+      );
     const uploadMatch = method === "POST" ? uploadPath.exec(joined) : null;
     if (uploadMatch)
-      return Response.json(await uploadBuild(user.userId, uploadMatch[1], await request.formData()), {
-        status: 201,
-        headers: { "Cache-Control": "no-store" },
-      });
+      return Response.json(
+        await uploadBuild(user.userId, uploadMatch[1], await request.formData()),
+        { status: 201, headers: { "Cache-Control": "no-store" } },
+      );
     const body =
       ["GET", "HEAD"].includes(method) ? undefined : await request.arrayBuffer();
     const headers = new Headers({ Authorization: `Bearer ${user.token}` });
@@ -120,15 +158,27 @@ async function proxy(request: Request, path: string[]) {
   }
 }
 
-export async function GET(request: Request, context: { params: Promise<{ path: string[] }> }) {
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
   return proxy(request, (await context.params).path);
 }
-export async function POST(request: Request, context: { params: Promise<{ path: string[] }> }) {
+export async function POST(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
   return proxy(request, (await context.params).path);
 }
-export async function PATCH(request: Request, context: { params: Promise<{ path: string[] }> }) {
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
   return proxy(request, (await context.params).path);
 }
-export async function DELETE(request: Request, context: { params: Promise<{ path: string[] }> }) {
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
   return proxy(request, (await context.params).path);
 }

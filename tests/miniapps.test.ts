@@ -23,9 +23,11 @@ import {
   verifyBlobToken,
 } from "../apps/server/src/services/miniapp-storage";
 import {
+  createPreviewToken,
   injectPreviewBridge,
   previewContentType,
   readPreviewFile,
+  verifyPreviewToken,
   type PreviewMeta,
 } from "../apps/server/src/services/miniapp-preview";
 
@@ -416,6 +418,32 @@ test("preview bridge escapes manifest strings and works without a head", () => {
   const bare = injectPreviewBridge("<h1>hi</h1>", meta);
   assert.ok(bare.startsWith("<script>"));
   assert.ok(bare.endsWith("<h1>hi</h1>"));
+});
+
+test("preview tokens are signed, build-scoped and expire", () => {
+  const previous = process.env.MINIAPP_SIGNING_SECRET;
+  process.env.MINIAPP_SIGNING_SECRET = "preview-token-test-secret";
+  try {
+    const versionId = "11111111-2222-3333-4444-555555555555";
+    const { token, expiresAt } = createPreviewToken(versionId, 60);
+    assert.ok(Date.parse(expiresAt) > Date.now());
+    assert.equal(verifyPreviewToken(versionId, token), true);
+    assert.equal(
+      verifyPreviewToken("99999999-2222-3333-4444-555555555555", token),
+      false,
+    );
+    const tampered =
+      token.slice(0, -1) + (token.endsWith("a") ? "b" : "a");
+    assert.equal(verifyPreviewToken(versionId, tampered), false);
+    assert.equal(
+      verifyPreviewToken(versionId, createPreviewToken(versionId, -1).token),
+      false,
+    );
+    assert.equal(verifyPreviewToken(versionId, "not-a-token"), false);
+  } finally {
+    if (previous === undefined) delete process.env.MINIAPP_SIGNING_SECRET;
+    else process.env.MINIAPP_SIGNING_SECRET = previous;
+  }
 });
 
 test("filesystem build links are signed and expire", async () => {

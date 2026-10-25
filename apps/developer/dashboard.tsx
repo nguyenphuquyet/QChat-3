@@ -1000,6 +1000,17 @@ export default function DeveloperCenter() {
     }
   }
 
+  async function previewUrl(versionId: string, entry: string) {
+    const data = await api<{ token: string }>(
+      `/miniapps/review/versions/${versionId}/preview-token`,
+    );
+    const file = entry
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/");
+    return `/api/developer/miniapps/review/versions/${versionId}/preview/${data.token}/${file}`;
+  }
+
   async function loadIde() {
     const current = ++revision.current;
     setBusy(true);
@@ -1461,6 +1472,7 @@ export default function DeveloperCenter() {
                 lang={lang}
                 act={act}
                 failed={failed}
+                previewUrl={previewUrl}
               />
             )}
             {section === "ide" && (
@@ -3171,6 +3183,7 @@ function ReviewQueue({
   lang,
   act,
   failed,
+  previewUrl,
 }: {
   queue: Queue | null;
   loading: boolean;
@@ -3178,6 +3191,7 @@ function ReviewQueue({
   lang: Lang;
   act: (run: () => Promise<unknown>, message: string) => Promise<void>;
   failed: (error: unknown) => void;
+  previewUrl: (versionId: string, entry: string) => Promise<string>;
 }) {
   const [reason, setReason] = useState("");
   const [preview, setPreview] = useState<{
@@ -3185,14 +3199,41 @@ function ReviewQueue({
     name: string;
     version: string;
     entry: string;
+    url: string;
   } | null>(null);
   const [previewKey, setPreviewKey] = useState(0);
-  const previewUrl = preview
-    ? `/api/developer/miniapps/review/versions/${preview.id}/preview/${preview.entry
-        .split("/")
-        .map(encodeURIComponent)
-        .join("/")}`
-    : "";
+
+  async function openPreview(version: Version & { miniApp: { name: string } }) {
+    setPreview({
+      id: version.id,
+      name: version.miniApp.name,
+      version: version.version,
+      entry: version.entry,
+      url: "",
+    });
+    setPreviewKey((key) => key + 1);
+    try {
+      const url = await previewUrl(version.id, version.entry);
+      setPreview((current) =>
+        current?.id === version.id ? { ...current, url } : current,
+      );
+    } catch (error) {
+      setPreview(null);
+      failed(error);
+    }
+  }
+
+  async function reloadPreview() {
+    if (!preview) return;
+    try {
+      const url = await previewUrl(preview.id, preview.entry);
+      setPreview({ ...preview, url });
+      setPreviewKey((key) => key + 1);
+    } catch (error) {
+      failed(error);
+    }
+  }
+
   useEffect(() => {
     if (!preview) return;
     const close = (event: KeyboardEvent) => {
@@ -3247,15 +3288,7 @@ function ReviewQueue({
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <button
                       className={`${secondary} px-3 py-1.5 text-xs`}
-                      onClick={() => {
-                        setPreview({
-                          id: build.id,
-                          name: build.miniApp.name,
-                          version: build.version,
-                          entry: build.entry,
-                        });
-                        setPreviewKey((key) => key + 1);
-                      }}
+                      onClick={() => void openPreview(build)}
                     >
                       <Eye size={14} /> {t("preview")}
                     </button>
@@ -3400,22 +3433,24 @@ function ReviewQueue({
               </div>
               <button
                 className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
-                onClick={() => setPreviewKey((key) => key + 1)}
+                onClick={() => void reloadPreview()}
                 title={t("refresh")}
                 aria-label={t("refresh")}
               >
                 <RefreshCw size={16} />
               </button>
-              <a
-                className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
-                href={previewUrl}
-                target="_blank"
-                rel="noreferrer"
-                title={t("openInNewTab")}
-                aria-label={t("openInNewTab")}
-              >
-                <ArrowRight size={16} />
-              </a>
+              {preview.url && (
+                <a
+                  className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
+                  href={preview.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={t("openInNewTab")}
+                  aria-label={t("openInNewTab")}
+                >
+                  <ArrowRight size={16} />
+                </a>
+              )}
               <button
                 className="rounded-lg p-2 text-slate-300 hover:bg-white/10"
                 onClick={() => setPreview(null)}
@@ -3425,13 +3460,19 @@ function ReviewQueue({
                 <X size={16} />
               </button>
             </div>
-            <iframe
-              key={previewKey}
-              title={`${preview.name} v${preview.version}`}
-              src={previewUrl}
-              sandbox="allow-scripts allow-forms allow-modals allow-popups"
-              className="h-[min(72vh,640px)] w-full rounded-[1.6rem] border-0 bg-white"
-            />
+            {preview.url ? (
+              <iframe
+                key={previewKey}
+                title={`${preview.name} v${preview.version}`}
+                src={preview.url}
+                sandbox="allow-scripts allow-forms allow-modals allow-popups"
+                className="h-[min(72vh,640px)] w-full rounded-[1.6rem] border-0 bg-white"
+              />
+            ) : (
+              <div className="flex h-[min(72vh,640px)] w-full items-center justify-center rounded-[1.6rem] bg-white">
+                <Loader2 className="animate-spin text-emerald-600" size={26} />
+              </div>
+            )}
             <p className="px-3 pb-2 pt-2 text-center text-[10px] leading-4 text-slate-400">
               {t("previewNote")}
             </p>

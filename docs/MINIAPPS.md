@@ -118,15 +118,19 @@ preview is available only to administrators, only for a build in `REVIEWING`,
 and only through the cookie proxy:
 
 ```
-GET /api/developer/miniapps/review/versions/:versionId/preview/<entry file>
+GET /api/developer/miniapps/review/versions/:versionId/preview-token
+GET /api/developer/miniapps/review/versions/:versionId/preview/<token>/<entry file>
 ```
 
+The preview frame is sandboxed with an opaque origin, so its Vite module,
+stylesheet and font requests do not send the reviewer's session cookie. The
+admin-only token endpoint signs a build-scoped token valid for 15 minutes; the
+token sits in the asset path and authorizes those requests without a cookie.
 The stored ZIP is read from private storage and one file is returned per
 request; nothing is extracted to disk. HTML entries receive a small script that
 simulates `window.QChatNative` (`getAppInfo`, `getSystemInfo`, storage, toast)
-so the UI renders without the Flutter host. The frame is sandboxed with an
-opaque origin, so the preview cannot read the reviewer's session or call QChat
-APIs.
+so the UI renders without the Flutter host. The preview cannot read the
+reviewer's session or call QChat APIs.
 
 The IDE tab downloads whatever link an administrator saves under the `ide`
 platform in the admin console; the link is served by
