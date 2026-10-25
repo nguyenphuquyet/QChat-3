@@ -321,6 +321,17 @@ try {
   });
   assert(restoreBlocked.status === 409, `restore without published build ${restoreBlocked.status}`);
 
+  const republished = await request(
+    `/miniapps/developer/apps/${appId}/versions/${keyUpload.data.build.id}/release`,
+    { token, method: "POST" },
+  );
+  assert(republished.status === 200 && republished.data.status === "PUBLISHED", "re-release revoked build");
+  const visibleAgain = await request(`/miniapps/store/${appId}`, { token });
+  assert(
+    visibleAgain.status === 200 && visibleAgain.data.currentVersion === "1.0.1",
+    "visible after re-release",
+  );
+
   const unauthorized = await request("/miniapps/store");
   assert(unauthorized.status === 401, `unauthorized ${unauthorized.status}`);
 

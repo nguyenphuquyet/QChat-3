@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  ArrowUp,
   BookOpen,
   Boxes,
   Check,
@@ -25,6 +26,7 @@ import {
   Menu,
   Moon,
   PackageCheck,
+  Pencil,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -247,6 +249,9 @@ const copy = {
     create: "Tạo ứng dụng",
     noApps: "Chưa có ứng dụng nào. Tạo ứng dụng đầu tiên để bắt đầu.",
     noResults: "Không tìm thấy ứng dụng phù hợp.",
+    editApp: "Chỉnh sửa ứng dụng",
+    saved: "Đã lưu thay đổi",
+    bumpVersion: "Nâng version",
     deleteApp: "Xoá ứng dụng",
     deleteAppNote:
       "Xoá vĩnh viễn ứng dụng này cùng toàn bộ build và dữ liệu liên quan? Hành động này không thể hoàn tác.",
@@ -279,6 +284,7 @@ const copy = {
     actions: "Thao tác",
     submit: "Gửi duyệt",
     release: "Phát hành",
+    republish: "Phát hành lại",
     rollback: "Quay lại bản này",
     revoke: "Thu hồi",
     revokeReason: "Lý do thu hồi (tối thiểu 3 ký tự)",
@@ -396,6 +402,9 @@ const copy = {
     create: "Create app",
     noApps: "No apps yet. Create your first app to get started.",
     noResults: "No matching apps.",
+    editApp: "Edit app",
+    saved: "Changes saved",
+    bumpVersion: "Bump version",
     deleteApp: "Delete app",
     deleteAppNote:
       "Permanently delete this app along with all builds and related data? This cannot be undone.",
@@ -428,6 +437,7 @@ const copy = {
     actions: "Actions",
     submit: "Submit for review",
     release: "Release",
+    republish: "Release again",
     rollback: "Roll back to this",
     revoke: "Revoke",
     revokeReason: "Revocation reason (at least 3 characters)",
@@ -539,6 +549,11 @@ function when(value: string | null, lang: Lang) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+function nextVersion(current: string | null | undefined) {
+  const match = /^(\d{1,4})\.(\d{1,4})\.(\d{1,4})/.exec(current ?? "");
+  if (!match) return "1.0.0";
+  return `${match[1]}.${match[2]}.${Number(match[3]) + 1}`;
 }
 function Badge({ value }: { value: string }) {
   return (
@@ -1638,6 +1653,12 @@ function AppDetailView({
   failed: (error: unknown) => void;
   flash: (message: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [copiedAppId, setCopiedAppId] = useState(false);
+  useEffect(() => {
+    setEditing(false);
+    setCopiedAppId(false);
+  }, [detail?.app.appId]);
   if (!detail)
     return (
       <>
@@ -1680,12 +1701,39 @@ function AppDetailView({
                 {app.role}
               </span>
             </div>
-            <p className="mt-1 font-mono text-xs text-slate-400">{app.appId}</p>
+            <div className="mt-1 flex items-center gap-1.5">
+              <p className="font-mono text-xs text-slate-400">{app.appId}</p>
+              <button
+                type="button"
+                className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(app.appId);
+                    setCopiedAppId(true);
+                    window.setTimeout(() => setCopiedAppId(false), 2000);
+                  } catch {
+                    // Clipboard access can be denied; the ID stays selectable.
+                  }
+                }}
+                aria-label={t("copy")}
+                title={copiedAppId ? t("copied") : t("copy")}
+              >
+                {copiedAppId ? <Check size={14} /> : <Copy size={14} />}
+              </button>
+            </div>
             <p className="mt-2 max-w-2xl text-sm text-slate-500 dark:text-slate-400">
               {app.description || "—"}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              className={secondary}
+              onClick={() => setEditing((value) => !value)}
+              disabled={loading}
+            >
+              <Pencil size={15} />
+              {t("editApp")}
+            </button>
             <button className={secondary} onClick={onRefresh} disabled={loading}>
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               {t("refresh")}
@@ -1711,6 +1759,18 @@ function AppDetailView({
           </span>
         </div>
       </div>
+      {editing && (
+        <EditAppForm
+          app={app}
+          t={t}
+          failed={failed}
+          onSaved={() => {
+            flash(t("saved"));
+            onRefresh();
+          }}
+          onClose={() => setEditing(false)}
+        />
+      )}
       <div className="mb-5 flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 dark:bg-slate-900">
         {tabs.map((item) => (
           <button
@@ -1757,6 +1817,179 @@ function AppDetailView({
         />
       )}
     </>
+  );
+}
+
+function EditAppForm({
+  app,
+  t,
+  failed,
+  onSaved,
+  onClose,
+}: {
+  app: AppDetail["app"];
+  t: (key: CopyKey) => string;
+  failed: (error: unknown) => void;
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const [form, setForm] = useState({
+    name: app.name,
+    description: app.description,
+    category: app.category,
+    developerName: app.developerName,
+    contactEmail: app.contactEmail,
+    iconUrl: app.iconUrl,
+    supportUrl: app.supportUrl,
+    privacyUrl: app.privacyUrl,
+  });
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div className={`${card} mb-5`}>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-sm font-bold">{t("editApp")}</h2>
+        <button
+          type="button"
+          className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+          onClick={onClose}
+          aria-label={t("cancel")}
+        >
+          <X size={17} />
+        </button>
+      </div>
+      <form
+        className="grid gap-4 sm:grid-cols-2"
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setSaving(true);
+          try {
+            const response = await fetch(
+              `/api/developer/miniapps/developer/apps/${app.appId}`,
+              {
+                method: "PATCH",
+                headers: {
+                  "x-qchat-csrf": "1",
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  name: form.name.trim(),
+                  description: form.description.trim(),
+                  category: form.category,
+                  developerName: form.developerName.trim(),
+                  contactEmail: form.contactEmail.trim(),
+                  iconUrl: form.iconUrl.trim(),
+                  supportUrl: form.supportUrl.trim(),
+                  privacyUrl: form.privacyUrl.trim(),
+                }),
+              },
+            );
+            const data = (await response.json().catch(() => ({}))) as {
+              error?: string;
+            };
+            if (!response.ok) throw new Error(data.error ?? "SERVICE_ERROR");
+            onSaved();
+            onClose();
+          } catch (e) {
+            failed(e);
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          {t("name")} *
+          <input
+            className={`${input} mt-1.5`}
+            required
+            minLength={2}
+            maxLength={60}
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+          />
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          {t("developerName")} *
+          <input
+            className={`${input} mt-1.5`}
+            required
+            minLength={2}
+            maxLength={80}
+            value={form.developerName}
+            onChange={(e) => setForm({ ...form, developerName: e.target.value })}
+          />
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          {t("contactEmail")} *
+          <input
+            className={`${input} mt-1.5`}
+            type="email"
+            required
+            value={form.contactEmail}
+            onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
+          />
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          {t("category")} *
+          <select
+            className={`${input} mt-1.5`}
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+          >
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 sm:col-span-2">
+          {t("description")}
+          <textarea
+            className={`${input} mt-1.5 min-h-20`}
+            maxLength={1000}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          {t("iconUrl")}
+          <input
+            className={`${input} mt-1.5`}
+            type="url"
+            value={form.iconUrl}
+            onChange={(e) => setForm({ ...form, iconUrl: e.target.value })}
+          />
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+          {t("supportUrl")}
+          <input
+            className={`${input} mt-1.5`}
+            type="url"
+            value={form.supportUrl}
+            onChange={(e) => setForm({ ...form, supportUrl: e.target.value })}
+          />
+        </label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 sm:col-span-2">
+          {t("privacyUrl")}
+          <input
+            className={`${input} mt-1.5`}
+            type="url"
+            value={form.privacyUrl}
+            onChange={(e) => setForm({ ...form, privacyUrl: e.target.value })}
+          />
+        </label>
+        <div className="flex gap-2 sm:col-span-2">
+          <button className={primary} disabled={saving}>
+            {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            {t("save")}
+          </button>
+          <button type="button" className={secondary} onClick={onClose}>
+            {t("cancel")}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 
@@ -1849,8 +2082,23 @@ function Builds({
   return (
     <>
       <div className={`${card} mb-5`}>
-        <h2 className="text-sm font-bold">{t("uploadBuild")}</h2>
-        <p className="mt-1 text-xs text-slate-400">{t("uploadHint")}</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold">{t("uploadBuild")}</h2>
+            <p className="mt-1 text-xs text-slate-400">{t("uploadHint")}</p>
+          </div>
+          <button
+            type="button"
+            className={secondary}
+            onClick={() =>
+              setVersion(
+                nextVersion(detail.app.currentVersion ?? detail.versions[0]?.version),
+              )
+            }
+          >
+            <ArrowUp size={15} /> {t("bumpVersion")}
+          </button>
+        </div>
         <form onSubmit={upload} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_2fr_auto] sm:items-end">
           <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
             {t("version")} *
@@ -1925,7 +2173,8 @@ function Builds({
                   <td className="py-3 text-xs text-slate-400">{when(build.createdAt, lang)}</td>
                   <td className="py-3">
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      {["UPLOADED", "REJECTED"].includes(build.status) && (
+                      {(["UPLOADED", "REJECTED"].includes(build.status) ||
+                        (build.status === "REVOKED" && !build.publishedAt)) && (
                         <button
                           className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] font-semibold hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800"
                           onClick={() =>
@@ -1957,6 +2206,23 @@ function Builds({
                           }
                         >
                           {t("release")}
+                        </button>
+                      )}
+                      {build.status === "REVOKED" && build.publishedAt !== null && (
+                        <button
+                          className="rounded-lg border border-emerald-200 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                          onClick={() =>
+                            void act(
+                              () =>
+                                fetch(
+                                  `/api/developer/miniapps/developer/apps/${detail.app.appId}/versions/${build.id}/release`,
+                                  { method: "POST", headers: { "x-qchat-csrf": "1" } },
+                                ),
+                              "PUBLISHED",
+                            )
+                          }
+                        >
+                          {t("republish")}
                         </button>
                       )}
                       {build.status === "PUBLISHED" &&

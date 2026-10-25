@@ -46,6 +46,7 @@ create app
   → approve (APPROVED) or reject (REJECTED)
   → release (currentVersion changes, PUBLISHED)
   → rollback to an earlier approved version, or revoke a version
+  → release a revoked version again (only if it was published before)
   → suspend / restore the whole app
 ```
 
@@ -91,7 +92,7 @@ a multipart `file` field.
 | `GET` | `/api/miniapps/developer/apps/:appId/versions` |
 | `POST` | `/api/miniapps/developer/apps/:appId/builds` (multipart) |
 | `POST` | `/api/miniapps/developer/apps/:appId/versions/:version/submit` |
-| `POST` | `/api/miniapps/developer/apps/:appId/versions/:version/release` |
+| `POST` | `/api/miniapps/developer/apps/:appId/versions/:version/release` (also re-releases a previously published, revoked build) |
 | `POST` | `/api/miniapps/developer/apps/:appId/rollback` |
 | `POST` | `/api/miniapps/developer/apps/:appId/revoke` |
 | `GET` | `/api/miniapps/developer/apps/:appId/analytics` |

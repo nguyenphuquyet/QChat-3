@@ -621,15 +621,17 @@ async function developerRoute(
       where: { id: z.string().uuid().parse(sub2), miniAppId: app.id },
     });
     requireCondition(build, 404, "NOT_FOUND");
+    // A revoked build that was never published may go through review again.
     requireCondition(
-      ["UPLOADED", "REJECTED"].includes(build.status),
+      ["UPLOADED", "REJECTED"].includes(build.status) ||
+        (build.status === "REVOKED" && build.publishedAt === null),
       409,
       "INVALID_STATE",
     );
     const updated = await db.$transaction(async (tx) => {
       const version = await tx.miniAppVersion.update({
         where: { id: build.id },
-        data: { status: "REVIEWING" },
+        data: { status: "REVIEWING", revokedAt: null, revokeReason: "" },
       });
       await tx.miniApp.update({
         where: { id: app.id },
@@ -647,7 +649,14 @@ async function developerRoute(
       where: { id: z.string().uuid().parse(sub2), miniAppId: app.id },
     });
     requireCondition(build, 404, "NOT_FOUND");
-    requireCondition(build.status === "APPROVED", 409, "NOT_APPROVED");
+    // A revoked build can be released again only when it was published before,
+    // so an unreviewed upload cannot bypass the review queue.
+    requireCondition(
+      build.status === "APPROVED" ||
+        (build.status === "REVOKED" && build.publishedAt !== null),
+      409,
+      "NOT_APPROVED",
+    );
     const updated = await db.$transaction(async (tx) => {
       const version = await tx.miniAppVersion.update({
         where: { id: build.id },
@@ -655,6 +664,8 @@ async function developerRoute(
           status: "PUBLISHED",
           channel: "PRODUCTION",
           publishedAt: new Date(),
+          revokedAt: null,
+          revokeReason: "",
         },
       });
       await tx.miniApp.update({
