@@ -30,126 +30,59 @@
 
 * { box-sizing: border-box; }
 
-html, body { height: 100%; }
-
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  /* Pinch zoom is disabled by the host, so the layout must fit the viewport. */
-  overflow-x: hidden;
+  padding: max(16px, var(--safe-top)) 16px max(16px, var(--safe-bottom));
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-}
-
-/* Sticky header: the app title stays visible while the demo content scrolls.
-   The right padding keeps the host's floating buttons clear of this row. */
-.app-bar {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding:
-    calc(var(--safe-top) + 10px)
-    calc(var(--capsule) + 12px)
-    10px
-    16px;
-  background: color-mix(in srgb, var(--bg) 86%, transparent);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
-}
-
-.mark {
-  flex: none;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  background: var(--green);
-  color: var(--bg);
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 19px;
-}
-
-.titles { min-width: 0; }
-
-.eyebrow {
-  margin: 0;
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-h1 {
-  margin: 2px 0 0;
-  font-size: 19px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.content {
-  width: 100%;
+main {
   max-width: 640px;
   margin: 0 auto;
-  padding: 16px 16px calc(var(--safe-bottom) + 20px);
   display: grid;
   gap: 14px;
 }
 
-.hero {
-  border-radius: 22px;
-  padding: 18px;
-  color: #f8fffc;
-  background:
-    radial-gradient(120% 140% at 88% 0%, #46d39a 0%, transparent 58%),
-    linear-gradient(150deg, #0c3b2f 0%, #115a44 100%);
-  box-shadow: 0 12px 28px rgb(12 59 47 / 0.28);
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* Right padding keeps the host's floating buttons clear of this row. */
+  padding: 8px var(--capsule) 4px 4px;
 }
 
-.hero-label {
-  margin: 0;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: rgb(255 255 255 / 0.62);
-}
-
-.hero-name { margin: 6px 0 2px; font-size: 24px; }
-
-.hero-sub {
-  margin: 0;
-  font-size: 13px;
-  color: rgb(255 255 255 / 0.68);
-  overflow-wrap: anywhere;
-}
-
-.stats {
-  margin-top: 16px;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-}
-
-.stats div {
+.mark {
+  width: 44px;
+  height: 44px;
   border-radius: 14px;
-  padding: 10px;
-  background: rgb(255 255 255 / 0.12);
+  background: var(--green);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 20px;
 }
 
-.stats span { display: block; font-size: 19px; font-weight: 800; }
-.stats small { color: rgb(255 255 255 / 0.66); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.eyebrow {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+h1 { margin: 2px 0 0; font-size: 22px; }
+h2 { margin: 0 0 8px; font-size: 15px; }
+
+.pill {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
 
 .card {
   background: var(--card);
@@ -159,68 +92,9 @@ h1 {
   box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
 }
 
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-h2 { margin: 0 0 8px; font-size: 15px; }
-
-.pill {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 3px 9px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--muted);
-}
-
 .muted { color: var(--muted); font-size: 13px; margin: 0; word-break: break-all; }
 
-.steps { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
-
-.step {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: transparent;
-  color: var(--ink);
-  padding: 10px;
-  text-align: left;
-}
-
-.step.checked { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
-
-.tick {
-  flex: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  display: grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 800;
-  color: #04221a;
-}
-
-.step.checked .tick { background: var(--accent); border-color: var(--accent); }
-
-.step-text { min-width: 0; }
-.step-text b { display: block; font-size: 13px; }
-.step-text small { color: var(--muted); font-size: 11px; }
-
-.row, .grid-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-
-.grid-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
+.row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
 button {
   border: 0;
@@ -234,11 +108,21 @@ button {
   cursor: pointer;
 }
 
-button.ghost {
+button.secondary {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line);
 }
+
+button.link {
+  background: transparent;
+  color: var(--muted);
+  text-decoration: underline;
+  padding: 8px;
+}
+
+.profile { margin: 12px 0 0; font-weight: 700; }
+.profile span { color: var(--muted); font-weight: 400; }
 
 .preview {
   margin-top: 12px;
@@ -261,3 +145,5 @@ dl { margin: 0; display: grid; gap: 8px; }
 dl div { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; }
 dt { color: var(--muted); }
 dd { margin: 0; font-weight: 600; text-align: right; }
+
+footer { text-align: center; padding: 4px 0 8px; }

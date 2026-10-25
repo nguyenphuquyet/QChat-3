@@ -1,5 +1,5 @@
 {
-  "name": "qchat-miniapp-template",
+  "name": "Template",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@qchat/miniapp-sdk": "file:../miniapp-sdk",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },

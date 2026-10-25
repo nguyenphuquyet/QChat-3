@@ -51,7 +51,6 @@ function zip(entries) {
     const method = compressed.length < data.length ? 8 : 0;
     const body = method === 8 ? compressed : data;
     const crc = crc32(data);
-
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50, 0);
     local.writeUInt16LE(20, 4);
@@ -64,7 +63,6 @@ function zip(entries) {
     local.writeUInt32LE(data.length, 22);
     local.writeUInt16LE(name.length, 26);
     local.writeUInt16LE(0, 28);
-
     const central = Buffer.alloc(46);
     central.writeUInt32LE(0x02014b50, 0);
     central.writeUInt16LE(0x031e, 4);
@@ -83,7 +81,6 @@ function zip(entries) {
     central.writeUInt16LE(0, 36);
     central.writeUInt32LE(0, 38);
     central.writeUInt32LE(offset, 42);
-
     locals.push(local, name, body);
     centrals.push(central, name);
     offset += 30 + name.length + body.length;
@@ -117,13 +114,11 @@ if (!/^\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.-]{1,20})?$/.test(manifest.versio
 if (manifest.entry !== "index.html") {
   throw new Error("This starter expects entry to be index.html");
 }
-
 const files = await walk(dist);
 const index = files.find((file) => file.name === "index.html");
 if (!index) throw new Error("Run `vite build` first: dist/index.html is missing");
 files.sort((a, b) => a.name.localeCompare(b.name));
 files.push({ name: "qchat.manifest.json", data: manifestBytes });
-
 const entries = [];
 for (const file of files) {
   const name = file.name.split(sep).join("/");
@@ -131,14 +126,12 @@ for (const file of files) {
     throw new Error(`Unsafe path in package: ${name}`);
   entries.push({ name, data: file.data ?? (await readFile(file.absolute)) });
 }
-
 const archive = zip(entries);
 const checksum = createHash("sha256").update(archive).digest("hex");
 await mkdir(release, { recursive: true });
 const output = join(release, `${manifest.appId}-${manifest.version}.zip`);
 await rm(output, { force: true });
 await writeFile(output, archive);
-
 console.log(`Packaged ${relative(root, output)}`);
 console.log(`SHA-256 ${checksum}`);
 console.log(`Files ${entries.length}, size ${archive.length} bytes`);
