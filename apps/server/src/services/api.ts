@@ -850,7 +850,7 @@ export async function handle(request: Request) {
           ]);
           result = { items, total, page, pageSize: 20 };
         }
-        if (method === "GET" && path[1] === "payments") {
+        if (method === "GET" && path[1] === "payments" && !path[2]) {
           requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
           const today = new Date();
           today.setUTCHours(0, 0, 0, 0);
