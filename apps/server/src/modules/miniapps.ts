@@ -20,7 +20,7 @@ import {
   readBuild,
   storageMode,
 } from "../services/miniapp-storage";
-import { readPreviewFile } from "../services/miniapp-preview";
+import { createPreviewToken, readPreviewFile } from "../services/miniapp-preview";
 import { readSiteLinks } from "../services/site-links";
 import { inspectBuild, PackageError } from "../services/miniapp-package";
 import { publicUser } from "../services/messages";
@@ -943,16 +943,25 @@ async function developerRoute(
   return undefined;
 }
 
-/// Reviewer preview. Only administrators can open a build that is waiting in
-/// the review queue; the ZIP is read from private storage and one file at a
-/// time is returned, never an extraction directory.
-export async function miniAppPreview(
-  userId: string,
-  role: string,
-  versionId: string,
-  requested: string,
-) {
+/// Issues a short-lived, build-scoped token for the sandboxed preview frame.
+/// The frame has an opaque origin, so its module and stylesheet requests do
+/// not send the reviewer's session cookie; the token in the URL path does.
+export async function miniAppPreviewToken(role: string, versionId: string) {
   reviewer(role);
+  const id = z.string().uuid().parse(versionId);
+  const build = await db.miniAppVersion.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  requireCondition(build, 404, "NOT_FOUND");
+  requireCondition(build.status === "REVIEWING", 409, "INVALID_STATE");
+  return createPreviewToken(id);
+}
+
+/// Reviewer preview. The caller has already proven access with the reviewer's
+/// session or a valid preview token; the ZIP is read from private storage and
+/// one file at a time is returned, never an extraction directory.
+export async function miniAppPreview(versionId: string, requested: string) {
   const build = await db.miniAppVersion.findUnique({
     where: { id: z.string().uuid().parse(versionId) },
     include: { miniApp: { select: { appId: true, name: true } } },
