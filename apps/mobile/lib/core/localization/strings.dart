@@ -462,6 +462,12 @@ const translations = <String, List<String>>{
   'messageUser': ['Message', 'Nhắn tin', '发消息'],
   'voiceCall': ['Voice call', 'Gọi thoại', '语音通话'],
   'friendRequestSent': ['Request sent', 'Đã gửi lời mời', '已发送请求'],
+  'deleteFriend': ['Delete friend', 'Xóa bạn bè', '删除好友'],
+  'deleteFriendNote': [
+    'Remove this friend? Your chat history stays on this device.',
+    'Xóa người này khỏi danh sách bạn bè? Lịch sử trò chuyện vẫn được giữ trên thiết bị.',
+    '删除该好友？聊天记录仍保留在此设备。',
+  ],
   'userNotFound': ['User not found', 'Không tìm thấy người dùng', '未找到用户'],
   'markUnread': ['Mark unread', 'Đánh dấu chưa đọc', '标为未读'],
   'markRead': ['Mark read', 'Đánh dấu đã đọc', '标为已读'],

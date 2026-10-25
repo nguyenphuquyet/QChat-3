@@ -590,6 +590,21 @@ async function developerRoute(
     return updated;
   }
 
+  if (!sub && method === "DELETE") {
+    const app = await developerApp(parsedAppId, userId, false);
+    requireCondition(app.developerId === userId, 403, "OWNER_REQUIRED");
+    const versions = await db.miniAppVersion.findMany({
+      where: { miniAppId: app.id },
+      select: { storageKey: true },
+    });
+    await db.miniApp.delete({ where: { id: app.id } });
+    await audit(userId, "MINIAPP_DELETED", app.appId);
+    await Promise.allSettled(
+      versions.map((version) => deleteBuild(version.storageKey)),
+    );
+    return { ok: true };
+  }
+
   if (sub === "versions" && method === "GET") {
     const app = await developerApp(parsedAppId, userId, false);
     return db.miniAppVersion.findMany({

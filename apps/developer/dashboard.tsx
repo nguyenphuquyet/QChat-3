@@ -247,6 +247,10 @@ const copy = {
     create: "Tạo ứng dụng",
     noApps: "Chưa có ứng dụng nào. Tạo ứng dụng đầu tiên để bắt đầu.",
     noResults: "Không tìm thấy ứng dụng phù hợp.",
+    deleteApp: "Xoá ứng dụng",
+    deleteAppNote:
+      "Xoá vĩnh viễn ứng dụng này cùng toàn bộ build và dữ liệu liên quan? Hành động này không thể hoàn tác.",
+    deleteAppDone: "Đã xoá ứng dụng",
     updated: "Cập nhật",
     currentVersion: "Bản phát hành",
     open: "Mở",
@@ -392,6 +396,10 @@ const copy = {
     create: "Create app",
     noApps: "No apps yet. Create your first app to get started.",
     noResults: "No matching apps.",
+    deleteApp: "Delete app",
+    deleteAppNote:
+      "Permanently delete this app along with all builds and related data? This cannot be undone.",
+    deleteAppDone: "App deleted",
     updated: "Updated",
     currentVersion: "Current release",
     open: "Open",
@@ -513,6 +521,8 @@ const primary =
   "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60";
 const secondary =
   "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800";
+const danger =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3.5 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:bg-slate-900 dark:text-red-400 dark:hover:bg-red-950/50";
 const card =
   "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900";
 
@@ -784,6 +794,34 @@ export default function DeveloperCenter() {
       await run();
       flash(message);
       await refresh();
+    } catch (e) {
+      failed(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeApp(appId: string, name?: string) {
+    if (
+      !window.confirm(name ? `${name}\n\n${t("deleteAppNote")}` : t("deleteAppNote"))
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/developer/miniapps/developer/apps/${appId}`,
+        { method: "DELETE", headers: { "x-qchat-csrf": "1" } },
+      );
+      const data = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (!response.ok) throw new Error(data.error ?? "SERVICE_ERROR");
+      setApps((items) => items.filter((item) => item.appId !== appId));
+      setSelected(null);
+      setDetail(null);
+      setTab("overview");
+      flash(t("deleteAppDone"));
     } catch (e) {
       failed(e);
     } finally {
@@ -1082,6 +1120,7 @@ export default function DeveloperCenter() {
                     setTab("overview");
                   }}
                   onRefresh={() => void loadDetail(selected)}
+                  onDelete={() => void removeApp(selected, detail?.app.name)}
                   act={act}
                   failed={failed}
                   flash={flash}
@@ -1576,6 +1615,7 @@ function AppDetailView({
   setCopied,
   onBack,
   onRefresh,
+  onDelete,
   act,
   failed,
   flash,
@@ -1593,6 +1633,7 @@ function AppDetailView({
   setCopied: (value: string) => void;
   onBack: () => void;
   onRefresh: () => void;
+  onDelete: () => void;
   act: (run: () => Promise<unknown>, message: string) => Promise<void>;
   failed: (error: unknown) => void;
   flash: (message: string) => void;
@@ -1649,6 +1690,12 @@ function AppDetailView({
               <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
               {t("refresh")}
             </button>
+            {app.role === "OWNER" && (
+              <button className={danger} onClick={onDelete} disabled={loading}>
+                <Trash2 size={15} />
+                {t("deleteApp")}
+              </button>
+            )}
           </div>
         </div>
         <div className="mt-5 grid gap-3 border-t border-slate-100 pt-4 text-xs text-slate-500 sm:grid-cols-3 dark:border-slate-800 dark:text-slate-400">

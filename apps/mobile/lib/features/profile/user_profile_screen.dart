@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/detail_page.dart';
+import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 
@@ -100,6 +101,23 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       if (action == 'add' || action == 'addFriend') {
         await client.post('/friends/requests', {'recipientId': user!['id']});
         if (mounted) setState(() => sent = true);
+      } else if (action == 'deleteFriend') {
+        final confirmed = await confirmAction(
+          context,
+          tr(context, 'deleteFriend'),
+          tr(context, 'deleteFriendNote'),
+        );
+        if (!confirmed) return;
+        await client.dio.delete('/friends/${user!['id']}');
+        await client.local?.removeCache('/friends');
+        client.changes.add(null);
+        if (!mounted) return;
+        setState(() {
+          friend = false;
+          sent = false;
+          momentMedia = [];
+        });
+        await load();
       } else {
         final conversation = await client.post('/conversations', {
           'memberIds': [user!['id']],
@@ -278,10 +296,12 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       child: Center(
         child: Text(
           tr(context, label),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Color(0xff576b95),
+            color: label == 'deleteFriend'
+                ? QChatColors.danger
+                : const Color(0xff576b95),
           ),
         ),
       ),
@@ -408,7 +428,12 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             if (!isSelf) ...[
               const SizedBox(height: 9),
               if (friend)
-                actionsCard(['messageUser', 'voiceCall', 'videoCall'])
+                actionsCard([
+                  'messageUser',
+                  'voiceCall',
+                  'videoCall',
+                  'deleteFriend',
+                ])
               else
                 actionsCard([sent ? 'friendRequestSent' : 'add']),
             ],
