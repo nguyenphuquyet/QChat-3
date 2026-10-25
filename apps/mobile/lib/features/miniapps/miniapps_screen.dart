@@ -208,7 +208,8 @@ class _MiniAppsScreenState extends ConsumerState<MiniAppsScreen> {
     }
   }
 
-  void _open(MiniAppSummary app) => context.push('/miniApps/${app.appId}');
+  void _open(MiniAppSummary app) =>
+      context.push('/miniApps/${app.appId}', extra: app);
 
   @override
   Widget build(BuildContext context) {

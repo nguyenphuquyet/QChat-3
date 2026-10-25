@@ -28,6 +28,7 @@ import 'features/payments/wallet_screen.dart';
 import 'features/payments/transfer_screen.dart';
 import 'features/miniapps/miniapps_screen.dart';
 import 'features/miniapps/miniapp_runtime_screen.dart';
+import 'features/miniapps/models.dart';
 import 'features/search/search_screen.dart';
 
 GoRoute qchatRoute({
@@ -158,10 +159,31 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => FeatureScreen(kind: s.pathParameters['kind']!),
         ),
         qchatRoute(path: '/miniApps', builder: (_, s) => const MiniAppsScreen()),
-        qchatRoute(
+        // Mini programs open as a task-style layer over the chat instead of a
+        // page in the navigation stack, so they slide up from the bottom and
+        // slide back down when closed rather than using the sideways push.
+        GoRoute(
           path: '/miniApps/:appId',
-          builder: (_, s) =>
-              MiniAppRuntimeScreen(appId: s.pathParameters['appId']!),
+          pageBuilder: (context, state) => CustomTransitionPage<void>(
+            key: state.pageKey,
+            child: MiniAppRuntimeScreen(
+              appId: state.pathParameters['appId']!,
+              preview: state.extra is MiniAppSummary
+                  ? state.extra as MiniAppSummary
+                  : null,
+            ),
+            transitionDuration: const Duration(milliseconds: 320),
+            reverseTransitionDuration: const Duration(milliseconds: 260),
+            transitionsBuilder: (context, animation, _, child) {
+              final slide = animation.drive(
+                Tween(
+                  begin: const Offset(0, 1),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutCubic)),
+              );
+              return SlideTransition(position: slide, child: child);
+            },
+          ),
         ),
         qchatRoute(
           path: '/sessions',

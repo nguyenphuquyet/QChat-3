@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,9 +27,17 @@ import 'models.dart';
 const miniAppRuntimeVersion = '1.0.0';
 
 class MiniAppRuntimeScreen extends ConsumerStatefulWidget {
-  const MiniAppRuntimeScreen({super.key, required this.appId});
+  const MiniAppRuntimeScreen({
+    super.key,
+    required this.appId,
+    this.preview,
+  });
 
   final String appId;
+
+  /// Summary handed over by the store so the launch screen can already show
+  /// the real icon and name while the package is being fetched.
+  final MiniAppSummary? preview;
 
   @override
   ConsumerState<MiniAppRuntimeScreen> createState() =>
@@ -46,22 +55,33 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   WebViewController? _web;
 
   String _name = '';
+  String _iconUrl = '';
   String _version = '';
   List<String> _permissions = const [];
   bool _favorite = false;
   bool _loading = true;
   bool _offline = false;
   bool _webError = false;
-  String _stage = 'download';
   MiniAppException? _error;
   bool _closed = false;
   bool _recordedOpen = false;
   String? _cacheRoot;
+  DateTime? _splashAt;
+  Timer? _revealTimer;
+  static const _splashMin = 480;
   Future<void> _permissionChain = Future.value();
 
   @override
   void initState() {
     super.initState();
+    final preview = widget.preview;
+    if (preview != null) {
+      _name = preview.name;
+      _iconUrl = preview.iconUrl;
+      _version = preview.currentVersion ?? '';
+      _permissions = preview.requestedPermissions;
+      _favorite = preview.favorite;
+    }
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
@@ -82,6 +102,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   @override
   void dispose() {
     _closed = true;
+    _revealTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _bridge?.dispose();
     _server?.close();
@@ -97,6 +118,27 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     return _cache = MiniAppCache(root);
   }
 
+  /// Hides the launch screen once the page has painted. The splash is kept up
+  /// for at least the slide-in duration so the icon never blinks away before
+  /// the mini program has visually opened.
+  void _revealContent() {
+    if (!mounted || _closed || !_loading) return;
+    _revealTimer?.cancel();
+    final shownAt = _splashAt;
+    final elapsed = shownAt == null
+        ? _splashMin
+        : DateTime.now().difference(shownAt).inMilliseconds;
+    final remaining = _splashMin - elapsed;
+    if (remaining <= 0) {
+      setState(() => _loading = false);
+      return;
+    }
+    _revealTimer = Timer(Duration(milliseconds: remaining), () {
+      if (!mounted || _closed || !_loading) return;
+      setState(() => _loading = false);
+    });
+  }
+
   Future<void> _load() async {
     if (!mounted) return;
     _bridge?.dispose();
@@ -105,32 +147,31 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     final previous = _server;
     _server = null;
     if (previous != null) unawaited(previous.close());
+    _revealTimer?.cancel();
+    _splashAt = DateTime.now();
     setState(() {
       _loading = true;
       _error = null;
       _webError = false;
       _offline = false;
-      _stage = 'download';
     });
     final api = _api ??= MiniAppApi(ref.read(clientProvider));
     final cache = await _openCache();
     try {
       final detail = await api.detail(widget.appId);
-      _name = detail.name;
-      _favorite = detail.favorite;
+      if (mounted) {
+        setState(() {
+          _name = detail.name;
+          _iconUrl = detail.iconUrl;
+          _favorite = detail.favorite;
+        });
+      }
       final build = await api.build(widget.appId);
       _version = build.version;
       _permissions = build.requestedPermissions;
       _checkRuntime(build.minRuntimeVersion);
       final installed =
-          await cache.find(build) ??
-          await cache.install(
-            build,
-            onStage: (stage) {
-              if (!mounted) return;
-              setState(() => _stage = stage);
-            },
-          );
+          await cache.find(build) ?? await cache.install(build);
       _recordedOpen = false;
       await _start(installed);
     } on MiniAppException catch (error) {
@@ -273,7 +314,11 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         onWebResourceError: (error) {
           if (!mounted || _closed) return;
           if (error.isForMainFrame != true) return;
-          setState(() => _webError = true);
+          _revealTimer?.cancel();
+          setState(() {
+            _webError = true;
+            _loading = false;
+          });
           unawaited(_telemetry('runtime_error', error.errorCode.toString()));
         },
         onPageFinished: (_) {
@@ -283,19 +328,25 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
             _recordedOpen = true;
             unawaited(_recordOpen(cached));
           }
+          _revealContent();
         },
       ),
     );
     if (!mounted || _closed) return;
-    setState(() {
-      _web = controller;
-      _loading = false;
-    });
+    setState(() => _web = controller);
+    // The launch screen stays up until the document has painted, so the
+    // WebView never flashes white before the mini program's first frame.
+    _revealTimer?.cancel();
+    _revealTimer = Timer(const Duration(seconds: 8), _revealContent);
     try {
       await controller.loadRequest(Uri.parse(server.url));
     } catch (_) {
       if (!mounted) return;
-      setState(() => _webError = true);
+      _revealTimer?.cancel();
+      setState(() {
+        _webError = true;
+        _loading = false;
+      });
     }
   }
 
@@ -593,33 +644,14 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   }
 
   Widget _body(BuildContext context) {
-    if (_loading) {
-      final label = switch (_stage) {
-        'verify' => tr(context, 'miniAppsVerifying'),
-        'extract' => tr(context, 'miniAppsVerifying'),
-        _ => tr(context, 'miniAppsDownloading'),
-      };
-      return Stack(
-        children: [
-          QChatLoading(label: label),
-          if (_offline)
-            Positioned(
-              left: 24,
-              right: 24,
-              bottom: 48,
-              child: Text(
-                tr(context, 'miniAppsOffline'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 12, color: QChatColors.muted),
-              ),
-            ),
-        ],
-      );
-    }
     final error = _error;
     if (error != null) return _errorView(context, error);
     final web = _web;
-    if (web == null) return _errorView(context, const MiniAppException('SERVICE_ERROR'));
+    if (web == null) {
+      return _loading
+          ? _launchScreen(context)
+          : _errorView(context, const MiniAppException('SERVICE_ERROR'));
+    }
     return Stack(
       children: [
         Positioned.fill(child: WebViewWidget(controller: web)),
@@ -653,9 +685,31 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
               ),
             ),
           ),
+        // The WebView stays mounted underneath so it can paint its first frame
+        // while the launch screen is still covering it.
+        if (_loading) Positioned.fill(child: _launchScreen(context)),
       ],
     );
   }
+
+  Widget _launchScreen(BuildContext context) => Stack(
+    children: [
+      Positioned.fill(
+        child: _MiniAppSplash(name: _name, iconUrl: _iconUrl),
+      ),
+      if (_offline)
+        Positioned(
+          left: 24,
+          right: 24,
+          bottom: 48,
+          child: Text(
+            tr(context, 'miniAppsOffline'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: QChatColors.muted),
+          ),
+        ),
+    ],
+  );
 
   Widget _errorView(BuildContext context, MiniAppException error) {
     final message = switch (error.code) {
@@ -699,6 +753,141 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       ),
     );
   }
+}
+
+/// Launch screen shown while the mini program package is fetched and the
+/// WebView paints its first frame. It mirrors the familiar mini program
+/// splash: the app icon centred on a plain page, its name underneath and a
+/// small green dot slowly orbiting the icon.
+class _MiniAppSplash extends StatefulWidget {
+  const _MiniAppSplash({required this.name, required this.iconUrl});
+
+  final String name;
+  final String iconUrl;
+
+  @override
+  State<_MiniAppSplash> createState() => _MiniAppSplashState();
+}
+
+class _MiniAppSplashState extends State<_MiniAppSplash>
+    with SingleTickerProviderStateMixin {
+  static const _iconSize = 54.0;
+  static const _orbitSize = 84.0;
+  static const _dotSize = 6.0;
+
+  late final AnimationController _orbit;
+
+  @override
+  void initState() {
+    super.initState();
+    _orbit = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _orbit.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return ColoredBox(
+      // The launch page stays plain white (dark in dark mode), matching the
+      // mini program splash instead of the app's grey page background.
+      color: dark ? const Color(0xff111111) : Colors.white,
+      child: Align(
+        alignment: const Alignment(0, -0.22),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox.square(
+              dimension: _orbitSize,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: _iconSize,
+                    height: _iconSize,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      color: surface(context),
+                      borderRadius: BorderRadius.circular(_iconSize * .24),
+                      border: Border.all(
+                        color: ink(context).withValues(alpha: .08),
+                        width: .5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: .06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: _icon,
+                  ),
+                  AnimatedBuilder(
+                    animation: _orbit,
+                    builder: (context, child) => Transform.rotate(
+                      angle: _orbit.value * 2 * math.pi,
+                      child: child,
+                    ),
+                    child: const Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: EdgeInsets.only(top: 4),
+                        child: SizedBox.square(
+                          dimension: _dotSize,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: QChatColors.green,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (widget.name.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  widget.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                    color: ink(context),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget get _icon => widget.iconUrl.isEmpty
+      ? const Center(
+          child: QChatIcon('miniApps', size: 28, color: QChatColors.green),
+        )
+      : Image.network(
+          widget.iconUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => const Center(
+            child: QChatIcon('miniApps', size: 28, color: QChatColors.green),
+          ),
+        );
 }
 
 int _compareVersion(String a, String b) {
