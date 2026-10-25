@@ -5,32 +5,16 @@ import { requireCondition } from "../security/errors";
 import { sendMessage } from "../services/messages";
 import { uuid } from "../../../../packages/contracts";
 
-const welcomeCredit = 50_000;
 const minTransfer = 1_000;
 const maxTransfer = 50_000_000;
 
+/// Wallets start empty. A new account must not receive a demo balance; funds
+/// only arrive through transfers or an audited adjustment from the console.
 async function ensureWallet(userId: string) {
-  await db.$transaction(async (tx) => {
-    await tx.wallet.upsert({
-      where: { userId },
-      create: { userId },
-      update: {},
-    });
-    // A single demo credit makes the wallet usable right after sign-up.
-    const credit = await tx.wallet.updateMany({
-      where: { userId, bonusGranted: false },
-      data: { bonusGranted: true, balance: { increment: welcomeCredit } },
-    });
-    if (credit.count === 1) {
-      await tx.walletTransaction.create({
-        data: {
-          walletId: userId,
-          amount: welcomeCredit,
-          kind: "WELCOME",
-          note: "Quà tặng chào mừng",
-        },
-      });
-    }
+  await db.wallet.upsert({
+    where: { userId },
+    create: { userId },
+    update: {},
   });
   return db.wallet.findUniqueOrThrow({ where: { userId } });
 }

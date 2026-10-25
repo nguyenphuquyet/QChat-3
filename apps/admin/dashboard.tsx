@@ -5,11 +5,13 @@ import {
   Activity,
   ArrowDownToLine,
   ArrowRight,
+  Banknote,
   Boxes,
   Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Database,
   ExternalLink,
   FileClock,
@@ -23,6 +25,7 @@ import {
   Menu,
   MessageCircle,
   MessagesSquare,
+  Receipt,
   RefreshCw,
   Save,
   Search,
@@ -31,6 +34,7 @@ import {
   Trash2,
   UserCog,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -38,6 +42,7 @@ import {
 type Permission =
   | "users"
   | "miniapps"
+  | "payments"
   | "reports"
   | "feedback"
   | "landing"
@@ -46,8 +51,21 @@ type Permission =
 type Section = "overview" | Permission;
 type Me = { userId: string; role: string; permissions: Permission[] };
 const permissions: { id: Permission; label: string; hint: string }[] = [
-  { id: "users", label: "Người dùng", hint: "Tìm, khóa và đăng xuất tài khoản" },
-  { id: "miniapps", label: "Mini App", hint: "Duyệt bản build và yêu cầu quyền" },
+  {
+    id: "users",
+    label: "Người dùng",
+    hint: "Tìm, khóa và đăng xuất tài khoản",
+  },
+  {
+    id: "miniapps",
+    label: "Mini App",
+    hint: "Duyệt bản build và yêu cầu quyền",
+  },
+  {
+    id: "payments",
+    label: "Thanh toán & dịch vụ",
+    hint: "Ví, giao dịch và danh mục dịch vụ",
+  },
   { id: "reports", label: "Báo cáo", hint: "Xử lý báo cáo vi phạm" },
   { id: "feedback", label: "Phản hồi", hint: "Xử lý góp ý người dùng" },
   { id: "landing", label: "Trang chủ", hint: "Sửa liên kết tải app và IDE" },
@@ -185,6 +203,47 @@ type Audit = {
   targetId: string;
   createdAt: string;
 };
+type PaymentSummary = {
+  totalBalance: number;
+  wallets: number;
+  transactions: number;
+  volumeToday: number;
+  pendingTransfers: number;
+  pendingAmount: number;
+  services: number;
+  activeServices: number;
+};
+type PaymentUser = {
+  id: string;
+  qchatId: string;
+  nickname: string;
+  email: string;
+  disabled?: boolean;
+};
+type PaymentTransaction = {
+  id: string;
+  amount: number;
+  kind: string;
+  note: string;
+  peerName: string;
+  createdAt: string;
+  wallet: { user: PaymentUser };
+};
+type PaymentWallet = {
+  userId: string;
+  balance: number;
+  bonusGranted: boolean;
+  updatedAt: string;
+  user: PaymentUser;
+};
+type PaymentService = {
+  key: string;
+  label: string;
+  group: string;
+  note: string;
+  enabled: boolean;
+  sortOrder: number;
+};
 const navigation: {
   id: Section;
   label: string;
@@ -199,9 +258,25 @@ const navigation: {
     icon: Boxes,
     permission: "miniapps",
   },
-  { id: "reports", label: "Báo cáo vi phạm", icon: Flag, permission: "reports" },
+  {
+    id: "payments",
+    label: "Thanh toán & dịch vụ",
+    icon: Wallet,
+    permission: "payments",
+  },
+  {
+    id: "reports",
+    label: "Báo cáo vi phạm",
+    icon: Flag,
+    permission: "reports",
+  },
   { id: "feedback", label: "Phản hồi", icon: Inbox, permission: "feedback" },
-  { id: "audit", label: "Nhật ký quản trị", icon: FileClock, permission: "audit" },
+  {
+    id: "audit",
+    label: "Nhật ký quản trị",
+    icon: FileClock,
+    permission: "audit",
+  },
   { id: "landing", label: "Trang chủ", icon: Globe2, permission: "landing" },
   { id: "system", label: "Hệ thống", icon: Server, permission: "system" },
 ];
@@ -211,9 +286,35 @@ const bytes = (value: number) =>
   value < 1024 ** 3
     ? `${(value / 1024 ** 2).toFixed(1)} MB`
     : `${(value / 1024 ** 3).toFixed(2)} GB`;
+const money = (value: number) =>
+  `${value < 0 ? "-" : ""}${number(Math.abs(value))} đ`;
+const paymentKinds = [
+  "TRANSFER",
+  "RED_PACKET",
+  "REFUND",
+  "WELCOME",
+  "ADMIN_CREDIT",
+  "ADMIN_DEBIT",
+] as const;
+const paymentKindLabel = (kind: string) =>
+  (
+    ({
+      TRANSFER: "Chuyển tiền",
+      RED_PACKET: "Lì xì",
+      REFUND: "Hoàn tiền",
+      WELCOME: "Quà chào mừng",
+      ADMIN_CREDIT: "Admin cộng",
+      ADMIN_DEBIT: "Admin trừ",
+    }) as Record<string, string>
+  )[kind] ?? kind;
+const paymentServiceGroups = [
+  "Dịch vụ tài chính",
+  "Dịch vụ hàng ngày",
+  "Du lịch & Di chuyển",
+];
 const miniStatus = (status: string) =>
   (
-    {
+    ({
       DRAFT: "Nháp",
       REVIEWING: "Chờ duyệt",
       APPROVED: "Đã duyệt",
@@ -222,7 +323,7 @@ const miniStatus = (status: string) =>
       SUSPENDED: "Tạm dừng",
       UPLOADED: "Đã tải lên",
       REVOKED: "Đã thu hồi",
-    } as Record<string, string>
+    }) as Record<string, string>
   )[status] ?? status;
 const inputStyle =
   "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-50";
@@ -312,6 +413,8 @@ function failure(error: unknown) {
         LAST_ADMIN: "Không thể gỡ quyền của quản trị viên cuối cùng.",
         NOT_FOUND: "Không tìm thấy dữ liệu cần thao tác.",
         INVALID_STATE: "Mục này vừa được xử lý ở nơi khác. Hãy làm mới.",
+        INSUFFICIENT_FUNDS: "Số dư ví không đủ để thực hiện giao dịch.",
+        UNKNOWN_SERVICE: "Dịch vụ không nằm trong danh mục quản lý.",
         REASON_REQUIRED: "Cần nhập lý do từ chối (ít nhất 3 ký tự).",
         RATE_LIMITED: "Bạn thao tác quá nhanh. Vui lòng thử lại sau.",
       } as Record<string, string>
@@ -365,6 +468,26 @@ export default function Dashboard() {
   const [appSearch, setAppSearch] = useState("");
   const [manageApp, setManageApp] = useState<MiniAppRow | null>(null);
   const [suspendReason, setSuspendReason] = useState("");
+  const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(
+    null,
+  );
+  const [paymentServices, setPaymentServices] = useState<PaymentService[]>([]);
+  const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
+  const [txTotal, setTxTotal] = useState(0);
+  const [txPage, setTxPage] = useState(1);
+  const [txQuery, setTxQuery] = useState("");
+  const [txSearch, setTxSearch] = useState("");
+  const [txKind, setTxKind] = useState("");
+  const [wallets, setWallets] = useState<PaymentWallet[]>([]);
+  const [walletTotal, setWalletTotal] = useState(0);
+  const [walletPage, setWalletPage] = useState(1);
+  const [walletQuery, setWalletQuery] = useState("");
+  const [walletSearch, setWalletSearch] = useState("");
+  const [payBusy, setPayBusy] = useState("");
+  const [adjustTarget, setAdjustTarget] = useState<PaymentWallet | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState("");
+  const [adjustNote, setAdjustNote] = useState("");
+  const [serviceBusy, setServiceBusy] = useState("");
   const revision = useRef(0);
 
   async function raw(
@@ -445,6 +568,24 @@ export default function Dashboard() {
         setQueue(review);
         setApps(list.items);
         setAppTotal(list.total);
+      } else if (target === "payments") {
+        const [summary, tx, walletList, services] = await Promise.all([
+          api("/admin/payments"),
+          api(
+            `/admin/payments/transactions?page=${txPage}&q=${encodeURIComponent(txSearch)}&kind=${encodeURIComponent(txKind)}`,
+          ),
+          api(
+            `/admin/payments/wallets?page=${walletPage}&q=${encodeURIComponent(walletSearch)}`,
+          ),
+          api("/admin/services"),
+        ]);
+        if (current !== revision.current) return;
+        setPaymentSummary(summary.summary);
+        setTransactions(tx.items);
+        setTxTotal(tx.total);
+        setWallets(walletList.items);
+        setWalletTotal(walletList.total);
+        setPaymentServices(services);
       } else if (target === "users") {
         const result = await api(
           `/admin/users?page=${page}&q=${encodeURIComponent(search)}`,
@@ -519,6 +660,9 @@ export default function Dashboard() {
   useEffect(() => {
     if (signedIn && section === "miniapps") void load("miniapps");
   }, [appSearch]);
+  useEffect(() => {
+    if (signedIn && section === "payments") void load("payments");
+  }, [txPage, txSearch, txKind, walletPage, walletSearch]);
 
   async function login() {
     setBusy(true);
@@ -564,6 +708,11 @@ export default function Dashboard() {
       setDetail(null);
       setQueue(null);
       setApps([]);
+      setPaymentSummary(null);
+      setTransactions([]);
+      setWallets([]);
+      setPaymentServices([]);
+      setAdjustTarget(null);
       setStats(null);
       setUsers([]);
       setReports([]);
@@ -727,15 +876,14 @@ export default function Dashboard() {
       setMiniBusy("");
     }
   }
-  async function manageMiniApp(
-    app: MiniAppRow,
-    action: "suspend" | "restore",
-  ) {
+  async function manageMiniApp(app: MiniAppRow, action: "suspend" | "restore") {
     setMiniBusy(app.id);
     setError("");
     setNotice("");
     try {
-      await api(`/admin/miniapps/apps/${app.appId}/${action}`, "POST",
+      await api(
+        `/admin/miniapps/apps/${app.appId}/${action}`,
+        "POST",
         action === "suspend" ? { reason: suspendReason.trim() } : {},
       );
       setNotice(
@@ -770,6 +918,71 @@ export default function Dashboard() {
       setMiniBusy("");
     }
   }
+  function openAdjust(wallet: PaymentWallet) {
+    setAdjustTarget(wallet);
+    setAdjustAmount("");
+    setAdjustNote("");
+    setError("");
+    setNotice("");
+  }
+  async function submitAdjust() {
+    if (!adjustTarget) return;
+    const amount = Number(adjustAmount.replace(/[^\d-]/g, ""));
+    if (!Number.isInteger(amount) || amount === 0) {
+      setError("Nhập số tiền cần cộng hoặc trừ (khác 0).");
+      return;
+    }
+    if (adjustNote.trim().length < 3) {
+      setError("Cần nhập lý do điều chỉnh (ít nhất 3 ký tự).");
+      return;
+    }
+    setPayBusy(adjustTarget.userId);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api(
+        `/admin/payments/wallets/${adjustTarget.userId}/adjust`,
+        "POST",
+        { amount, note: adjustNote.trim() },
+      );
+      setNotice(
+        `Đã ${amount > 0 ? "cộng" : "trừ"} ${money(Math.abs(amount))} cho @${adjustTarget.user.qchatId}. Số dư mới: ${money(result.balance)}.`,
+      );
+      setAdjustTarget(null);
+      if (section === "payments") await load("payments");
+      else if (selected) await reloadDetail(selected.id);
+      await refreshStats();
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setPayBusy("");
+    }
+  }
+  function editService(key: string, patch: Partial<PaymentService>) {
+    setPaymentServices((rows) =>
+      rows.map((row) => (row.key === key ? { ...row, ...patch } : row)),
+    );
+  }
+  async function saveService(service: PaymentService) {
+    setServiceBusy(service.key);
+    setError("");
+    setNotice("");
+    try {
+      await api(`/admin/services/${service.key}`, "PATCH", {
+        label: service.label,
+        group: service.group,
+        note: service.note,
+        enabled: service.enabled,
+        sortOrder: service.sortOrder,
+      });
+      setNotice(`Đã lưu dịch vụ ${service.label}.`);
+      await load("payments");
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setServiceBusy("");
+    }
+  }
   const visibleNavigation = navigation.filter(
     (item) =>
       !item.permission ||
@@ -780,6 +993,8 @@ export default function Dashboard() {
     navigation.find((item) => item.id === section) ?? navigation[0]!;
   const openReports = reports.filter((row) => row.status === "OPEN");
   const fullAdmin = me?.role === "ADMIN";
+  const canPayments =
+    fullAdmin || (me?.permissions.includes("payments") ?? false);
 
   if (restoring)
     return (
@@ -1007,16 +1222,18 @@ export default function Dashboard() {
                   : section === "users"
                     ? "Tìm kiếm, phân quyền và quản lý tài khoản."
                     : section === "miniapps"
-                    ? "Duyệt bản build và yêu cầu quyền của Mini App."
-                    : section === "reports"
-                      ? "Xem xét phản ánh để cộng đồng an toàn hơn."
-                      : section === "feedback"
-                        ? "Đọc góp ý người dùng gửi từ ứng dụng."
-                        : section === "audit"
-                        ? "Theo dõi các thay đổi do quản trị viên thực hiện."
-                        : section === "landing"
-                        ? "Quản lý liên kết hiển thị trên trang giới thiệu."
-                        : "Kiểm tra khả năng phục vụ của hệ thống."}
+                      ? "Duyệt bản build và yêu cầu quyền của Mini App."
+                      : section === "payments"
+                        ? "Theo dõi ví, giao dịch và cấu hình dịch vụ thanh toán."
+                        : section === "reports"
+                          ? "Xem xét phản ánh để cộng đồng an toàn hơn."
+                          : section === "feedback"
+                            ? "Đọc góp ý người dùng gửi từ ứng dụng."
+                            : section === "audit"
+                              ? "Theo dõi các thay đổi do quản trị viên thực hiện."
+                              : section === "landing"
+                                ? "Quản lý liên kết hiển thị trên trang giới thiệu."
+                                : "Kiểm tra khả năng phục vụ của hệ thống."}
               </p>
             </div>
             <button
@@ -1329,7 +1546,10 @@ export default function Dashboard() {
                     disabled={busy}
                     onClick={() => void load("miniapps")}
                   >
-                    <RefreshCw size={15} className={busy ? "animate-spin" : ""} />
+                    <RefreshCw
+                      size={15}
+                      className={busy ? "animate-spin" : ""}
+                    />
                     Làm mới
                   </button>
                 </div>
@@ -1442,7 +1662,9 @@ export default function Dashboard() {
                           <button
                             className={buttonStyle}
                             disabled={miniBusy === request.id}
-                            onClick={() => void decidePermission(request, false)}
+                            onClick={() =>
+                              void decidePermission(request, false)
+                            }
                           >
                             Từ chối
                           </button>
@@ -1528,9 +1750,7 @@ export default function Dashboard() {
                               </span>
                             </td>
                             <td className="px-5 py-4">
-                              <Badge
-                                warning={app.status !== "PUBLISHED"}
-                              >
+                              <Badge warning={app.status !== "PUBLISHED"}>
                                 {miniStatus(app.status)}
                               </Badge>
                             </td>
@@ -1547,7 +1767,9 @@ export default function Dashboard() {
                                 <button
                                   className="text-xs font-semibold text-emerald-700 disabled:text-slate-300"
                                   disabled={miniBusy === app.id}
-                                  onClick={() => void manageMiniApp(app, "restore")}
+                                  onClick={() =>
+                                    void manageMiniApp(app, "restore")
+                                  }
                                 >
                                   Khôi phục
                                 </button>
@@ -1568,6 +1790,430 @@ export default function Dashboard() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
+          {section === "payments" && (
+            <div className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  {
+                    label: "Tổng số dư ví",
+                    value: money(paymentSummary?.totalBalance ?? 0),
+                    detail: `${number(paymentSummary?.wallets ?? 0)} ví đã tạo`,
+                    icon: Wallet,
+                  },
+                  {
+                    label: "Tiền vào ví hôm nay",
+                    value: money(paymentSummary?.volumeToday ?? 0),
+                    detail: "Tổng giao dịch ghi có trong ngày (UTC)",
+                    icon: Banknote,
+                  },
+                  {
+                    label: "Giao dịch đã ghi",
+                    value: number(paymentSummary?.transactions ?? 0),
+                    detail: `${number(paymentSummary?.pendingTransfers ?? 0)} lượt chuyển đang chờ nhận · ${money(paymentSummary?.pendingAmount ?? 0)}`,
+                    icon: Receipt,
+                  },
+                  {
+                    label: "Dịch vụ đang bật",
+                    value: `${number(paymentSummary?.activeServices ?? 0)}/${number(paymentSummary?.services ?? 0)}`,
+                    detail: "Danh mục dịch vụ thanh toán",
+                    icon: CreditCard,
+                  },
+                ].map(({ label, value, detail, icon: Icon }) => (
+                  <Card key={label} className="p-5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500">
+                        {label}
+                      </span>
+                      <span className="rounded-xl bg-emerald-50 p-2.5 text-emerald-600">
+                        <Icon size={18} />
+                      </span>
+                    </div>
+                    <p className="mt-5 text-2xl font-extrabold tracking-tight">
+                      {value}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-400">{detail}</p>
+                  </Card>
+                ))}
+              </div>
+
+              <Card>
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 p-5">
+                  <div>
+                    <h2 className="font-bold">Lịch sử giao dịch</h2>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {number(txTotal)} giao dịch · 20 mục mỗi trang
+                    </p>
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setTxPage(1);
+                      setTxSearch(txQuery.trim());
+                    }}
+                    className="flex flex-wrap gap-2"
+                  >
+                    <input
+                      aria-label="Tìm giao dịch"
+                      className={`${inputStyle} w-52 py-2`}
+                      maxLength={80}
+                      onChange={(e) => setTxQuery(e.target.value)}
+                      placeholder="Tên, QChat ID hoặc email…"
+                      value={txQuery}
+                    />
+                    <select
+                      aria-label="Lọc loại giao dịch"
+                      className={`${inputStyle} w-44 py-2`}
+                      onChange={(e) => {
+                        setTxPage(1);
+                        setTxKind(e.target.value);
+                      }}
+                      value={txKind}
+                    >
+                      <option value="">Mọi loại</option>
+                      {paymentKinds.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {paymentKindLabel(kind)}
+                        </option>
+                      ))}
+                    </select>
+                    <button className={buttonStyle}>
+                      <Search size={15} /> Tìm
+                    </button>
+                  </form>
+                </div>
+                {busy && transactions.length === 0 ? (
+                  <Spinner label="Đang tải giao dịch" />
+                ) : transactions.length === 0 ? (
+                  <Empty>Chưa có giao dịch nào phù hợp.</Empty>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full whitespace-nowrap text-left text-sm">
+                      <thead className="bg-slate-50/70 text-xs text-slate-500">
+                        <tr>
+                          {[
+                            "Người dùng",
+                            "Loại",
+                            "Số tiền",
+                            "Ghi chú",
+                            "Đối tác",
+                            "Thời gian",
+                          ].map((label) => (
+                            <th key={label} className="px-5 py-4 font-semibold">
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {transactions.map((row) => (
+                          <tr key={row.id} className="hover:bg-slate-50/50">
+                            <td className="px-5 py-4">
+                              <p className="font-semibold">
+                                {row.wallet.user.nickname}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                @{row.wallet.user.qchatId}
+                              </p>
+                            </td>
+                            <td className="px-5 py-4 text-xs">
+                              <Badge
+                                warning={
+                                  row.kind === "ADMIN_DEBIT" ||
+                                  row.kind === "RED_PACKET"
+                                }
+                              >
+                                {paymentKindLabel(row.kind)}
+                              </Badge>
+                            </td>
+                            <td
+                              className={`px-5 py-4 font-semibold ${row.amount < 0 ? "text-red-600" : "text-emerald-700"}`}
+                            >
+                              {money(row.amount)}
+                            </td>
+                            <td className="max-w-56 truncate px-5 py-4 text-xs text-slate-500">
+                              {row.note || "—"}
+                            </td>
+                            <td className="px-5 py-4 text-xs text-slate-500">
+                              {row.peerName || "—"}
+                            </td>
+                            <td className="px-5 py-4 text-xs text-slate-500">
+                              {date(row.createdAt)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
+                  <span>
+                    Trang {txPage}/{Math.max(1, Math.ceil(txTotal / 20))}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      aria-label="Trang giao dịch trước"
+                      className={buttonStyle}
+                      disabled={txPage === 1 || busy}
+                      onClick={() => setTxPage(txPage - 1)}
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+                    <button
+                      aria-label="Trang giao dịch sau"
+                      className={buttonStyle}
+                      disabled={txPage * 20 >= txTotal || busy}
+                      onClick={() => setTxPage(txPage + 1)}
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+
+              <Card>
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 p-5">
+                  <div>
+                    <h2 className="font-bold">Ví người dùng</h2>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {number(walletTotal)} ví · cộng/trừ thủ công được ghi nhật
+                      ký
+                    </p>
+                  </div>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setWalletPage(1);
+                      setWalletSearch(walletQuery.trim());
+                    }}
+                    className="flex flex-wrap gap-2"
+                  >
+                    <input
+                      aria-label="Tìm ví"
+                      className={`${inputStyle} w-52 py-2`}
+                      maxLength={80}
+                      onChange={(e) => setWalletQuery(e.target.value)}
+                      placeholder="Tên, QChat ID hoặc email…"
+                      value={walletQuery}
+                    />
+                    <button className={buttonStyle}>
+                      <Search size={15} /> Tìm
+                    </button>
+                  </form>
+                </div>
+                {busy && wallets.length === 0 ? (
+                  <Spinner label="Đang tải ví" />
+                ) : wallets.length === 0 ? (
+                  <Empty>Chưa có ví nào phù hợp.</Empty>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full whitespace-nowrap text-left text-sm">
+                      <thead className="bg-slate-50/70 text-xs text-slate-500">
+                        <tr>
+                          {[
+                            "Người dùng",
+                            "Số dư",
+                            "Trạng thái",
+                            "Cập nhật",
+                            "Thao tác",
+                          ].map((label) => (
+                            <th key={label} className="px-5 py-4 font-semibold">
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {wallets.map((row) => (
+                          <tr key={row.userId} className="hover:bg-slate-50/50">
+                            <td className="px-5 py-4">
+                              <p className="font-semibold">
+                                {row.user.nickname}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-400">
+                                @{row.user.qchatId} · {row.user.email}
+                              </p>
+                            </td>
+                            <td className="px-5 py-4 font-semibold text-emerald-700">
+                              {money(row.balance)}
+                            </td>
+                            <td className="px-5 py-4">
+                              <Badge warning={row.user.disabled}>
+                                {row.user.disabled ? "Đã khóa" : "Hoạt động"}
+                              </Badge>
+                            </td>
+                            <td className="px-5 py-4 text-xs text-slate-500">
+                              {date(row.updatedAt)}
+                            </td>
+                            <td className="px-5 py-4">
+                              <button
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700"
+                                disabled={payBusy === row.userId}
+                                onClick={() => openAdjust(row)}
+                              >
+                                <CreditCard size={14} /> Điều chỉnh
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
+                  <span>
+                    Trang {walletPage}/
+                    {Math.max(1, Math.ceil(walletTotal / 20))}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      aria-label="Trang ví trước"
+                      className={buttonStyle}
+                      disabled={walletPage === 1 || busy}
+                      onClick={() => setWalletPage(walletPage - 1)}
+                    >
+                      <ChevronLeft size={15} />
+                    </button>
+                    <button
+                      aria-label="Trang ví sau"
+                      className={buttonStyle}
+                      disabled={walletPage * 20 >= walletTotal || busy}
+                      onClick={() => setWalletPage(walletPage + 1)}
+                    >
+                      <ChevronRight size={15} />
+                    </button>
+                  </div>
+                </div>
+              </Card>
+
+              <Card>
+                <div className="border-b border-slate-100 p-5">
+                  <h2 className="font-bold">Danh mục dịch vụ thanh toán</h2>
+                  <p className="mt-1 text-xs leading-5 text-slate-400">
+                    Tên, nhóm và trạng thái hiển thị của từng dịch vụ trong ứng
+                    dụng. Tắt dịch vụ để ẩn khỏi danh mục mà không cần phát hành
+                    bản mới.
+                  </p>
+                </div>
+                {busy && paymentServices.length === 0 ? (
+                  <Spinner label="Đang tải dịch vụ" />
+                ) : paymentServices.length === 0 ? (
+                  <Empty>Chưa có dịch vụ nào.</Empty>
+                ) : (
+                  <div className="grid gap-4 p-5 lg:grid-cols-2">
+                    {paymentServices.map((service) => (
+                      <div
+                        key={service.key}
+                        className="rounded-xl border border-slate-200 p-4"
+                      >
+                        <div className="mb-3 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold">{service.label}</p>
+                            <p className="mt-1 font-mono text-[11px] text-slate-400">
+                              {service.key}
+                            </p>
+                          </div>
+                          <Badge warning={!service.enabled}>
+                            {service.enabled ? "Đang bật" : "Đang tắt"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-3">
+                          <label className="block text-xs font-semibold text-slate-600">
+                            Tên hiển thị
+                            <input
+                              className={`${inputStyle} mt-1.5 py-2`}
+                              maxLength={40}
+                              onChange={(e) =>
+                                editService(service.key, {
+                                  label: e.target.value,
+                                })
+                              }
+                              value={service.label}
+                            />
+                          </label>
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <label className="block text-xs font-semibold text-slate-600">
+                              Nhóm
+                              <select
+                                className={`${inputStyle} mt-1.5 py-2`}
+                                onChange={(e) =>
+                                  editService(service.key, {
+                                    group: e.target.value,
+                                  })
+                                }
+                                value={service.group}
+                              >
+                                {paymentServiceGroups.map((group) => (
+                                  <option key={group} value={group}>
+                                    {group}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="block text-xs font-semibold text-slate-600">
+                              Thứ tự
+                              <input
+                                className={`${inputStyle} mt-1.5 py-2`}
+                                max={10000}
+                                min={0}
+                                onChange={(e) =>
+                                  editService(service.key, {
+                                    sortOrder: Number(e.target.value) || 0,
+                                  })
+                                }
+                                type="number"
+                                value={service.sortOrder}
+                              />
+                            </label>
+                          </div>
+                          <label className="block text-xs font-semibold text-slate-600">
+                            Ghi chú
+                            <textarea
+                              className={`${inputStyle} mt-1.5 min-h-[62px] resize-y py-2`}
+                              maxLength={300}
+                              onChange={(e) =>
+                                editService(service.key, {
+                                  note: e.target.value,
+                                })
+                              }
+                              value={service.note}
+                            />
+                          </label>
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+                              <input
+                                checked={service.enabled}
+                                className="h-4 w-4 accent-emerald-600"
+                                onChange={(e) =>
+                                  editService(service.key, {
+                                    enabled: e.target.checked,
+                                  })
+                                }
+                                type="checkbox"
+                              />
+                              Hiển thị trong ứng dụng
+                            </label>
+                            <button
+                              className={buttonStyle}
+                              disabled={serviceBusy === service.key}
+                              onClick={() => void saveService(service)}
+                            >
+                              {serviceBusy === service.key ? (
+                                <Loader2 className="animate-spin" size={15} />
+                              ) : (
+                                <Save size={15} />
+                              )}
+                              Lưu
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </Card>
@@ -1792,13 +2438,20 @@ export default function Dashboard() {
                                 FEEDBACK_DISMISSED: "Bỏ qua phản hồi",
                                 USER_DELETE: "Xóa tài khoản",
                                 USER_ROLE_UPDATE: "Đổi vai trò",
-                                USER_PERMISSIONS_UPDATE: "Cập nhật quyền quản lý",
-                                USER_SESSIONS_REVOKED: "Thu hồi phiên đăng nhập",
+                                USER_PERMISSIONS_UPDATE:
+                                  "Cập nhật quyền quản lý",
+                                USER_SESSIONS_REVOKED:
+                                  "Thu hồi phiên đăng nhập",
                                 SITE_LINK_UPDATE: "Sửa liên kết trang chủ",
+                                PAYMENT_WALLET_ADJUST: "Điều chỉnh số dư ví",
+                                PAYMENT_SERVICE_UPDATE:
+                                  "Cập nhật dịch vụ thanh toán",
                                 MINIAPP_APPROVED: "Duyệt Mini App",
                                 MINIAPP_REJECTED: "Từ chối Mini App",
-                                MINIAPP_PERMISSION_APPROVED: "Cấp quyền Mini App",
-                                MINIAPP_PERMISSION_REJECTED: "Từ chối quyền Mini App",
+                                MINIAPP_PERMISSION_APPROVED:
+                                  "Cấp quyền Mini App",
+                                MINIAPP_PERMISSION_REJECTED:
+                                  "Từ chối quyền Mini App",
                               } as Record<string, string>
                             )[row.action] ?? row.action}
                           </td>
@@ -1972,8 +2625,8 @@ export default function Dashboard() {
                   </div>
                   <h2 className="text-lg font-bold">API & kết nối dữ liệu</h2>
                   <p className="mt-3 text-sm leading-6 text-slate-500">
-                    Kiểm tra API, truy vấn PostgreSQL và kết nối Redis trong cùng
-                    một yêu cầu.
+                    Kiểm tra API, truy vấn PostgreSQL và kết nối Redis trong
+                    cùng một yêu cầu.
                   </p>
                   <button
                     onClick={() => void load("system")}
@@ -2094,6 +2747,34 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 p-3 text-sm">
+                    <span className="flex items-center gap-2 font-semibold">
+                      <Wallet className="text-emerald-600" size={16} />
+                      Số dư ví
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-emerald-700">
+                        {money(detail.wallet?.balance ?? 0)}
+                      </span>
+                      {canPayments && (
+                        <button
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700"
+                          onClick={() =>
+                            openAdjust({
+                              userId: detail.user.id,
+                              balance: detail.wallet?.balance ?? 0,
+                              bonusGranted:
+                                detail.wallet?.bonusGranted ?? false,
+                              updatedAt: detail.user.createdAt,
+                              user: detail.user,
+                            })
+                          }
+                        >
+                          <CreditCard size={14} /> Điều chỉnh
+                        </button>
+                      )}
+                    </div>
+                  </div>
                   <div>
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <h3 className="text-sm font-bold">
@@ -2101,9 +2782,7 @@ export default function Dashboard() {
                       </h3>
                       <button
                         className="text-xs font-semibold text-emerald-700 disabled:text-slate-300"
-                        disabled={
-                          actionBusy || detail.sessions.length === 0
-                        }
+                        disabled={actionBusy || detail.sessions.length === 0}
                         onClick={() => void revokeSessions(detail.user.id)}
                       >
                         Đăng xuất mọi thiết bị
@@ -2212,9 +2891,7 @@ export default function Dashboard() {
                   <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
                     <button
                       className={buttonStyle}
-                      disabled={
-                        actionBusy || detail.user.id === me?.userId
-                      }
+                      disabled={actionBusy || detail.user.id === me?.userId}
                       onClick={() =>
                         void updateUser(
                           detail.user.id,
@@ -2233,7 +2910,8 @@ export default function Dashboard() {
                       (deleteArmed ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-semibold text-red-600">
-                            Xóa vĩnh viễn tin nhắn, media và Mini App của tài khoản?
+                            Xóa vĩnh viễn tin nhắn, media và Mini App của tài
+                            khoản?
                           </span>
                           <button
                             className={buttonStyle}
@@ -2321,6 +2999,78 @@ export default function Dashboard() {
               >
                 <Boxes size={15} />
                 Tạm dừng
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {adjustTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-5"
+          onClick={() => !payBusy && setAdjustTarget(null)}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="adjust-title"
+            className="w-full max-w-md rounded-2xl bg-white p-7 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="adjust-title" className="text-xl font-bold">
+              Điều chỉnh số dư ví
+            </h2>
+            <p className="mt-2 break-all text-xs text-slate-500">
+              {adjustTarget.user.nickname} (@{adjustTarget.user.qchatId}) ·{" "}
+              {adjustTarget.user.email}
+            </p>
+            <p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              Số dư hiện tại:{" "}
+              <strong className="text-emerald-700">
+                {money(adjustTarget.balance)}
+              </strong>
+            </p>
+            <label className="mt-4 block text-xs font-semibold text-slate-600">
+              Số tiền (dương để cộng, âm để trừ)
+              <input
+                className={`${inputStyle} mt-1.5`}
+                max={50000000}
+                min={-50000000}
+                onChange={(e) => setAdjustAmount(e.target.value)}
+                placeholder="Ví dụ: 50000 hoặc -20000"
+                step={1000}
+                type="number"
+                value={adjustAmount}
+              />
+            </label>
+            <label className="mt-3 block text-xs font-semibold text-slate-600">
+              Lý do (bắt buộc, được ghi vào nhật ký)
+              <textarea
+                className={`${inputStyle} mt-1.5 min-h-[72px] resize-y`}
+                maxLength={200}
+                onChange={(e) => setAdjustNote(e.target.value)}
+                placeholder="Ví dụ: hoàn tiền giao dịch lỗi"
+                value={adjustNote}
+              />
+            </label>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                className={buttonStyle}
+                disabled={payBusy === adjustTarget.userId}
+                onClick={() => setAdjustTarget(null)}
+              >
+                Hủy
+              </button>
+              <button
+                className={primaryStyle}
+                disabled={payBusy === adjustTarget.userId}
+                onClick={() => void submitAdjust()}
+              >
+                {payBusy === adjustTarget.userId ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <Save size={16} />
+                )}
+                Lưu điều chỉnh
               </button>
             </div>
           </section>

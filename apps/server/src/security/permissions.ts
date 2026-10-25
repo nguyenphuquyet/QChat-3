@@ -5,6 +5,7 @@
 export const ADMIN_SECTIONS = [
   "users",
   "miniapps",
+  "payments",
   "reports",
   "feedback",
   "landing",

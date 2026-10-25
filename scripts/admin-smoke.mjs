@@ -79,7 +79,7 @@ try {
   check(stats.status === 200 && stats.data.me?.role === "ADMIN", "admin stats + identity");
   check(
     Array.isArray(stats.data.me?.permissions) &&
-      stats.data.me.permissions.length === 7,
+      stats.data.me.permissions.length === 8,
     "full admin receives every section",
   );
 
@@ -114,6 +114,10 @@ try {
   check(
     (await request("/admin/audit", "GET", undefined, managerLogin.token)).status === 403,
     "manager cannot read audit section",
+  );
+  check(
+    (await request("/admin/payments", "GET", undefined, managerLogin.token)).status === 403,
+    "manager cannot read payments section",
   );
   const escalation = await request(
     `/admin/users/${member.userId}`,
@@ -222,6 +226,39 @@ try {
       Array.isArray(queue.data.versions) &&
       Array.isArray(queue.data.permissions),
     "Mini App review queue is readable",
+  );
+
+  const payments = await request("/admin/payments", "GET", undefined, admin.token);
+  check(
+    payments.status === 200 && typeof payments.data.summary?.totalBalance === "number",
+    "payment summary is readable",
+  );
+  const services = await request("/admin/services", "GET", undefined, admin.token);
+  check(
+    services.status === 200 &&
+      Array.isArray(services.data) &&
+      services.data.length > 0,
+    "payment service catalogue is readable",
+  );
+  const transactionList = await request(
+    "/admin/payments/transactions",
+    "GET",
+    undefined,
+    admin.token,
+  );
+  check(
+    transactionList.status === 200 && Array.isArray(transactionList.data.items),
+    "payment transaction list is readable",
+  );
+  const adjust = await request(
+    `/admin/payments/wallets/${manager.userId}/adjust`,
+    "POST",
+    { amount: 1000, note: "Smoke test wallet credit" },
+    admin.token,
+  );
+  check(
+    adjust.status === 200 && adjust.data.balance >= 1000,
+    "admin can credit a wallet",
   );
 
   const disabled = await request(

@@ -25,9 +25,15 @@ import {
   normalizePermissions,
 } from "../security/permissions";
 import { isLinkPlatform, readSiteLinks } from "./site-links";
+import {
+  isPaymentServiceKey,
+  paymentServiceGroups,
+  readPaymentServices,
+} from "./payment-services";
 import { uuid } from "../../../../packages/contracts";
 const isUuid = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const maxWalletAdjustment = 50_000_000;
 
 export async function handle(request: Request) {
   try {
@@ -391,7 +397,14 @@ export async function handle(request: Request) {
               db.media.count({ where: { ownerId: id } }),
               db.report.count({ where: { targetId: id } }),
             ]).then(
-              ([messages, moments, conversations, miniApps, media, reports]) => ({
+              ([
+                messages,
+                moments,
+                conversations,
+                miniApps,
+                media,
+                reports,
+              ]) => ({
                 messages,
                 moments,
                 conversations,
@@ -474,7 +487,12 @@ export async function handle(request: Request) {
             orderBy: { createdAt: "desc" },
             include: {
               user: {
-                select: { id: true, qchatId: true, nickname: true, email: true },
+                select: {
+                  id: true,
+                  qchatId: true,
+                  nickname: true,
+                  email: true,
+                },
               },
             },
           });
@@ -585,7 +603,11 @@ export async function handle(request: Request) {
           });
           result = { ok: true };
         }
-        if (method === "POST" && path[1] === "users" && path[3] === "sessions") {
+        if (
+          method === "POST" &&
+          path[1] === "users" &&
+          path[3] === "sessions"
+        ) {
           requireCondition(canManage(auth, "users"), 403, "FORBIDDEN");
           const targetId = uuid.parse(path[2]);
           const revoked = await db.userSession.updateMany({
@@ -593,7 +615,11 @@ export async function handle(request: Request) {
             data: { revokedAt: new Date() },
           });
           await db.auditLog.create({
-            data: { actorId: userId, action: "USER_SESSIONS_REVOKED", targetId },
+            data: {
+              actorId: userId,
+              action: "USER_SESSIONS_REVOKED",
+              targetId,
+            },
           });
           result = { ok: true, revoked: revoked.count };
         }
@@ -649,7 +675,9 @@ export async function handle(request: Request) {
             }
             // Rows without a foreign key would otherwise point at a user that
             // no longer exists.
-            await tx.messageUserState.deleteMany({ where: { userId: targetId } });
+            await tx.messageUserState.deleteMany({
+              where: { userId: targetId },
+            });
             await tx.momentLike.deleteMany({ where: { userId: targetId } });
             await tx.moneyTransferClaim.deleteMany({
               where: { userId: targetId },
@@ -672,6 +700,286 @@ export async function handle(request: Request) {
           );
           result = { ok: true, deleted: target.qchatId };
         }
+        if (
+          method === "GET" &&
+          path[1] === "payments" &&
+          path[2] === "transactions"
+        ) {
+          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
+          const page = z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(100000)
+            .parse(url.searchParams.get("page") ?? 1);
+          const query = z
+            .string()
+            .max(80)
+            .parse(url.searchParams.get("q") ?? "")
+            .trim();
+          const kind = z
+            .string()
+            .max(20)
+            .parse(url.searchParams.get("kind") ?? "")
+            .trim();
+          const where: Prisma.WalletTransactionWhereInput = {
+            ...(/^[A-Z_]{3,20}$/.test(kind) ? { kind } : {}),
+            ...(query
+              ? {
+                  wallet: {
+                    user: {
+                      OR: [
+                        {
+                          qchatId: {
+                            contains: query,
+                            mode: "insensitive" as const,
+                          },
+                        },
+                        {
+                          nickname: {
+                            contains: query,
+                            mode: "insensitive" as const,
+                          },
+                        },
+                        {
+                          email: {
+                            contains: query,
+                            mode: "insensitive" as const,
+                          },
+                        },
+                      ],
+                    },
+                  },
+                }
+              : {}),
+          };
+          const [items, total] = await Promise.all([
+            db.walletTransaction.findMany({
+              where,
+              skip: (page - 1) * 20,
+              take: 20,
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              select: {
+                id: true,
+                amount: true,
+                kind: true,
+                note: true,
+                peerName: true,
+                createdAt: true,
+                wallet: {
+                  select: {
+                    user: {
+                      select: {
+                        id: true,
+                        qchatId: true,
+                        nickname: true,
+                        email: true,
+                      },
+                    },
+                  },
+                },
+              },
+            }),
+            db.walletTransaction.count({ where }),
+          ]);
+          result = { items, total, page, pageSize: 20 };
+        }
+        if (
+          method === "GET" &&
+          path[1] === "payments" &&
+          path[2] === "wallets"
+        ) {
+          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
+          const page = z.coerce
+            .number()
+            .int()
+            .min(1)
+            .max(100000)
+            .parse(url.searchParams.get("page") ?? 1);
+          const query = z
+            .string()
+            .max(80)
+            .parse(url.searchParams.get("q") ?? "")
+            .trim();
+          const where: Prisma.WalletWhereInput = query
+            ? {
+                user: {
+                  OR: [
+                    {
+                      qchatId: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      nickname: {
+                        contains: query,
+                        mode: "insensitive" as const,
+                      },
+                    },
+                    {
+                      email: { contains: query, mode: "insensitive" as const },
+                    },
+                  ],
+                },
+              }
+            : {};
+          const [items, total] = await Promise.all([
+            db.wallet.findMany({
+              where,
+              skip: (page - 1) * 20,
+              take: 20,
+              orderBy: [{ balance: "desc" }, { userId: "asc" }],
+              select: {
+                userId: true,
+                balance: true,
+                bonusGranted: true,
+                updatedAt: true,
+                user: {
+                  select: {
+                    id: true,
+                    qchatId: true,
+                    nickname: true,
+                    email: true,
+                    disabled: true,
+                  },
+                },
+              },
+            }),
+            db.wallet.count({ where }),
+          ]);
+          result = { items, total, page, pageSize: 20 };
+        }
+        if (method === "GET" && path[1] === "payments") {
+          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
+          const today = new Date();
+          today.setUTCHours(0, 0, 0, 0);
+          const [balances, wallets, transactions, volume, pending, services] =
+            await Promise.all([
+              db.wallet.aggregate({ _sum: { balance: true } }),
+              db.wallet.count(),
+              db.walletTransaction.count(),
+              db.walletTransaction.aggregate({
+                where: { amount: { gt: 0 }, createdAt: { gte: today } },
+                _sum: { amount: true },
+              }),
+              db.moneyTransfer.aggregate({
+                where: { status: "PENDING" },
+                _count: { _all: true },
+                _sum: { amount: true },
+              }),
+              readPaymentServices(),
+            ]);
+          result = {
+            summary: {
+              totalBalance: balances._sum.balance ?? 0,
+              wallets,
+              transactions,
+              volumeToday: volume._sum.amount ?? 0,
+              pendingTransfers: pending._count._all,
+              pendingAmount: pending._sum.amount ?? 0,
+              services: services.length,
+              activeServices: services.filter((service) => service.enabled)
+                .length,
+            },
+          };
+        }
+        if (
+          method === "POST" &&
+          path[1] === "payments" &&
+          path[2] === "wallets" &&
+          path[4] === "adjust"
+        ) {
+          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
+          const targetId = uuid.parse(path[3]);
+          const v = z
+            .object({
+              amount: z
+                .number()
+                .int()
+                .min(-maxWalletAdjustment)
+                .max(maxWalletAdjustment)
+                .refine((value) => value !== 0),
+              note: z.string().trim().min(3).max(200),
+            })
+            .strict()
+            .parse(body);
+          const target = await db.user.findUnique({
+            where: { id: targetId },
+            select: { id: true },
+          });
+          requireCondition(target, 404, "NOT_FOUND");
+          const wallet = await db.$transaction(async (tx) => {
+            await tx.wallet.upsert({
+              where: { userId: targetId },
+              create: { userId: targetId },
+              update: {},
+            });
+            if (v.amount < 0) {
+              const debit = await tx.wallet.updateMany({
+                where: { userId: targetId, balance: { gte: -v.amount } },
+                data: { balance: { decrement: -v.amount } },
+              });
+              requireCondition(debit.count === 1, 400, "INSUFFICIENT_FUNDS");
+            } else {
+              await tx.wallet.update({
+                where: { userId: targetId },
+                data: { balance: { increment: v.amount } },
+              });
+            }
+            await tx.walletTransaction.create({
+              data: {
+                walletId: targetId,
+                amount: v.amount,
+                kind: v.amount > 0 ? "ADMIN_CREDIT" : "ADMIN_DEBIT",
+                note: v.note,
+              },
+            });
+            await tx.auditLog.create({
+              data: {
+                actorId: userId,
+                action: "PAYMENT_WALLET_ADJUST",
+                targetId,
+              },
+            });
+            return tx.wallet.findUniqueOrThrow({ where: { userId: targetId } });
+          });
+          result = { balance: wallet.balance };
+        }
+        if (method === "GET" && path[1] === "services") {
+          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
+          result = await readPaymentServices();
+        }
+        if (method === "PATCH" && path[1] === "services" && path[2]) {
+          requireCondition(canManage(auth, "payments"), 403, "FORBIDDEN");
+          const key = path[2];
+          requireCondition(isPaymentServiceKey(key), 400, "UNKNOWN_SERVICE");
+          const v = z
+            .object({
+              label: z.string().trim().min(1).max(40),
+              group: z.enum(paymentServiceGroups),
+              note: z.string().trim().max(300),
+              enabled: z.boolean(),
+              sortOrder: z.number().int().min(0).max(10000),
+            })
+            .strict()
+            .parse(body);
+          await db.$transaction([
+            db.paymentService.upsert({
+              where: { key },
+              create: { key, ...v },
+              update: v,
+            }),
+            db.auditLog.create({
+              data: {
+                actorId: userId,
+                action: "PAYMENT_SERVICE_UPDATE",
+                targetId: key,
+              },
+            }),
+          ]);
+          result = { ok: true };
+        }
         if (method === "PATCH" && path[1] === "reports") {
           requireCondition(canManage(auth, "reports"), 403, "FORBIDDEN");
           const v = z
@@ -687,7 +995,11 @@ export async function handle(request: Request) {
           ]);
           result = { ok: true };
         }
-        if (method === "GET" && path[1] === "miniapps" && path[2] === "review") {
+        if (
+          method === "GET" &&
+          path[1] === "miniapps" &&
+          path[2] === "review"
+        ) {
           requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
           result = await miniAppReviewRoute(
             userId,
@@ -787,7 +1099,11 @@ export async function handle(request: Request) {
             url,
           );
         }
-        if (method === "POST" && path[1] === "miniapps" && path[2] === "permissions") {
+        if (
+          method === "POST" &&
+          path[1] === "miniapps" &&
+          path[2] === "permissions"
+        ) {
           requireCondition(canManage(auth, "miniapps"), 403, "FORBIDDEN");
           result = await miniAppReviewRoute(
             userId,
