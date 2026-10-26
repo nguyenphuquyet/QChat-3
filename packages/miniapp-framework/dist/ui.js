@@ -41,27 +41,40 @@ export function Slider(props) {
 export function ScrollView(props) {
     return view("ScrollView", props);
 }
+/** Items materialized in the first frame before Flutter builds lazily. */
+const DEFAULT_INITIAL_COUNT = 60;
+/**
+ * `ListView` and `GridView` keep their own node types so the Flutter host can
+ * build the items lazily: only `initialCount` items are serialized into the
+ * frame, and the remaining rows are created as they scroll into view.
+ */
 export function ListView(props) {
-    const { data = [], renderItem, empty, ...rest } = props;
+    const { data = [], renderItem, empty, initialCount, ...rest } = props;
+    const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
     const children = data.length === 0
         ? (empty ?? null)
-        : data.map((item, index) => renderItem?.(item, index) ?? null);
-    return view("ScrollView", {
+        : data
+            .slice(0, limit)
+            .map((item, index) => renderItem?.(item, index) ?? null);
+    return view("ListView", {
         ...rest,
-        vertical: !props.horizontal,
+        horizontal: props.horizontal === true,
+        totalCount: data.length,
         children,
     });
 }
 export function GridView(props) {
-    const { data = [], renderItem, empty, numColumns = 2, ...rest } = props;
+    const { data = [], renderItem, empty, numColumns = 2, initialCount, ...rest } = props;
+    const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
     const children = data.length === 0
         ? (empty ?? null)
-        : data.map((item, index) => renderItem?.(item, index) ?? null);
-    return view("ScrollView", {
+        : data
+            .slice(0, limit)
+            .map((item, index) => renderItem?.(item, index) ?? null);
+    return view("GridView", {
         ...rest,
-        vertical: true,
-        grid: true,
         numColumns,
+        totalCount: data.length,
         children,
     });
 }

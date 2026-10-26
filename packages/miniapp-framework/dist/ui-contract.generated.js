@@ -33,18 +33,18 @@ export const COMPONENT_EVENTS = Object.freeze({
     "SafeArea": [],
     "AnimatedView": [],
     "CustomPaint": [],
-    "Modal": ["press"],
-    "BottomSheet": ["press"],
-    "Dialog": ["press"],
-    "NavBar": ["press"],
+    "Modal": ["close"],
+    "BottomSheet": ["close"],
+    "Dialog": ["close", "confirm"],
+    "NavBar": ["back", "press"],
     "TabBar": ["change"],
 });
-export const EVENT_NAMES = ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select"];
+export const EVENT_NAMES = ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select", "close", "confirm", "back"];
 export const PROP_EVENT_MAP = Object.freeze({
     "onPress": "press",
-    "onClose": "press",
-    "onConfirm": "press",
-    "onBack": "press",
+    "onClose": "close",
+    "onConfirm": "confirm",
+    "onBack": "back",
     "onLongPress": "longPress",
     "onChange": "change",
     "onCheckedChange": "change",

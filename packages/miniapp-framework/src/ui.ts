@@ -1,8 +1,13 @@
 import { h, type VNode, type VNodeChild } from "./runtime.js";
 import type {
   BaseProps,
-  QappGradient,
   QappBoxShadow,
+  QappGradient,
+  QappNumberEvent,
+  QappScrollEvent,
+  QappTabEvent,
+  QappTextEvent,
+  QappToggleEvent,
   Style,
 } from "./protocol.js";
 
@@ -81,9 +86,10 @@ export interface IconProps extends BaseProps {
 export interface TextFieldProps extends BaseProps {
   value?: string;
   placeholder?: string;
+  /** Low-level hook that receives the raw text. */
   onInput?: (value: string) => void;
-  onChange?: (value: string) => void;
-  onSubmit?: (value: string) => void;
+  onChange?: (event: QappTextEvent) => void;
+  onSubmit?: (event: QappTextEvent) => void;
   onFocus?: () => void;
   onBlur?: () => void;
   secureTextEntry?: boolean;
@@ -95,15 +101,18 @@ export interface TextFieldProps extends BaseProps {
 }
 export interface CheckboxProps extends BaseProps {
   checked?: boolean;
-  onChange?: (value: boolean) => void;
-  onCheckedChange?: (checked: boolean) => void;
+  onChange?: (event: QappToggleEvent) => void;
+  /** Alias of `onChange`; both fire the same `change` event. */
+  onCheckedChange?: (event: QappToggleEvent) => void;
   label?: string;
   disabled?: boolean;
 }
 export interface SwitchProps extends BaseProps {
   value?: boolean;
-  onChange?: (value: boolean) => void;
-  onValueChange?: (value: boolean) => void;
+  /** Fires the `change` event. */
+  onChange?: (event: QappToggleEvent) => void;
+  /** Fires the `valueChange` event. */
+  onValueChange?: (event: QappToggleEvent) => void;
   disabled?: boolean;
 }
 export interface SliderProps extends BaseProps {
@@ -111,8 +120,8 @@ export interface SliderProps extends BaseProps {
   min?: number;
   max?: number;
   step?: number;
-  onChange?: (value: number) => void;
-  onValueChange?: (value: number) => void;
+  onChange?: (event: QappNumberEvent) => void;
+  onValueChange?: (event: QappNumberEvent) => void;
   disabled?: boolean;
 }
 export interface ScrollViewProps extends BaseProps {
@@ -120,7 +129,7 @@ export interface ScrollViewProps extends BaseProps {
   horizontal?: boolean;
   vertical?: boolean;
   showsScrollIndicator?: boolean;
-  onScroll?: (offset: ScrollOffset) => void;
+  onScroll?: (event: QappScrollEvent) => void;
   grid?: boolean;
   numColumns?: number;
 }
@@ -128,6 +137,8 @@ export interface ListViewProps<T = unknown> extends BaseProps {
   data?: readonly T[];
   horizontal?: boolean;
   empty?: VNodeChild;
+  /** Items rendered in the first frame; the rest is built lazily by Flutter. */
+  initialCount?: number;
   renderItem?: (item: T, index: number) => VNodeChild;
   keyExtractor?: (item: T, index: number) => string;
 }
@@ -135,6 +146,7 @@ export interface GridViewProps<T = unknown> extends BaseProps {
   data?: readonly T[];
   numColumns?: number;
   empty?: VNodeChild;
+  initialCount?: number;
   renderItem?: (item: T, index: number) => VNodeChild;
 }
 export interface StackProps extends BaseProps {
@@ -208,7 +220,7 @@ export interface TabBarProps extends BaseProps {
   tabs?: readonly TabItem[];
   activeKey?: string;
   activeIndex?: number;
-  onChange?: (payload: TabChangePayload) => void;
+  onChange?: (event: QappTabEvent) => void;
   safeArea?: boolean;
 }
 
@@ -268,30 +280,45 @@ export function ScrollView(props: ScrollViewProps): VNode {
   return view("ScrollView", props as Record<string, unknown>);
 }
 
+/** Items materialized in the first frame before Flutter builds lazily. */
+const DEFAULT_INITIAL_COUNT = 60;
+
+/**
+ * `ListView` and `GridView` keep their own node types so the Flutter host can
+ * build the items lazily: only `initialCount` items are serialized into the
+ * frame, and the remaining rows are created as they scroll into view.
+ */
 export function ListView<T>(props: ListViewProps<T>): VNode {
-  const { data = [], renderItem, empty, ...rest } = props;
+  const { data = [], renderItem, empty, initialCount, ...rest } = props;
+  const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
   const children =
     data.length === 0
       ? (empty ?? null)
-      : data.map((item, index) => renderItem?.(item, index) ?? null);
-  return view("ScrollView", {
+      : data
+          .slice(0, limit)
+          .map((item, index) => renderItem?.(item, index) ?? null);
+  return view("ListView", {
     ...rest,
-    vertical: !props.horizontal,
+    horizontal: props.horizontal === true,
+    totalCount: data.length,
     children,
   } as Record<string, unknown>);
 }
 
 export function GridView<T>(props: GridViewProps<T>): VNode {
-  const { data = [], renderItem, empty, numColumns = 2, ...rest } = props;
+  const { data = [], renderItem, empty, numColumns = 2, initialCount, ...rest } =
+    props;
+  const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
   const children =
     data.length === 0
       ? (empty ?? null)
-      : data.map((item, index) => renderItem?.(item, index) ?? null);
-  return view("ScrollView", {
+      : data
+          .slice(0, limit)
+          .map((item, index) => renderItem?.(item, index) ?? null);
+  return view("GridView", {
     ...rest,
-    vertical: true,
-    grid: true,
     numColumns,
+    totalCount: data.length,
     children,
   } as Record<string, unknown>);
 }

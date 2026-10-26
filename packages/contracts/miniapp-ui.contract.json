@@ -50,13 +50,16 @@
     "refresh",
     "focus",
     "blur",
-    "select"
+    "select",
+    "close",
+    "confirm",
+    "back"
   ],
   "propEvents": {
     "onPress": "press",
-    "onClose": "press",
-    "onConfirm": "press",
-    "onBack": "press",
+    "onClose": "close",
+    "onConfirm": "confirm",
+    "onBack": "back",
     "onLongPress": "longPress",
     "onChange": "change",
     "onCheckedChange": "change",
@@ -90,7 +93,13 @@
     "TabItem": "{ key: string; label: string; icon?: string; badge?: string }",
     "TabChangePayload": "{ index: number; key: string; value: string }",
     "ScrollOffset": "{ x: number; y: number }",
-    "EventPayload": "string | number | boolean | null | Record<string, unknown>"
+    "EventPayload": "string | number | boolean | null | Record<string, unknown>",
+    "QappEvent": "{ type: string; value: unknown }",
+    "QappTextEvent": "{ type: string; value: string; text: string }",
+    "QappToggleEvent": "{ type: string; value: boolean }",
+    "QappNumberEvent": "{ type: string; value: number }",
+    "QappScrollEvent": "{ type: string; x: number; y: number; value: { x: number; y: number } }",
+    "QappTabEvent": "{ type: string; index: number; key: string; value: TabChangePayload }"
   },
   "enums": {
     "flexDirection": { "values": ["row", "column", "row-reverse", "column-reverse"], "aliases": {} },
@@ -201,8 +210,8 @@
         "value": "string",
         "placeholder": "string",
         "onInput": "(value: string) => void",
-        "onChange": "(value: string) => void",
-        "onSubmit": "(value: string) => void",
+        "onChange": "(event: QappTextEvent) => void",
+        "onSubmit": "(event: QappTextEvent) => void",
         "onFocus": "() => void",
         "onBlur": "() => void",
         "secureTextEntry": "boolean",
@@ -217,8 +226,8 @@
     "Checkbox": {
       "props": {
         "checked": "boolean",
-        "onChange": "(value: boolean) => void",
-        "onCheckedChange": "(checked: boolean) => void",
+        "onChange": "(event: QappToggleEvent) => void",
+        "onCheckedChange": "(event: QappToggleEvent) => void",
         "label": "string",
         "disabled": "boolean"
       },
@@ -227,8 +236,8 @@
     "Switch": {
       "props": {
         "value": "boolean",
-        "onChange": "(value: boolean) => void",
-        "onValueChange": "(value: boolean) => void",
+        "onChange": "(event: QappToggleEvent) => void",
+        "onValueChange": "(event: QappToggleEvent) => void",
         "disabled": "boolean"
       },
       "events": ["change", "valueChange"]
@@ -239,8 +248,8 @@
         "min": "number",
         "max": "number",
         "step": "number",
-        "onChange": "(value: number) => void",
-        "onValueChange": "(value: number) => void",
+        "onChange": "(event: QappNumberEvent) => void",
+        "onValueChange": "(event: QappNumberEvent) => void",
         "disabled": "boolean"
       },
       "events": ["change", "valueChange"]
@@ -251,19 +260,29 @@
         "horizontal": "boolean",
         "vertical": "boolean",
         "showsScrollIndicator": "boolean",
-        "onScroll": "(offset: ScrollOffset) => void",
+        "onScroll": "(event: QappScrollEvent) => void",
         "grid": "boolean",
         "numColumns": "number"
       },
       "events": ["scroll"]
     },
     "ListView": {
-      "props": { "data": "readonly unknown[]", "horizontal": "boolean", "empty": "VNodeChild" },
+      "props": {
+        "data": "readonly unknown[]",
+        "horizontal": "boolean",
+        "empty": "VNodeChild",
+        "initialCount": "number"
+      },
       "localProps": { "renderItem": "(item: any, index: number) => VNodeChild", "keyExtractor": "(item: any, index: number) => string" },
       "events": []
     },
     "GridView": {
-      "props": { "data": "readonly unknown[]", "numColumns": "number", "empty": "VNodeChild" },
+      "props": {
+        "data": "readonly unknown[]",
+        "numColumns": "number",
+        "empty": "VNodeChild",
+        "initialCount": "number"
+      },
       "localProps": { "renderItem": "(item: any, index: number) => VNodeChild" },
       "events": []
     },
@@ -298,11 +317,11 @@
         "transparent": "boolean",
         "animationType": "ModalAnimation"
       },
-      "events": ["press"]
+      "events": ["close"]
     },
     "BottomSheet": {
       "props": { "children": "VNodeChild", "visible": "boolean", "onClose": "() => void", "height": "number" },
-      "events": ["press"]
+      "events": ["close"]
     },
     "Dialog": {
       "props": {
@@ -314,7 +333,7 @@
         "confirmText": "string",
         "cancelText": "string"
       },
-      "events": ["press"]
+      "events": ["close", "confirm"]
     },
     "NavBar": {
       "props": {
@@ -326,14 +345,14 @@
         "safeArea": "boolean",
         "reserveRight": "number"
       },
-      "events": ["press"]
+      "events": ["back", "press"]
     },
     "TabBar": {
       "props": {
         "tabs": "TabItem[]",
         "activeKey": "string",
         "activeIndex": "number",
-        "onChange": "(payload: TabChangePayload) => void",
+        "onChange": "(event: QappTabEvent) => void",
         "safeArea": "boolean"
       },
       "events": ["change"]

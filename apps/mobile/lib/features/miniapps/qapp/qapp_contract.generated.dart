@@ -53,6 +53,9 @@ const Set<String> qappEventNames = <String>{
   'focus',
   'blur',
   'select',
+  'close',
+  'confirm',
+  'back',
 };
 
 /// Events each component may declare (diagnostics only).
@@ -80,10 +83,10 @@ const Map<String, List<String>> qappComponentEvents = <String, List<String>>{
   'SafeArea': <String>[],
   'AnimatedView': <String>[],
   'CustomPaint': <String>[],
-  'Modal': <String>['press'],
-  'BottomSheet': <String>['press'],
-  'Dialog': <String>['press'],
-  'NavBar': <String>['press'],
+  'Modal': <String>['close'],
+  'BottomSheet': <String>['close'],
+  'Dialog': <String>['close', 'confirm'],
+  'NavBar': <String>['back', 'press'],
   'TabBar': <String>['change'],
 };
 

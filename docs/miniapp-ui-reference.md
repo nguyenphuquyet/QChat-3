@@ -22,8 +22,8 @@ in sync.
 | `Switch` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
 | `Slider` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `min`, `max`, `step`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
 | `ScrollView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `horizontal`, `vertical`, `showsScrollIndicator`, `onScroll`, `grid`, `numColumns` | `scroll` |
-| `ListView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `horizontal`, `empty`, `renderItem`, `keyExtractor` | — |
-| `GridView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `numColumns`, `empty`, `renderItem` | — |
+| `ListView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `horizontal`, `empty`, `initialCount`, `renderItem`, `keyExtractor` | — |
+| `GridView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `numColumns`, `empty`, `initialCount`, `renderItem` | — |
 | `Stack` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `alignment` | — |
 | `Positioned` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `top`, `right`, `bottom`, `left` | — |
 | `Spacer` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size` | — |
@@ -32,22 +32,22 @@ in sync.
 | `SafeArea` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `edges` | — |
 | `AnimatedView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `animate`, `duration` | — |
 | `CustomPaint` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `draw`, `width`, `height` | — |
-| `Modal` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `transparent`, `animationType` | `press` |
-| `BottomSheet` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `height` | `press` |
-| `Dialog` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `title`, `onClose`, `onConfirm`, `confirmText`, `cancelText` | `press` |
-| `NavBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight` | `press` |
+| `Modal` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `transparent`, `animationType` | `close` |
+| `BottomSheet` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `height` | `close` |
+| `Dialog` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `title`, `onClose`, `onConfirm`, `confirmText`, `cancelText` | `close`, `confirm` |
+| `NavBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight` | `back`, `press` |
 | `TabBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `tabs`, `activeKey`, `activeIndex`, `onChange`, `safeArea` | `change` |
 
 ## Events
 
-`press`, `longPress`, `change`, `input`, `submit`, `valueChange`, `scroll`, `refresh`, `focus`, `blur`, `select`
+`press`, `longPress`, `change`, `input`, `submit`, `valueChange`, `scroll`, `refresh`, `focus`, `blur`, `select`, `close`, `confirm`, `back`
 
 | Prop | Event |
 | --- | --- |
 | `onPress` | `press` |
-| `onClose` | `press` |
-| `onConfirm` | `press` |
-| `onBack` | `press` |
+| `onClose` | `close` |
+| `onConfirm` | `confirm` |
+| `onBack` | `back` |
 | `onLongPress` | `longPress` |
 | `onChange` | `change` |
 | `onCheckedChange` | `change` |

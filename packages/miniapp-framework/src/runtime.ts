@@ -445,21 +445,20 @@ function renderElement(
   if (typeof type !== "string") return [];
   assertKnownType(type);
   const node: HostNode = { type, props: {}, events: [], children: [] };
+  // Several props can map to one event (`onChange` and `onCheckedChange` both
+  // fire `change`), so the wire event list never repeats a name.
+  const byEvent = new Map<EventName, (payload?: unknown) => void>();
   for (const [prop, value] of Object.entries(element.props)) {
     if (prop === "children" || prop === "key" || prop === "ref") continue;
     if (typeof value === "function") {
       const event = eventNameFor(prop);
-      if (event) {
-        node.events.push({
-          name: event,
-          handler: value as (payload?: unknown) => void,
-        });
-      }
+      if (event) byEvent.set(event, value as (payload?: unknown) => void);
       continue;
     }
     if (value === undefined) continue;
     node.props[prop] = value;
   }
+  node.events = [...byEvent].map(([name, handler]) => ({ name, handler }));
   node.children = renderChildren(
     element.props.children as VNodeChild,
     `${ownerKey}/${slot}#`,

@@ -108,15 +108,21 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expect(events, contains(('n0.0', 'input', 'Ada')));
-    expect(events, contains(('n0.0', 'submit', 'Ada')));
+    expect(
+      events,
+      contains(('n0.0', 'submit', {'type': 'submit', 'value': 'Ada', 'text': 'Ada'})),
+    );
 
     await tester.tap(find.text('Agree'));
     await tester.pump();
-    expect(events, contains(('n0.1', 'change', true)));
+    expect(events, contains(('n0.1', 'change', {'type': 'change', 'value': true})));
 
     await tester.tap(find.byType(Switch));
     await tester.pump();
-    expect(events, contains(('n0.2', 'valueChange', true)));
+    expect(
+      events,
+      contains(('n0.2', 'valueChange', {'type': 'valueChange', 'value': true})),
+    );
   });
 
   testWidgets('renders stacks, scroll views, sliders and custom paint', (

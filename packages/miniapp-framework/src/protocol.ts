@@ -191,6 +191,39 @@ export type EventPayload =
   | null
   | Record<string, unknown>;
 
+/**
+ * Every interactive component reports a single object shape so a handler can
+ * read the event without guessing the component: `{ type, value, ... }`.
+ */
+export interface QappEvent<T = unknown> {
+  type: EventName;
+  value: T;
+}
+
+/** `TextField` change/submit payload; `text` mirrors `value`. */
+export interface QappTextEvent extends QappEvent<string> {
+  text: string;
+}
+
+/** `Switch` and `Checkbox` payload. */
+export interface QappToggleEvent extends QappEvent<boolean> {}
+
+/** `Slider` payload. */
+export interface QappNumberEvent extends QappEvent<number> {}
+
+/** `ScrollView` payload; both flattened and `value` copies are provided. */
+export interface QappScrollEvent extends QappEvent<{ x: number; y: number }> {
+  x: number;
+  y: number;
+}
+
+/** `TabBar` payload. */
+export interface QappTabEvent
+  extends QappEvent<{ index: number; key: string; value: string }> {
+  index: number;
+  key: string;
+}
+
 /** A serialized node. Only plain JSON values are allowed. */
 export interface RenderNode {
   id: string;

@@ -49,6 +49,12 @@ export type {
   QappLinearGradient,
   QappRadialGradient,
   QappRef,
+  QappEvent,
+  QappTextEvent,
+  QappToggleEvent,
+  QappNumberEvent,
+  QappScrollEvent,
+  QappTabEvent,
 } from "./protocol.js";
 export { normalizeStyleEnum } from "./protocol.js";
 export {

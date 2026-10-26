@@ -36,21 +36,21 @@ export const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>> = Obj
   "SafeArea": [],
   "AnimatedView": [],
   "CustomPaint": [],
-  "Modal": ["press"],
-  "BottomSheet": ["press"],
-  "Dialog": ["press"],
-  "NavBar": ["press"],
+  "Modal": ["close"],
+  "BottomSheet": ["close"],
+  "Dialog": ["close", "confirm"],
+  "NavBar": ["back", "press"],
   "TabBar": ["change"],
 });
 
-export const EVENT_NAMES = ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select"] as const;
+export const EVENT_NAMES = ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select", "close", "confirm", "back"] as const;
 export type GeneratedEventName = (typeof EVENT_NAMES)[number];
 
 export const PROP_EVENT_MAP: Readonly<Record<string, string>> = Object.freeze({
   "onPress": "press",
-  "onClose": "press",
-  "onConfirm": "press",
-  "onBack": "press",
+  "onClose": "close",
+  "onConfirm": "confirm",
+  "onBack": "back",
   "onLongPress": "longPress",
   "onChange": "change",
   "onCheckedChange": "change",

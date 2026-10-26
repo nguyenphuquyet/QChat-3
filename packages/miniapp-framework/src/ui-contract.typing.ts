@@ -293,6 +293,7 @@ const ListViewProps_CONFORMANCE: Record<keyof ListViewProps, true> = {
   data: true,
   horizontal: true,
   empty: true,
+  initialCount: true,
   renderItem: true,
   keyExtractor: true,
 };
@@ -310,6 +311,7 @@ const GridViewProps_CONFORMANCE: Record<keyof GridViewProps, true> = {
   data: true,
   numColumns: true,
   empty: true,
+  initialCount: true,
   renderItem: true,
 };
 void GridViewProps_CONFORMANCE;

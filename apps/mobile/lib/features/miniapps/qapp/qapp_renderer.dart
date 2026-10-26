@@ -111,9 +111,20 @@ class _QappNodeView extends StatelessWidget {
       case 'Column':
         return _flex(context, forceRow: false);
       case 'ScrollView':
+        return _scroll(context);
       case 'ListView':
       case 'GridView':
-        return _scroll(context);
+        return _lazyList(context);
+      case 'Modal':
+        return _modal(context);
+      case 'BottomSheet':
+        return _bottomSheet(context);
+      case 'Dialog':
+        return _dialog(context);
+      case 'NavBar':
+        return _navBar(context);
+      case 'TabBar':
+        return _tabBar(context);
       case 'Stack':
         return _stack(context);
       case 'Positioned':
@@ -327,20 +338,383 @@ class _QappNodeView extends StatelessWidget {
       padding: padding,
       child: content,
     );
+    final showsIndicator = node.props['showsScrollIndicator'] != false;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.depth == 0 &&
             notification is ScrollEndNotification &&
             node.hasEvent('scroll')) {
           final position = notification.metrics;
+          final x = horizontal ? position.pixels : 0.0;
+          final y = horizontal ? 0.0 : position.pixels;
           onEvent(node.id, 'scroll', {
-            'x': horizontal ? position.pixels : 0,
-            'y': horizontal ? 0 : position.pixels,
+            'type': 'scroll',
+            'x': x,
+            'y': y,
+            'value': {'x': x, 'y': y},
           });
         }
         return false;
       },
-      child: scroller,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(
+          context,
+        ).copyWith(scrollbars: showsIndicator),
+        child: scroller,
+      ),
+    );
+  }
+
+  /// `ListView`/`GridView` keep their own node type so the whole list is not
+  /// built at once: the frame carries the first window of items and Flutter
+  /// lays the rest out only as they scroll into view.
+  Widget _lazyList(BuildContext context) {
+    final horizontal = node.props['horizontal'] == true;
+    final showsIndicator = node.props['showsScrollIndicator'] != false;
+    final children = _childWidgets(context);
+    final padding = node.style.padding;
+    if (node.type == 'GridView') {
+      final columns = node.props['numColumns'];
+      final count = columns is num ? columns.round().clamp(1, 12) : 2;
+      return GridView.count(
+        crossAxisCount: count,
+        padding: padding,
+        mainAxisSpacing: node.style.gap,
+        crossAxisSpacing: node.style.gap,
+        childAspectRatio: node.style.aspectRatio ?? 1,
+        physics: showsIndicator ? null : const NeverScrollableScrollPhysics(),
+        children: children,
+      );
+    }
+    return ListView(
+      scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
+      padding: padding,
+      physics: showsIndicator ? null : const NeverScrollableScrollPhysics(),
+      children: children,
+    );
+  }
+
+  List<Widget> _childWidgets(BuildContext context) => [
+    for (final child in node.children)
+      _QappNodeView(
+        node: child,
+        onEvent: onEvent,
+        loadAsset: loadAsset,
+        networkHosts: networkHosts,
+        insideFlex: false,
+      ),
+  ];
+
+  Widget _overlay(BuildContext context, Widget content) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: node.hasEvent('close')
+                ? () => onEvent(node.id, 'close', {'type': 'close'})
+                : null,
+            child: ColoredBox(
+              color: Colors.black.withValues(alpha: .45),
+            ),
+          ),
+        ),
+        content,
+      ],
+    );
+  }
+
+  Widget _modal(BuildContext context) {
+    if (node.props['visible'] != true) return const SizedBox.shrink();
+    if (node.props['transparent'] == true) {
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: node.hasEvent('close')
+                  ? () => onEvent(node.id, 'close', {'type': 'close'})
+                  : null,
+              child: const ColoredBox(color: Colors.transparent),
+            ),
+          ),
+          Center(child: _sheetColumn(context)),
+        ],
+      );
+    }
+    return _overlay(context, Center(child: _sheetColumn(context)));
+  }
+
+  Widget _bottomSheet(BuildContext context) {
+    if (node.props['visible'] != true) return const SizedBox.shrink();
+    final height = _number(node.props['height']);
+    return _overlay(
+      context,
+      Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          width: double.infinity,
+          height: height,
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(18),
+            ),
+          ),
+          child: SingleChildScrollView(child: _sheetColumn(context)),
+        ),
+      ),
+    );
+  }
+
+  Widget _dialog(BuildContext context) {
+    if (node.props['visible'] != true) return const SizedBox.shrink();
+    final title = node.props['title']?.toString() ?? '';
+    final confirmText = node.props['confirmText']?.toString() ?? '';
+    final cancelText = node.props['cancelText']?.toString() ?? '';
+    final hasActions = confirmText.isNotEmpty || cancelText.isNotEmpty;
+    return _overlay(
+      context,
+      Center(
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 320),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (title.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ..._childWidgets(context),
+              if (hasActions)
+                Padding(
+                  padding: const EdgeInsets.only(top: 14),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (cancelText.isNotEmpty)
+                        TextButton(
+                          onPressed: node.hasEvent('close')
+                              ? () => onEvent(
+                                  node.id,
+                                  'close',
+                                  {'type': 'close'},
+                                )
+                              : null,
+                          child: Text(cancelText),
+                        ),
+                      if (confirmText.isNotEmpty)
+                        TextButton(
+                          onPressed: node.hasEvent('confirm')
+                              ? () => onEvent(
+                                  node.id,
+                                  'confirm',
+                                  {'type': 'confirm'},
+                                )
+                              : null,
+                          child: Text(confirmText),
+                        ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _sheetColumn(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: _childWidgets(context),
+    );
+  }
+
+  /// A header the Mini App owns. It reads the safe area itself and leaves the
+  /// right edge free for the menu and close buttons the host floats on top.
+  Widget _navBar(BuildContext context) {
+    final title = node.props['title']?.toString() ?? '';
+    final subtitle = node.props['subtitle']?.toString() ?? '';
+    final showBack = node.props['showBack'] == true;
+    final reserveRight = _number(node.props['reserveRight']) ?? 84;
+    final safeArea = node.props['safeArea'] != false;
+    final topInset = safeArea ? MediaQuery.of(context).padding.top : 0.0;
+    return Container(
+      padding: EdgeInsets.only(top: topInset),
+      color: node.style.backgroundColor ?? Theme.of(context).colorScheme.surface,
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 44,
+              child: showBack && node.hasEvent('back')
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: () =>
+                          onEvent(node.id, 'back', {'type': 'back'}),
+                    )
+                  : null,
+            ),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (title.isNotEmpty)
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: node.style
+                          .toTextStyle(
+                            fallbackColor: ink(context),
+                            fallbackSize: 17,
+                          )
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  if (subtitle.isNotEmpty)
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: QChatColors.muted,
+                      ),
+                    ),
+                  ..._childWidgets(context),
+                ],
+              ),
+            ),
+            SizedBox(width: reserveRight),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tabBar(BuildContext context) {
+    final rawTabs = node.props['tabs'];
+    final tabs = rawTabs is List
+        ? rawTabs.whereType<Map>().toList(growable: false)
+        : const <Map>[];
+    final activeKey = node.props['activeKey']?.toString();
+    final rawActive = node.props['activeIndex'];
+    var activeIndex = rawActive is num ? rawActive.round() : -1;
+    if (activeKey != null) {
+      final found = tabs.indexWhere(
+        (tab) => tab['key']?.toString() == activeKey,
+      );
+      if (found >= 0) activeIndex = found;
+    }
+    if (activeIndex < 0) activeIndex = 0;
+    final safeArea = node.props['safeArea'] != false;
+    final bottomInset = safeArea ? MediaQuery.of(context).padding.bottom : 0.0;
+    return Container(
+      color: node.style.backgroundColor ?? Theme.of(context).colorScheme.surface,
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: SizedBox(
+        height: 56,
+        child: Row(
+          children: [
+            for (var index = 0; index < tabs.length; index++)
+              Expanded(
+                child: _tabButton(
+                  context,
+                  tabs[index],
+                  index,
+                  index == activeIndex,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tabButton(
+    BuildContext context,
+    Map tab,
+    int index,
+    bool active,
+  ) {
+    final key = tab['key']?.toString() ?? '';
+    final label = tab['label']?.toString() ?? '';
+    final icon = tab['icon']?.toString();
+    final badge = tab['badge']?.toString();
+    final color = active ? QChatColors.green : QChatColors.muted;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: node.hasEvent('change')
+          ? () => onEvent(node.id, 'change', {
+              'type': 'change',
+              'index': index,
+              'key': key,
+              'value': {'index': index, 'key': key, 'value': key},
+            })
+          : null,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (icon != null && icon.isNotEmpty)
+            Stack(
+              children: [
+                QChatIcon(icon, size: 22, color: color),
+                if (badge != null && badge.isNotEmpty)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xffe5484d),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        badge,
+                        style: const TextStyle(
+                          fontSize: 9,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            )
+          else
+            const SizedBox.square(dimension: 22),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1116,12 +1490,20 @@ class _QappTextFieldState extends State<_QappTextField> {
           widget.onEvent(node.id, 'input', value);
         }
         if (node.hasEvent('change')) {
-          widget.onEvent(node.id, 'change', value);
+          widget.onEvent(node.id, 'change', {
+            'type': 'change',
+            'value': value,
+            'text': value,
+          });
         }
       },
       onSubmitted: (value) {
         if (node.hasEvent('submit')) {
-          widget.onEvent(node.id, 'submit', value);
+          widget.onEvent(node.id, 'submit', {
+            'type': 'submit',
+            'value': value,
+            'text': value,
+          });
         }
       },
     );
@@ -1159,7 +1541,10 @@ class _QappCheckboxState extends State<_QappCheckbox> {
           : () {
               final next = !_checked;
               setState(() => _checked = next);
-              widget.onEvent(node.id, 'change', next);
+              widget.onEvent(node.id, 'change', {
+                'type': 'change',
+                'value': next,
+              });
             },
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1227,7 +1612,18 @@ class _QappSwitchState extends State<_QappSwitch> {
           ? null
           : (value) {
               setState(() => _value = value);
-              widget.onEvent(node.id, 'valueChange', value);
+              if (node.hasEvent('change')) {
+                widget.onEvent(node.id, 'change', {
+                  'type': 'change',
+                  'value': value,
+                });
+              }
+              if (node.hasEvent('valueChange')) {
+                widget.onEvent(node.id, 'valueChange', {
+                  'type': 'valueChange',
+                  'value': value,
+                });
+              }
             },
     );
   }
@@ -1278,8 +1674,17 @@ class _QappSliderState extends State<_QappSlider> {
       activeColor: QChatColors.green,
       onChanged: (next) => setState(() => _value = next),
       onChangeEnd: (next) {
+        if (node.hasEvent('change')) {
+          widget.onEvent(node.id, 'change', {
+            'type': 'change',
+            'value': next,
+          });
+        }
         if (node.hasEvent('valueChange')) {
-          widget.onEvent(node.id, 'valueChange', next);
+          widget.onEvent(node.id, 'valueChange', {
+            'type': 'valueChange',
+            'value': next,
+          });
         }
       },
     );
