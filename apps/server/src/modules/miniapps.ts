@@ -20,7 +20,10 @@ import {
   readBuild,
   storageMode,
 } from "../services/miniapp-storage";
-import { createPreviewToken, readPreviewFile } from "../services/miniapp-preview";
+import {
+  createPreviewToken,
+  readRawPreviewFile,
+} from "../services/miniapp-preview";
 import { readSiteLinks } from "../services/site-links";
 import { inspectBuild, PackageError } from "../services/miniapp-package";
 import { publicUser } from "../services/messages";
@@ -208,6 +211,8 @@ export async function miniAppsRoute(
         openedAt: recent?.openedAt ?? null,
         minRuntimeVersion: build?.minRuntimeVersion ?? "1.0.0",
         size: build?.size ?? 0,
+        format: build?.format ?? "qapp",
+        sdkVersion: build?.sdkVersion ?? null,
         runtimeVersion,
       };
     }
@@ -220,6 +225,8 @@ export async function miniAppsRoute(
         manifest: build.manifest,
         sha256: build.sha256,
         entry: build.entry,
+        format: build.format,
+        sdkVersion: build.sdkVersion,
       };
     }
     if (id && sub === "build" && method === "GET") {
@@ -243,6 +250,8 @@ export async function miniAppsRoute(
         minRuntimeVersion: build.minRuntimeVersion,
         requestedPermissions: build.requestedPermissions,
         manifest: build.manifest,
+        format: build.format,
+        sdkVersion: build.sdkVersion,
         url: location.url,
         expiresAt: location.expiresAt,
       };
@@ -958,9 +967,10 @@ export async function miniAppPreviewToken(role: string, versionId: string) {
   return createPreviewToken(id);
 }
 
-/// Reviewer preview. The caller has already proven access with the reviewer's
-/// session or a valid preview token; the ZIP is read from private storage and
-/// one file at a time is returned, never an extraction directory.
+/// Reviewer inspection. The caller has already proven access with the
+/// reviewer's session or a valid preview token; the `.japp` is read from
+/// private storage and one raw file at a time is returned, never an extraction
+/// directory and never executed.
 export async function miniAppPreview(versionId: string, requested: string) {
   const build = await db.miniAppVersion.findUnique({
     where: { id: z.string().uuid().parse(versionId) },
@@ -976,21 +986,17 @@ export async function miniAppPreview(versionId: string, requested: string) {
     "ZIP_INVALID_NAME",
   );
   const archive = await readBuild(build.storageKey);
-  const file = readPreviewFile(
+  const file = readRawPreviewFile(
     archive,
-    {
-      appId: build.miniApp.appId,
-      name: build.miniApp.name,
-      version: build.version,
-      entry: build.entry,
-      runtimeVersion,
-      minRuntimeVersion: build.minRuntimeVersion,
-      permissions: build.requestedPermissions,
-    },
-    parts.join("/"),
+    parts.join("/") || "manifest.json",
   );
   requireCondition(file, 404, "NOT_FOUND");
-  return { ...file, appId: build.miniApp.appId, version: build.version };
+  return {
+    ...file,
+    appId: build.miniApp.appId,
+    version: build.version,
+    format: "qapp",
+  };
 }
 
 /// Entry point for the admin console. The caller authorizes the `miniapps`
@@ -1213,7 +1219,7 @@ export async function uploadBuild(
   const bytes = Buffer.from(await blob.arrayBuffer());
   let inspected;
   try {
-    inspected = inspectBuild(bytes, { appId: app.appId, version });
+    inspected = inspectBuild(bytes, { version });
   } catch (error) {
     if (error instanceof PackageError)
       throw new ApiError(400, error.code);
@@ -1224,7 +1230,7 @@ export async function uploadBuild(
     select: { id: true },
   });
   requireCondition(!existing, 409, "VERSION_EXISTS");
-  const storageKey = `miniapps/${app.appId}/${randomUUID()}.zip`;
+  const storageKey = `miniapps/${app.appId}/${randomUUID()}.japp`;
   await putBuild(storageKey, bytes);
   try {
     const build = await db.miniAppVersion.create({
@@ -1236,6 +1242,8 @@ export async function uploadBuild(
         size: inspected.size,
         manifest: inspected.manifest as never,
         entry: inspected.entry,
+        format: inspected.format,
+        sdkVersion: inspected.sdkVersion,
         minRuntimeVersion: inspected.manifest.minRuntimeVersion,
         requestedPermissions: inspected.permissions,
         status: "UPLOADED",

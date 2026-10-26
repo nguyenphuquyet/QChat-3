@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -31,7 +30,12 @@ class FakeApi extends MiniAppApi {
     Map<String, dynamic>? query,
     Object? body,
   }) async {
-    requests.add({'path': path, 'method': method, 'query': query, 'body': body});
+    requests.add({
+      'path': path,
+      'method': method,
+      'query': query,
+      'body': body,
+    });
     if (path == '/friends' && friendsGate != null) {
       return friendsGate!.future;
     }
@@ -53,34 +57,37 @@ class Harness {
       'share',
       'storage',
       'qchat.api',
+      'network',
     ],
     Set<String> granted = const {},
     bool allowPermission = true,
     bool shareResult = true,
+    List<String> networkDomains = const ['api.example.com'],
   }) {
     bridge = MiniAppBridge(
       appId: _appId,
       appName: 'Demo',
       version: '1.0.0',
-      entry: 'index.html',
+      entry: 'app.js',
       runtimeVersion: '1.0.0',
       minRuntimeVersion: '1.0.0',
       permissions: permissions,
       api: api,
       storage: storage,
       granted: granted,
+      networkDomains: networkDomains,
       requestPermission: (permission) async {
         permissionRequests.add(permission);
         return allowPermission;
       },
-      onToast: (message, icon) => toasts.add({'message': message, 'icon': icon}),
+      onToast: (message, icon) =>
+          toasts.add({'message': message, 'icon': icon}),
       onShare: (text, url, title) async {
         shares.add({'text': text, 'url': url, 'title': title});
         return shareResult;
       },
       onNavigate: (path) async => navigations.add(path),
       onClose: () => closes++,
-      onResponse: responses.add,
       systemInfo: () => {
         'platform': 'android',
         'osVersion': '14',
@@ -100,7 +107,6 @@ class Harness {
   final api = FakeApi();
   final MiniAppStorage storage;
   late final MiniAppBridge bridge;
-  final responses = <String>[];
   final toasts = <Map<String, String>>[];
   final shares = <Map<String, String>>[];
   final navigations = <String>[];
@@ -110,17 +116,12 @@ class Harness {
   Future<Map<String, dynamic>> call(
     String method, {
     Object? params,
-    String? id,
   }) async {
-    await bridge.handle(
-      jsonEncode({
-        'id': id ?? 'req-${responses.length + 1}',
-        'method': method,
-        'params': params ?? const <String, dynamic>{},
-      }),
+    final response = await bridge.execute(
+      method,
+      params ?? const <String, dynamic>{},
     );
-    expect(responses, isNotEmpty, reason: '$method did not reply');
-    return jsonDecode(responses.last) as Map<String, dynamic>;
+    return response.toJson();
   }
 
   Map<String, dynamic>? errorOf(Map<String, dynamic> response) =>
@@ -143,15 +144,19 @@ void main() {
     if (await root.exists()) await root.delete(recursive: true);
   });
 
-  test('getAppInfo needs no permission and returns the build metadata', () async {
-    final response = await harness.call('getAppInfo');
-    expect(response['ok'], isTrue);
-    final result = response['result'] as Map<String, dynamic>;
-    expect(result['appId'], _appId);
-    expect(result['version'], '1.0.0');
-    expect(result['permissions'], contains('storage'));
-    expect(harness.permissionRequests, isEmpty);
-  });
+  test(
+    'getAppInfo needs no permission and returns the package metadata',
+    () async {
+      final response = await harness.call('getAppInfo');
+      expect(response['ok'], isTrue);
+      final result = response['result'] as Map<String, dynamic>;
+      expect(result['appId'], _appId);
+      expect(result['version'], '1.0.0');
+      expect(result['format'], 'qapp');
+      expect(result['permissions'], contains('storage'));
+      expect(harness.permissionRequests, isEmpty);
+    },
+  );
 
   test('getSystemInfo returns the host values', () async {
     final response = await harness.call('getSystemInfo');
@@ -168,7 +173,10 @@ void main() {
     expect(harness.toasts.single['message'], 'Hi');
     expect(harness.bridge.granted, contains('toast'));
 
-    final second = await harness.call('showToast', params: {'message': 'Again'});
+    final second = await harness.call(
+      'showToast',
+      params: {'message': 'Again'},
+    );
     expect(second['ok'], isTrue);
     expect(harness.permissionRequests, ['toast']);
     expect(harness.toasts.length, 2);
@@ -182,23 +190,20 @@ void main() {
     expect(denied.toasts, isEmpty);
   });
 
-  test('a permission missing from the manifest is rejected without a prompt', () async {
-    final limited = Harness(
-      harness.storage,
-      permissions: const ['toast'],
-    );
-    addTearDown(limited.bridge.dispose);
-    final response = await limited.call('getUserInfo');
-    expect(limited.errorOf(response)?['code'], 'PERMISSION_DENIED');
-    expect(limited.permissionRequests, isEmpty);
-  });
+  test(
+    'a permission missing from the manifest is rejected without a prompt',
+    () async {
+      final limited = Harness(harness.storage, permissions: const ['toast']);
+      addTearDown(limited.bridge.dispose);
+      final response = await limited.call('getUserInfo');
+      expect(limited.errorOf(response)?['code'], 'PERMISSION_DENIED');
+      expect(limited.permissionRequests, isEmpty);
+    },
+  );
 
   test('invalid arguments are rejected before the host runs them', () async {
     final long = 'x' * 201;
-    final response = await harness.call(
-      'showToast',
-      params: {'message': long},
-    );
+    final response = await harness.call('showToast', params: {'message': long});
     expect(harness.errorOf(response)?['code'], 'INVALID_ARGUMENT');
     expect(harness.toasts, isEmpty);
 
@@ -210,11 +215,17 @@ void main() {
     expect(harness.navigations, isEmpty);
   });
 
-  test('request rejects paths outside the allowlist', () async {
+  test('navigateTo forwards an in-app route to the runtime', () async {
     final response = await harness.call(
-      'request',
-      params: {'path': '/admin'},
+      'navigateTo',
+      params: {'path': '/settings/profile'},
     );
+    expect(response['ok'], isTrue);
+    expect(harness.navigations, ['/settings/profile']);
+  });
+
+  test('request rejects paths outside the allowlist', () async {
+    final response = await harness.call('request', params: {'path': '/admin'});
     expect(harness.errorOf(response)?['code'], 'PERMISSION_DENIED');
     expect(harness.api.requests, isEmpty);
   });
@@ -244,15 +255,44 @@ void main() {
     expect(harness.permissionRequests, ['qchat.api']);
   });
 
+  test('fetch rejects hosts outside the declared allowlist', () async {
+    final response = await harness.call(
+      'fetch',
+      params: {'url': 'https://evil.example.net/data'},
+    );
+    expect(harness.errorOf(response)?['code'], 'PERMISSION_DENIED');
+  });
+
+  test('fetch needs the network permission', () async {
+    final limited = Harness(
+      harness.storage,
+      permissions: const ['toast'],
+      networkDomains: const ['api.example.com'],
+    );
+    addTearDown(limited.bridge.dispose);
+    final response = await limited.call(
+      'fetch',
+      params: {'url': 'https://api.example.com/data'},
+    );
+    expect(limited.errorOf(response)?['code'], 'PERMISSION_DENIED');
+    expect(limited.permissionRequests, isEmpty);
+  });
+
   test('storage round-trips through the bridge', () async {
     final set = await harness.call(
       'setStorage',
-      params: {'key': 'counter', 'value': {'value': 3}},
+      params: {
+        'key': 'counter',
+        'value': {'value': 3},
+      },
     );
     expect(set['ok'], isTrue);
     final get = await harness.call('getStorage', params: {'key': 'counter'});
     expect((get['result'] as Map<String, dynamic>)['value'], {'value': 3});
-    final remove = await harness.call('removeStorage', params: {'key': 'counter'});
+    final remove = await harness.call(
+      'removeStorage',
+      params: {'key': 'counter'},
+    );
     expect(remove['ok'], isTrue);
     final empty = await harness.call('getStorage', params: {'key': 'counter'});
     expect((empty['result'] as Map<String, dynamic>)['value'], isNull);
@@ -285,39 +325,9 @@ void main() {
     expect(harness.closes, 1);
   });
 
-  test('unknown methods and malformed messages are ignored safely', () async {
+  test('unknown methods are rejected safely', () async {
     final unknown = await harness.call('runShell');
     expect(harness.errorOf(unknown)?['code'], 'NOT_SUPPORTED');
-
-    await harness.bridge.handle('not json');
-    await harness.bridge.handle(jsonEncode({'method': 'getAppInfo'}));
-    await harness.bridge.handle(
-      jsonEncode({'id': 'bad id!', 'method': 'getAppInfo', 'params': {}}),
-    );
-    expect(harness.responses.length, 1);
-  });
-
-  test('a duplicate in-flight id runs once', () async {
-    harness.api.friendsGate = Completer<Map<String, dynamic>>();
-    final first = harness.bridge.handle(
-      jsonEncode({
-        'id': 'same-id',
-        'method': 'request',
-        'params': {'path': '/friends'},
-      }),
-    );
-    await harness.bridge.handle(
-      jsonEncode({
-        'id': 'same-id',
-        'method': 'request',
-        'params': {'path': '/friends'},
-      }),
-    );
-    expect(harness.api.requests.length, 1);
-    harness.api.friendsGate!.complete({'items': []});
-    await first;
-    expect(harness.responses.length, 1);
-    expect((jsonDecode(harness.responses.single) as Map)['ok'], isTrue);
   });
 
   test('calls over the rate limit fail with RATE_LIMITED', () async {
@@ -331,15 +341,7 @@ void main() {
 
   test('dispose stops further replies', () async {
     harness.bridge.dispose();
-    await harness.bridge.handle(
-      jsonEncode({'id': 'after', 'method': 'getAppInfo', 'params': {}}),
-    );
-    expect(harness.responses, isEmpty);
-  });
-
-  test('qchatReceiveScript escapes the payload as a JS string', () {
-    final script = qchatReceiveScript('{"text":"a\\"b"}');
-    expect(script, startsWith('window.__QChatReceive && window.__QChatReceive('));
-    expect(script, contains('\\"'));
+    final response = await harness.call('getAppInfo');
+    expect(harness.errorOf(response)?['code'], 'HOST_CLOSED');
   });
 }

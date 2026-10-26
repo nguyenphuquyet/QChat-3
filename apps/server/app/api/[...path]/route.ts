@@ -84,7 +84,7 @@ async function blob(request: Request) {
         "Content-Type": "application/zip",
         "Content-Length": String(bytes.length),
         "Cache-Control": "private, max-age=60",
-        "Content-Disposition": 'attachment; filename="miniapp.zip"',
+        "Content-Disposition": 'attachment; filename="miniapp.japp"',
         "X-Content-Type-Options": "nosniff",
       },
     });

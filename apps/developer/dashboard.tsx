@@ -275,11 +275,11 @@ const copy = {
     uploadBuild: "Tải build mới",
     version: "Phiên bản",
     channel: "Kênh",
-    file: "Tệp ZIP",
+    file: "Tệp .japp",
     upload: "Tải lên",
     uploading: "Đang tải lên",
     uploadHint:
-      "Gói ZIP chứa qchat.manifest.json ở thư mục gốc. Tối đa 20 MB, không chứa tệp thực thi.",
+      "Gói .japp chứa manifest.json ở thư mục gốc. Tối đa 20 MB, chỉ chứa mã đã biên dịch và assets.",
     noBuilds: "Chưa có build. Tải lên bản đầu tiên.",
     size: "Dung lượng",
     checksum: "SHA-256",
@@ -363,11 +363,11 @@ const copy = {
       "Quản trị viên chưa cấu hình liên kết tải IDE. Vui lòng quay lại sau.",
     ideReady: "Liên kết tải do quản trị viên cung cấp.",
     ideHint:
-      "Mở IDE, tạo dự án từ template, chạy thử rồi đóng gói ZIP để tải build lên đây.",
+      "Mở IDE, tạo dự án từ @mna/qchat, chạy thử rồi đóng gói .japp để tải build lên đây.",
     preview: "Xem trước",
     previewTitle: "Xem trước bản build",
     previewNote:
-      "Bản xem trước chạy mã thật trong khung cô lập. API của QChat được mô phỏng.",
+      "Bản xem trước chỉ hiển thị tệp thô trong gói .japp. Mã chỉ chạy trên ứng dụng QChat.",
     openInNewTab: "Mở tab mới",
     close: "Đóng",
   },
@@ -443,11 +443,11 @@ const copy = {
     uploadBuild: "Upload a build",
     version: "Version",
     channel: "Channel",
-    file: "ZIP file",
+    file: ".japp file",
     upload: "Upload",
     uploading: "Uploading",
     uploadHint:
-      "The ZIP must contain qchat.manifest.json at its root. Max 20 MB, no executables.",
+      "The .japp contains manifest.json at its root. Max 20 MB, compiled code and assets only.",
     noBuilds: "No builds yet. Upload the first one.",
     size: "Size",
     checksum: "SHA-256",
@@ -531,11 +531,11 @@ const copy = {
       "The administrator has not configured an IDE download link yet. Check back later.",
     ideReady: "The download link is provided by an administrator.",
     ideHint:
-      "Open the IDE, scaffold a project from the template, test it, then package a ZIP and upload the build here.",
+      "Open the IDE, scaffold a project from @mna/qchat, test it, then package a .japp and upload the build here.",
     preview: "Preview",
     previewTitle: "Preview build",
     previewNote:
-      "The preview runs the real code in an isolated frame. QChat APIs are simulated.",
+      "Preview only shows raw files inside the .japp package. Code runs only in the QChat app.",
     openInNewTab: "Open in new tab",
     close: "Close",
   },
@@ -634,12 +634,8 @@ const errorMessages: Record<string, { vi: string; en: string }> = {
     en: "This version already exists for the app. Use a new version number and upload again.",
   },
   VERSION_MISMATCH: {
-    vi: "Số phiên bản trong qchat.manifest.json khác với phiên bản bạn nhập.",
-    en: "The version in qchat.manifest.json does not match the version you entered.",
-  },
-  APP_ID_MISMATCH: {
-    vi: "appId trong qchat.manifest.json không khớp với ứng dụng đang tải lên.",
-    en: "The appId in qchat.manifest.json does not match the app you are uploading to.",
+    vi: "Số phiên bản trong manifest.json khác với phiên bản bạn nhập.",
+    en: "The version in manifest.json does not match the version you entered.",
   },
   NO_VERSION: {
     vi: "Ứng dụng chưa có bản build nào.",
@@ -706,8 +702,8 @@ const errorMessages: Record<string, { vi: string; en: string }> = {
     en: "There is nothing to update.",
   },
   FILE_REQUIRED: {
-    vi: "Chưa chọn tệp ZIP để tải lên.",
-    en: "Choose a ZIP file to upload.",
+    vi: "Chưa chọn tệp .japp để tải lên.",
+    en: "Choose a .japp file to upload.",
   },
   BUILD_TOO_LARGE: {
     vi: "Gói build vượt quá giới hạn 20 MB.",
@@ -718,83 +714,131 @@ const errorMessages: Record<string, { vi: string; en: string }> = {
     en: "The build is empty and contains no files.",
   },
   MANIFEST_MISSING: {
-    vi: "Gói ZIP thiếu tệp qchat.manifest.json ở thư mục gốc.",
-    en: "The ZIP is missing qchat.manifest.json at its root.",
+    vi: "Gói .japp thiếu tệp manifest.json ở thư mục gốc.",
+    en: "The .japp is missing manifest.json at its root.",
   },
   MANIFEST_INVALID_JSON: {
-    vi: "qchat.manifest.json không phải JSON hợp lệ.",
-    en: "qchat.manifest.json is not valid JSON.",
+    vi: "manifest.json không phải JSON hợp lệ.",
+    en: "manifest.json is not valid JSON.",
   },
   MANIFEST_INVALID: {
-    vi: "Nội dung qchat.manifest.json chưa hợp lệ. Kiểm tra lại các trường bắt buộc.",
-    en: "The contents of qchat.manifest.json are not valid. Check the required fields.",
+    vi: "Nội dung manifest.json chưa hợp lệ. Kiểm tra lại các trường bắt buộc.",
+    en: "The contents of manifest.json are not valid. Check the required fields.",
   },
   MANIFEST_TOO_LARGE: {
-    vi: "qchat.manifest.json vượt quá dung lượng cho phép.",
-    en: "qchat.manifest.json is larger than allowed.",
+    vi: "manifest.json vượt quá dung lượng cho phép.",
+    en: "manifest.json is larger than allowed.",
   },
   ENTRY_MISSING: {
-    vi: "Tệp entry khai báo trong manifest không có trong gói ZIP.",
-    en: "The entry file declared in the manifest is missing from the ZIP.",
+    vi: "Gói .japp thiếu tệp app.js.",
+    en: "The .japp is missing app.js.",
   },
   ENTRY_INVALID: {
-    vi: "Tệp entry trong manifest không hợp lệ (phải là tệp HTML).",
-    en: "The manifest entry file is not valid (it must be an HTML file).",
+    vi: "app.js không hợp lệ (rỗng hoặc chứa HTML).",
+    en: "app.js is not valid (empty or contains HTML).",
+  },
+  ENTRY_EMPTY: {
+    vi: "app.js rỗng. Hãy build lại ứng dụng.",
+    en: "app.js is empty. Rebuild the app.",
+  },
+  ENTRY_TOO_LARGE: {
+    vi: "app.js vượt quá 4 MB.",
+    en: "app.js exceeds 4 MB.",
   },
   DUPLICATE_ENTRY: {
-    vi: "Gói ZIP có hai tệp trùng tên.",
-    en: "The ZIP contains two files with the same name.",
+    vi: "Gói .japp có hai tệp trùng tên.",
+    en: "The .japp contains two files with the same name.",
+  },
+  METADATA_MISSING: {
+    vi: "Gói .japp thiếu metadata.json.",
+    en: "The .japp is missing metadata.json.",
+  },
+  METADATA_INVALID: {
+    vi: "metadata.json không hợp lệ. Hãy build lại bằng CLI mới.",
+    en: "metadata.json is invalid. Rebuild with the current CLI.",
+  },
+  METADATA_MISMATCH: {
+    vi: "metadata.json không khớp với nội dung gói. Hãy build lại.",
+    en: "metadata.json does not match the package. Rebuild it.",
+  },
+  METADATA_TOO_LARGE: {
+    vi: "metadata.json vượt quá dung lượng cho phép.",
+    en: "metadata.json is larger than allowed.",
+  },
+  PERMISSIONS_MISSING: {
+    vi: "Gói .japp thiếu permissions.json.",
+    en: "The .japp is missing permissions.json.",
+  },
+  PERMISSIONS_INVALID: {
+    vi: "permissions.json không hợp lệ.",
+    en: "permissions.json is invalid.",
+  },
+  PERMISSIONS_MISMATCH: {
+    vi: "permissions.json không khớp với manifest.json.",
+    en: "permissions.json does not match manifest.json.",
+  },
+  APP_CHECKSUM_MISMATCH: {
+    vi: "Checksum của app.js không khớp. Hãy build lại.",
+    en: "The app.js checksum does not match. Rebuild the app.",
+  },
+  UNEXPECTED_FILE: {
+    vi: "Gói .japp chứa tệp không được phép ở thư mục gốc.",
+    en: "The .japp contains a file that is not allowed at its root.",
+  },
+  UNSUPPORTED_ASSET: {
+    vi: "Gói .japp chứa loại tệp không được hỗ trợ trong assets/.",
+    en: "The .japp contains an unsupported file type under assets/.",
   },
   ZIP_INVALID: {
-    vi: "Tệp tải lên không phải gói ZIP hợp lệ.",
-    en: "The uploaded file is not a valid ZIP archive.",
+    vi: "Tệp tải lên không phải gói .japp hợp lệ.",
+    en: "The uploaded file is not a valid .japp archive.",
   },
   ZIP_INVALID_NAME: {
-    vi: "Gói ZIP chứa đường dẫn không hợp lệ (../, đường dẫn tuyệt đối).",
-    en: "The ZIP contains an unsafe path (../ or an absolute path).",
+    vi: "Gói .japp chứa đường dẫn không hợp lệ (../, đường dẫn tuyệt đối).",
+    en: "The .japp contains an unsafe path (../ or an absolute path).",
   },
   ZIP_DUPLICATE_FILE: {
-    vi: "Gói ZIP có hai tệp trùng tên (không phân biệt hoa thường).",
-    en: "The ZIP contains duplicate file names (case-insensitive).",
+    vi: "Gói .japp có hai tệp trùng tên (không phân biệt hoa thường).",
+    en: "The .japp contains duplicate file names (case-insensitive).",
   },
   ZIP_ENCRYPTED: {
-    vi: "Gói ZIP có tệp được mã hoá, không được phép.",
-    en: "The ZIP contains encrypted files, which are not allowed.",
+    vi: "Gói .japp có tệp được mã hoá, không được phép.",
+    en: "The .japp contains encrypted files, which are not allowed.",
   },
   ZIP_SYMLINK: {
-    vi: "Gói ZIP chứa symlink, không được phép.",
-    en: "The ZIP contains a symlink, which is not allowed.",
+    vi: "Gói .japp chứa symlink, không được phép.",
+    en: "The .japp contains a symlink, which is not allowed.",
   },
   ZIP_FILE_TYPE: {
-    vi: "Gói ZIP chứa tệp thực thi hoặc loại tệp không được phép.",
-    en: "The ZIP contains an executable or a disallowed file type.",
+    vi: "Gói .japp chứa tệp thực thi hoặc loại tệp không được phép.",
+    en: "The .japp contains an executable or a disallowed file type.",
   },
   ZIP_TOO_LARGE: {
-    vi: "Gói ZIP hoặc dữ liệu giải nén vượt quá giới hạn.",
-    en: "The ZIP or its inflated contents exceed the size limit.",
+    vi: "Gói .japp hoặc dữ liệu giải nén vượt quá giới hạn.",
+    en: "The .japp or its inflated contents exceed the size limit.",
   },
   ZIP_ENTRY_TOO_LARGE: {
-    vi: "Một tệp trong gói ZIP vượt quá dung lượng cho phép.",
-    en: "A file inside the ZIP is larger than allowed.",
+    vi: "Một tệp trong gói .japp vượt quá dung lượng cho phép.",
+    en: "A file inside the .japp is larger than allowed.",
   },
   ZIP_TOO_MANY_FILES: {
-    vi: "Gói ZIP chứa quá nhiều tệp.",
-    en: "The ZIP contains too many files.",
+    vi: "Gói .japp chứa quá nhiều tệp.",
+    en: "The .japp contains too many files.",
   },
   ZIP_CHECKSUM: {
-    vi: "Gói ZIP bị hỏng (sai checksum). Hãy build lại rồi tải lên.",
-    en: "The ZIP is corrupted (checksum mismatch). Rebuild it and upload again.",
+    vi: "Gói .japp bị hỏng (sai checksum). Hãy build lại rồi tải lên.",
+    en: "The .japp is corrupted (checksum mismatch). Rebuild it and upload again.",
   },
   ZIP_COMPRESSION: {
-    vi: "Gói ZIP dùng kiểu nén không được hỗ trợ.",
-    en: "The ZIP uses an unsupported compression method.",
+    vi: "Gói .japp dùng kiểu nén không được hỗ trợ.",
+    en: "The .japp uses an unsupported compression method.",
   },
   ZIP_EMPTY: {
-    vi: "Gói ZIP không có tệp nào.",
-    en: "The ZIP contains no files.",
+    vi: "Gói .japp không có tệp nào.",
+    en: "The .japp contains no files.",
   },
   ZIP64_UNSUPPORTED: {
-    vi: "Gói ZIP định dạng ZIP64 chưa được hỗ trợ.",
+    vi: "Gói .japp định dạng ZIP64 chưa được hỗ trợ.",
     en: "ZIP64 archives are not supported.",
   },
 };
@@ -1313,8 +1357,8 @@ export default function DeveloperCenter() {
             <p className="text-sm font-semibold">Mini App SDK</p>
             <p className="mt-2 text-xs leading-5 text-emerald-50/50">
               {lang === "vi"
-                ? "Dùng @qchat/miniapp-sdk để gọi API host an toàn."
-                : "Use @qchat/miniapp-sdk to call host APIs safely."}
+                ? "Dùng @mna/qchat để viết TSX và gọi API host an toàn."
+                : "Use @mna/qchat to write TSX and call host APIs safely."}
             </p>
             <button
               onClick={() => navigate("docs")}
@@ -2453,7 +2497,7 @@ function Builds({
               ref={inputRef}
               className={`${input} mt-1.5 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold dark:file:bg-slate-800`}
               type="file"
-              accept=".zip,application/zip"
+              accept=".japp,application/octet-stream"
               required
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
@@ -3166,8 +3210,8 @@ function IdeSection({
             </li>
             <li>
               {vi
-                ? "Đóng gói ZIP, tải build lên tab Build rồi gửi duyệt."
-                : "Package a ZIP, upload it in the Build tab and submit for review."}
+                ? "Chạy qchat build để tạo .japp, tải lên tab Build rồi gửi duyệt."
+                : "Run qchat build to produce a .japp, upload it in the Build tab and submit for review."}
             </li>
           </ol>
         </section>
@@ -3421,7 +3465,7 @@ function ReviewQueue({
           onClick={() => setPreview(null)}
         >
           <div
-            className="flex w-full max-w-[440px] flex-col overflow-hidden rounded-[2rem] border border-slate-700 bg-slate-900 p-2 shadow-2xl"
+            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center gap-1.5 px-3 py-2 text-white">
@@ -3465,7 +3509,7 @@ function ReviewQueue({
                 key={previewKey}
                 title={`${preview.name} v${preview.version}`}
                 src={preview.url}
-                sandbox="allow-scripts allow-forms allow-modals allow-popups"
+                sandbox=""
                 className="h-[min(72vh,640px)] w-full rounded-[1.6rem] border-0 bg-white"
               />
             ) : (
@@ -3545,18 +3589,18 @@ function Docs({ lang, t }: { lang: Lang; t: (key: CopyKey) => string }) {
             <li>{vi ? "Tạo ứng dụng để nhận app ID (mp_…)." : "Create an app to get an app ID (mp_…)."}</li>
             <li>
               {vi
-                ? "Tạo dự án Vite + React từ packages/miniapp-template."
-                : "Scaffold a Vite + React project from packages/miniapp-template."}
+                ? "Tạo dự án bằng @mna/qchat (xem packages/miniapp-examples)."
+                : "Scaffold a project with @mna/qchat (see packages/miniapp-examples)."}
             </li>
             <li>
               {vi
-                ? "Khai báo quyền trong qchat.manifest.json và dùng @qchat/miniapp-sdk."
-                : "Declare permissions in qchat.manifest.json and use @qchat/miniapp-sdk."}
+                ? "Khai báo quyền trong manifest.json; app ID do máy chủ gán."
+                : "Declare permissions in manifest.json; the server assigns the app ID."}
             </li>
             <li>
               {vi
-                ? "Chạy npm run build:miniapp rồi tải tệp ZIP ở tab Build."
-                : "Run npm run build:miniapp, then upload the ZIP in the Build tab."}
+                ? "Chạy qchat build rồi tải tệp .japp ở tab Build."
+                : "Run qchat build, then upload the .japp file in the Build tab."}
             </li>
             <li>
               {vi
@@ -3570,35 +3614,43 @@ function Docs({ lang, t }: { lang: Lang; t: (key: CopyKey) => string }) {
             <Code2 size={17} className="text-emerald-600" /> {t("docsManifest")}
           </h2>
           <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-4 text-[11px] leading-5 text-emerald-100">{`{
-  "schemaVersion": 1,
-  "appId": "mp_0123456789abcdef",
+  "schemaVersion": 2,
+  "format": "qapp",
   "name": "Demo",
   "version": "1.0.0",
-  "entry": "index.html",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
   "minRuntimeVersion": "1.0.0",
   "requestedPermissions": ["toast", "storage"]
 }`}</pre>
           <p className="mt-2 text-xs text-slate-400">
             {vi
-              ? "Manifest phải nằm ở thư mục gốc của ZIP. buildHash do máy chủ tính."
-              : "The manifest must be at the ZIP root. The server computes buildHash."}
+              ? "Manifest nằm ở gốc gói .japp. appId không được khai báo; máy chủ kiểm tra checksum của app.js."
+              : "The manifest sits at the .japp root. Do not declare appId; the server verifies the app.js checksum."}
           </p>
         </section>
         <section className={card}>
           <h2 className="flex items-center gap-2 text-sm font-bold">
             <Download size={17} className="text-emerald-600" /> {t("docsSdk")}
           </h2>
-          <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-4 text-[11px] leading-5 text-emerald-100">{`import { QChat } from "@qchat/miniapp-sdk";
+          <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-950 p-4 text-[11px] leading-5 text-emerald-100">{`import { start, useState } from "@mna/qchat";
+import { Button, Text, View } from "@mna/qchat/ui";
 
-await QChat.showToast("Xin chào");
-const me = await QChat.getUserInfo();
-const image = await QChat.chooseImage();
-await QChat.setStorage("key", { value: 1 });
-const system = QChat.getSystemInfo();`}</pre>
+function App() {
+  const [count, setCount] = useState(0);
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button onPress={() => setCount(count + 1)}>+1</Button>
+    </View>
+  );
+}
+
+start(App);`}</pre>
           <p className="mt-2 text-xs text-slate-400">
             {vi
-              ? "Mọi API trả về Promise, có timeout và mã lỗi ổn định."
-              : "Every API returns a Promise with timeouts and stable error codes."}
+              ? "TSX được biên dịch thành JavaScript và chạy trong QuickJS; UI là widget Flutter thật."
+              : "TSX is compiled to JavaScript and runs in QuickJS; the UI is real Flutter widgets."}
           </p>
         </section>
         <section className={card}>
@@ -3630,18 +3682,18 @@ const system = QChat.getSystemInfo();`}</pre>
           <ul className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
             <li>
               {vi
-                ? "ZIP được kiểm tra đường dẫn, zip bomb, symlink, loại tệp và CRC."
-                : "ZIPs are checked for traversal, bombs, symlinks, file types and CRC."}
+                ? "Gói .japp được kiểm tra đường dẫn, zip bomb, loại tệp, CRC và checksum app.js."
+                : "The .japp is checked for traversal, bombs, file types, CRC and the app.js checksum."}
             </li>
             <li>
               {vi
-                ? "Mỗi Mini App chạy trong origin riêng 127.0.0.1:<port> với CSP."
-                : "Each Mini App runs on its own 127.0.0.1:<port> origin with CSP."}
+                ? "Mã chạy trong QuickJS trong bộ nhớ, không có DOM, không có WebView."
+                : "Code runs in an in-memory QuickJS sandbox with no DOM and no WebView."}
             </li>
             <li>
               {vi
-                ? "QChat không đưa access token vào WebView; mọi quyền do host kiểm tra."
-                : "QChat never exposes access tokens to the WebView; the host enforces permissions."}
+                ? "QChat không đưa access token vào sandbox; mọi quyền do host kiểm tra."
+                : "QChat never exposes access tokens to the sandbox; the host enforces permissions."}
             </li>
             <li>
               {vi
@@ -3659,7 +3711,7 @@ const system = QChat.getSystemInfo();`}</pre>
   -H "X-QChat-Key: qk_..." \\
   -F version=1.0.1 \\
   -F channel=PRODUCTION \\
-  -F file=@dist.zip`}</pre>
+  -F file=@dist.japp`}</pre>
           <p className="mt-2 text-xs text-slate-400">
             {vi
               ? "API key chỉ dùng cho ứng dụng đã cấp, không truy cập được Developer Center."

@@ -65,10 +65,9 @@ function failure(error: unknown) {
   return Response.json({ error: "SERVICE_ERROR" }, { status: 500 });
 }
 
-/// The preview frame runs with an opaque origin, so it never sends the
-/// reviewer's cookie with its module, stylesheet or font requests. Those files
-/// are served with a build-scoped token in the path instead. They are already
-/// sandboxed, never touch the Developer Center origin, and stay short-lived.
+/// Preview files are raw package contents. They are served from the Developer
+/// Center origin only after a build-scoped token check, never execute scripts
+/// in the reviewer's browser, and stay short-lived.
 function previewResponse(file: { bytes: Uint8Array; type: string }) {
   return new Response(new Uint8Array(file.bytes), {
     headers: {
@@ -78,8 +77,7 @@ function previewResponse(file: { bytes: Uint8Array; type: string }) {
       "X-Content-Type-Options": "nosniff",
       "Referrer-Policy": "no-referrer",
       "Access-Control-Allow-Origin": "*",
-      "Content-Security-Policy":
-        "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads",
+      "Content-Security-Policy": "sandbox",
     },
   });
 }

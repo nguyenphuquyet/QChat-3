@@ -17,5 +17,9 @@
     "packages/**/*.ts",
     "tests/**/*.ts"
   ],
-  "exclude": ["node_modules", "packages/miniapp-template"]
+  "exclude": [
+    "node_modules",
+    "packages/miniapp-examples",
+    "packages/miniapp-framework/dist"
+  ]
 }

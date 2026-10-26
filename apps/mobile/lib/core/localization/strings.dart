@@ -574,6 +574,11 @@ const translations = <String, List<String>>{
     'Chương trình nhỏ không khả dụng',
     '小程序不可用',
   ],
+  'miniAppsUnsupported': [
+    'This package format is no longer supported',
+    'Định dạng gói này không còn được hỗ trợ',
+    '不再支持此安装包格式',
+  ],
   'miniAppsRevoked': [
     'This version was revoked',
     'Phiên bản này đã bị thu hồi',
@@ -662,6 +667,11 @@ const translations = <String, List<String>>{
     'Read a limited set of QChat data',
     'Đọc một số dữ liệu QChat',
     '读取部分 QChat 数据',
+  ],
+  'permissionNetwork': [
+    'Connect to the websites listed by this mini program',
+    'Kết nối tới các trang web được chương trình nhỏ khai báo',
+    '连接该小程序声明的网站',
   ],
 };
 String tr(BuildContext context, String key) {

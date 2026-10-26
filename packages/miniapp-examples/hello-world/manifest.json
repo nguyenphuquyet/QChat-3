@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Hello QChat",
+  "description": "Minimal TSX mini app rendered by the QChat Flutter renderer.",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": ["toast"],
+  "source": "src/main.tsx"
+}

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +10,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tdesign_flutter/tdesign_flutter.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -18,20 +18,17 @@ import '../../core/design_system/qchat_animations.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
 import 'miniapp_api.dart';
-import 'miniapp_asset_server.dart';
 import 'miniapp_bridge.dart';
 import 'miniapp_cache.dart';
 import 'miniapp_storage.dart';
 import 'models.dart';
+import 'qapp/qapp_js_types.dart';
+import 'qapp/qapp_view.dart';
 
 const miniAppRuntimeVersion = '1.0.0';
 
 class MiniAppRuntimeScreen extends ConsumerStatefulWidget {
-  const MiniAppRuntimeScreen({
-    super.key,
-    required this.appId,
-    this.preview,
-  });
+  const MiniAppRuntimeScreen({super.key, required this.appId, this.preview});
 
   final String appId;
 
@@ -50,9 +47,13 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
 
   MiniAppCache? _cache;
   MiniAppApi? _api;
-  MiniAppAssetServer? _server;
   MiniAppBridge? _bridge;
-  WebViewController? _web;
+  QappViewController? _qappController;
+  String? _qappDirectory;
+  String _qappKey = '';
+  int _qappEpoch = 0;
+  Set<String> _qappNetworkHosts = const {};
+  CachedMiniApp? _active;
 
   String _name = '';
   String _iconUrl = '';
@@ -61,7 +62,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   bool _favorite = false;
   bool _loading = true;
   bool _offline = false;
-  bool _webError = false;
   MiniAppException? _error;
   bool _closed = false;
   bool _recordedOpen = false;
@@ -70,6 +70,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   Timer? _revealTimer;
   static const _splashMin = 480;
   Future<void> _permissionChain = Future.value();
+  final Set<String> _runtimeErrors = {};
 
   @override
   void initState() {
@@ -88,15 +89,16 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final web = _web;
-    if (web == null) return;
+    final qapp = _qappController;
+    if (qapp == null) return;
     final event = state == AppLifecycleState.resumed
-        ? 'qchat:resume'
+        ? 'resume'
         : state == AppLifecycleState.paused
-        ? 'qchat:pause'
+        ? 'pause'
+        : state == AppLifecycleState.detached
+        ? 'destroy'
         : '';
-    if (event.isEmpty) return;
-    web.runJavaScript('window.dispatchEvent(new Event("$event"));');
+    if (event.isNotEmpty) qapp.lifecycle(event);
   }
 
   @override
@@ -105,7 +107,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     _revealTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _bridge?.dispose();
-    _server?.close();
     super.dispose();
   }
 
@@ -143,16 +144,14 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     if (!mounted) return;
     _bridge?.dispose();
     _bridge = null;
-    _web = null;
-    final previous = _server;
-    _server = null;
-    if (previous != null) unawaited(previous.close());
+    _qappController = null;
+    _qappDirectory = null;
+    _qappKey = '';
     _revealTimer?.cancel();
     _splashAt = DateTime.now();
     setState(() {
       _loading = true;
       _error = null;
-      _webError = false;
       _offline = false;
     });
     final api = _api ??= MiniAppApi(ref.read(clientProvider));
@@ -167,13 +166,17 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         });
       }
       final build = await api.build(widget.appId);
+      // Legacy WebView builds are inert now. Fail clearly instead of trying to
+      // verify an HTML package against the native qapp layout.
+      if (build.format != 'qapp') {
+        throw const MiniAppException('UNSUPPORTED_FORMAT');
+      }
       _version = build.version;
       _permissions = build.requestedPermissions;
       _checkRuntime(build.minRuntimeVersion);
-      final installed =
-          await cache.find(build) ?? await cache.install(build);
+      final installed = await cache.find(build) ?? await cache.install(build);
       _recordedOpen = false;
-      await _start(installed);
+      await _startQapp(installed);
     } on MiniAppException catch (error) {
       await _handleFailure(error, cache);
     } on MiniAppCacheException catch (error) {
@@ -192,7 +195,10 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     }
   }
 
-  Future<void> _handleFailure(MiniAppException error, MiniAppCache cache) async {
+  Future<void> _handleFailure(
+    MiniAppException error,
+    MiniAppCache cache,
+  ) async {
     if (error.offline) {
       final latest = await cache.latest(widget.appId);
       if (latest != null) {
@@ -201,7 +207,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         _permissions = latest.manifest.requestedPermissions;
         _offline = true;
         try {
-          await _start(latest);
+          await _startQapp(latest);
         } catch (_) {
           if (!mounted) return;
           setState(() {
@@ -236,19 +242,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     );
   }
 
-  Future<void> _start(CachedMiniApp cached) async {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final server = MiniAppAssetServer(
-      root: cached.directory,
-      entry: cached.entry,
-      appId: cached.appId,
-    );
-    await server.start();
-    if (!mounted || _closed) {
-      await server.close();
-      return;
-    }
-    _server = server;
+  /// Starts a compiled TypeScript package in the sandboxed native runtime.
+  Future<void> _startQapp(CachedMiniApp cached) async {
+    _active = cached;
     final storage = await MiniAppStorage.open(
       _cacheRoot ?? p.dirname(p.dirname(p.dirname(cached.directory))),
       widget.appId,
@@ -259,7 +255,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         <String>{};
     if (!mounted || _closed) return;
 
-    final controller = WebViewController();
+    final controller = QappViewController();
     final bridge = MiniAppBridge(
       appId: cached.appId,
       appName: _name,
@@ -271,83 +267,34 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       api: _api!,
       storage: storage,
       granted: granted,
+      networkDomains: cached.manifest.networkDomains,
       requestPermission: _requestPermission,
       onToast: _showToast,
       onShare: _share,
       onNavigate: (path) async {
-        await controller.loadRequest(Uri.parse('${server.origin}$path'));
+        controller.navigate(path);
+      },
+      onNavigateBack: () async {
+        if (!controller.back()) _close();
       },
       onClose: _close,
-      onResponse: (payload) {
-        unawaited(controller.runJavaScript(qchatReceiveScript(payload)));
-      },
       systemInfo: _systemInfo,
     );
     _bridge = bridge;
-
-    await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-    // A two-finger pinch leaves the page scaled down inside the WebView: the
-    // app keeps its zoomed layout, buttons no longer line up with the screen
-    // edge and the uncovered strip stays blank. Mini apps are laid out for the
-    // full viewport, so the host owns scaling and pinch zoom stays off.
-    try {
-      await controller.enableZoom(false);
-    } catch (_) {
-      // Platform implementations that predate enableZoom keep their defaults.
-    }
-    await controller.setBackgroundColor(
-      dark ? const Color(0xff111111) : Colors.white,
-    );
-    await controller.addJavaScriptChannel(
-      'QChatNative',
-      onMessageReceived: (message) => unawaited(bridge.handle(message.message)),
-    );
-    controller.setNavigationDelegate(
-      NavigationDelegate(
-        onNavigationRequest: (request) {
-          if (request.url.startsWith(server.origin)) {
-            return NavigationDecision.navigate;
-          }
-          _showToast(tr(context, 'miniAppsExternalBlocked'), 'none');
-          return NavigationDecision.prevent;
-        },
-        onWebResourceError: (error) {
-          if (!mounted || _closed) return;
-          if (error.isForMainFrame != true) return;
-          _revealTimer?.cancel();
-          setState(() {
-            _webError = true;
-            _loading = false;
-          });
-          unawaited(_telemetry('runtime_error', error.errorCode.toString()));
-        },
-        onPageFinished: (_) {
-          if (!mounted || _closed) return;
-          if (_webError) setState(() => _webError = false);
-          if (!_recordedOpen) {
-            _recordedOpen = true;
-            unawaited(_recordOpen(cached));
-          }
-          _revealContent();
-        },
-      ),
-    );
     if (!mounted || _closed) return;
-    setState(() => _web = controller);
-    // The launch screen stays up until the document has painted, so the
-    // WebView never flashes white before the mini program's first frame.
+    setState(() {
+      _qappController = controller;
+      _qappDirectory = cached.directory;
+      _qappKey =
+          '${cached.appId}@${cached.version}#${++_qappEpoch}';
+      _qappNetworkHosts = cached.manifest.networkDomains
+          .map((domain) => domain.toLowerCase())
+          .toSet();
+    });
     _revealTimer?.cancel();
+    // The native runtime normally paints within a few frames. The timeout only
+    // stops the splash from covering a broken package forever.
     _revealTimer = Timer(const Duration(seconds: 8), _revealContent);
-    try {
-      await controller.loadRequest(Uri.parse(server.url));
-    } catch (_) {
-      if (!mounted) return;
-      _revealTimer?.cancel();
-      setState(() {
-        _webError = true;
-        _loading = false;
-      });
-    }
   }
 
   Future<void> _recordOpen(CachedMiniApp cached) async {
@@ -397,6 +344,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'share' => 'permissionShare',
       'storage' => 'permissionStorage',
       'qchat.api' => 'permissionQchatApi',
+      'network' => 'permissionNetwork',
       _ => null,
     };
     final allowed = await showQChatDialog<bool>(
@@ -565,7 +513,8 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     if (_closed || !mounted) return;
     _closed = true;
     _bridge?.dispose();
-    _server?.close();
+    _qappController = null;
+    _qappDirectory = null;
     if (context.canPop()) {
       context.pop();
     } else {
@@ -574,11 +523,8 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   }
 
   Future<void> _handleBack() async {
-    final web = _web;
-    if (web != null && await web.canGoBack()) {
-      await web.goBack();
-      return;
-    }
+    final qapp = _qappController;
+    if (qapp != null && qapp.back()) return;
     _close();
   }
 
@@ -634,63 +580,99 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   ]);
 
   void _reload() {
-    setState(() => _webError = false);
-    final web = _web;
-    if (web != null) {
-      unawaited(web.reload());
-      return;
-    }
     unawaited(_load());
   }
 
   Widget _body(BuildContext context) {
     final error = _error;
     if (error != null) return _errorView(context, error);
-    final web = _web;
-    if (web == null) {
-      return _loading
-          ? _launchScreen(context)
-          : _errorView(context, const MiniAppException('SERVICE_ERROR'));
+    final qappController = _qappController;
+    final qappDirectory = _qappDirectory;
+    if (qappController != null && qappDirectory != null) {
+      return _qappBody(context, qappController, qappDirectory);
     }
+    return _loading
+        ? _launchScreen(context)
+        : _errorView(context, const MiniAppException('SERVICE_ERROR'));
+  }
+
+  Widget _qappBody(
+    BuildContext context,
+    QappViewController controller,
+    String directory,
+  ) {
     return Stack(
       children: [
-        Positioned.fill(child: WebViewWidget(controller: web)),
-        if (_offline)
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 12,
-            child: IgnorePointer(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xdd333333),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  tr(context, 'miniAppsOffline'),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
-                ),
-              ),
-            ),
+        Positioned.fill(
+          child: QappView(
+            key: ValueKey('qapp:$_qappKey'),
+            directory: directory,
+            controller: controller,
+            networkHosts: _qappNetworkHosts,
+            onHostCall: (method, params) {
+              final bridge = _bridge;
+              if (bridge == null) {
+                return Future.value(
+                  const QappHostResponse.error(
+                    'BRIDGE_UNAVAILABLE',
+                    'The QChat host is not ready',
+                  ),
+                );
+              }
+              return bridge.execute(method, params);
+            },
+            onFirstFrame: () {
+              if (_recordedOpen) {
+                _revealContent();
+                return;
+              }
+              _recordedOpen = true;
+              final active = _active;
+              if (active != null) unawaited(_recordOpen(active));
+              _revealContent();
+            },
+            onError: (code, message) {
+              if (!mounted || _closed) return;
+              _revealTimer?.cancel();
+              if (_loading) setState(() => _loading = false);
+              if (_runtimeErrors.add(code)) {
+                unawaited(_telemetry('runtime_error', code));
+              }
+            },
+            onLog: (level, message, stack) {
+              if (kDebugMode) {
+                debugPrint(
+                  '[qapp] $level: $message${stack == null ? '' : '\n$stack'}',
+                );
+              }
+            },
           ),
-        if (_webError)
-          Positioned.fill(
-            child: ColoredBox(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              child: _errorView(
-                context,
-                const MiniAppException('SERVICE_ERROR'),
-              ),
-            ),
-          ),
-        // The WebView stays mounted underneath so it can paint its first frame
-        // while the launch screen is still covering it.
+        ),
+        if (_offline) _offlineBanner(context),
         if (_loading) Positioned.fill(child: _launchScreen(context)),
       ],
     );
   }
+
+  Widget _offlineBanner(BuildContext context) => Positioned(
+    left: 12,
+    right: 12,
+    bottom: 12,
+    child: IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xdd333333),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          tr(context, 'miniAppsOffline'),
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white, fontSize: 12),
+        ),
+      ),
+    ),
+  );
 
   Widget _launchScreen(BuildContext context) => Stack(
     children: [
@@ -716,6 +698,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'APP_SUSPENDED' => tr(context, 'miniAppsUnavailable'),
       'VERSION_REVOKED' => tr(context, 'miniAppsRevoked'),
       'RUNTIME_TOO_OLD' => tr(context, 'miniAppsUnavailable'),
+      'UNSUPPORTED_FORMAT' => tr(context, 'miniAppsUnsupported'),
       'NOT_PUBLISHED' => tr(context, 'miniAppsUnavailable'),
       'UNAUTHORIZED' => tr(context, 'sessionExpired'),
       _ => tr(context, 'miniAppsError'),
@@ -756,7 +739,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
 }
 
 /// Launch screen shown while the mini program package is fetched and the
-/// WebView paints its first frame. It mirrors the familiar mini program
+/// QuickJS runtime paints its first frame. It mirrors the familiar mini program
 /// splash: the app icon centred on a plain page, its name underneath and a
 /// small green dot slowly orbiting the icon.
 class _MiniAppSplash extends StatefulWidget {

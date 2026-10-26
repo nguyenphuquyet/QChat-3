@@ -40,6 +40,12 @@ export const miniappPermissions = [
     description: "Gọi một số API chỉ đọc của QChat qua host.",
     sensitive: true,
   },
+  {
+    id: "network",
+    title: "Mạng ngoài",
+    description: "Gọi HTTPS tới các tên miền khai báo trong manifest.",
+    sensitive: true,
+  },
 ] as const;
 
 export const miniappPermissionIds = miniappPermissions.map((item) => item.id);
@@ -73,40 +79,55 @@ export const httpsUrlSchema = z
     message: "HTTPS URL required",
   });
 
-/// `qchat.manifest.json` that every uploaded build must contain at its root.
-export const miniappManifestSchema = z
+/// `manifest.json` that every uploaded `.japp` build must contain at its root.
+/// The app id is owned by the server-side app record and must never appear here.
+export const qappNetworkHostSchema = z
+  .string()
+  .trim()
+  .max(253)
+  .toLowerCase()
+  .regex(
+    /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63})$/,
+    { message: "Invalid network host" },
+  );
+
+/// `manifest.json` for a native `.japp` package. The app id is assigned by the
+/// server from the app record, so it must not appear in the upload.
+export const qappManifestSchema = z
   .object({
-    schemaVersion: z.literal(1),
-    appId: appIdSchema,
+    schemaVersion: z.literal(2),
+    format: z.literal("qapp"),
     name: z.string().trim().min(1).max(60),
     description: z.string().trim().max(500).default(""),
     version: semverSchema,
-    entry: z
-      .string()
-      .trim()
-      .min(1)
-      .max(200)
-      .regex(/^[A-Za-z0-9._/-]+\.html?$/)
-      .refine(
-        (value) =>
-          !value.startsWith("/") &&
-          value
-            .split("/")
-            .every((part) => part !== "" && part !== "." && part !== ".."),
-        { message: "Entry must be a relative file path" },
-      ),
+    entry: z.literal("app.js"),
+    sdkVersion: semverSchema,
     minRuntimeVersion: semverSchema.default("1.0.0"),
     requestedPermissions: z
       .array(z.enum(miniappPermissionIds as [string, ...string[]]))
       .max(miniappPermissionIds.length)
       .default([]),
+    networkDomains: z.array(qappNetworkHostSchema).max(10).default([]),
+    appSha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     buildHash: z
       .string()
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
   })
-  .strict();
-export type MiniappManifest = z.infer<typeof miniappManifestSchema>;
+  .strict()
+  .refine(
+    (value) =>
+      value.requestedPermissions.includes("network") ===
+      (value.networkDomains.length > 0),
+    {
+      message: "network permission and networkDomains must be declared together",
+      path: ["networkDomains"],
+    },
+  );
+export type QappManifest = z.infer<typeof qappManifestSchema>;
 
 export const runtimeVersion = "1.0.0";
 

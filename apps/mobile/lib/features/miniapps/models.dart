@@ -134,39 +134,54 @@ class MiniAppDetail extends MiniAppSummary {
 
 class MiniAppManifest {
   const MiniAppManifest({
-    required this.schemaVersion,
-    required this.appId,
+    this.schemaVersion = 2,
     required this.name,
     required this.description,
     required this.version,
-    required this.entry,
-    required this.minRuntimeVersion,
+    this.entry = 'app.js',
+    this.minRuntimeVersion = '1.0.0',
     required this.requestedPermissions,
+    this.format = 'qapp',
+    this.sdkVersion,
+    this.networkDomains = const [],
     this.buildHash,
   });
 
   final int schemaVersion;
-  final String appId;
   final String name;
   final String description;
   final String version;
   final String entry;
   final String minRuntimeVersion;
   final List<String> requestedPermissions;
+
+  /// Internal package format id. Native `.japp` packages always use `qapp`.
+  final String format;
+  final String? sdkVersion;
+  final List<String> networkDomains;
   final String? buildHash;
 
-  factory MiniAppManifest.fromJson(Map<String, dynamic> json) =>
-      MiniAppManifest(
-        schemaVersion: _int(json['schemaVersion'], 1),
-        appId: _string(json['appId']),
-        name: _string(json['name']),
-        description: _string(json['description']),
-        version: _string(json['version']),
-        entry: _string(json['entry'], 'index.html'),
-        minRuntimeVersion: _string(json['minRuntimeVersion'], '1.0.0'),
-        requestedPermissions: _strings(json['requestedPermissions']),
-        buildHash: json['buildHash']?.toString(),
-      );
+  factory MiniAppManifest.fromJson(Map<String, dynamic> json) {
+    final schemaVersion = _int(json['schemaVersion'], 2);
+    final declared = _string(json['format']).trim().toLowerCase();
+    return MiniAppManifest(
+      schemaVersion: schemaVersion,
+      name: _string(json['name']),
+      description: _string(json['description']),
+      version: _string(json['version']),
+      entry: _string(json['entry'], 'app.js'),
+      minRuntimeVersion: _string(json['minRuntimeVersion'], '1.0.0'),
+      requestedPermissions: _strings(json['requestedPermissions']),
+      // A package without a format field is classified by its schema version,
+      // so a legacy `schemaVersion: 1` manifest can never masquerade as qapp.
+      format: declared.isEmpty
+          ? (schemaVersion >= 2 ? 'qapp' : 'webview')
+          : declared,
+      sdkVersion: json['sdkVersion']?.toString(),
+      networkDomains: _strings(json['networkDomains']),
+      buildHash: json['buildHash']?.toString(),
+    );
+  }
 }
 
 class MiniAppBuild {
@@ -180,6 +195,9 @@ class MiniAppBuild {
     required this.requestedPermissions,
     required this.manifest,
     required this.url,
+    this.format = 'qapp',
+    this.sdkVersion,
+    this.networkDomains = const [],
     this.expiresAt,
   });
 
@@ -192,24 +210,36 @@ class MiniAppBuild {
   final List<String> requestedPermissions;
   final MiniAppManifest manifest;
   final String url;
+  final String format;
+  final String? sdkVersion;
+  final List<String> networkDomains;
   final DateTime? expiresAt;
 
   factory MiniAppBuild.fromJson(Map<String, dynamic> json) {
     final manifest = json['manifest'];
+    final parsed = MiniAppManifest.fromJson(
+      manifest is Map
+          ? Map<String, dynamic>.from(manifest)
+          : const <String, dynamic>{},
+    );
+    final format = _string(json['format'], parsed.format);
     return MiniAppBuild(
       appId: _string(json['appId']),
       version: _string(json['version']),
-      entry: _string(json['entry'], 'index.html'),
+      entry: _string(json['entry'], parsed.entry),
       sha256: _string(json['sha256']),
       size: _int(json['size']),
       minRuntimeVersion: _string(json['minRuntimeVersion'], '1.0.0'),
-      requestedPermissions: _strings(json['requestedPermissions']),
-      manifest: MiniAppManifest.fromJson(
-        manifest is Map
-            ? Map<String, dynamic>.from(manifest)
-            : const <String, dynamic>{},
-      ),
+      requestedPermissions: _strings(json['requestedPermissions']).isEmpty
+          ? parsed.requestedPermissions
+          : _strings(json['requestedPermissions']),
+      manifest: parsed,
       url: _string(json['url']),
+      format: format,
+      sdkVersion: json['sdkVersion']?.toString() ?? parsed.sdkVersion,
+      networkDomains: _strings(json['networkDomains']).isEmpty
+          ? parsed.networkDomains
+          : _strings(json['networkDomains']),
       expiresAt: _date(json['expiresAt']),
     );
   }
@@ -234,7 +264,10 @@ class MiniAppPage {
       items: rows is List
           ? rows
                 .whereType<Map>()
-                .map((row) => MiniAppSummary.fromJson(Map<String, dynamic>.from(row)))
+                .map(
+                  (row) =>
+                      MiniAppSummary.fromJson(Map<String, dynamic>.from(row)),
+                )
                 .toList(growable: false)
           : const [],
       total: _int(json['total']),
@@ -254,8 +287,7 @@ class MiniAppException implements Exception {
   bool get unauthorized => status == 401 || code == 'UNAUTHORIZED';
   bool get unavailable =>
       status == 410 || code == 'APP_SUSPENDED' || code == 'VERSION_REVOKED';
-  bool get offline =>
-      code == 'NETWORK_ERROR' || code == 'CONNECTION_ERROR';
+  bool get offline => code == 'NETWORK_ERROR' || code == 'CONNECTION_ERROR';
 
   static MiniAppException from(Object error) {
     if (error is MiniAppException) return error;

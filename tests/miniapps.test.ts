@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { deflateRawSync } from "node:zlib";
 import {
-  miniappManifestSchema,
   miniappApiAllowlist,
   miniappPermissionIds,
 } from "../packages/contracts/miniapps";
@@ -24,11 +23,9 @@ import {
 } from "../apps/server/src/services/miniapp-storage";
 import {
   createPreviewToken,
-  injectPreviewBridge,
   previewContentType,
-  readPreviewFile,
+  readRawPreviewFile,
   verifyPreviewToken,
-  type PreviewMeta,
 } from "../apps/server/src/services/miniapp-preview";
 
 type Entry = {
@@ -124,36 +121,74 @@ function makeZip(entries: Entry[]) {
   return Buffer.concat([...locals, directory, end]);
 }
 
-const manifest = {
-  schemaVersion: 1,
-  appId: "mp_0123456789abcdef",
-  name: "Demo",
-  description: "A test app",
-  version: "1.2.3",
-  entry: "index.html",
-  minRuntimeVersion: "1.0.0",
-  requestedPermissions: ["toast", "storage"],
-};
-
-function appZip(overrides: Partial<typeof manifest> = {}, files?: Entry[]) {
-  return makeZip(
-    files ?? [
-      {
-        name: "qchat.manifest.json",
-        data: JSON.stringify({ ...manifest, ...overrides }),
-      },
-      { name: "index.html", data: "<!doctype html><h1>hi</h1>" },
-      { name: "assets/app.js", data: "console.log('qchat')", method: 8 },
-    ],
-  );
+function qappZip(options: {
+  overrides?: Record<string, unknown>;
+  appJs?: string;
+  entryAppJs?: string;
+  extra?: Entry[];
+} = {}) {
+  const appJs = options.appJs ?? "console.log('native qapp')";
+  const entryAppJs = options.entryAppJs ?? appJs;
+  const hash = (value: string | Buffer) =>
+    createHash("sha256").update(value).digest("hex");
+  const manifest = {
+    schemaVersion: 2,
+    format: "qapp",
+    name: "Native App",
+    description: "A native package",
+    version: "1.0.0",
+    entry: "app.js",
+    sdkVersion: "1.0.0",
+    minRuntimeVersion: "1.0.0",
+    requestedPermissions: ["toast"] as string[],
+    networkDomains: [] as string[],
+    appSha256: hash(appJs),
+    ...options.overrides,
+  };
+  const requestedPermissions =
+    (manifest.requestedPermissions as string[] | undefined) ?? [];
+  const networkDomains =
+    (manifest.networkDomains as string[] | undefined) ?? [];
+  const manifestBytes = JSON.stringify(manifest);
+  const permissionsBytes = JSON.stringify({
+    requestedPermissions,
+    networkDomains,
+  });
+  const files = [
+    { path: "manifest.json", data: Buffer.from(manifestBytes) },
+    { path: "app.js", data: Buffer.from(entryAppJs) },
+    { path: "permissions.json", data: Buffer.from(permissionsBytes) },
+  ];
+  const metadata = {
+    formatVersion: 1,
+    compilerVersion: "1.0.0",
+    sdkVersion: manifest.sdkVersion,
+    version: manifest.version,
+    entry: "app.js",
+    builtAt: new Date().toISOString(),
+    appSha256: hash(entryAppJs),
+    files: files.map((file) => ({
+      path: file.path,
+      sha256: hash(file.data),
+      size: file.data.length,
+    })),
+  };
+  return makeZip([
+    ...files.map((file) => ({ name: file.path, data: file.data })),
+    { name: "metadata.json", data: JSON.stringify(metadata) },
+    ...(options.extra ?? []),
+  ]);
 }
 
 const limits: ZipLimits = { ...buildLimits };
 
 test("ZIP reader accepts a stored and deflated build", () => {
-  const bytes = appZip();
+  const bytes = makeZip([
+    { name: "manifest.json", data: '{"schemaVersion":2}' },
+    { name: "assets/app.js", data: "console.log('qchat')", method: 8 },
+  ]);
   const entries = readZip(bytes, limits);
-  assert.equal(entries.length, 3);
+  assert.equal(entries.length, 2);
   assert.equal(
     entries.find((entry) => entry.name === "assets/app.js")?.bytes.toString(),
     "console.log('qchat')",
@@ -168,7 +203,7 @@ test("ZIP reader rejects path traversal and absolute paths", () => {
     "/etc/passwd",
     "a\\b.js",
     "C:/windows/system32.js",
-    "./index.html",
+    "./app.js",
   ]) {
     assert.throws(
       () => readZip(makeZip([{ name, data: "x" }]), limits),
@@ -181,8 +216,8 @@ test("ZIP reader rejects path traversal and absolute paths", () => {
 
 test("ZIP reader rejects duplicate names case-insensitively", () => {
   const bytes = makeZip([
-    { name: "index.html", data: "a" },
-    { name: "INDEX.html", data: "b" },
+    { name: "app.js", data: "a" },
+    { name: "APP.js", data: "b" },
   ]);
   assert.throws(
     () => readZip(bytes, limits),
@@ -219,8 +254,8 @@ test("ZIP reader rejects executable file types", () => {
 
 test("ZIP reader rejects a corrupted archive", () => {
   const bytes = makeZip([
-    { name: "qchat.manifest.json", data: JSON.stringify(manifest) },
-    { name: "index.html", data: "hello world" },
+    { name: "manifest.json", data: '{"schemaVersion":2}' },
+    { name: "app.js", data: "hello world" },
   ]);
   const corrupted = Buffer.from(bytes);
   const index = corrupted.indexOf(Buffer.from("hello world"));
@@ -282,84 +317,105 @@ test("ZIP reader stops inflating before an archive bomb can exhaust memory", () 
   );
 });
 
-test("build inspection normalizes the manifest and owns the hash", () => {
-  const bytes = appZip();
-  const inspected = inspectBuild(bytes, {
-    appId: manifest.appId,
-    version: manifest.version,
-  });
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  assert.equal(inspected.sha256, sha256);
-  assert.equal(inspected.manifest.buildHash, sha256);
-  assert.equal(inspected.size, bytes.length);
-  assert.deepEqual(inspected.permissions, ["toast", "storage"]);
-  assert.equal(inspected.entry, "index.html");
-});
-
-test("build inspection rejects a mismatched identity", () => {
-  const bytes = appZip();
-  for (const expected of [
-    { appId: "mp_ffffffffffffffff", version: manifest.version },
-    { appId: manifest.appId, version: "9.9.9" },
-  ]) {
-    assert.throws(
-      () => inspectBuild(bytes, expected),
-      (error: unknown) =>
-        error instanceof PackageError &&
-        ["APP_ID_MISMATCH", "VERSION_MISMATCH"].includes(error.code),
-    );
-  }
-});
-
-test("build inspection rejects missing or invalid files", () => {
-  const missingManifest = makeZip([{ name: "index.html", data: "x" }]);
+test("legacy WebView packages are rejected", () => {
+  const bytes = makeZip([
+    {
+      name: "manifest.json",
+      data: JSON.stringify({
+        schemaVersion: 1,
+        name: "Legacy",
+        version: "1.0.0",
+        entry: "index.html",
+        minRuntimeVersion: "1.0.0",
+        requestedPermissions: ["toast"],
+      }),
+    },
+    { name: "index.html", data: "<!doctype html><h1>legacy</h1>" },
+  ]);
   assert.throws(
-    () => inspectBuild(missingManifest, manifest),
+    () => inspectBuild(bytes, { version: "1.0.0" }),
+    (error: unknown) =>
+      error instanceof PackageError && error.code === "MANIFEST_INVALID",
+  );
+});
+
+test("qapp inspection rejects an archive without a manifest", () => {
+  const bytes = makeZip([{ name: "app.js", data: "x" }]);
+  assert.throws(
+    () => inspectBuild(bytes, { version: "1.0.0" }),
     (error: unknown) =>
       error instanceof PackageError && error.code === "MANIFEST_MISSING",
   );
-  const missingEntry = makeZip([
-    { name: "qchat.manifest.json", data: JSON.stringify(manifest) },
-    { name: "other.html", data: "x" },
-  ]);
-  assert.throws(
-    () => inspectBuild(missingEntry, manifest),
-    (error: unknown) =>
-      error instanceof PackageError && error.code === "ENTRY_MISSING",
+});
+
+test("qapp inspection verifies the bundle and owns the app id", () => {
+  const bytes = qappZip();
+  const inspected = inspectBuild(bytes, { version: "1.0.0" });
+  assert.equal(inspected.format, "qapp");
+  assert.equal(inspected.entry, "app.js");
+  assert.equal(inspected.sdkVersion, "1.0.0");
+  assert.deepEqual(inspected.permissions, ["toast"]);
+  assert.equal(inspected.manifest.buildHash, undefined);
+  assert.equal(
+    (inspected.manifest as Record<string, unknown>).appId,
+    undefined,
   );
-  const invalidJson = makeZip([
-    { name: "qchat.manifest.json", data: "{" },
-    { name: "index.html", data: "x" },
-  ]);
-  assert.throws(
-    () => inspectBuild(invalidJson, manifest),
-    (error: unknown) =>
-      error instanceof PackageError && error.code === "MANIFEST_INVALID_JSON",
+  assert.equal(
+    inspected.sha256,
+    createHash("sha256").update(bytes).digest("hex"),
   );
 });
 
-test("manifest schema rejects unknown fields and unsafe values", () => {
-  const base = {
-    ...manifest,
-    requestedPermissions: ["toast"],
-  };
-  assert.equal(miniappManifestSchema.safeParse(base).success, true);
-  const cases = [
-    { ...base, extra: true },
-    { ...base, appId: "bad" },
-    { ...base, version: "1.0" },
-    { ...base, entry: "../index.html" },
-    { ...base, entry: "index.js" },
-    { ...base, requestedPermissions: ["admin"] },
-    { ...base, schemaVersion: 2 },
-    { ...base, name: "" },
-  ];
-  for (const value of cases)
-    assert.equal(
-      miniappManifestSchema.safeParse(value).success,
-      false,
-      JSON.stringify(value),
-    );
+test("qapp inspection rejects appId, bad permissions and tampered files", () => {
+  assert.throws(
+    () => inspectBuild(qappZip({ overrides: { appId: "mp_0123456789abcdef" } }), { version: "1.0.0" }),
+    (error: unknown) =>
+      error instanceof PackageError && error.code === "MANIFEST_INVALID",
+  );
+  assert.throws(
+    () =>
+      inspectBuild(
+        qappZip({ overrides: { requestedPermissions: ["network"] } }),
+        { version: "1.0.0" },
+      ),
+    (error: unknown) =>
+      error instanceof PackageError && error.code === "MANIFEST_INVALID",
+  );
+  assert.throws(
+    () =>
+      inspectBuild(qappZip({ entryAppJs: "console.log('tampered')" }), {
+        version: "1.0.0",
+      }),
+    (error: unknown) =>
+      error instanceof PackageError &&
+      ["APP_CHECKSUM_MISMATCH", "METADATA_MISMATCH"].includes(error.code),
+  );
+  assert.throws(
+    () =>
+      inspectBuild(
+        qappZip({ extra: [{ name: "notes.txt", data: "unexpected" }] }),
+        { version: "1.0.0" },
+      ),
+    (error: unknown) =>
+      error instanceof PackageError && error.code === "UNEXPECTED_FILE",
+  );
+  assert.throws(
+    () => inspectBuild(qappZip(), { version: "9.9.9" }),
+    (error: unknown) =>
+      error instanceof PackageError && error.code === "VERSION_MISMATCH",
+  );
+});
+
+test("qapp inspection accepts a declared HTTPS network allowlist", () => {
+  const bytes = qappZip({
+    overrides: {
+      requestedPermissions: ["network", "storage"],
+      networkDomains: ["api.example.com", "*.example.org"],
+    },
+  });
+  const inspected = inspectBuild(bytes, { version: "1.0.0" });
+  assert.equal(inspected.format, "qapp");
+  assert.deepEqual(inspected.permissions, ["network", "storage"]);
 });
 
 test("permission catalog and API allowlist stay in sync", () => {
@@ -371,53 +427,25 @@ test("permission catalog and API allowlist stay in sync", () => {
     assert.ok(miniappPermissionIds.includes(permission));
 });
 
-test("review preview serves stored files and injects the bridge into HTML", () => {
-  const meta: PreviewMeta = {
-    appId: manifest.appId,
-    name: manifest.name,
-    version: manifest.version,
-    entry: "index.html",
-    runtimeVersion: "1.0.0",
-    minRuntimeVersion: manifest.minRuntimeVersion,
-    permissions: manifest.requestedPermissions,
-  };
-  const zip = makeZip([
-    { name: "qchat.manifest.json", data: JSON.stringify(manifest) },
-    {
-      name: "index.html",
-      data: '<!doctype html><html><head><script src="./assets/app.js"></script></head><body><div id="root"></div></body></html>',
-      method: 8,
-    },
-    { name: "assets/app.js", data: "console.log('preview')", method: 8 },
-  ]);
-  const page = readPreviewFile(zip, meta, "");
-  assert.equal(page?.name, "index.html");
-  assert.equal(page?.type, "text/html; charset=utf-8");
-  const html = page!.bytes.toString("utf8");
-  assert.ok(html.indexOf("__QCHAT_PREVIEW__") < html.indexOf("./assets/app.js"));
-  const script = readPreviewFile(zip, meta, "assets/app.js");
+test("review preview returns raw stored files without executing them", () => {
+  const zip = qappZip({ appJs: "console.log('preview')" });
+  const manifestFile = readRawPreviewFile(zip, "manifest.json");
+  assert.equal(manifestFile?.name, "manifest.json");
+  assert.equal(manifestFile?.type, "application/json; charset=utf-8");
+  const parsed = JSON.parse(manifestFile!.bytes.toString("utf8"));
+  assert.equal(parsed.format, "qapp");
+  assert.equal(parsed.appId, undefined);
+
+  const script = readRawPreviewFile(zip, "app.js");
   assert.equal(script?.type, "text/javascript; charset=utf-8");
   assert.equal(script?.bytes.toString("utf8"), "console.log('preview')");
-  assert.equal(readPreviewFile(zip, meta, "missing.js"), null);
-  assert.equal(previewContentType("assets/app.js"), "text/javascript; charset=utf-8");
-  assert.equal(previewContentType("unknown.bin"), "application/octet-stream");
-});
 
-test("preview bridge escapes manifest strings and works without a head", () => {
-  const meta: PreviewMeta = {
-    appId: manifest.appId,
-    name: "</script><img src=x onerror=alert(1)>",
-    version: manifest.version,
-    entry: "index.html",
-    runtimeVersion: "1.0.0",
-    minRuntimeVersion: manifest.minRuntimeVersion,
-    permissions: [],
-  };
-  const injected = injectPreviewBridge("<html><head></head><body></body></html>", meta);
-  assert.equal(injected.includes("</script><img"), false);
-  const bare = injectPreviewBridge("<h1>hi</h1>", meta);
-  assert.ok(bare.startsWith("<script>"));
-  assert.ok(bare.endsWith("<h1>hi</h1>"));
+  assert.equal(readRawPreviewFile(zip, "missing.js"), null);
+  assert.equal(
+    previewContentType("assets/app.js"),
+    "text/javascript; charset=utf-8",
+  );
+  assert.equal(previewContentType("unknown.bin"), "application/octet-stream");
 });
 
 test("preview tokens are signed, build-scoped and expire", () => {

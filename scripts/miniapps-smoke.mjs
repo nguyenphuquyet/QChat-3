@@ -81,20 +81,55 @@ function zip(entries) {
   end.writeUInt32LE(offset, 16);
   return Buffer.concat([...locals, directory, end]);
 }
-function build(appId, version, files) {
+function sha256(data) {
+  return createHash("sha256").update(data).digest("hex");
+}
+function build(version, files) {
+  const appJs = Buffer.from(
+    `globalThis.__qchatSmoke = ${JSON.stringify({ version })};`,
+  );
   const manifest = {
-    schemaVersion: 1,
-    appId,
+    schemaVersion: 2,
+    format: "qapp",
     name: "Smoke App",
+    description: "Built by the smoke test",
     version,
-    entry: "index.html",
+    entry: "app.js",
+    sdkVersion: "1.0.0",
     minRuntimeVersion: "1.0.0",
     requestedPermissions: ["toast", "storage"],
+    networkDomains: [],
+    appSha256: sha256(appJs),
+  };
+  const entries = [
+    { name: "manifest.json", data: JSON.stringify(manifest) },
+    { name: "app.js", data: appJs },
+    {
+      name: "permissions.json",
+      data: JSON.stringify({
+        requestedPermissions: manifest.requestedPermissions,
+        networkDomains: manifest.networkDomains,
+      }),
+    },
+    ...(files ?? []),
+  ];
+  const metadata = {
+    formatVersion: 1,
+    compilerVersion: "1.0.0",
+    sdkVersion: manifest.sdkVersion,
+    version: manifest.version,
+    entry: "app.js",
+    builtAt: new Date().toISOString(),
+    appSha256: manifest.appSha256,
+    files: entries.map((entry) => ({
+      path: entry.name,
+      sha256: sha256(Buffer.from(entry.data)),
+      size: Buffer.byteLength(entry.data),
+    })),
   };
   return zip([
-    { name: "qchat.manifest.json", data: JSON.stringify(manifest) },
-    { name: "index.html", data: "<!doctype html><h1>smoke</h1>" },
-    ...(files ?? []),
+    ...entries,
+    { name: "metadata.json", data: JSON.stringify(metadata) },
   ]);
 }
 
@@ -148,7 +183,7 @@ try {
   const form = new FormData();
   form.set("version", "1.0.0");
   form.set("channel", "DEVELOPMENT");
-  form.set("file", new Blob([build(appId, "1.0.0")], { type: "application/zip" }), "build.zip");
+  form.set("file", new Blob([build("1.0.0")], { type: "application/octet-stream" }), "build.japp");
   const uploaded = await request(`/miniapps/developer/apps/${appId}/builds`, {
     token,
     method: "POST",
@@ -157,15 +192,18 @@ try {
   assert(uploaded.status === 201, `upload ${uploaded.status} ${JSON.stringify(uploaded.data)}`);
   assert(uploaded.data.build.status === "UPLOADED", "uploaded state");
   assert(uploaded.data.build.sha256.length === 64, "sha256");
+  assert(uploaded.data.build.format === "qapp", "native format");
+  assert(uploaded.data.build.sdkVersion === "1.0.0", "sdk version");
+  assert(uploaded.data.build.entry === "app.js", "entry");
 
   const badForm = new FormData();
   badForm.set("version", "9.9.9");
   badForm.set(
     "file",
-    new Blob([build(appId, "9.9.9", [{ name: "../evil.js", data: "x" }])], {
-      type: "application/zip",
+    new Blob([build("9.9.9", [{ name: "../evil.js", data: "x" }])], {
+      type: "application/octet-stream",
     }),
-    "bad.zip",
+    "bad.japp",
   );
   const bad = await request(`/miniapps/developer/apps/${appId}/builds`, {
     token,
@@ -206,7 +244,10 @@ try {
   assert(detail.data.runtimeVersion === "1.0.0", "runtime version");
 
   const manifest = await request(`/miniapps/store/${appId}/manifest`, { token });
-  assert(manifest.status === 200 && manifest.data.manifest.buildHash.length === 64, "manifest");
+  assert(manifest.status === 200, "manifest");
+  assert(manifest.data.format === "qapp", "manifest format");
+  assert(manifest.data.sdkVersion === "1.0.0", "manifest sdk");
+  assert(manifest.data.manifest.appSha256.length === 64, "manifest app checksum");
 
   const location = await request(`/miniapps/store/${appId}/build`, { token });
   // The filesystem adapter returns an HMAC URL served by the API, while the S3
@@ -252,7 +293,7 @@ try {
   const keyForm = new FormData();
   keyForm.set("version", "1.0.1");
   keyForm.set("channel", "PRODUCTION");
-  keyForm.set("file", new Blob([build(appId, "1.0.1")], { type: "application/zip" }), "build.zip");
+  keyForm.set("file", new Blob([build("1.0.1")], { type: "application/octet-stream" }), "build.japp");
   const keyUpload = await request(`/miniapps/developer/apps/${appId}/builds`, {
     key: key.data.secret,
     method: "POST",

@@ -84,13 +84,13 @@ previous image.
 
 ## Mini Apps
 
-Mini App builds are immutable ZIP objects and are not reproducible from Git, so
-they must be backed up together with PostgreSQL. Two storage modes exist and the
-server picks one automatically:
+Mini App builds are immutable `.japp` packages and are not reproducible from
+Git, so they must be backed up together with PostgreSQL. Two storage modes exist
+and the server picks one automatically:
 
 - **S3 (default when configured)** — if `S3_ENDPOINT`, `S3_ACCESS_KEY` and
   `S3_SECRET_KEY` are set, builds are written to the private bucket
-  (`S3_BUCKET`, default `qchat-private`) under `miniapps/<appId>/<uuid>.zip`.
+  (`S3_BUCKET`, default `qchat-private`) under `miniapps/<appId>/<uuid>.japp`.
   The client receives a presigned URL valid for 120 seconds.
 - **Filesystem** — without S3 credentials, builds are written to
   `MINIAPP_STORAGE_DIR` and served through the HMAC-signed
@@ -122,11 +122,13 @@ docker compose --env-file .env -f infra/compose.vps.yaml ps -a
 curl --fail https://chat.nguyenphuquyet.online/api/health
 ```
 
-The migration that creates the Mini App tables is
-`apps/server/prisma/migrations/202610240002_mini_apps`. It is additive: it adds
-new tables and indexes and does not rewrite existing message, wallet or media
-rows. A rollback to an image built before this migration leaves the new tables
-unused, which is safe; dropping them is a separate, destructive operation.
+The migrations that add Mini App support are
+`apps/server/prisma/migrations/202610240002_mini_apps` (tables and indexes),
+`202610260001_qapp_format` (native package columns) and
+`202610260002_qapp_only_default` (default format). They are additive: they do not
+rewrite existing message, wallet or media rows. A rollback to an image built
+before these migrations leaves the new tables unused, which is safe; dropping
+them is a separate, destructive operation.
 
 After deployment, verify the flow with a Developer Center login at
 `/developer` (upload, submit, admin approve, release) or run the API smoke

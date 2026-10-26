@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Counter",
+  "description": "Reactive counter with events and per-app storage.",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": ["storage", "toast"],
+  "source": "src/main.tsx"
+}

@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 
 import 'miniapp_api.dart';
 import 'miniapp_storage.dart';
+import 'qapp/qapp_js_types.dart';
 
 class MiniAppBridgeException implements Exception {
   const MiniAppBridgeException(this.code, this.message);
@@ -18,13 +21,13 @@ class MiniAppBridgeException implements Exception {
   String toString() => '$code: $message';
 }
 
-/// Validates and executes calls from the Mini App page.
+/// Validates and executes calls from the native Mini App runtime.
 ///
-/// The page can only send JSON through the `QChatNative` JavaScript channel.
-/// Every request is checked here: id format, duplicate ids, method allowlist,
-/// parameter schema, declared permission, per-method rate limit and host-side
-/// timeout. Privileged work (profile, media, QChat API, storage) happens in
-/// Flutter; the page never receives a QChat access token.
+/// QuickJS can only call the host through [execute]. Every request is checked
+/// here: method allowlist, parameter schema, declared permission, per-method
+/// rate limit and host-side timeout. Privileged work (profile, media, QChat API,
+/// storage, network) happens in Flutter; JavaScript never receives a QChat
+/// access token.
 class MiniAppBridge {
   MiniAppBridge({
     required this.appId,
@@ -41,8 +44,9 @@ class MiniAppBridge {
     required this.onShare,
     required this.onNavigate,
     required this.onClose,
-    required this.onResponse,
     required this.systemInfo,
+    this.networkDomains = const [],
+    this.onNavigateBack,
     Set<String> granted = const {},
   }) : _granted = {...granted};
 
@@ -62,24 +66,23 @@ class MiniAppBridge {
   final Future<bool> Function(String text, String url, String title) onShare;
   final Future<void> Function(String path) onNavigate;
   final void Function() onClose;
-  final void Function(String payload) onResponse;
   final Map<String, dynamic> Function() systemInfo;
+  final List<String> networkDomains;
+  final Future<void> Function()? onNavigateBack;
 
   final Set<String> _granted;
-  final Set<String> _inflight = {};
   final List<DateTime> _recent = [];
   final Map<String, int> _methodCounts = {};
   DateTime _methodWindow = DateTime.now();
   bool _closed = false;
 
-  static const _maxMessageBytes = 160 * 1024;
   static const _maxBodyBytes = 32 * 1024;
-  static const _maxInflight = 20;
+  static const _maxResponseBytes = 1024 * 1024;
   static const _maxCallsPerWindow = 60;
   static const _window = Duration(seconds: 10);
   static const _maxImageBytes = 5 * 1024 * 1024;
-  static final _idPattern = RegExp(r'^[A-Za-z0-9_-]{1,80}$');
   static final _storageKey = RegExp(r'^[A-Za-z0-9._-]{1,64}$');
+  static final _routePattern = RegExp(r'^[A-Za-z0-9._~/-]{1,300}$');
   static final _apiPaths = {'/users/me', '/friends', '/conversations'};
   static const _methods = {
     'getAppInfo',
@@ -88,8 +91,10 @@ class MiniAppBridge {
     'chooseImage',
     'share',
     'navigateTo',
+    'navigateBack',
     'closeMiniApp',
     'request',
+    'fetch',
     'getStorage',
     'setStorage',
     'removeStorage',
@@ -100,60 +105,53 @@ class MiniAppBridge {
 
   void dispose() {
     _closed = true;
-    _inflight.clear();
     _recent.clear();
   }
 
-  /// Entry point for the JavaScript channel. Never throws.
-  Future<void> handle(String raw) async {
-    if (_closed || raw.length > _maxMessageBytes) return;
-    Object? decoded;
-    try {
-      decoded = jsonDecode(raw);
-    } catch (_) {
-      return;
+  /// Entry point used by the QuickJS host. Returns the response directly.
+  Future<QappHostResponse> execute(String method, Object? rawParams) async {
+    if (_closed) {
+      return const QappHostResponse.error('HOST_CLOSED', 'Mini App is closed');
     }
-    if (decoded is! Map) return;
-    final id = decoded['id'];
-    final method = decoded['method'];
-    if (id is! String || !_idPattern.hasMatch(id) || method is! String) return;
-    if (_inflight.contains(id) || _inflight.length >= _maxInflight) return;
     if (!_methods.contains(method)) {
-      _fail(id, 'NOT_SUPPORTED', 'Unknown method');
-      return;
+      return const QappHostResponse.error('NOT_SUPPORTED', 'Unknown method');
     }
     if (!_allowCall(method)) {
-      _fail(id, 'RATE_LIMITED', 'Too many calls, slow down');
-      return;
+      return const QappHostResponse.error(
+        'RATE_LIMITED',
+        'Too many calls, slow down',
+      );
     }
-    _inflight.add(id);
-    final params = decoded['params'];
-    final timeout = method == 'chooseImage'
-        ? const Duration(seconds: 60)
-        : method == 'request'
-        ? const Duration(seconds: 20)
-        : const Duration(seconds: 10);
     try {
-      final result = await _dispatch(method, params).timeout(timeout);
-      _reply(id, result);
+      final result = await _dispatch(
+        method,
+        rawParams,
+      ).timeout(_timeoutFor(method));
+      return QappHostResponse.ok(result);
     } on TimeoutException {
-      _fail(id, 'TIMEOUT', '$method timed out');
+      return QappHostResponse.error('TIMEOUT', '$method timed out');
     } on MiniAppBridgeException catch (error) {
-      _fail(id, error.code, error.message);
+      return QappHostResponse.error(error.code, error.message);
     } on MiniAppStorageException catch (error) {
-      _fail(
-        id,
+      return QappHostResponse.error(
         error.code,
         error.code == 'STORAGE_QUOTA_EXCEEDED'
             ? 'Mini App storage quota exceeded'
             : 'Storage is unavailable',
       );
     } catch (_) {
-      _fail(id, 'HOST_ERROR', 'The QChat host could not complete this call');
-    } finally {
-      _inflight.remove(id);
+      return const QappHostResponse.error(
+        'HOST_ERROR',
+        'The QChat host could not complete this call',
+      );
     }
   }
+
+  Duration _timeoutFor(String method) => switch (method) {
+    'chooseImage' => const Duration(seconds: 60),
+    'request' || 'fetch' => const Duration(seconds: 20),
+    _ => const Duration(seconds: 10),
+  };
 
   bool _allowCall(String method) {
     final now = DateTime.now();
@@ -189,6 +187,7 @@ class MiniAppBridge {
           'name': appName,
           'version': version,
           'entry': entry,
+          'format': 'qapp',
           'runtimeVersion': runtimeVersion,
           'minRuntimeVersion': minRuntimeVersion,
           'permissions': permissions,
@@ -230,15 +229,31 @@ class MiniAppBridge {
         }
         return {'shared': await onShare(text, url, title)};
       case 'navigateTo':
+        if (params['external'] == true) {
+          throw const MiniAppBridgeException(
+            'NOT_SUPPORTED',
+            'Opening external apps is not supported',
+          );
+        }
         final path = _string(params['path'], 'path', 1, 300);
-        _validatePath(path);
+        _validateRoute(path);
         await onNavigate(path);
+        return null;
+      case 'navigateBack':
+        final back = onNavigateBack;
+        if (back != null) {
+          await back();
+        } else {
+          onClose();
+        }
         return null;
       case 'closeMiniApp':
         onClose();
         return null;
       case 'request':
         return _request(params);
+      case 'fetch':
+        return _fetch(params);
       case 'getStorage':
         await _require('storage');
         final key = _key(params['key']);
@@ -341,6 +356,211 @@ class MiniAppBridge {
     );
   }
 
+  Future<Map<String, dynamic>> _fetch(Map<String, dynamic> params) async {
+    await _require('network');
+    final url = _string(params['url'], 'url', 1, 2048);
+    final uri = Uri.tryParse(url);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
+      throw const MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        'url must be an HTTPS URL',
+      );
+    }
+    _requireAllowedHost(uri);
+    final method = params['method'] ?? 'GET';
+    if (method is! String ||
+        !const {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}.contains(method)) {
+      throw const MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        'unsupported method',
+      );
+    }
+    final headers = _requestHeaders(params['headers']);
+    Uint8List? payload;
+    final body = params['body'];
+    if (body != null && method != 'GET') {
+      if (body is! String) {
+        throw const MiniAppBridgeException(
+          'INVALID_ARGUMENT',
+          'body must be a string',
+        );
+      }
+      final encoded = utf8.encode(body);
+      if (encoded.length > _maxBodyBytes) {
+        throw const MiniAppBridgeException(
+          'INVALID_ARGUMENT',
+          'body is too large',
+        );
+      }
+      payload = Uint8List.fromList(encoded);
+    }
+    final timeoutValue = params['timeoutMs'];
+    final timeout = timeoutValue is num
+        ? Duration(milliseconds: timeoutValue.round().clamp(1000, 15000))
+        : const Duration(seconds: 10);
+    final dio = Dio(
+      BaseOptions(
+        connectTimeout: const Duration(seconds: 8),
+        sendTimeout: timeout,
+        receiveTimeout: timeout,
+        followRedirects: false,
+        validateStatus: (_) => true,
+        responseType: ResponseType.stream,
+        headers: const {'accept': 'application/json, text/plain, */*'},
+      ),
+    );
+    final token = CancelToken();
+    var current = uri;
+    var currentMethod = method;
+    var currentPayload = payload;
+    Response<ResponseBody> response;
+    var hops = 0;
+    while (true) {
+      response = await dio.request<ResponseBody>(
+        current.toString(),
+        data: currentPayload == null
+            ? null
+            : Stream<Uint8List>.value(currentPayload),
+        options: Options(
+          method: currentMethod,
+          headers: {
+            ...headers,
+            if (currentPayload != null)
+              'content-type': headers['content-type'] ?? 'application/json',
+          },
+          followRedirects: false,
+          validateStatus: (_) => true,
+        ),
+        cancelToken: token,
+      );
+      final status = response.statusCode ?? 0;
+      final location = response.headers.value('location');
+      if (status < 300 || status >= 400 || location == null) break;
+      hops += 1;
+      if (hops > 3) {
+        throw const MiniAppBridgeException(
+          'TOO_MANY_REDIRECTS',
+          'The server redirected too many times',
+        );
+      }
+      final next = current.resolve(location);
+      if (next.scheme != 'https' || next.host.isEmpty) {
+        throw const MiniAppBridgeException(
+          'INVALID_ARGUMENT',
+          'redirects must stay on HTTPS',
+        );
+      }
+      _requireAllowedHost(next);
+      if (status == 303 ||
+          ((status == 301 || status == 302) &&
+              currentMethod != 'GET' &&
+              currentMethod != 'HEAD')) {
+        currentMethod = 'GET';
+        currentPayload = null;
+      }
+      current = next;
+    }
+
+    final builder = BytesBuilder(copy: false);
+    final stream = response.data?.stream;
+    if (stream != null) {
+      await for (final chunk in stream) {
+        builder.add(chunk);
+        if (builder.length > _maxResponseBytes) {
+          token.cancel('response too large');
+          throw const MiniAppBridgeException(
+            'RESPONSE_TOO_LARGE',
+            'The response is larger than 1 MB',
+          );
+        }
+      }
+    }
+    final bytes = builder.takeBytes();
+    final text = utf8.decode(bytes, allowMalformed: true);
+    Object? data = text;
+    final contentType = response.headers.value('content-type') ?? '';
+    if (contentType.toLowerCase().contains('application/json') ||
+        text.trimLeft().startsWith('{') ||
+        text.trimLeft().startsWith('[')) {
+      try {
+        data = jsonDecode(text);
+      } catch (_) {
+        data = text;
+      }
+    }
+    final responseHeaders = <String, String>{};
+    response.headers.forEach((name, values) {
+      final key = name.toLowerCase();
+      if (key == 'set-cookie') return;
+      responseHeaders[key] = values.join(',');
+    });
+    return {
+      'status': response.statusCode ?? 0,
+      'headers': responseHeaders,
+      'data': data,
+    };
+  }
+
+  void _requireAllowedHost(Uri uri) {
+    final host = uri.host.toLowerCase();
+    final allowed = networkDomains.any((rule) {
+      final value = rule.trim().toLowerCase();
+      if (value == host) return true;
+      if (value.startsWith('*.')) {
+        final base = value.substring(1);
+        return host.length > base.length && host.endsWith(base);
+      }
+      return false;
+    });
+    if (!allowed) {
+      throw MiniAppBridgeException(
+        'PERMISSION_DENIED',
+        'This Mini App cannot access $host',
+      );
+    }
+  }
+
+  Map<String, String> _requestHeaders(Object? raw) {
+    if (raw == null) return const {};
+    if (raw is! Map || raw.length > 20) {
+      throw const MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        'headers must be an object',
+      );
+    }
+    const blocked = {
+      'host',
+      'cookie',
+      'set-cookie',
+      'content-length',
+      'connection',
+      'transfer-encoding',
+      'upgrade',
+      'proxy-authorization',
+    };
+    final headers = <String, String>{};
+    for (final entry in raw.entries) {
+      final name = entry.key.toString().toLowerCase();
+      final value = entry.value;
+      if (!RegExp(r'^[a-z0-9-]{1,64}$').hasMatch(name) ||
+          blocked.contains(name) ||
+          value is! String ||
+          value.length > 512 ||
+          value.contains('\r') ||
+          value.contains('\n')) {
+        throw const MiniAppBridgeException(
+          'INVALID_ARGUMENT',
+          'invalid request header',
+        );
+      }
+      headers[name] = value;
+    }
+    return headers;
+  }
+
   Future<Map<String, dynamic>> _chooseImage(Map<String, dynamic> params) async {
     final maxWidth = _int(params['maxWidth'], 'maxWidth', 1, 4096, 1024);
     final maxHeight = _int(params['maxHeight'], 'maxHeight', 1, 4096, 4096);
@@ -402,29 +622,14 @@ class MiniAppBridge {
     _granted.add(permission);
   }
 
-  void _reply(String id, Object? result) {
-    if (_closed) return;
-    onResponse(
-      jsonEncode({'id': id, 'ok': true, 'result': result}),
-    );
-  }
-
-  void _fail(String id, String code, String message) {
-    if (_closed) return;
-    onResponse(
-      jsonEncode({
-        'id': id,
-        'ok': false,
-        'error': {'code': code, 'message': message},
-      }),
-    );
-  }
-
   static final _https = RegExp(r'^https://[^\s]+$', caseSensitive: false);
 
   String _string(Object? value, String name, int min, int max) {
     if (value is! String) {
-      throw MiniAppBridgeException('INVALID_ARGUMENT', '$name must be a string');
+      throw MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        '$name must be a string',
+      );
     }
     final trimmed = value.trim();
     if (trimmed.length < min || value.length > max) {
@@ -452,7 +657,10 @@ class MiniAppBridge {
   int _int(Object? value, String name, int min, int max, int fallback) {
     if (value == null) return fallback;
     if (value is! num) {
-      throw MiniAppBridgeException('INVALID_ARGUMENT', '$name must be a number');
+      throw MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        '$name must be a number',
+      );
     }
     final parsed = value.round();
     if (parsed < min || parsed > max) {
@@ -461,10 +669,19 @@ class MiniAppBridge {
     return parsed;
   }
 
-  double _double(Object? value, String name, double min, double max, double fallback) {
+  double _double(
+    Object? value,
+    String name,
+    double min,
+    double max,
+    double fallback,
+  ) {
     if (value == null) return fallback;
     if (value is! num) {
-      throw MiniAppBridgeException('INVALID_ARGUMENT', '$name must be a number');
+      throw MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        '$name must be a number',
+      );
     }
     if (value < min || value > max) {
       throw MiniAppBridgeException('INVALID_ARGUMENT', '$name is out of range');
@@ -474,7 +691,10 @@ class MiniAppBridge {
 
   String _key(Object? value) {
     if (value is! String || !_storageKey.hasMatch(value)) {
-      throw const MiniAppBridgeException('INVALID_ARGUMENT', 'invalid storage key');
+      throw const MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        'invalid storage key',
+      );
     }
     return value;
   }
@@ -489,6 +709,19 @@ class MiniAppBridge {
       throw const MiniAppBridgeException(
         'INVALID_ARGUMENT',
         'path must be a relative path inside this Mini App',
+      );
+    }
+  }
+
+  void _validateRoute(String path) {
+    if (!_routePattern.hasMatch(path) ||
+        path.startsWith('//') ||
+        path.contains('..') ||
+        path.contains('\\') ||
+        path.contains('\u0000')) {
+      throw const MiniAppBridgeException(
+        'INVALID_ARGUMENT',
+        'path must be an in-app route',
       );
     }
   }
@@ -517,8 +750,3 @@ class MiniAppBridge {
     }
   }
 }
-
-/// Convenience for the runtime screen: escapes the payload as a JavaScript
-/// string literal before handing it to `window.__QChatReceive`.
-String qchatReceiveScript(String payload) =>
-    'window.__QChatReceive && window.__QChatReceive(${jsonEncode(payload)});';

@@ -4,8 +4,8 @@ import '../../core/network/client.dart';
 import 'models.dart';
 
 /// Read-only store endpoints plus the few host-side calls the runtime needs.
-/// All requests go through the authenticated [QChatClient]; the WebView never
-/// receives the access token.
+/// All requests go through the authenticated [QChatClient]; the Mini App
+/// sandbox never receives the access token.
 class MiniAppApi {
   MiniAppApi(this.client);
 

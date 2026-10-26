@@ -357,6 +357,8 @@ model MiniAppVersion {
   size Int
   manifest Json
   entry String
+  format String @default("qapp")
+  sdkVersion String?
   minRuntimeVersion String @default("1.0.0")
   requestedPermissions String[] @default([])
   status String @default("UPLOADED")
