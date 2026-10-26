@@ -44,6 +44,8 @@ export interface StudioCommands {
   projectSettings: () => void;
   about: () => void;
   palette: () => void;
+  /** Opens the in-app developer documentation, optionally on a section id. */
+  docs: (docId?: string) => void;
 }
 
 function Menu({
@@ -256,8 +258,8 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
         </Menu>
 
         <Menu label={t("menu.help")}>
-          <Item icon={<BookOpen size={13} />} label={t("title.docs")} onClick={() => void api.openUrl("https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md")} />
-          <Item icon={<CircleHelp size={13} />} label={t("title.packageFormat")} onClick={() => void api.openUrl("https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md#package-format")} />
+          <Item icon={<BookOpen size={13} />} label={t("title.docs")} onClick={() => commands.docs()} />
+          <Item icon={<CircleHelp size={13} />} label={t("title.packageFormat")} onClick={() => commands.docs("miniapps")} />
           <div className="menu-separator" />
           <Item icon={<Info size={13} />} label={t("title.about")} onClick={commands.about} />
         </Menu>

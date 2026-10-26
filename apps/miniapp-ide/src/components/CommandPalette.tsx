@@ -227,10 +227,23 @@ export function CommandPalette({
         hint: t("palette.docsHint"),
         icon: <Boxes size={14} />,
         group: t("palette.groupHelp"),
-        run: () =>
-          api.openUrl(
-            "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md",
-          ),
+        run: () => studio.docs(),
+      },
+      {
+        id: "docs-miniapps",
+        label: t("palette.docsMiniapps"),
+        hint: t("palette.docsMiniappsHint"),
+        icon: <Boxes size={14} />,
+        group: t("palette.groupHelp"),
+        run: () => studio.docs("miniapps"),
+      },
+      {
+        id: "docs-studio",
+        label: t("palette.docsStudio"),
+        hint: t("palette.docsStudioHint"),
+        icon: <Boxes size={14} />,
+        group: t("palette.groupHelp"),
+        run: () => studio.docs("studio-build-release"),
       },
       {
         id: "about",

@@ -28,7 +28,7 @@ const DEFAULTS: StudioSettings = {
   nodePath: "",
   cliPath: "",
   projectsDir: "",
-  autoSave: false,
+  autoSave: true,
   fontSize: 13,
   minimap: false,
   wordWrap: true,
@@ -56,8 +56,11 @@ export function SettingsDialog({
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // Only re-seed when the dialog opens: re-running on every `settings`
+    // identity change would discard edits while the user is typing.
     if (open) setDraft(settings);
-  }, [open, settings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const set = <K extends keyof StudioSettings>(key: K, value: StudioSettings[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));

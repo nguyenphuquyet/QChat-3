@@ -78,12 +78,26 @@ export interface Project {
   isQapp: boolean;
 }
 
+/** Size + mtime snapshot used to detect edits made outside the studio. */
+export interface FileStamp {
+  path: string;
+  exists: boolean;
+  size: number;
+  modifiedMs: number | null;
+}
+
 export interface EditorTab {
   path: string;
   name: string;
   content: string;
   saved: string;
   language: string;
+  /** Last modification time observed on disk; `undefined` until first stat. */
+  diskModifiedMs?: number | null;
+  /** The file changed on disk while this tab still has unsaved edits. */
+  externalChange?: boolean;
+  /** The file no longer exists on disk (deleted or moved outside). */
+  missing?: boolean;
 }
 
 export type LogStream = "stdout" | "stderr" | "system";

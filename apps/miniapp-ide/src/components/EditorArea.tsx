@@ -16,11 +16,13 @@ import {
   Hammer,
   Image as ImageIcon,
   Package,
+  RefreshCw,
   Rocket,
   Save,
   Settings,
   Sparkles,
   Terminal,
+  TriangleAlert,
   Wand2,
   X,
   Zap,
@@ -257,11 +259,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
               </div>
               <button
                 className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.025] py-1.5 text-[10px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
-                onClick={() =>
-                  void api.openUrl(
-                    "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md",
-                  )
-                }
+                onClick={() => commands.docs("miniapps")}
               >
                 {t("welcome.guide")} <ArrowRight size={11} />
               </button>
@@ -348,6 +346,8 @@ export function EditorArea() {
   const setActive = useStudio((state) => state.setActive);
   const setCursor = useStudio((state) => state.setCursor);
   const openFile = useStudio((state) => state.openFile);
+  const reloadTabFromDisk = useStudio((state) => state.reloadTabFromDisk);
+  const dismissExternalChange = useStudio((state) => state.dismissExternalChange);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { t } = useI18n();
 
@@ -408,6 +408,17 @@ export function EditorArea() {
               >
                 <TabIcon language={tab.language} />
                 <span className="truncate">{tab.name}</span>
+                {tab.missing ? (
+                  <span
+                    className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400"
+                    title={t("sync.missingShort")}
+                  />
+                ) : tab.externalChange ? (
+                  <span
+                    className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"
+                    title={t("sync.conflictShort")}
+                  />
+                ) : null}
                 {tabDirty ? (
                   <span className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-400" />
                 ) : null}
@@ -445,6 +456,46 @@ export function EditorArea() {
           </button>
         </div>
       </div>
+
+      {active && (active.externalChange || active.missing) ? (
+        <div
+          className={cn(
+            "flex h-8 shrink-0 items-center gap-2 border-b px-3 text-[10px]",
+            active.missing
+              ? "border-rose-400/20 bg-rose-400/[0.07] text-rose-200"
+              : "border-amber-300/20 bg-amber-300/[0.06] text-amber-100",
+          )}
+        >
+          <TriangleAlert size={11} />
+          <span className="truncate">
+            {active.missing ? t("sync.missing") : t("sync.conflict")}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <button
+              className="btn btn-secondary h-6 px-2 text-[9.5px]"
+              onClick={() => void reloadTabFromDisk(active.path)}
+            >
+              <RefreshCw size={10} /> {t("sync.reload")}
+            </button>
+            {active.missing ? (
+              <button
+                className="btn btn-primary h-6 px-2 text-[9.5px]"
+                onClick={() => void saveFile(active.path)}
+                disabled={!dirty}
+              >
+                <Save size={10} /> {t("sync.saveAgain")}
+              </button>
+            ) : (
+              <button
+                className="btn btn-ghost h-6 px-2 text-[9.5px]"
+                onClick={() => dismissExternalChange(active.path)}
+              >
+                {t("sync.keepMine")}
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {active ? (
         <>

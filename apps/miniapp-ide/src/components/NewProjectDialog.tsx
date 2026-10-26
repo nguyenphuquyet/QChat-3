@@ -99,11 +99,14 @@ export function NewProjectDialog({
     setDescription(t("preview.defaultDesc"));
   }, [open, t]);
 
-  const nameValid = /^[a-z][a-z0-9._-]{1,40}$/.test(name);
+  // `name` keeps exactly what the user typed so the field can be cleared and
+  // edited freely; the slug derived from it is what actually lands on disk.
+  const slug = slugify(name);
+  const nameValid = /^[a-z][a-z0-9._-]{1,40}$/.test(slug);
   const versionValid = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version);
   const networkEnabled = permissions.includes("network");
   const domainsValid = !networkEnabled || domains.length > 0;
-  const projectPath = directory ? joinPath(directory, name) : "";
+  const projectPath = directory && slug ? joinPath(directory, slug) : "";
   const canCreate =
     desktop &&
     Boolean(cli?.ready) &&
@@ -144,7 +147,7 @@ export function NewProjectDialog({
     setError("");
     try {
       await createProject({
-        name,
+        name: slug,
         directory,
         description,
         version,
@@ -152,7 +155,13 @@ export function NewProjectDialog({
         permissions,
         networkDomains: domains,
       });
-      toast.success(t("new.createdToast", { name }));
+      toast.success(t("new.createdToast", { name: slug }));
+      // Start the next "New mini app" from a clean slate instead of reusing a
+      // name that now exists on disk.
+      setName("my-mini-app");
+      setVersion("1.0.0");
+      setPermissions(["toast", "storage"]);
+      setDomains([]);
       onClose();
     } catch (caught) {
       setError(errorMessage(caught));
@@ -252,13 +261,24 @@ export function NewProjectDialog({
                 id="project-name"
                 className={cn("field", name && !nameValid && "border-rose-400/40")}
                 value={name}
-                onChange={(event) => setName(slugify(event.target.value))}
-                placeholder="my-mini-app"
+                onChange={(event) => setName(event.target.value)}
+                placeholder="My Mini App"
+                maxLength={64}
+                spellCheck={false}
+                autoComplete="off"
                 autoFocus
               />
               <p className="mt-1 text-[9px] text-studio-500">
                 {t("new.nameHint")}
               </p>
+              {slug && slug !== name ? (
+                <p className="mt-1 truncate text-[9px] text-accent-300/90" title={slug}>
+                  {t("new.slugPreview", { slug })}
+                </p>
+              ) : null}
+              {!name.trim() ? (
+                <p className="mt-1 text-[9px] text-rose-300/90">{t("new.nameRequired")}</p>
+              ) : null}
             </div>
             <div>
               <label className="label" htmlFor="project-version">{t("new.version")}</label>
@@ -442,7 +462,7 @@ export function NewProjectDialog({
           <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-studio-900 px-8 py-6 shadow-panel">
             <Loader2 size={22} className="animate-spin text-accent-300" />
             <div className="text-[12px] font-semibold text-white">
-              {t("new.creatingTitle", { name })}
+              {t("new.creatingTitle", { name: slug || name })}
             </div>
             <div className="text-center text-[9.5px] leading-4 text-studio-500">
               {t("new.creatingHint1")}

@@ -5,6 +5,7 @@ import { ActivityBar } from "./components/ActivityBar";
 import { AboutDialog } from "./components/AboutDialog";
 import { BottomPanel } from "./components/BottomPanel";
 import { CommandPalette } from "./components/CommandPalette";
+import { DocsPanel } from "./components/DocsPanel";
 import { EditorArea, Welcome } from "./components/EditorArea";
 import { NewProjectDialog } from "./components/NewProjectDialog";
 import { PreviewPanel } from "./components/PreviewPanel";
@@ -27,6 +28,9 @@ const PREVIEW_MIN = 280;
 const PREVIEW_MAX = 520;
 const BOTTOM_MIN = 110;
 const BOTTOM_MAX = 620;
+
+/** How often the studio stats open files to catch edits made outside it. */
+const DISK_POLL_MS = 1500;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -85,14 +89,18 @@ export default function App() {
   const devRunning = useStudio((state) => state.devRunning);
   const handleDevLog = useStudio((state) => state.handleDevLog);
   const handleDevExit = useStudio((state) => state.handleDevExit);
+  const pollDisk = useStudio((state) => state.pollDisk);
+  const saveAllDirty = useStudio((state) => state.saveAllDirty);
+  const projectPath = project?.path ?? null;
 
   const [sidebarWidth, setSidebarWidth] = useState(264);
   const [previewWidth, setPreviewWidth] = useState(336);
   const [bottomHeight, setBottomHeight] = useState(210);
   const [bottomMax, setBottomMax] = useState(false);
-  const [dialog, setDialog] = useState<null | "new" | "settings" | "project" | "about">(
+  const [dialog, setDialog] = useState<null | "new" | "settings" | "project" | "about" | "docs">(
     null,
   );
+  const [docsId, setDocsId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const dragCleanup = useRef<(() => void) | null>(null);
 
@@ -113,12 +121,36 @@ export default function App() {
     projectSettings: () => setDialog("project"),
     about: () => setDialog("about"),
     palette: () => setPaletteOpen(true),
+    docs: (docId?: string) => {
+      setDocsId(docId ?? null);
+      setDialog("docs");
+    },
   };
 
   // Boot: detect the CLI and reopen the last project once.
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  // Disk watcher: pickup edits made outside the studio (other editors, the
+  // qapp CLI, git). Cheap stat-based polling keeps the tabs, the explorer and
+  // manifest.json in sync while a project is open.
+  useEffect(() => {
+    if (!projectPath || !api.isDesktop()) return;
+    const tick = () => {
+      if (document.visibilityState === "hidden") return;
+      void pollDisk();
+    };
+    void pollDisk();
+    const timer = window.setInterval(tick, DISK_POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, [projectPath, pollDisk]);
 
   // Tauri dev-watcher event bridge.
   useEffect(() => {
@@ -152,11 +184,31 @@ export default function App() {
   // Close native dev watcher when the window goes away.
   useEffect(() => {
     const onUnload = () => {
+      const state = useStudio.getState();
+      if (state.settings.autoSave) void state.saveAllDirty();
       if (api.isDesktop()) void api.stopDev();
     };
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
+
+  // Auto save: besides the idle debounce in the editor, flush dirty tabs when
+  // the window loses focus or is hidden, which is what usually happens right
+  // before the user closes or switches away from the studio.
+  useEffect(() => {
+    if (!settings.autoSave || !projectPath) return;
+    const flush = () => {
+      if (document.visibilityState === "hidden" || document.hasFocus() === false) {
+        void saveAllDirty();
+      }
+    };
+    window.addEventListener("blur", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("blur", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [settings.autoSave, projectPath, saveAllDirty]);
 
   const beginResize = useCallback(
     (
@@ -303,6 +355,7 @@ export default function App() {
           onPalette={() => setPaletteOpen(true)}
           onSettings={() => setDialog("settings")}
           onAbout={() => setDialog("about")}
+          onDocs={() => commands.docs()}
         />
 
         {sidebarOpen ? (
@@ -394,6 +447,11 @@ export default function App() {
       <SettingsDialog open={dialog === "settings"} onClose={closeDialog} />
       <ProjectSettingsDialog open={dialog === "project"} onClose={closeDialog} />
       <AboutDialog open={dialog === "about"} onClose={closeDialog} />
+      <DocsPanel
+        open={dialog === "docs"}
+        onClose={closeDialog}
+        initialDocId={docsId}
+      />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}

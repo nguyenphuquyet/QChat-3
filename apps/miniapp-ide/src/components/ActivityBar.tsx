@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Boxes,
   CircleHelp,
   FolderTree,
@@ -15,10 +16,12 @@ export function ActivityBar({
   onPalette,
   onSettings,
   onAbout,
+  onDocs,
 }: {
   onPalette: () => void;
   onSettings: () => void;
   onAbout: () => void;
+  onDocs: () => void;
 }) {
   const sidebarTab = useStudio((state) => state.sidebarTab);
   const sidebarOpen = useStudio((state) => state.sidebarOpen);
@@ -93,6 +96,13 @@ export function ActivityBar({
           title={t("activity.search")}
         >
           <Search size={19} strokeWidth={1.8} />
+        </button>
+        <button
+          className="group flex h-10 w-10 items-center justify-center rounded-xl text-studio-400 transition hover:bg-white/[0.05] hover:text-studio-100"
+          onClick={onDocs}
+          title={t("activity.docs")}
+        >
+          <BookOpen size={19} strokeWidth={1.8} />
         </button>
         <button
           className="group flex h-10 w-10 items-center justify-center rounded-xl text-studio-400 transition hover:bg-white/[0.05] hover:text-studio-100"

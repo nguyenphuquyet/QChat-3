@@ -83,6 +83,17 @@ struct Artifact {
     modified_ms: Option<u64>,
 }
 
+/// Cheap "has this file changed on disk?" probe used by the studio to pick up
+/// edits made outside the app (another editor, a CLI run, git checkout...).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FileStamp {
+    path: String,
+    exists: bool,
+    size: u64,
+    modified_ms: Option<u64>,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DevLog {
@@ -636,6 +647,105 @@ fn list_tree(root: String) -> Result<Vec<FsEntry>, String> {
     Ok(entries)
 }
 
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+fn fnv1a(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(FNV_PRIME);
+    }
+}
+
+fn file_stamp(path: &str) -> FileStamp {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => FileStamp {
+            path: path.to_string(),
+            exists: true,
+            size: metadata.len(),
+            modified_ms: modified_ms(&metadata),
+        },
+        _ => FileStamp {
+            path: path.to_string(),
+            exists: false,
+            size: 0,
+            modified_ms: None,
+        },
+    }
+}
+
+/// Size + modification time for a batch of files. The studio polls this while a
+/// project is open so edits made outside the app are picked up in near real
+/// time (and so an unsaved tab can be flagged as conflicting instead of being
+/// overwritten).
+#[tauri::command]
+fn file_stamps(paths: Vec<String>) -> Vec<FileStamp> {
+    paths.iter().map(|path| file_stamp(path)).collect()
+}
+
+/// Folds every entry name (plus the directory/file bit) of a folder tree into a
+/// hash, so the studio can tell whether files were added, removed or renamed
+/// without shipping the whole listing over IPC on every poll.
+fn fold_structure(root: &Path, dir: &Path, hash: &mut u64, count: &mut usize, depth: usize) {
+    if depth > MAX_TREE_DEPTH || *count >= MAX_TREE_ENTRIES {
+        return;
+    }
+
+    let Ok(read_dir) = fs::read_dir(dir) else {
+        return;
+    };
+
+    let mut children: Vec<fs::DirEntry> = read_dir.filter_map(Result::ok).collect();
+    children.sort_by_key(|entry| entry.file_name().to_string_lossy().to_lowercase());
+
+    for child in children {
+        if *count >= MAX_TREE_ENTRIES {
+            return;
+        }
+
+        let name = child.file_name().to_string_lossy().to_string();
+        let Ok(file_type) = child.file_type() else {
+            continue;
+        };
+        let is_dir = file_type.is_dir();
+
+        if is_dir && IGNORED_DIRECTORIES.contains(&name.as_str()) {
+            continue;
+        }
+        if !is_dir && IGNORED_FILES.contains(&name.as_str()) {
+            continue;
+        }
+
+        *count += 1;
+        let path = child.path();
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        fnv1a(hash, relative.as_bytes());
+        fnv1a(hash, if is_dir { b"d" } else { b"f" });
+
+        if is_dir {
+            fold_structure(root, &path, hash, count, depth + 1);
+        }
+    }
+}
+
+#[tauri::command]
+fn tree_signature(root: String) -> Result<String, String> {
+    let path = PathBuf::from(&root);
+    if !path.is_dir() {
+        return Err(format!("{root} is not a folder"));
+    }
+
+    let mut hash = FNV_OFFSET;
+    let mut count = 0usize;
+    fold_structure(&path, &path, &mut hash, &mut count, 0);
+    // Hex, so the 64 bit hash survives the JSON number round-trip in JS.
+    Ok(format!("{hash:016x}"))
+}
+
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
     let file = PathBuf::from(&path);
@@ -837,6 +947,8 @@ pub fn run() {
             start_dev,
             stop_dev,
             list_tree,
+            tree_signature,
+            file_stamps,
             read_text_file,
             write_text_file,
             ensure_directory,

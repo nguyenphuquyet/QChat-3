@@ -7,6 +7,7 @@ import type {
   Artifact,
   CliInfo,
   CliOutput,
+  FileStamp,
   FsEntry,
   InspectResult,
 } from "../types";
@@ -76,6 +77,18 @@ export const api = {
   listTree(root: string): Promise<FsEntry[]> {
     if (!isTauri()) return desktopOnly([] as FsEntry[]);
     return invoke<FsEntry[]>("list_tree", { root });
+  },
+
+  /** Size + mtime snapshot of the given files; missing files come back with `exists: false`. */
+  fileStamps(paths: string[]): Promise<FileStamp[]> {
+    if (!isTauri() || paths.length === 0) return Promise.resolve([]);
+    return invoke<FileStamp[]>("file_stamps", { paths });
+  },
+
+  /** Hex hash of the folder structure, used to detect external adds/removes/renames. */
+  treeSignature(root: string): Promise<string> {
+    if (!isTauri()) return Promise.resolve("");
+    return invoke<string>("tree_signature", { root });
   },
 
   readText(path: string): Promise<string> {

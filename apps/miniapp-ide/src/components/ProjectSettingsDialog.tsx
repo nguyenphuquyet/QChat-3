@@ -32,13 +32,18 @@ export function ProjectSettingsDialog({
   const [error, setError] = useState("");
   const { t } = useI18n();
 
+  const projectPath = project?.path ?? null;
+
+  // Seed the draft only when the dialog opens or the project changes. Relying
+  // on `project.manifest` identity would wipe whatever the user is typing
+  // every time the file watcher re-reads manifest.json in the background.
   useEffect(() => {
-    if (open && project?.manifest) {
-      setDraft(JSON.parse(JSON.stringify(project.manifest)) as ProjectManifest);
-      setDomainDraft("");
-      setError("");
-    }
-  }, [open, project?.manifest]);
+    if (!open || !project?.manifest) return;
+    setDraft(JSON.parse(JSON.stringify(project.manifest)) as ProjectManifest);
+    setDomainDraft("");
+    setError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, projectPath]);
 
   if (!draft) return null;
 

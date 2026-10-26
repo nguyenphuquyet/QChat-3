@@ -65,6 +65,14 @@ after changing settings.
 
 - Explorer with create, rename and delete, plus Monaco tabs, unsaved-change
   tracking, auto-save and per-project cursor state.
+- Auto-save is on by default (`Settings → Editor`): a dirty tab is written after
+  a short idle, when the window loses focus and before every build, test or dev
+  run, so the CLI always reads what is on screen.
+- External-edit sync: a 1.5 s stat-based watcher (`file_stamps` +
+  `tree_signature` in Rust) keeps tabs, the explorer and `manifest.json` in step
+  with edits made by other editors, the CLI or git. Clean tabs reload in place
+  with a notice, dirty tabs are flagged as conflicting and can be reloaded from
+  disk or kept, and deleted files are marked as missing.
 - TSX SDK typings and a `manifest.json` JSON schema injected into Monaco, so
   `@mna/qchat` imports and permissions complete as you type.
 - Project creation through `qapp create`, with starter, counter and blank
@@ -80,6 +88,10 @@ after changing settings.
   edge resizing, so the desktop chrome matches the dark UI.
 - Vietnamese (default), Chinese and English interfaces, a dark/light theme
   switch, and bundled Be Vietnam Pro fonts for offline Vietnamese typography.
+- In-app developer documentation (**Help → Developer docs**, the book icon in
+  the activity bar, or `Ctrl+K → docs`): a built-in guide to the studio plus the
+  repository documents (`docs/MINIAPPS.md`, `docs/ARCHITECTURE.md`,
+  `docs/DEPLOYMENT.md`) compiled straight from the repo, searchable and offline.
 - The browser/WebView right-click menu is suppressed; Monaco and opted-in
   surfaces keep their own menus.
 - New projects default to `<Documents>/QChat Mini App Studio Project` and always
@@ -108,6 +120,44 @@ file details.
   own editor menu and any element can opt in with
   `data-native-context-menu`.
 
+## Icons and the Windows installer
+
+Every icon — the app icon, the title-bar/taskbar icon and the NSIS setup icon —
+is generated from one square PNG by `scripts/generate-icons.py`:
+
+```sh
+python scripts/generate-icons.py "C:/path/to/qchat-icon.png"
+```
+
+It writes `src-tauri/icons/icon.ico` (16/24/32/48/64/128/256, used by Explorer
+and NSIS), `icon.icns`, `icon.png`, the `32x32`/`64x64`/`128x128`/`128x128@2x`
+PNGs, the Windows Store `Square*Logo.png`/`StoreLogo.png` set, and keeps the
+1024 px artwork at `src-tauri/icons/source/qchat-app-icon.png`. Pillow is the
+only requirement.
+
+`src-tauri/tauri.conf.json` points NSIS at that icon and localises the setup
+wizard:
+
+```json
+"windows": {
+  "nsis": {
+    "installMode": "currentUser",
+    "languages": ["Vietnamese", "English"],
+    "displayLanguageSelector": true,
+    "installerIcon": "icons/icon.ico",
+    "uninstallerIcon": "icons/icon.ico"
+  }
+}
+```
+
+Paths are relative to `src-tauri/` (the CLI sets its working directory there).
+NSIS ships `Vietnamese.nlf` and Tauri ships its own Vietnamese strings, so the
+wizard, the maintenance page and the WebView2 prompts are all in Vietnamese;
+the selector appears because two languages are listed. Set
+`"languages": ["Vietnamese"]` and drop `displayLanguageSelector` to force
+Vietnamese everywhere. `headerImage` (150x57) and `sidebarImage` (164x314) BMPs
+can be added the same way if a branded header is wanted.
+
 ## Resource preparation
 
 ```sh
@@ -134,6 +184,7 @@ Both resource folders are gitignored; `prepare:cli` runs automatically before
 | `corepack pnpm tauri build` | Native installers in `src-tauri/target/release/bundle` |
 | `corepack pnpm bundle:windows` | NSIS `.exe` + MSI installers (Windows only) |
 | `corepack pnpm prepare:cli` | Refresh bundled CLI resources |
+| `python scripts/generate-icons.py <png>` | Regenerate every app/installer icon from one PNG |
 
 Windows builds produce both an NSIS `setup.exe` and an MSI package; use
 `corepack pnpm tauri build --bundles nsis,msi` (or `bundle:windows`) to request
@@ -157,14 +208,15 @@ apps/miniapp-ide/
   src/                 React UI, store, CLI bridge, i18n and Monaco setup
   src/assets/fonts/    Bundled Be Vietnam Pro woff2 subsets
   src-tauri/           Rust commands, capabilities, icons and config
-  assets/icon-source.png  Source image for `tauri icon`
+  src-tauri/icons/source/qchat-app-icon.png  Source image for the icon pipeline
   scripts/prepare-cli.mjs
+  scripts/generate-icons.py
 ```
 
 `src-tauri/src/lib.rs` exposes `detect_cli`, `run_cli`, `start_dev`, `stop_dev`,
-tree/file CRUD, artifact listing and the `qapp-dev-log` / `qapp-dev-exit`
-events. Only the dialog, opener, core path and core window permissions are
-granted.
+tree/file CRUD, artifact listing, `file_stamps` / `tree_signature` for the disk
+watcher and the `qapp-dev-log` / `qapp-dev-exit` events. Only the dialog, opener,
+core path and core window permissions are granted.
 
 ## Verification status
 

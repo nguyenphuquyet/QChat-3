@@ -26,13 +26,17 @@ export function joinPath(base: string, ...parts: string[]): string {
   );
 }
 
+/**
+ * Normalises free-form text into the lowercase slug used for folder names and
+ * manifest names. An empty input stays empty on purpose: callers validate it,
+ * so clearing the field never silently jumps back to a default name.
+ */
 export function slugify(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "miniapp"
-  );
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
 }
 
 export function formatBytes(bytes: number): string {

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 import type {
   Artifact,
   CliInfo,
@@ -54,7 +55,7 @@ const DEFAULT_SETTINGS: Settings = {
   nodePath: "",
   cliPath: "",
   projectsDir: "",
-  autoSave: false,
+  autoSave: true,
   fontSize: 13,
   minimap: false,
   wordWrap: true,
@@ -64,6 +65,8 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 let logCounter = 0;
+/** Guards `pollDisk` against overlapping ticks (slow disks, big trees). */
+let diskPollInFlight = false;
 function nextId(prefix: string): string {
   logCounter += 1;
   return `${prefix}-${Date.now().toString(36)}-${logCounter}`;
@@ -130,6 +133,10 @@ export interface StudioState {
   project: Project | null;
   tree: FsEntry[];
   treeLoading: boolean;
+  /** Structure hash of the open project, refreshed by the disk watcher. */
+  treeSignature: string | null;
+  /** Last observed mtime per watched file (open tabs + manifest.json). */
+  diskStamps: Record<string, number | null>;
   tabs: EditorTab[];
   activePath: string | null;
   cursor: { line: number; column: number };
@@ -162,11 +169,19 @@ export interface StudioState {
   closeProject: () => void;
   refreshTree: () => Promise<void>;
   refreshArtifacts: () => Promise<void>;
+  /** One watcher tick: picks up files edited outside the studio. */
+  pollDisk: () => Promise<void>;
+  /** Force-reload a tab from disk, discarding local edits. */
+  reloadTabFromDisk: (path: string) => Promise<void>;
+  /** Keep the local edits and drop the "changed outside" warning. */
+  dismissExternalChange: (path: string) => void;
   openFile: (path: string) => Promise<void>;
   setActive: (path: string) => void;
   updateTab: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
   saveFile: (path: string) => Promise<void>;
+  /** Write every tab with unsaved edits (used by auto save + before build). */
+  saveAllDirty: () => Promise<void>;
   closeTab: (path: string) => void;
   createProject: (input: NewProjectInput) => Promise<string>;
   buildProject: (noTypecheck?: boolean) => Promise<void>;
@@ -205,6 +220,8 @@ export const useStudio = create<StudioState>()(
       project: null,
       tree: [],
       treeLoading: false,
+      treeSignature: null,
+      diskStamps: {},
       tabs: [],
       activePath: null,
       cursor: { line: 1, column: 1 },
@@ -295,7 +312,14 @@ export const useStudio = create<StudioState>()(
       },
 
       async openProject(path) {
-        set({ project: null, treeLoading: true, tabs: [], activePath: null });
+        set({
+          project: null,
+          treeLoading: true,
+          treeSignature: null,
+          diskStamps: {},
+          tabs: [],
+          activePath: null,
+        });
         try {
           const manifest = await readManifest(path);
           const project: Project = {
@@ -345,6 +369,8 @@ export const useStudio = create<StudioState>()(
         set({
           project: null,
           tree: [],
+          treeSignature: null,
+          diskStamps: {},
           tabs: [],
           activePath: null,
           artifacts: [],
@@ -381,6 +407,224 @@ export const useStudio = create<StudioState>()(
         }
       },
 
+      /**
+       * One watcher tick. Files can be edited outside the studio (another
+       * editor, `qapp` on the CLI, git checkout...), so we poll cheap
+       * size+mtime stamps for the open tabs plus manifest.json, and a
+       * structure hash for the explorer.
+       *
+       * - a clean tab is updated in place and the change is announced;
+       * - a tab with unsaved edits is only flagged, never overwritten;
+       * - a deleted/moved file is flagged as missing.
+       */
+      async pollDisk() {
+        const project = get().project;
+        if (!project || !api.isDesktop()) return;
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+        if (diskPollInFlight) return;
+        diskPollInFlight = true;
+        const language = get().settings.language;
+        const sameProject = () => get().project?.path === project.path;
+
+        try {
+          const signature = await api.treeSignature(project.path);
+          if (!sameProject()) return;
+          if (get().treeSignature === null) {
+            set({ treeSignature: signature });
+          } else if (get().treeSignature !== signature) {
+            set({ treeSignature: signature });
+            await get().refreshTree();
+            await get().refreshArtifacts();
+            if (!sameProject()) return;
+          }
+
+          const manifestPath = joinPath(project.path, "manifest.json");
+          const watched = Array.from(
+            new Set([manifestPath, ...get().tabs.map((tab) => tab.path)]),
+          );
+          const stamps = await api.fileStamps(watched);
+          if (!sameProject()) return;
+
+          for (const stamp of stamps) {
+            const baseline = get().diskStamps[stamp.path];
+            const onDisk = stamp.exists ? stamp.modifiedMs : null;
+            const record = (value: number | null) =>
+              set({ diskStamps: { ...get().diskStamps, [stamp.path]: value } });
+            const patchTab = (values: Partial<EditorTab>) =>
+              set({
+                tabs: get().tabs.map((item) =>
+                  item.path === stamp.path ? { ...item, ...values } : item,
+                ),
+              });
+
+            // manifest.json is watched even when it is not open in a tab.
+            if (stamp.path === manifestPath && !get().tabs.some((tab) => tab.path === manifestPath)) {
+              record(onDisk);
+              if (baseline === undefined || baseline === onDisk || !stamp.exists) continue;
+              const manifest = await readManifest(project.path);
+              const current = get().project;
+              if (!manifest || !current || current.path !== project.path) continue;
+              if (JSON.stringify(current.manifest ?? null) === JSON.stringify(manifest)) continue;
+              set({
+                project: { ...current, manifest, name: manifest.name, isQapp: manifest.format === "qapp" },
+              });
+              toast.info(translate(language, "sync.manifestReloaded"));
+              continue;
+            }
+
+            const tab = get().tabs.find((item) => item.path === stamp.path);
+            if (!tab) {
+              record(onDisk);
+              continue;
+            }
+
+            if (!stamp.exists) {
+              record(null);
+              if (baseline !== undefined && baseline !== null && !tab.missing) {
+                patchTab({ missing: true, externalChange: true });
+                toast.error(translate(language, "sync.missing", { name: tab.name }));
+              }
+              continue;
+            }
+
+            // First observation (or the file came back): only take a baseline.
+            if (baseline === undefined || baseline === null) {
+              record(onDisk);
+              if (tab.missing) patchTab({ missing: false, externalChange: false });
+              continue;
+            }
+
+            if (baseline === onDisk) continue;
+
+            if (tab.content !== tab.saved) {
+              record(onDisk);
+              if (!tab.externalChange) {
+                patchTab({ externalChange: true, missing: false });
+                toast.warning(translate(language, "sync.conflict", { name: tab.name }), {
+                  action: {
+                    label: translate(language, "sync.reload"),
+                    onClick: () => void get().reloadTabFromDisk(stamp.path),
+                  },
+                });
+              }
+              continue;
+            }
+
+            let fresh: string | null = null;
+            try {
+              fresh = await api.readText(stamp.path);
+            } catch {
+              fresh = null;
+            }
+            record(onDisk);
+            if (fresh === null) continue;
+
+            const latest = get().tabs.find((item) => item.path === stamp.path);
+            if (!latest) continue;
+            if (latest.content !== latest.saved) {
+              // The user started typing while we were reading: never clobber it.
+              if (!latest.externalChange) {
+                set({
+                  tabs: get().tabs.map((item) =>
+                    item.path === stamp.path
+                      ? { ...item, externalChange: true, missing: false }
+                      : item,
+                  ),
+                });
+                toast.warning(translate(language, "sync.conflict", { name: latest.name }));
+              }
+              continue;
+            }
+            if (fresh === latest.content) {
+              set({
+                tabs: get().tabs.map((item) =>
+                  item.path === stamp.path
+                    ? { ...item, externalChange: false, missing: false }
+                    : item,
+                ),
+              });
+              continue;
+            }
+
+            set({
+              tabs: get().tabs.map((item) =>
+                item.path === stamp.path
+                  ? { ...item, content: fresh, saved: fresh, externalChange: false, missing: false }
+                  : item,
+              ),
+            });
+            if (stamp.path === manifestPath) {
+              try {
+                const manifest = JSON.parse(fresh) as ProjectManifest;
+                const current = get().project;
+                if (manifest && current) {
+                  if (!Array.isArray(manifest.requestedPermissions)) {
+                    manifest.requestedPermissions = [];
+                  }
+                  set({
+                    project: {
+                      ...current,
+                      manifest,
+                      name: manifest.name,
+                      isQapp: manifest.format === "qapp",
+                    },
+                  });
+                }
+              } catch {
+                // An in-progress (invalid) manifest on disk: keep the text only.
+              }
+            }
+            toast.info(translate(language, "sync.reloaded", { name: latest.name }));
+          }
+        } catch {
+          // Transient failures (folder removed, permissions) are ignored: the
+          // next tick retries.
+        } finally {
+          diskPollInFlight = false;
+        }
+      },
+
+      async reloadTabFromDisk(path) {
+        const language = get().settings.language;
+        try {
+          const content = await api.readText(path);
+          set({
+            tabs: get().tabs.map((item) =>
+              item.path === path
+                ? { ...item, content, saved: content, externalChange: false, missing: false }
+                : item,
+            ),
+          });
+          const [stamp] = await api.fileStamps([path]);
+          set({
+            diskStamps: {
+              ...get().diskStamps,
+              [path]: stamp && stamp.exists ? stamp.modifiedMs : null,
+            },
+          });
+          if (basename(path) === "manifest.json") {
+            const manifest = await readManifest(get().project?.path ?? "");
+            const current = get().project;
+            if (manifest && current) {
+              set({
+                project: { ...current, manifest, name: manifest.name, isQapp: manifest.format === "qapp" },
+              });
+            }
+          }
+          toast.success(translate(language, "sync.reloaded", { name: basename(path) }));
+        } catch (error) {
+          toast.error(errorMessage(error));
+        }
+      },
+
+      dismissExternalChange(path) {
+        set({
+          tabs: get().tabs.map((item) =>
+            item.path === path ? { ...item, externalChange: false } : item,
+          ),
+        });
+      },
+
       async openFile(path) {
         const existing = get().tabs.find((tab) => tab.path === path);
         if (existing) {
@@ -397,6 +641,14 @@ export const useStudio = create<StudioState>()(
             language: languageFor(path),
           };
           set({ tabs: [...get().tabs, tab], activePath: path });
+          // Remember the on-disk mtime so the watcher only reacts to changes
+          // made after the file was opened.
+          const [stamp] = await api.fileStamps([path]);
+          if (stamp) {
+            set({
+              diskStamps: { ...get().diskStamps, [path]: stamp.exists ? stamp.modifiedMs : null },
+            });
+          }
         } catch (error) {
           get().appendLog("stderr", translate(get().settings.language, "store.cannotOpen", {
             path,
@@ -431,8 +683,17 @@ export const useStudio = create<StudioState>()(
           await api.writeText(path, tab.content);
           set({
             tabs: get().tabs.map((item) =>
-              item.path === path ? { ...item, saved: item.content } : item,
+              item.path === path
+                ? { ...item, saved: item.content, externalChange: false, missing: false }
+                : item,
             ),
+          });
+          const [stamp] = await api.fileStamps([path]);
+          set({
+            diskStamps: {
+              ...get().diskStamps,
+              [path]: stamp && stamp.exists ? stamp.modifiedMs : null,
+            },
           });
           if (basename(path) === "manifest.json") {
             const manifest = await readManifest(get().project?.path ?? "");
@@ -449,6 +710,17 @@ export const useStudio = create<StudioState>()(
             error: errorMessage(error),
           }));
           throw error;
+        }
+      },
+
+      async saveAllDirty() {
+        const dirty = get().tabs.filter((tab) => tab.content !== tab.saved);
+        for (const tab of dirty) {
+          try {
+            await get().saveFile(tab.path);
+          } catch {
+            // saveFile already logged the failure; keep saving the rest.
+          }
         }
       },
 
@@ -526,6 +798,8 @@ export const useStudio = create<StudioState>()(
         const language = get().settings.language;
         if (!project) throw new Error(translate(language, "store.openFirst"));
         if (!get().cli?.ready) throw new Error(translate(language, "store.cliNotReadyShort"));
+        // The CLI reads the files from disk: flush unsaved editors first.
+        if (get().settings.autoSave) await get().saveAllDirty();
         set({
           buildStatus: "running",
           buildMessage: translate(
@@ -589,6 +863,7 @@ export const useStudio = create<StudioState>()(
         const project = get().project;
         const language = get().settings.language;
         if (!project) throw new Error(translate(language, "store.openFirst"));
+        if (get().settings.autoSave) await get().saveAllDirty();
         set({ bottomOpen: true, bottomTab: "output", buildStatus: "running" });
         const args = ["test", "--dir", project.path];
         get().appendLog("system", `$ qapp ${args.join(" ")}`);
@@ -675,6 +950,7 @@ export const useStudio = create<StudioState>()(
         const project = get().project;
         if (!project) throw new Error(translate(get().settings.language, "store.openFirst"));
         if (get().devRunning) return;
+        if (get().settings.autoSave) await get().saveAllDirty();
         set({ bottomOpen: true, bottomTab: "output" });
         get().appendLog("system", `$ qapp dev --dir ${project.path}`);
         try {
