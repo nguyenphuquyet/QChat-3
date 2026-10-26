@@ -435,6 +435,13 @@ host:
 - Monaco edits TSX with the SDK typings and a `manifest.json` schema.
 - Project creation, build, typecheck, runtime test, validate and inspect call
   `qapp` directly; the artifact stays `dist/<slug>-<version>.japp`.
+- `prepare:cli` copies the whole built SDK — subdirectories included, so
+  `@mna/qchat/env` is part of the bundle — and the QuickJS declarations into
+  `src-tauri/resources/types`, which is where the CLI looks for
+  `qchat-env.d.ts` when it type-checks a project. A Studio built before that
+  copy existed rejects `import "@mna/qchat/env/auto"` with
+  `QChat SDK module not found: env/auto`; re-running `prepare:cli` (or
+  reinstalling the Studio) is the fix.
 - `qapp dev` runs in the background and streams logs and the exit code over
   Tauri events (`qapp-dev-log`, `qapp-dev-exit`).
 - The device panel shows the manifest, permissions, size and SHA-256 of the
@@ -620,8 +627,14 @@ reproducible from Git alone; back them up with the database.
   migrations compile and their unit tests pass. A live upload → review → release
   smoke run was not performed here because no PostgreSQL/server environment was
   available.
-- The Studio frontend typechecks and builds, and its bundled CLI resources
-  compile `hello-world` into a real `.japp`. `cargo check`, `tauri dev` and
+- The Studio frontend typechecks and builds (`typecheck`, `build:web` — the
+  latter needs a raised `NODE_OPTIONS=--max-old-space-size`, the monaco chunk
+  does not fit the default heap), and its bundled CLI resources compile
+  `hello-world` into a real `.japp`. The packaged resources were exercised the
+  way the Studio runs them: `prepare:cli`, then `create` and `build` of a
+  scaffolded project through `apps/miniapp-ide/src-tauri/resources/qapp/cli.js`,
+  which type-checks and packs a 14.5 KB `.japp` whose entry imports
+  `@mna/qchat/env/auto`. `cargo check`, `tauri dev` and
   installer builds were not run locally because this host has no Rust toolchain;
   `.github/workflows/miniapp-ide.yml` performs those builds on Windows, macOS and
   Linux.

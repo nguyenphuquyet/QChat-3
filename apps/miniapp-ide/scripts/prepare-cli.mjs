@@ -108,18 +108,53 @@ function resolvePackageDir(request, fromDirs) {
   return null;
 }
 
-function copyFrameworkDist() {
-  const files = readdirSync(distDir, { withFileTypes: true });
+function copyDirectory(from, to) {
   let count = 0;
-  for (const file of files) {
-    if (!file.isFile()) continue;
-    if (file.name.endsWith(".map")) continue;
-    if (!file.name.endsWith(".js") && !file.name.endsWith(".d.ts")) continue;
-    cpSync(path.join(distDir, file.name), path.join(qappDir, file.name));
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    const source = path.join(from, entry.name);
+    const target = path.join(to, entry.name);
+    if (entry.isDirectory()) {
+      mkdirSync(target, { recursive: true });
+      count += copyDirectory(source, target);
+      continue;
+    }
+    if (entry.name.endsWith(".map")) continue;
+    if (!entry.name.endsWith(".js") && !entry.name.endsWith(".d.ts")) continue;
+    cpSync(source, target);
     count += 1;
   }
+  return count;
+}
+
+// Subdirectories matter: `dist/env` is the QuickJS environment the SDK exposes
+// as `@mna/qchat/env`, and the CLI resolves every `@mna/qchat/*` import from
+// this directory. Copying only the top level silently shipped a CLI without it.
+function copyFrameworkDist() {
+  const count = copyDirectory(distDir, qappDir);
   if (!existsSync(path.join(qappDir, "cli.js"))) {
     fail("dist/cli.js was not copied into resources/qapp");
+  }
+  if (!existsSync(path.join(qappDir, "env", "auto.js"))) {
+    fail("dist/env was not copied into resources/qapp");
+  }
+  return count;
+}
+
+// The QuickJS declarations sit in the SDK package root, which is the directory
+// above the CLI, so a packaged Studio needs them at `resources/types/`.
+function copyFrameworkTypes() {
+  const from = path.join(frameworkDir, "types");
+  if (!existsSync(from)) return 0;
+  const targetDir = path.join(resourcesDir, "types");
+  mkdirSync(targetDir, { recursive: true });
+  let count = 0;
+  for (const entry of readdirSync(from, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".d.ts")) continue;
+    cpSync(path.join(from, entry.name), path.join(targetDir, entry.name));
+    count += 1;
+  }
+  if (!existsSync(path.join(targetDir, "qchat-env.d.ts"))) {
+    fail("types/qchat-env.d.ts was not copied into resources/types");
   }
   return count;
 }
@@ -245,6 +280,9 @@ function main() {
   );
   const cliMtime = statSync(path.join(distDir, "cli.js")).mtimeMs;
   const stamp = {
+    // Bumped when the resource layout changes, so an existing resources folder
+    // is refreshed even though the CLI itself did not change.
+    layout: 2,
     version: frameworkPackage.version,
     cliMtime,
     platform: process.platform,
@@ -286,6 +324,7 @@ function main() {
     )}\n`,
   );
 
+  const types = copyFrameworkTypes();
   const esbuild = copyEsbuild("esbuild");
   const typescriptVersion = copyTypeScript();
   const node = copyNodeRuntime();
@@ -294,6 +333,7 @@ function main() {
 
   console.log("");
   console.log(`  framework CLI   ${files} files · v${frameworkPackage.version}`);
+  console.log(`  env typings     ${types} files`);
   console.log(`  esbuild         ${esbuild.version} · ${esbuild.platform}`);
   console.log(`  typescript      ${typescriptVersion}`);
   console.log(`  node runtime    ${node ? `${node.version} (${node.path})` : "not bundled"}`);

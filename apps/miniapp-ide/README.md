@@ -30,9 +30,12 @@ corepack pnpm prepare:cli
 corepack pnpm tauri dev
 ```
 
-`prepare:cli` copies the compiled CLI, esbuild (with the platform binary) and
-TypeScript into `src-tauri/resources/qapp`. Without it the packaged app cannot
-build projects, although the IDE still detects a CLI from the repo checkout.
+`prepare:cli` copies the whole compiled SDK — subdirectories included, so
+`@mna/qchat/env` ships with it — plus esbuild (with the platform binary) and
+TypeScript into `src-tauri/resources/qapp`, and the QuickJS declarations into
+`src-tauri/resources/types` (that is where the CLI looks for `qchat-env.d.ts`
+when it type-checks a project). Without it the packaged app cannot build
+projects, although the IDE still detects a CLI from the repo checkout.
 
 Browser-only UI work:
 
@@ -175,7 +178,7 @@ corepack pnpm prepare:cli -- --with-node
 `src-tauri/resources/node`, so the installed IDE does not depend on a system
 Node. Expect roughly 80–110 MB of extra resources on Windows.
 
-Both resource folders are gitignored; `prepare:cli` runs automatically before
+The resource folders are gitignored; `prepare:cli` runs automatically before
 `tauri dev` and `tauri build` through `beforeDevCommand` / `beforeBuildCommand`.
 
 ## Commands
