@@ -272,12 +272,45 @@ start(App);
 Components: `View`, `Row`, `Column`, `Text`, `Button`, `Pressable`, `Image`,
 `Icon`, `TextField`, `Checkbox`, `Switch`, `Slider`, `ScrollView`, `ListView`,
 `GridView`, `Stack`, `Positioned`, `Spacer`, `Divider`, `ActivityIndicator`,
-`SafeArea`, `AnimatedView` and `CustomPaint`.
+`SafeArea`, `AnimatedView`, `CustomPaint`, `Modal`, `BottomSheet`, `Dialog`,
+`NavBar` and `TabBar`.
 
-Hooks: `useState`, `useReducer`, `useRef`, `useMemo`, `useCallback`, `useEffect`
-and `useLifecycle`. Hooks use global slots, so they must be called
-unconditionally; conditional hooks are not supported. State updates re-render
-the tree synchronously.
+Hooks: `useState`, `useReducer`, `useRef`, `useMemo`, `useCallback`, `useEffect`,
+`useLayoutEffect`, `useId`, `useLifecycle`, `createContext` and `useContext`.
+Every component instance owns its own hook slots, keyed by its position in the
+element tree plus its `key`, so a child component has real private state, a
+keyed list keeps its state when it reorders, and `useEffect` cleanups run when a
+child unmounts. All the `setState` calls made during one host event collapse
+into a single render and a single revision sent to Dart. Hooks must still be
+called unconditionally.
+
+Events always arrive as one object so a handler can be written once:
+`{ type, value, ... }`. `change`, `valueChange`, `submit` and `scroll` follow
+this shape (`QappToggleEvent`, `QappNumberEvent`, `QappTextEvent`,
+`QappScrollEvent`), and `press`, `longPress`, `close`, `confirm` and `back`
+carry `{ type }`. `TextField.onInput` remains the low-level string hook.
+
+`Modal`, `BottomSheet` and `Dialog` are declarative: they render into the
+current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
+`TabBar` are prebuilt screens: `NavBar` reads the safe area itself and reserves
+the top-right corner the host floats its menu and close buttons over, and
+`TabBar` takes a tab list plus the active tab and reports `change` with
+`{ index, key, value }`. `ListView`/`GridView` serialize only the first
+`initialCount` items (60 by default) and let Flutter build the rest as they
+scroll in, so one frame never has to carry an unbounded list.
+
+## UI contract
+
+The component list, props, events, style keys, enums and permissions are
+declared once in `packages/contracts/miniapp-ui.contract.json`. From it,
+`corepack pnpm contract:generate` writes the TypeScript runtime tables, the
+TypeScript prop interfaces' compile-time check, the Dart whitelists
+(`qapp_contract.generated.dart`), the Studio Monaco typings and
+`docs/miniapp-ui-reference.md`. `corepack pnpm test:qapp` fails when a generated
+file is stale, and the generated `ui-contract.typing.ts` fails the TypeScript
+build when a hand-written interface and the contract disagree, so the four
+sides cannot drift apart. Adding a component, prop, event, style key or
+permission means editing the contract and regenerating.
 
 APIs:
 
@@ -307,12 +340,16 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 
 `qapp build` runs a TypeScript check, bundles the TSX with esbuild for the
 QuickJS target, embeds the runtime, hashes every file and writes
-`dist/<slug>-<version>.japp`. The `hello-world` and `counter` examples in
-`packages/miniapp-examples` are built this way; they are not hardcoded screens.
+`dist/<slug>-<version>.japp`. The `hello-world`, `counter` and `shell` examples
+in `packages/miniapp-examples` are built this way; they are not hardcoded
+screens. `shell` is the reference four-tab app: it owns a `NavBar` header and a
+`TabBar`, keeps a `TextField` and a `Switch` on the home tab, persists the
+switch through storage and renders a long `ListView` on the discover tab.
 
 The framework is built with
 `corepack pnpm --filter @mna/qchat build`; the root `qapp` script runs that
-compiled CLI. Framework tests run with `corepack pnpm test:qapp`.
+compiled CLI. Framework tests run with `corepack pnpm test:qapp`, which first
+checks the generated UI contract artifacts.
 
 ## Desktop IDE
 
@@ -373,8 +410,8 @@ The renderer:
    promises are flushed with the QuickJS job queue.
 4. The app renders a serialized virtual tree
    (`{ v, appId, revision, root }`). Dart validates node ids, component types,
-   event names, tree depth and node count, then maps it to real Flutter widgets.
-   No HTML is loaded and no WebView is created.
+   event names, style keys and enum values, tree depth and node count, then maps
+   it to real Flutter widgets. No HTML is loaded and no WebView is created.
 5. Press, input, change, submit and scroll events are sent back to JavaScript.
    A state update re-renders the tree synchronously and sends a new revision.
 6. The first successful frame reveals the app; a JavaScript error or invalid
@@ -383,10 +420,18 @@ The renderer:
 7. Reload disposes the runtime and evaluates the bundle again. Back pops the
    internal route stack first and only then closes the mini app.
 
-The renderer implements flex layout, spacing, colors, typography, borders,
-radius, shadows, opacity, images, safe areas, scroll and grid views, stacks with
-positioned children, simple animations and a declarative `CustomPaint` path
-language. Arbitrary Dart or HTML is never accepted from the package.
+The renderer implements flex layout (direction, wrap, grow, shrink, basis,
+`alignSelf`, per-axis gaps), spacing, colors, typography (align, decoration,
+letter spacing, line count, style, bundled families), per-edge borders, corner
+radii, box shadows, gradients, opacity, `zIndex`, `overflow`, `min/max`,
+`aspectRatio`, absolute positioning, images, safe areas, scroll and lazy list
+and grid views, stacks with positioned children, `Modal`/`BottomSheet`/
+`Dialog`, `NavBar`/`TabBar`, simple animations and a declarative `CustomPaint`
+path language. A style object is validated against the contract: an unknown key
+or an unsupported enum value rejects the frame instead of being ignored. The
+validator keeps its 4000-node, depth-64 frame budget, and the host still checks
+the event name, the node id and every permission. Arbitrary Dart or HTML is
+never accepted from the package.
 
 ## Local development
 
@@ -402,10 +447,12 @@ pnpm db:migrate
 pnpm dev
 
 # native qapp framework and examples
+corepack pnpm contract:generate        # regenerate typings from the UI contract
 corepack pnpm --filter @mna/qchat build
 corepack pnpm test:qapp
 corepack pnpm qapp build --dir packages/miniapp-examples/hello-world
 corepack pnpm qapp build --dir packages/miniapp-examples/counter
+corepack pnpm qapp build --dir packages/miniapp-examples/shell
 
 # desktop Studio (requires Rust; browser-only UI: corepack pnpm dev)
 cd apps/miniapp-ide
@@ -432,6 +479,21 @@ reproducible from Git alone; back them up with the database.
   `corepack pnpm test:qapp` pass in this repository. The framework/compiler
   checks include a tampered bundle, a declared `appId`, ZIP traversal, a legacy
   `schemaVersion: 1` package and the counter's host-event flow.
+- `corepack pnpm test:qapp` first runs `contract:check`, and the framework tests
+  assert that the TypeScript runtime, the generated Dart whitelists and the
+  Studio typings share one component, event, style and permission list. Adding a
+  component or style key to only one side fails the run. `ui-contract.typing.ts`
+  fails `pnpm typecheck` if a hand-written interface drifts from the contract.
+- The hook and component suites run the compiled bundle through the same
+  synchronous render/dispatch loop the device uses: child-owned state, effect
+  cleanup on unmount, keyed reordering, context, layout effects, `useId`, event
+  batching, the standardized event payloads, the new components and the
+  `ListView` window. `shell` typechecks and packs through the real compiler.
+- The Flutter side of this change (the style parser and renderer, the new
+  components and `apps/mobile/test/qapp_style_test.dart` and
+  `qapp_components_test.dart`) was written on a host without a Dart or Flutter
+  SDK, so `flutter analyze` and those widget tests were not run here. They must
+  be run on a machine with the Flutter toolchain before release.
 - `flutter analyze` reports no issues. Flutter tests cover qapp tree parsing,
   cache checksum/metadata/permission enforcement, native backend path guards,
   renderer components and events, plus storage and bridge tests.

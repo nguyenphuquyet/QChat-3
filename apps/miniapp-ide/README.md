@@ -74,7 +74,12 @@ after changing settings.
   with a notice, dirty tabs are flagged as conflicting and can be reloaded from
   disk or kept, and deleted files are marked as missing.
 - TSX SDK typings and a `manifest.json` JSON schema injected into Monaco, so
-  `@mna/qchat` imports and permissions complete as you type.
+  `@mna/qchat` imports and permissions complete as you type. The component,
+  prop, event and style typings are generated from
+  `packages/contracts/miniapp-ui.contract.json` into
+  `src/lib/qchat-sdk.generated.ts`, so the editor and the device runtime never
+  disagree; run `corepack pnpm contract:generate` at the repository root after
+  changing the contract.
 - Project creation through `qapp create`, with starter, counter and blank
   templates, permission and network-domain selection.
 - Build (`Ctrl+B`), build without typecheck (`Ctrl+Shift+B`), runtime test
