@@ -1,4 +1,5 @@
 packages:
   - apps/server
   - apps/realtime
+  - apps/miniapp-ide
   - packages/miniapp-framework

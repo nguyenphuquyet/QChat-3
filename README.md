@@ -10,6 +10,7 @@ Flutter + TDesign messaging application with a Next.js REST backend, PostgreSQL/
 - Flutter 3.47.7 / Dart 3.13.5 (resolved package versions in `apps/mobile/pubspec.lock`)
 - PostgreSQL 17, Redis 7, private S3-compatible storage
 - Android SDK/JDK for APK builds; macOS/Xcode for iOS
+- Rust stable and the Tauri v2 system dependencies for `apps/miniapp-ide` desktop builds (optional)
 
 ## Backend
 
@@ -63,8 +64,8 @@ Videos reuse those bytes for the thumbnail and full-screen player; native player
 use a temporary file that is removed on disposal. Clear storage in app settings
 to remove the persistent media cache. The in-memory media cache is capped at 64 MB.
 
-Two independent workflows run on pushes to `main`, pull requests that change their
-respective paths, or manually from **Actions → Run workflow**:
+Three independent workflows run on pushes to `main`, pull requests that change
+their respective paths, or manually from **Actions → Run workflow**:
 
 - **Flutter app** (`.github/workflows/flutter.yml`): Flutter 3.47.7, dependency lock
   verification, analysis and tests, then separate Android APK, web and unsigned iOS builds.
@@ -85,6 +86,11 @@ respective paths, or manually from **Actions → Run workflow**:
   realtime gateway; its default command starts REST. To start the gateway instead,
   pass `pnpm --filter @qchat/realtime start` as the container command. Supply the
   backend environment and service connections at runtime as with local deployment.
+- **Mini App Studio** (`.github/workflows/miniapp-ide.yml`): Node 24 / pnpm 10.11.0,
+  framework and IDE typechecks, frontend build and CLI resource verification, then
+  Tauri installers on Windows (NSIS), macOS (DMG) and Ubuntu (DEB/AppImage). Download
+  `qchat-miniapp-studio-<os>-<commit>`. Installers bundle the framework CLI, esbuild,
+  TypeScript and a Node runtime; they are unsigned.
 
 In **Settings → Secrets and variables → Actions → Variables**, set `API_URL`
 (including `/api`) and `REALTIME_URL` to your reachable backend URLs before building
@@ -103,6 +109,8 @@ deployment or live-service integration tests are performed by these workflows.
 pnpm typecheck
 pnpm test
 pnpm build
+# Desktop IDE frontend (Rust required only for tauri dev/build):
+cd apps/miniapp-ide && corepack pnpm typecheck && corepack pnpm build
 # Requires running real backend/gateway/database/Redis:
 TEST_API_URL=http://localhost:3000/api TEST_REALTIME_URL=http://localhost:3001 pnpm test:integration
 cd apps/mobile
@@ -132,6 +140,7 @@ media files or guarantee a first-ever browser page load without internet.
 - `apps/server`: Next.js API, domain modules, Prisma schema and SQL migration.
 - `apps/realtime`: authenticated gateway and transactional outbox delivery.
 - `apps/admin`: admin interface served through Next.js `/admin`.
+- `apps/miniapp-ide`: Tauri desktop Studio for qapp projects; see `apps/miniapp-ide/README.md`.
 - `packages/contracts`: strict shared Zod schemas.
 - `infra`: Dockerfiles, Compose, HTTPS/WSS reverse proxy.
 - `tests`: contract/security unit tests and real-service integration scenario.

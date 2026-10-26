@@ -1,0 +1,17 @@
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import App from "./App";
+import { configureMonaco } from "./lib/monaco";
+import "./styles.css";
+
+// Monaco must know its workers and SDK typings before the first editor mounts.
+configureMonaco();
+
+const container = document.getElementById("root");
+if (!container) throw new Error("Root element #root is missing");
+
+createRoot(container).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+);

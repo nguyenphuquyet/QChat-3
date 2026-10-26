@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="QChat Mini App Studio">
+  <defs>
+    <linearGradient id="studio" x1="0.05" y1="0" x2="0.95" y2="1">
+      <stop offset="0%" stop-color="#9a8dff"/>
+      <stop offset="52%" stop-color="#6553ef"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="224" fill="url(#studio)"/>
+  <rect x="64" y="64" width="896" height="896" rx="224" fill="url(#shine)"/>
+  <path d="M296 378 L432 512 L296 646" fill="none" stroke="#ffffff" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M512 660 H736" fill="none" stroke="#ffffff" stroke-width="66" stroke-linecap="round"/>
+</svg>

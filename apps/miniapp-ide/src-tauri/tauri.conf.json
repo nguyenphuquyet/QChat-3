@@ -1,0 +1,63 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "QChat Mini App Studio",
+  "version": "1.0.0",
+  "identifier": "io.qchat.miniapp.studio",
+  "build": {
+    "beforeDevCommand": "corepack pnpm prepare:cli && corepack pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "corepack pnpm prepare:cli && corepack pnpm build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "QChat Mini App Studio",
+        "width": 1480,
+        "height": 940,
+        "minWidth": 1040,
+        "minHeight": 660,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "theme": "Dark",
+        "backgroundColor": "#080a0f"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "DeveloperTool",
+    "shortDescription": "Desktop IDE for QChat TSX mini apps",
+    "longDescription": "QChat Mini App Studio compiles TSX mini apps with the real qapp CLI, inspects immutable .japp packages and ships native QuickJS apps for the QChat runtime.",
+    "copyright": "Copyright © QChat",
+    "resources": ["resources/qapp/**/*", "resources/node/**/*"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}

@@ -26,6 +26,7 @@ external mini-app runtime.
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
 | Native examples | `packages/miniapp-examples` | Hello World and counter built through the real compiler |
+| Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
 | Runtime | `apps/mobile/lib/features/miniapps` | Download, verify, cache, QuickJS host and Flutter renderer |
@@ -313,6 +314,34 @@ The framework is built with
 `corepack pnpm --filter @mna/qchat build`; the root `qapp` script runs that
 compiled CLI. Framework tests run with `corepack pnpm test:qapp`.
 
+## Desktop IDE
+
+`apps/miniapp-ide` (`@qchat/miniapp-ide`) is a Tauri v2 desktop Studio. It is a
+native shell around the same Node CLI, not a second compiler and not a WebView
+host:
+
+- Monaco edits TSX with the SDK typings and a `manifest.json` schema.
+- Project creation, build, typecheck, runtime test, validate and inspect call
+  `qapp` directly; the artifact stays `dist/<slug>-<version>.japp`.
+- `qapp dev` runs in the background and streams logs and the exit code over
+  Tauri events (`qapp-dev-log`, `qapp-dev-exit`).
+- The device panel shows the manifest, permissions, size and SHA-256 of the
+  package. It does not render the app: real rendering happens in the Flutter
+  QuickJS runtime.
+
+```sh
+corepack pnpm --filter @mna/qchat build
+cd apps/miniapp-ide
+corepack pnpm prepare:cli      # CLI + esbuild + TypeScript resources
+corepack pnpm tauri dev        # requires Rust and the Tauri system deps
+```
+
+`corepack pnpm dev` runs the UI in a browser for layout work; filesystem, CLI
+and dev-watcher actions are disabled there. `prepare:cli -- --with-node` bundles
+a Node runtime so installers do not require a system Node. CI
+(`.github/workflows/miniapp-ide.yml`) builds NSIS, DMG and DEB/AppImage
+installers. See `apps/miniapp-ide/README.md` for detection order and details.
+
 ## Flutter runtime
 
 1. Fetch app detail and the current build, including `format` and `sdkVersion`.
@@ -377,6 +406,11 @@ corepack pnpm --filter @mna/qchat build
 corepack pnpm test:qapp
 corepack pnpm qapp build --dir packages/miniapp-examples/hello-world
 corepack pnpm qapp build --dir packages/miniapp-examples/counter
+
+# desktop Studio (requires Rust; browser-only UI: corepack pnpm dev)
+cd apps/miniapp-ide
+corepack pnpm prepare:cli
+corepack pnpm tauri dev
 ```
 
 The upload endpoint is multipart because the normal JSON limit is 128 KB.
@@ -413,6 +447,11 @@ reproducible from Git alone; back them up with the database.
   migrations compile and their unit tests pass. A live upload → review → release
   smoke run was not performed here because no PostgreSQL/server environment was
   available.
+- The Studio frontend typechecks and builds, and its bundled CLI resources
+  compile `hello-world` into a real `.japp`. `cargo check`, `tauri dev` and
+  installer builds were not run locally because this host has no Rust toolchain;
+  `.github/workflows/miniapp-ide.yml` performs those builds on Windows, macOS and
+  Linux.
 - Android/iOS device execution is still unverified: the runtime compiles and
   passes the host QuickJS test, but no emulator or physical device was
   available, and iOS requires macOS. Flutter web cannot run the qapp runtime
