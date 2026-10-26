@@ -262,6 +262,37 @@
     color: #fff;
   }
 
+  .window-control {
+    display: inline-flex;
+    width: 2.9rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    color: var(--color-studio-300);
+    transition:
+      background-color 110ms ease,
+      color 110ms ease;
+  }
+
+  .window-control:hover {
+    background-color: rgba(255, 255, 255, 0.075);
+    color: #fff;
+  }
+
+  .window-control:active {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .window-control-close:hover {
+    background-color: #c42b1c;
+    color: #fff;
+  }
+
+  .window-control-close:active {
+    background-color: #9d2115;
+  }
+
   .chip {
     display: inline-flex;
     align-items: center;

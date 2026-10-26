@@ -76,6 +76,10 @@ after changing settings.
   and quick actions for the newest `.japp`.
 - Command palette (`Ctrl+K`), resizable panes, output/terminal/problems tabs,
   settings and project settings dialogs.
+- Frameless window with a studio-themed title bar, custom window controls and
+  edge resizing, so the desktop chrome matches the dark UI.
+- New projects default to `<Documents>/QChat Mini App Studio Project` and always
+  create a single folder named after the app (`.../game1`, never nested twice).
 
 Builds call the real CLI, so the artifact is exactly
 `dist/<slug>-<version>.japp`; the IDE also inspects it and surfaces checksum and
@@ -105,17 +109,21 @@ Both resource folders are gitignored; `prepare:cli` runs automatically before
 | `corepack pnpm typecheck` | TypeScript checks |
 | `corepack pnpm build` | Typecheck and build the web bundle |
 | `corepack pnpm tauri build` | Native installers in `src-tauri/target/release/bundle` |
+| `corepack pnpm bundle:windows` | NSIS `.exe` + MSI installers (Windows only) |
 | `corepack pnpm prepare:cli` | Refresh bundled CLI resources |
 
-Bundle targets follow the host: NSIS `.exe` on Windows, `.dmg` on macOS,
-`.deb`/AppImage on Linux. macOS builds need Xcode command-line tools.
+Windows builds produce both an NSIS `setup.exe` and an MSI package; use
+`corepack pnpm tauri build --bundles nsis,msi` (or `bundle:windows`) to request
+them explicitly. macOS builds a `.dmg` and Linux builds `.deb`/AppImage. macOS
+builds need Xcode command-line tools.
 
 ## CI
 
 `.github/workflows/miniapp-ide.yml` typechecks and builds the frontend, then
 builds installers on Windows, macOS and Ubuntu. It bundles Node, so the CI
 runners do not need a preinstalled Node for the packaged app. Artifacts are
-named `qchat-miniapp-studio-<os>-<sha>` and kept for 14 days. Unsigned macOS and
+named `qchat-miniapp-studio-<os>-<sha>` and kept for 14 days. The Windows
+artifact contains both the NSIS installer and the MSI package. Unsigned macOS and
 Windows builds trigger the usual Gatekeeper/SmartScreen warnings; signing is not
 configured.
 
@@ -125,13 +133,14 @@ configured.
 apps/miniapp-ide/
   src/                 React UI, store, CLI bridge and Monaco setup
   src-tauri/           Rust commands, capabilities, icons and config
-  assets/icon.svg      Source for `tauri icon`
+  assets/icon-source.png  Source image for `tauri icon`
   scripts/prepare-cli.mjs
 ```
 
 `src-tauri/src/lib.rs` exposes `detect_cli`, `run_cli`, `start_dev`, `stop_dev`,
 tree/file CRUD, artifact listing and the `qapp-dev-log` / `qapp-dev-exit`
-events. Only the dialog, opener and core window permissions are granted.
+events. Only the dialog, opener, core path and core window permissions are
+granted.
 
 ## Verification status
 

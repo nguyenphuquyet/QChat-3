@@ -231,6 +231,12 @@ export const useStudio = create<StudioState>()(
         if (get().booted) return;
         set({ booted: true, detecting: true });
         try {
+          if (!get().settings.projectsDir) {
+            const projectsDir = await api.defaultProjectsDir();
+            if (projectsDir) {
+              set({ settings: { ...get().settings, projectsDir } });
+            }
+          }
           const info = await api.detectCli(
             get().settings.nodePath,
             get().settings.cliPath,
@@ -450,11 +456,16 @@ export const useStudio = create<StudioState>()(
       async createProject(input) {
         const cli = get().cli;
         if (!cli?.ready) throw new Error("QChat CLI is not ready. Open Settings and detect it first.");
-        const projectPath = joinPath(input.directory, input.name);
-        get().appendLog("system", `$ qapp create ${input.name} --dir ${projectPath}`);
+        const name = slugify(input.name);
+        const directory = input.directory.replace(/[\\/]+$/, "");
+        if (!name) throw new Error("Enter a project name.");
+        if (!directory) throw new Error("Choose a location for the project.");
+        // Scaffold exactly one folder below the chosen location: <location>/<name>.
+        const projectPath = joinPath(directory, name);
+        get().appendLog("system", `$ qapp create ${name} --dir ${projectPath}`);
         const result = await api.runCli(
-          ["create", input.name, "--dir", projectPath],
-          input.directory,
+          ["create", name, "--dir", projectPath],
+          directory,
           get().settings.nodePath,
           get().settings.cliPath,
         );
@@ -467,7 +478,7 @@ export const useStudio = create<StudioState>()(
         const manifestPath = joinPath(projectPath, "manifest.json");
         const raw = await api.readText(manifestPath);
         const manifest = JSON.parse(raw) as ProjectManifest;
-        manifest.name = input.name;
+        manifest.name = name;
         manifest.description = input.description;
         manifest.version = input.version;
         manifest.requestedPermissions = input.permissions;

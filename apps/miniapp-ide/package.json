@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
+    "bundle:windows": "tauri build --bundles nsis,msi",
     "prepare:cli": "node scripts/prepare-cli.mjs"
   },
   "dependencies": {

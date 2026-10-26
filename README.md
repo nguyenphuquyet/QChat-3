@@ -88,7 +88,7 @@ their respective paths, or manually from **Actions → Run workflow**:
   backend environment and service connections at runtime as with local deployment.
 - **Mini App Studio** (`.github/workflows/miniapp-ide.yml`): Node 24 / pnpm 10.11.0,
   framework and IDE typechecks, frontend build and CLI resource verification, then
-  Tauri installers on Windows (NSIS), macOS (DMG) and Ubuntu (DEB/AppImage). Download
+  Tauri installers on Windows (NSIS + MSI), macOS (DMG) and Ubuntu (DEB/AppImage). Download
   `qchat-miniapp-studio-<os>-<commit>`. Installers bundle the framework CLI, esbuild,
   TypeScript and a Node runtime; they are unsigned.
 

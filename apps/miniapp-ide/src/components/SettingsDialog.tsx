@@ -149,7 +149,7 @@ export function SettingsDialog({
                   className="field font-mono text-[10px]"
                   value={draft.projectsDir}
                   onChange={(event) => set("projectsDir", event.target.value)}
-                  placeholder="Choose a folder for new projects"
+                  placeholder="Documents/QChat Mini App Studio Project"
                 />
                 <button
                   className="btn btn-secondary h-[34px] px-2.5"

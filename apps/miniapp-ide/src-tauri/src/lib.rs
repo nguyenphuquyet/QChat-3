@@ -767,9 +767,53 @@ fn list_artifacts(project: String) -> Result<Vec<Artifact>, String> {
     Ok(artifacts)
 }
 
+/// Keeps the frameless shell looking native on Windows 11: the window has no
+/// decorations, so DWM would otherwise draw a square silhouette with a white
+/// 1px frame. The app paints its own title bar, so only the outline is adjusted.
+#[cfg(windows)]
+fn apply_window_chrome(window: &tauri::WebviewWindow) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use std::ffi::c_void;
+
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: *mut c_void,
+            attribute: u32,
+            value: *const c_void,
+            size: u32,
+        ) -> i32;
+    }
+
+    let Ok(handle) = window.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::Win32(win32) = handle.as_raw() else {
+        return;
+    };
+    let hwnd = win32.hwnd.get() as *mut c_void;
+
+    // DWMWA_WINDOW_CORNER_PREFERENCE (33) with DWMWCP_ROUND (2).
+    let rounded: u32 = 2;
+    // DWMWA_BORDER_COLOR (34) with COLORREF(0x00BBGGRR) for #07090d.
+    let background: u32 = 0x000D_0907;
+
+    unsafe {
+        DwmSetWindowAttribute(hwnd, 33, &rounded as *const u32 as *const c_void, 4);
+        DwmSetWindowAttribute(hwnd, 34, &background as *const u32 as *const c_void, 4);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                apply_window_chrome(&window);
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(DevState::default())

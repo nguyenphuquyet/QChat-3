@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { documentDir } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { DEFAULT_PROJECTS_FOLDER, joinPath } from "./utils";
 import type {
   Artifact,
   CliInfo,
@@ -23,6 +25,15 @@ function desktopOnly<T>(value: T): Promise<T> {
 
 export const api = {
   isDesktop: isTauri,
+
+  async defaultProjectsDir(): Promise<string> {
+    if (!isTauri()) return "";
+    try {
+      return joinPath(await documentDir(), DEFAULT_PROJECTS_FOLDER);
+    } catch {
+      return "";
+    }
+  },
 
   detectCli(node = "", cli = ""): Promise<CliInfo> {
     if (!isTauri()) {

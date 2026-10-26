@@ -86,8 +86,10 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-            bundles: nsis
-            artifacts: apps/miniapp-ide/src-tauri/target/release/bundle/nsis/*.exe
+            bundles: nsis,msi
+            artifacts: |
+              apps/miniapp-ide/src-tauri/target/release/bundle/nsis/*.exe
+              apps/miniapp-ide/src-tauri/target/release/bundle/msi/*.msi
           - os: macos-latest
             name: macos
             bundles: dmg

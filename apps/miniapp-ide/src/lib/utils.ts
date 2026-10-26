@@ -4,6 +4,9 @@ export function cn(...inputs: ClassValue[]): string {
   return clsx(inputs);
 }
 
+/** Default parent folder used for new mini apps. */
+export const DEFAULT_PROJECTS_FOLDER = "QChat Mini App Studio Project";
+
 export function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() || path;
 }

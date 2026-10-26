@@ -24,7 +24,7 @@ import { useStudio } from "../lib/store";
 import { PERMISSIONS } from "../lib/permissions";
 import { TEMPLATE_LABELS } from "../lib/templates";
 import { api } from "../lib/api";
-import { cn, dirname, errorMessage, joinPath, slugify } from "../lib/utils";
+import { cn, dirname, errorMessage, joinPath, slugify, DEFAULT_PROJECTS_FOLDER } from "../lib/utils";
 import type { PermissionInfo } from "../types";
 import { Dialog, DialogHeader, Spinner } from "./ui";
 
@@ -80,7 +80,7 @@ export function NewProjectDialog({
 
   const defaultDirectory = useMemo(() => {
     if (settings.projectsDir) return settings.projectsDir;
-    if (cli?.workspace) return joinPath(dirname(cli.workspace), "QChatMiniApps");
+    if (cli?.workspace) return joinPath(dirname(cli.workspace), DEFAULT_PROJECTS_FOLDER);
     return "";
   }, [settings.projectsDir, cli?.workspace]);
 
@@ -291,7 +291,7 @@ export function NewProjectDialog({
               </button>
             </div>
             <p className="mt-1 truncate font-mono text-[9px] text-studio-500" title={projectPath}>
-              {projectPath ? `Will create ${projectPath}` : "No destination selected"}
+              {projectPath ? `Creates one folder: ${projectPath}` : "No destination selected"}
             </p>
           </div>
 

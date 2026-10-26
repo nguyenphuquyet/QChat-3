@@ -13,6 +13,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar, type StudioCommands } from "./components/TitleBar";
+import { WindowResizeHandles } from "./components/WindowChrome";
 import { api } from "./lib/api";
 import { runAction } from "./lib/feedback";
 import { useStudio } from "./lib/store";
@@ -383,6 +384,8 @@ export default function App() {
           Show panel
         </button>
       ) : null}
+
+      <WindowResizeHandles />
 
       <Toaster
         theme="dark"

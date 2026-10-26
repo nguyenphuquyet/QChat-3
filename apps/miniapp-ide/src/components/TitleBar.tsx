@@ -29,6 +29,7 @@ import { useStudio } from "../lib/store";
 import { runAction } from "../lib/feedback";
 import { api } from "../lib/api";
 import { cn } from "../lib/utils";
+import { WindowControls, useWindowDrag } from "./WindowChrome";
 
 export interface StudioCommands {
   newProject: () => void;
@@ -141,6 +142,7 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
   const saveActive = useStudio((state) => state.saveActive);
   const closeProject = useStudio((state) => state.closeProject);
   const detect = useStudio((state) => state.detect);
+  const drag = useWindowDrag();
 
   const canBuild = Boolean(project && cli?.ready);
   const running = buildStatus === "running";
@@ -173,7 +175,10 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
 
   return (
     <header className="relative z-30 shrink-0 border-b border-white/[0.065] bg-studio-950/80 backdrop-blur-xl">
-      <div className="flex h-8 items-center gap-1 border-b border-white/[0.045] px-2">
+      <div
+        className="flex h-9 items-center gap-1 border-b border-white/[0.045] pl-2 pr-0"
+        {...drag}
+      >
         <div className="mr-2 flex items-center gap-2 pl-1">
           <div className="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-accent-400 via-accent-600 to-cyan-400 shadow-glow">
             <TerminalSquare size={12} className="text-white" strokeWidth={2.5} />
@@ -246,7 +251,7 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           <Item icon={<Info size={13} />} label="About QChat Studio" onClick={commands.about} />
         </Menu>
 
-        <div className="ml-auto flex items-center gap-2 pr-1">
+        <div className="ml-auto flex items-center gap-2 pl-3 pr-2">
           <span
             className={cn(
               "flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
@@ -261,10 +266,11 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           </span>
           <span className="text-[10px] text-studio-500">v1.0.0</span>
         </div>
+        <WindowControls className="ml-1" />
       </div>
 
       <div className="flex h-[46px] items-center gap-3 px-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2" {...drag}>
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.045] text-studio-300">
             <FolderTree size={14} />
           </div>
