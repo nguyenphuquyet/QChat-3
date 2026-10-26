@@ -21,6 +21,22 @@ QappNode node(
   );
 }
 
+/// Records compare their fields with `==`, which is identity for a map, so a
+/// record built from a map literal never equals the received one. Compare the
+/// payload on its own instead, where `equals` walks the map by content.
+void expectEvent(
+  List<(String, String, Object?)> events,
+  String id,
+  String event,
+  Object? payload,
+) {
+  final matches = events
+      .where((entry) => entry.$1 == id && entry.$2 == event)
+      .toList();
+  expect(matches, isNotEmpty, reason: 'no $event event for $id in $events');
+  expect(matches.last.$3, payload);
+}
+
 Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
   return MaterialApp(
     home: Scaffold(
@@ -107,22 +123,23 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Ada');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
-    expect(events, contains(('n0.0', 'input', 'Ada')));
-    expect(
-      events,
-      contains(('n0.0', 'submit', {'type': 'submit', 'value': 'Ada', 'text': 'Ada'})),
-    );
+    expectEvent(events, 'n0.0', 'input', 'Ada');
+    expectEvent(events, 'n0.0', 'submit', {
+      'type': 'submit',
+      'value': 'Ada',
+      'text': 'Ada',
+    });
 
     await tester.tap(find.text('Agree'));
-    await tester.pump();
-    expect(events, contains(('n0.1', 'change', {'type': 'change', 'value': true})));
+    await tester.pumpAndSettle();
+    expectEvent(events, 'n0.1', 'change', {'type': 'change', 'value': true});
 
     await tester.tap(find.byType(Switch));
-    await tester.pump();
-    expect(
-      events,
-      contains(('n0.2', 'valueChange', {'type': 'valueChange', 'value': true})),
-    );
+    await tester.pumpAndSettle();
+    expectEvent(events, 'n0.2', 'valueChange', {
+      'type': 'valueChange',
+      'value': true,
+    });
   });
 
   testWidgets('renders stacks, scroll views, sliders and custom paint', (

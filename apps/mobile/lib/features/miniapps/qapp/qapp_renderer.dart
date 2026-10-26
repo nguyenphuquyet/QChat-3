@@ -1112,17 +1112,45 @@ class _QappNodeView extends StatelessWidget {
         shadows.isNotEmpty;
     var content = child;
     if (hasDecoration) {
-      content = Container(
-        padding: style.padding == EdgeInsets.zero ? null : style.padding,
-        decoration: BoxDecoration(
-          color: style.gradient == null ? style.backgroundColor : null,
-          gradient: style.gradient,
-          borderRadius: hasRadius ? style.borderRadius : null,
-          border: border,
-          boxShadow: shadows.isEmpty ? null : shadows,
-        ),
-        child: content,
-      );
+      final padding = style.padding == EdgeInsets.zero ? null : style.padding;
+      final color = style.gradient == null ? style.backgroundColor : null;
+      final shadow = shadows.isEmpty ? null : shadows;
+      if (hasRadius && border != null && !_borderFitsRadius(border)) {
+        // Flutter can only paint a per-edge border together with a corner
+        // radius while every visible edge shares one colour, and it refuses to
+        // paint a zero-width edge as soon as a radius is present. Keep the
+        // rounded shape with a clipped, straight border instead: the outer box
+        // owns the radius, the background and the shadow, and the box inside
+        // the clip paints the border.
+        content = Container(
+          decoration: BoxDecoration(
+            color: color,
+            gradient: style.gradient,
+            borderRadius: style.borderRadius,
+            boxShadow: shadow,
+          ),
+          child: ClipRRect(
+            borderRadius: style.borderRadius,
+            child: Container(
+              padding: padding,
+              decoration: BoxDecoration(border: border),
+              child: content,
+            ),
+          ),
+        );
+      } else {
+        content = Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: color,
+            gradient: style.gradient,
+            borderRadius: hasRadius ? style.borderRadius : null,
+            border: border,
+            boxShadow: shadow,
+          ),
+          child: content,
+        );
+      }
     } else if (style.padding != EdgeInsets.zero) {
       content = Padding(padding: style.padding, child: content);
     }
@@ -1136,6 +1164,18 @@ class _QappNodeView extends StatelessWidget {
       content = Padding(padding: style.margin, child: content);
     }
     return content;
+  }
+
+  /// Whether Flutter can draw this border with the style's corner radius: only
+  /// edges that paint something count, and they must all share one colour.
+  bool _borderFitsRadius(Border border) {
+    final colors = <Color>{
+      if (border.top.style != BorderStyle.none) border.top.color,
+      if (border.right.style != BorderStyle.none) border.right.color,
+      if (border.bottom.style != BorderStyle.none) border.bottom.color,
+      if (border.left.style != BorderStyle.none) border.left.color,
+    };
+    return colors.length <= 1;
   }
 
   Widget _constrain(BuildContext context, Widget child) {

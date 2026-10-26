@@ -159,16 +159,70 @@ void main() {
     );
     await tester.pumpWidget(host(root));
     expect(find.text('Styled'), findsOneWidget);
-    final decorated = tester.widgetList<Container>(find.byType(Container)).firstWhere(
-      (widget) => widget.decoration is BoxDecoration,
+
+    // Flutter cannot paint a per-edge border whose edges have different colours
+    // together with a corner radius, so the renderer clips a straight border
+    // inside a rounded box: the radius, the gradient and the shadow belong to
+    // the outer box, and the border to the box inside the clip.
+    final decorations = tester
+        .widgetList<Container>(find.byType(Container))
+        .map((container) => container.decoration)
+        .whereType<BoxDecoration>()
+        .toList();
+    final background = decorations.firstWhere(
+      (decoration) => decoration.gradient != null,
     );
-    final decoration = decorated.decoration as BoxDecoration;
-    expect(decoration.gradient, isNotNull);
-    expect(decoration.boxShadow, isNotEmpty);
-    final border = decoration.border as Border;
+    expect(background.boxShadow, isNotEmpty);
+    expect(background.borderRadius, isNotNull);
+    expect(background.border, isNull);
+
+    final bordered = decorations.firstWhere(
+      (decoration) => decoration.border is Border,
+    );
+    final border = bordered.border as Border;
+    expect(border.top.width, 3);
+    expect(border.top.color, const Color(0xffff0000));
+    expect(border.bottom.width, 1);
+    expect(border.bottom.color, const Color(0xff00ff00));
+    expect(
+      border.right,
+      BorderSide.none,
+      reason: 'an edge without a width paints nothing at all',
+    );
+    expect(find.byType(ClipRRect), findsWidgets);
+  });
+
+  testWidgets('keeps a one-colour per-edge border inside the corner radius', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {
+          'backgroundColor': '#ffffff',
+          'borderTopWidth': 3,
+          'borderBottomWidth': 1,
+          'borderColor': '#ff0000',
+          'borderTopLeftRadius': 12,
+        },
+      },
+    );
+    await tester.pumpWidget(host(root));
+    final bordered = tester
+        .widgetList<Container>(find.byType(Container))
+        .map((container) => container.decoration)
+        .whereType<BoxDecoration>()
+        .firstWhere((decoration) => decoration.border is Border);
+    final border = bordered.border as Border;
     expect(border.top.width, 3);
     expect(border.bottom.width, 1);
-    expect(decoration.borderRadius, isNotNull);
+    expect(border.right, BorderSide.none);
+    expect(
+      bordered.borderRadius,
+      isNotNull,
+      reason: 'edges sharing one colour may keep the radius on the border',
+    );
   });
 
   testWidgets('applies alignSelf and zIndex paint ordering', (tester) async {

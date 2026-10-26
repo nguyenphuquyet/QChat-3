@@ -507,7 +507,12 @@ radii, box shadows, gradients, opacity, `zIndex`, `overflow`, `min/max`,
 and grid views, stacks with positioned children, `Modal`/`BottomSheet`/
 `Dialog`, `NavBar`/`TabBar`, simple animations and a declarative `CustomPaint`
 path language. A style object is validated against the contract: an unknown key
-or an unsupported enum value rejects the frame instead of being ignored. The
+or an unsupported enum value rejects the frame instead of being ignored. Two
+rendering rules follow from Flutter itself: an edge the app never gave a width
+paints nothing (a `BorderSide.none`, not a hairline), and a per-edge border is
+clipped inside the rounded box rather than handed to Flutter together with the
+corner radius, because Flutter only accepts that combination while every visible
+edge shares one colour. The
 validator keeps its 4000-node, depth-64 frame budget, and the host still checks
 the event name, the node id and every permission. Arbitrary Dart or HTML is
 never accepted from the package.
@@ -573,12 +578,16 @@ reproducible from Git alone; back them up with the database.
   components, the timer wake in `qapp_js_runtime_native.dart` and
   `apps/mobile/test/qapp_style_test.dart`, `qapp_components_test.dart` and the
   new timer case in `qapp_js_runtime_test.dart`) was written on a host without a
-  Dart or Flutter SDK, so `flutter analyze` and those tests were not run here.
-  They must be run on a machine with the Flutter toolchain before release. The
-  timer case is the end-to-end one: it runs the compiled `env-demo` `.japp` in
-  the real QuickJS bridge and expects the app's own `Timer` to wake the engine
-  and reach `Timers: early,late` and `Ticks: 3`; it skips when the bundle or the
-  flutter_js bridge library is missing, like the existing Hello World test.
+  Dart or Flutter SDK, so it was never compiled or run on that host.
+  `.github/workflows/flutter.yml` is the authority: it runs `flutter analyze`
+  and `flutter test` on Flutter 3.47.7. Its first run reported two analyzer
+  errors (the flex child wrapper inferred as `_QappNodeView`) and five widget
+  test failures; all seven are addressed here, but the fixes have not been
+  re-run locally for the same missing-SDK reason. The timer case is the
+  end-to-end one: it runs the compiled `env-demo` `.japp` in the real QuickJS
+  bridge and expects the app's own `Timer` to wake the engine and reach
+  `Timers: early,late` and `Ticks: 3`; it skips when the bundle or the flutter_js
+  bridge library is missing, like the existing Hello World test.
 - Flutter tests cover qapp tree parsing, cache checksum/metadata/permission
   enforcement, native backend path guards, renderer components and events, plus
   storage and bridge tests. `flutter analyze` was last run before the qapp work,

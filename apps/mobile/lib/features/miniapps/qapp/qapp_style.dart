@@ -164,6 +164,11 @@ class QappStyle {
 
   /// A per-edge border, falling back to the uniform `borderWidth`/`borderColor`
   /// for any edge that was not set.
+  ///
+  /// An edge without a width becomes `BorderSide.none`: a zero-width solid side
+  /// is a *hairline*, so it would paint a one-pixel line on an edge the app
+  /// never asked for, and Flutter refuses to paint a hairline together with a
+  /// corner radius.
   Border? boxBorder() {
     final top = borderTopWidth ?? borderWidth;
     final right = borderRightWidth ?? borderWidth;
@@ -171,11 +176,14 @@ class QappStyle {
     final left = borderLeftWidth ?? borderWidth;
     if (top <= 0 && right <= 0 && bottom <= 0 && left <= 0) return null;
     final fallback = borderColor ?? const Color(0xff000000);
+    BorderSide edge(double width, Color? color) => width > 0
+        ? BorderSide(width: width, color: color ?? fallback)
+        : BorderSide.none;
     return Border(
-      top: BorderSide(width: top, color: borderTopColor ?? fallback),
-      right: BorderSide(width: right, color: borderRightColor ?? fallback),
-      bottom: BorderSide(width: bottom, color: borderBottomColor ?? fallback),
-      left: BorderSide(width: left, color: borderLeftColor ?? fallback),
+      top: edge(top, borderTopColor),
+      right: edge(right, borderRightColor),
+      bottom: edge(bottom, borderBottomColor),
+      left: edge(left, borderLeftColor),
     );
   }
 

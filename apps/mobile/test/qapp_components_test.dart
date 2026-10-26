@@ -29,6 +29,22 @@ QappTree tree(QappNode root) => QappTree(
   nodeCount: 1,
 );
 
+/// Records compare their fields with `==`, which is identity for a map, so a
+/// record built from a map literal never equals the received one. Compare the
+/// payload on its own instead, where `equals` walks the map by content.
+void expectEvent(
+  List<(String, String, Object?)> events,
+  String id,
+  String event,
+  Object? payload,
+) {
+  final matches = events
+      .where((entry) => entry.$1 == id && entry.$2 == event)
+      .toList();
+  expect(matches, isNotEmpty, reason: 'no $event event for $id in $events');
+  expect(matches.last.$3, payload);
+}
+
 Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
   return MaterialApp(
     home: Scaffold(
@@ -150,19 +166,12 @@ void main() {
     );
     await tester.tap(find.text('Jobs'));
     await tester.pump();
-    expect(
-      events,
-      contains((
-        'n0',
-        'change',
-        {
-          'type': 'change',
-          'index': 1,
-          'key': 'jobs',
-          'value': {'index': 1, 'key': 'jobs', 'value': 'jobs'},
-        },
-      )),
-    );
+    expectEvent(events, 'n0', 'change', {
+      'type': 'change',
+      'index': 1,
+      'key': 'jobs',
+      'value': {'index': 1, 'key': 'jobs', 'value': 'jobs'},
+    });
   });
 
   testWidgets('shows and dismisses a Dialog', (tester) async {
@@ -191,10 +200,10 @@ void main() {
     expect(find.text('Delete chat?'), findsOneWidget);
     await tester.tap(find.text('Delete'));
     await tester.pump();
-    expect(events, contains(('n0', 'confirm', {'type': 'confirm'})));
+    expectEvent(events, 'n0', 'confirm', {'type': 'confirm'});
     await tester.tap(find.text('Cancel'));
     await tester.pump();
-    expect(events, contains(('n0', 'close', {'type': 'close'})));
+    expectEvent(events, 'n0', 'close', {'type': 'close'});
   });
 
   testWidgets('NavBar reserves the host button area on the right', (
@@ -213,7 +222,7 @@ void main() {
     expect(find.text('Inbox'), findsOneWidget);
     await tester.tap(find.byIcon(Icons.arrow_back));
     await tester.pump();
-    expect(events, contains(('n0', 'back', {'type': 'back'})));
+    expectEvent(events, 'n0', 'back', {'type': 'back'});
   });
 
   testWidgets('a hidden BottomSheet renders nothing', (tester) async {
