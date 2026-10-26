@@ -483,6 +483,9 @@ export const useStudio = create<StudioState>()(
         if (!directory) throw new Error(translate(language, "store.chooseLocation"));
         // Scaffold exactly one folder below the chosen location: <location>/<name>.
         const projectPath = joinPath(directory, name);
+        // The parent folder may not exist yet (for example the default projects
+        // folder). Create it first so the CLI has a valid working directory.
+        await api.ensureDirectory(directory);
         get().appendLog("system", `$ qapp create ${name} --dir ${projectPath}`);
         const result = await api.runCli(
           ["create", name, "--dir", projectPath],

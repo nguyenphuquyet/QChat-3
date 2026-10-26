@@ -93,6 +93,11 @@ export const api = {
     return invoke<void>("create_entry", { path, directory });
   },
 
+  ensureDirectory(path: string): Promise<void> {
+    if (!isTauri()) return desktopOnly(undefined as never);
+    return invoke<void>("ensure_directory", { path });
+  },
+
   renameEntry(path: string, next: string): Promise<void> {
     if (!isTauri()) return desktopOnly(undefined as never);
     return invoke<void>("rename_entry", { path, next });

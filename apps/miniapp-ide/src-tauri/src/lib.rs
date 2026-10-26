@@ -388,7 +388,13 @@ fn run_cli_blocking(
     command.arg(&cli_path).args(args);
 
     if !cwd.trim().is_empty() {
-        command.current_dir(cwd);
+        // Spawning with a missing working directory fails with an opaque OS error
+        // (ERROR_DIRECTORY / os error 267 on Windows), so report it clearly.
+        let cwd_path = PathBuf::from(cwd);
+        if !cwd_path.is_dir() {
+            return Err(format!("The working directory does not exist: {cwd}"));
+        }
+        command.current_dir(cwd_path);
     }
 
     let output = command
@@ -671,6 +677,14 @@ fn write_text_file(path: String, contents: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn ensure_directory(path: String) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("No directory path was provided.".into());
+    }
+    fs::create_dir_all(&path).map_err(|error| format!("Cannot create {path}: {error}"))
+}
+
+#[tauri::command]
 fn create_entry(path: String, directory: bool) -> Result<(), String> {
     let target = PathBuf::from(&path);
 
@@ -825,6 +839,7 @@ pub fn run() {
             list_tree,
             read_text_file,
             write_text_file,
+            ensure_directory,
             create_entry,
             rename_entry,
             delete_entry,
