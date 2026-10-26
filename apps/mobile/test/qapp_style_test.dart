@@ -26,7 +26,7 @@ Widget host(QappNode root) {
     home: Scaffold(
       body: QappRenderer(
         root: root,
-        onEvent: (_, __, ___) {},
+        onEvent: (_, _, _) {},
         loadAsset: (_) async => null,
       ),
     ),

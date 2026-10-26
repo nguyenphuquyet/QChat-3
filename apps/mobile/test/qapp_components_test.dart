@@ -125,7 +125,7 @@ void main() {
           ),
       ],
     );
-    await tester.pumpWidget(host(root, (_, __, ___) {}));
+    await tester.pumpWidget(host(root, (_, _, _) {}));
     expect(find.byType(ListView), findsOneWidget);
     expect(find.text('row 0'), findsOneWidget);
     expect(find.text('row 2'), findsOneWidget);
@@ -223,7 +223,7 @@ void main() {
       props: {'visible': false},
       children: [node('n0.0', 'Text')],
     );
-    await tester.pumpWidget(host(root, (_, __, ___) {}));
+    await tester.pumpWidget(host(root, (_, _, _) {}));
     expect(find.byType(BottomSheet), findsNothing);
   });
 }

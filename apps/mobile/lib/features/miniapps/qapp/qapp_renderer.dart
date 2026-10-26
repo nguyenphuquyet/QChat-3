@@ -246,7 +246,7 @@ class _QappNodeView extends StatelessWidget {
     BuildContext context, {
     required bool parentIsFlex,
   }) {
-    var widget = _QappNodeView(
+    Widget widget = _QappNodeView(
       node: child,
       onEvent: onEvent,
       loadAsset: loadAsset,
