@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "../lib/store";
 import { api } from "../lib/api";
+import { useI18n } from "../lib/useI18n";
 import { cn, basename, languageFor, timeAgo } from "../lib/utils";
 import { runAction } from "../lib/feedback";
 import { configureMonaco, monaco } from "../lib/monaco";
@@ -57,6 +58,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
   const settings = useStudio((state) => state.settings);
   const detecting = useStudio((state) => state.detecting);
   const desktop = api.isDesktop();
+  const { t, language } = useI18n();
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-auto">
@@ -69,32 +71,29 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
           <div className="animate-slide-up">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent-500/25 bg-accent-500/[0.08] px-3 py-1 text-[10px] font-semibold tracking-wide text-accent-300">
               <Sparkles size={12} />
-              QCHAT MINI APP PLATFORM · SDK 1.0
+              {t("welcome.badge")}
             </div>
             <h1 className="max-w-[600px] text-[42px] font-semibold leading-[1.06] tracking-[-0.035em] text-white">
-              Build mini apps.
+              {t("welcome.hero1")}
               <br />
-              <span className="gradient-text">Run them natively.</span>
+              <span className="gradient-text">{t("welcome.hero2")}</span>
             </h1>
             <p className="mt-4 max-w-[500px] text-[13.5px] leading-6 text-studio-400">
-              A focused desktop studio for TSX mini apps. Compile with the real
-              QChat CLI, inspect immutable{" "}
-              <span className="font-mono text-[12px] text-studio-300">.japp</span>{" "}
-              packages, and ship a bundle that renders as real Flutter widgets.
+              {t("welcome.desc")}
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               <button className="btn btn-primary h-9 px-4 text-[12px]" onClick={commands.newProject}>
-                <FilePlus2 size={15} /> New mini app
+                <FilePlus2 size={15} /> {t("welcome.new")}
               </button>
               <button className="btn btn-secondary h-9 px-4 text-[12px]" onClick={commands.openProject}>
-                <FolderOpen size={15} /> Open project
+                <FolderOpen size={15} /> {t("welcome.open")}
               </button>
               <button
                 className="btn btn-ghost h-9 px-3 text-[11px]"
                 onClick={commands.palette}
               >
-                <Command size={14} /> Commands
+                <Command size={14} /> {t("welcome.commands")}
                 <span className="kbd ml-1">Ctrl K</span>
               </button>
             </div>
@@ -102,15 +101,17 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
             <div className="mt-9">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[9.5px] font-semibold tracking-[0.16em] text-studio-500">
-                  RECENT PROJECTS
+                  {t("welcome.recent")}
                 </span>
                 {recent.length ? (
-                  <span className="text-[9px] text-studio-600">{recent.length} saved</span>
+                  <span className="text-[9px] text-studio-600">
+                    {t("welcome.savedCount", { count: recent.length })}
+                  </span>
                 ) : null}
               </div>
               {recent.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-white/[0.09] bg-white/[0.015] px-4 py-5 text-[11px] leading-5 text-studio-500">
-                  No recent projects yet. Create your first mini app to see it here.
+                  {t("welcome.noRecent")}
                 </div>
               ) : (
                 <div className="divide-y divide-white/[0.05] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.02]">
@@ -137,7 +138,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                         </span>
                       </span>
                       <span className="shrink-0 text-[9px] text-studio-600">
-                        {timeAgo(item.openedAt)}
+                        {timeAgo(item.openedAt, language)}
                       </span>
                       <ChevronRight
                         size={14}
@@ -155,7 +156,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
               <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent-500/10 blur-2xl" />
               <div className="flex items-center justify-between">
                 <span className="text-[9.5px] font-semibold tracking-[0.16em] text-studio-500">
-                  WORKSPACE STATUS
+                  {t("welcome.status")}
                 </span>
                 <span
                   className={cn(
@@ -171,46 +172,48 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                       cli?.ready ? "bg-mint-400" : "bg-amber-400",
                     )}
                   />
-                  {detecting ? "Detecting" : cli?.ready ? "Ready" : "Needs setup"}
+                  {detecting
+                    ? t("welcome.detecting")
+                    : cli?.ready
+                      ? t("welcome.ready")
+                      : t("welcome.needsSetup")}
                 </span>
               </div>
 
               <div className="mt-3 space-y-2.5">
                 <StatusRow
                   icon={<Terminal size={12} />}
-                  label="QChat CLI"
-                  value={cli?.cliVersion || "Not detected"}
+                  label={t("welcome.cli")}
+                  value={cli?.cliVersion || t("common.notDetected")}
                   ok={Boolean(cli?.ready)}
                 />
                 <StatusRow
                   icon={<Cpu size={12} />}
-                  label="Node runtime"
-                  value={cli?.nodeVersion || "Not detected"}
+                  label={t("welcome.node")}
+                  value={cli?.nodeVersion || t("common.notDetected")}
                   ok={Boolean(cli?.nodeVersion)}
                 />
                 <StatusRow
                   icon={<Braces size={12} />}
-                  label="TypeScript"
-                  value="5.9 · strict"
+                  label={t("welcome.ts")}
+                  value={t("welcome.tsValue")}
                   ok={Boolean(cli?.ready)}
                 />
                 <StatusRow
                   icon={<Boxes size={12} />}
-                  label="Packages"
-                  value=".japp · schema v2"
+                  label={t("welcome.packages")}
+                  value={t("welcome.packagesValue")}
                   ok
                 />
               </div>
 
               {!desktop ? (
                 <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
-                  Browser preview. Start the desktop runtime with{" "}
-                  <span className="font-mono text-[9.5px]">corepack pnpm tauri dev</span>{" "}
-                  to connect the CLI and filesystem.
+                  {t("welcome.browserWarning")}
                 </div>
               ) : !cli?.ready ? (
                 <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
-                  {cli?.error || "Point Studio at your QChat CLI in Settings."}
+                  {cli?.error || t("welcome.cliMissing")}
                 </div>
               ) : null}
 
@@ -219,13 +222,13 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                   className="btn btn-secondary h-7 flex-1 text-[10px]"
                   onClick={commands.settings}
                 >
-                  <Settings size={11} /> Configure
+                  <Settings size={11} /> {t("welcome.configure")}
                 </button>
                 <button
                   className="btn btn-secondary h-7 px-2 text-[10px]"
                   onClick={() => void useStudio.getState().detect()}
                 >
-                  <Zap size={11} /> Detect
+                  <Zap size={11} /> {t("welcome.detect")}
                 </button>
               </div>
             </div>
@@ -233,13 +236,13 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
             <div className="panel rounded-2xl p-4">
               <div className="flex items-center gap-2">
                 <Rocket size={14} className="text-mint-400" />
-                <span className="text-[11.5px] font-semibold text-studio-100">Three steps to ship</span>
+                <span className="text-[11.5px] font-semibold text-studio-100">{t("welcome.steps")}</span>
               </div>
               <div className="mt-3 space-y-2.5">
                 {[
-                  ["Create", "Scaffold a TSX project with the CLI."],
-                  ["Build", "Typecheck, bundle and verify the .japp."],
-                  ["Release", "Upload in Developer Center and open in QChat."],
+                  [t("welcome.stepCreate"), t("welcome.stepCreateDetail")],
+                  [t("welcome.stepBuild"), t("welcome.stepBuildDetail")],
+                  [t("welcome.stepRelease"), t("welcome.stepReleaseDetail")],
                 ].map(([title, detail], index) => (
                   <div key={title} className="flex items-start gap-2.5">
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] font-mono text-[9px] text-studio-300">
@@ -260,7 +263,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                   )
                 }
               >
-                Read the mini app guide <ArrowRight size={11} />
+                {t("welcome.guide")} <ArrowRight size={11} />
               </button>
             </div>
           </div>
@@ -269,18 +272,18 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
         <div className="mt-9 grid gap-2 border-t border-white/[0.055] pt-5 sm:grid-cols-3">
           <MiniFeature
             icon={<Hammer size={13} />}
-            title="Real compiler"
-            detail="esbuild + strict TypeScript"
+            title={t("welcome.featCompiler")}
+            detail={t("welcome.featCompilerDetail")}
           />
           <MiniFeature
             icon={<Package size={13} />}
-            title="Immutable package"
-            detail="Checksums and safe paths"
+            title={t("welcome.featPackage")}
+            detail={t("welcome.featPackageDetail")}
           />
           <MiniFeature
             icon={<Cpu size={13} />}
-            title="Native runtime"
-            detail="QuickJS → Flutter widgets"
+            title={t("welcome.featRuntime")}
+            detail={t("welcome.featRuntimeDetail")}
           />
         </div>
       </div>
@@ -346,6 +349,7 @@ export function EditorArea() {
   const setCursor = useStudio((state) => state.setCursor);
   const openFile = useStudio((state) => state.openFile);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const { t } = useI18n();
 
   const active = useMemo(
     () => tabs.find((tab) => tab.path === activePath) ?? null,
@@ -389,7 +393,7 @@ export function EditorArea() {
       <div className="flex h-[38px] shrink-0 items-stretch overflow-x-auto border-b border-white/[0.06] bg-studio-950/35">
         {tabs.length === 0 ? (
           <div className="flex items-center px-3 text-[10.5px] text-studio-500">
-            No file open
+            {t("editor.noFile")}
           </div>
         ) : (
           tabs.map((tab) => {
@@ -425,7 +429,7 @@ export function EditorArea() {
             className="icon-btn h-6 w-6"
             onClick={() => void saveActive()}
             disabled={!active || !dirty}
-            title="Save (Ctrl+S)"
+            title={t("editor.save")}
           >
             <Save size={13} className={cn(dirty && "text-accent-300")} />
           </button>
@@ -435,7 +439,7 @@ export function EditorArea() {
               editorRef.current?.getAction("editor.action.formatDocument")?.run();
             }}
             disabled={!active}
-            title="Format document"
+            title={t("editor.format")}
           >
             <Wand2 size={13} />
           </button>
@@ -457,11 +461,11 @@ export function EditorArea() {
             <span className="ml-auto flex items-center gap-2 text-[9px]">
               {dirty ? (
                 <span className="flex items-center gap-1 text-amber-300/90">
-                  <span className="h-1 w-1 rounded-full bg-amber-300" /> Unsaved
+                  <span className="h-1 w-1 rounded-full bg-amber-300" /> {t("common.unsaved")}
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-studio-500">
-                  <Check size={9} className="text-mint-400" /> Saved
+                  <Check size={9} className="text-mint-400" /> {t("common.saved")}
                 </span>
               )}
               <span className="font-mono text-studio-500">{languageFor(active.path)}</span>
@@ -473,12 +477,12 @@ export function EditorArea() {
               path={active.path}
               language={active.language}
               value={active.content}
-              theme="qchat-studio"
+              theme={settings.theme === "light" ? "qchat-studio-light" : "qchat-studio"}
               onMount={onMount}
               onChange={(value) => updateTab(active.path, value ?? "")}
               loading={
                 <div className="flex h-full items-center justify-center gap-2 text-[11px] text-studio-500">
-                  <Spinner /> Loading editor…
+                  <Spinner /> {t("common.loadingEditor")}
                 </div>
               }
               options={{
@@ -522,6 +526,7 @@ function EmptyEditor() {
   const tree = useStudio((state) => state.tree);
   const openFile = useStudio((state) => state.openFile);
   const buildProject = useStudio((state) => state.buildProject);
+  const { t } = useI18n();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-studio-900/20 p-8">
@@ -529,9 +534,9 @@ function EmptyEditor() {
         <FileCode2 size={24} />
       </div>
       <div className="text-center">
-        <div className="text-[13px] font-semibold text-studio-200">No editor open</div>
+        <div className="text-[13px] font-semibold text-studio-200">{t("editor.noEditor")}</div>
         <div className="mt-1 text-[11px] text-studio-500">
-          Choose a file from the explorer or open the app entry point.
+          {t("editor.choose")}
         </div>
       </div>
       <div className="flex gap-2">
@@ -543,15 +548,15 @@ function EmptyEditor() {
               if (entry) void openFile(entry.path);
             }}
           >
-            <FileCode2 size={12} /> Open src/main.tsx
+            <FileCode2 size={12} /> {t("editor.openMain")}
           </button>
         ) : null}
         <button
           className="btn btn-secondary h-7 text-[10.5px]"
-          onClick={() => void runAction(() => buildProject(false), "Package built")}
+          onClick={() => void runAction(() => buildProject(false), t("common.packageBuilt"))}
           disabled={!project}
         >
-          <Hammer size={12} /> Build project
+          <Hammer size={12} /> {t("editor.buildProject")}
         </button>
       </div>
     </div>

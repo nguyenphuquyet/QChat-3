@@ -2,6 +2,106 @@
 @import "@fontsource-variable/jetbrains-mono";
 @import "tailwindcss";
 
+/* Be Vietnam Pro is bundled locally so the Vietnamese UI renders with the
+   intended typeface even without network access (desktop app / offline CI). */
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-400-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-400-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-500-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-500-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-600-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-600-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-700-vietnamese.woff2") format("woff2");
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
+}
+
+@font-face {
+  font-family: "Be Vietnam Pro";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/fonts/be-vietnam-pro-700-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191,
+    U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Vietnamese is the default language, so it gets the dedicated typeface. */
+html[lang="vi"] {
+  --font-sans:
+    "Be Vietnam Pro", "Inter Variable", "Inter", ui-sans-serif, system-ui,
+    -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    Consolas, monospace;
+}
+
 @theme {
   --font-sans:
     "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
@@ -492,4 +592,241 @@
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+
+/* -------------------------------------------------------------------------
+   Light theme
+   The dark UI is built on a fixed "studio" greyscale plus `white` alpha
+   utilities. Inverting both variables keeps every existing utility readable
+   without duplicating component markup.
+   ------------------------------------------------------------------------- */
+html[data-theme="light"] {
+  --color-white: #0f172a;
+
+  --color-studio-950: #f6f7fb;
+  --color-studio-900: #ffffff;
+  --color-studio-850: #fcfdff;
+  --color-studio-800: #f3f5f9;
+  --color-studio-750: #eef1f6;
+  --color-studio-700: #e5e9f1;
+  --color-studio-600: #ccd3e0;
+  --color-studio-500: #97a0b2;
+  --color-studio-400: #6f7889;
+  --color-studio-300: #4d5567;
+  --color-studio-200: #2f3746;
+  --color-studio-100: #141a24;
+
+  --color-accent-300: #5b4bdb;
+  --color-accent-400: #6355e8;
+  --color-accent-500: #6a5af0;
+  --color-accent-600: #6553ef;
+  --color-accent-700: #5140d6;
+
+  --color-mint-400: #0f9d76;
+  --color-mint-500: #0b8a68;
+
+  --color-cyan-300: #0e7490;
+  --color-cyan-400: #0891b2;
+  --color-sky-300: #0369a1;
+  --color-amber-300: #b45309;
+  --color-amber-400: #d97706;
+  --color-rose-300: #be123c;
+  --color-rose-400: #e11d48;
+
+  --shadow-panel: 0 24px 60px -30px rgba(15, 23, 42, 0.35);
+  --shadow-glow:
+    0 0 0 1px rgba(101, 83, 239, 0.28),
+    0 12px 32px -14px rgba(101, 83, 239, 0.35);
+  color-scheme: light;
+}
+
+html[data-theme="light"] ::selection {
+  background: rgba(101, 83, 239, 0.22);
+  color: #141a24;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.18);
+  background-clip: content-box;
+  border: 3px solid transparent;
+}
+
+html[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.32);
+  background-clip: content-box;
+  border: 3px solid transparent;
+}
+
+html[data-theme="light"] .panel {
+  background: color-mix(in srgb, #ffffff 92%, transparent);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="light"] .hairline {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="light"] .btn-secondary {
+  background: rgba(15, 23, 42, 0.035);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: var(--color-studio-200);
+}
+
+html[data-theme="light"] .btn-secondary:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.07);
+  border-color: rgba(15, 23, 42, 0.2);
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .btn-ghost {
+  color: var(--color-studio-400);
+}
+
+html[data-theme="light"] .btn-ghost:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.055);
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .btn-danger {
+  background: rgba(225, 29, 72, 0.1);
+  border-color: rgba(225, 29, 72, 0.26);
+  color: #be123c;
+}
+
+html[data-theme="light"] .btn-danger:hover:not(:disabled) {
+  background: rgba(225, 29, 72, 0.16);
+}
+
+html[data-theme="light"] .icon-btn:hover {
+  background: rgba(15, 23, 42, 0.07);
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .window-control:hover {
+  background-color: rgba(15, 23, 42, 0.06);
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .window-control:active {
+  background-color: rgba(15, 23, 42, 0.1);
+}
+
+html[data-theme="light"] .window-control-close:hover {
+  background-color: #dc2626;
+  color: #fff;
+}
+
+html[data-theme="light"] .window-control-close:active {
+  background-color: #b91c1c;
+}
+
+html[data-theme="light"] .chip {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--color-studio-300);
+}
+
+html[data-theme="light"] .chip-accent {
+  border-color: rgba(101, 83, 239, 0.28);
+  background: rgba(101, 83, 239, 0.1);
+  color: #4f3fce;
+}
+
+html[data-theme="light"] .chip-mint {
+  border-color: rgba(15, 157, 118, 0.28);
+  background: rgba(15, 157, 118, 0.1);
+  color: #0b7a5d;
+}
+
+html[data-theme="light"] .field {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .field::placeholder {
+  color: var(--color-studio-500);
+}
+
+html[data-theme="light"] .field:focus {
+  border-color: rgba(101, 83, 239, 0.5);
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(101, 83, 239, 0.12);
+}
+
+html[data-theme="light"] .menu-item:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.055);
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .menu-separator {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+html[data-theme="light"] .tab {
+  border-color: rgba(15, 23, 42, 0.07);
+  color: var(--color-studio-400);
+}
+
+html[data-theme="light"] .tab:hover {
+  background: rgba(15, 23, 42, 0.035);
+  color: var(--color-studio-200);
+}
+
+html[data-theme="light"] .tab-active {
+  background: #ffffff;
+  color: var(--color-studio-100);
+}
+
+html[data-theme="light"] .kbd {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.04);
+  color: var(--color-studio-400);
+}
+
+html[data-theme="light"] .glass {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+html[data-theme="light"] .grid-bg {
+  background-image:
+    linear-gradient(rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+}
+
+html[data-theme="light"] .gradient-text {
+  background: linear-gradient(100deg, #141a24 5%, #6553ef 45%, #0b8a68 95%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Surfaces that must keep their original white text (brand gradients, the
+   dark phone preview) opt out of the `white` inversion. */
+html[data-theme="light"] [data-keep-white] {
+  --color-white: #ffffff;
+}
+
+html[data-theme="light"] [data-keep-dark] {
+  --color-white: #ffffff;
+  --color-studio-950: #07090d;
+  --color-studio-900: #0b0e14;
+  --color-studio-850: #0e121a;
+  --color-studio-800: #121722;
+  --color-studio-750: #161c29;
+  --color-studio-700: #1b2231;
+  --color-studio-600: #252e40;
+  --color-studio-500: #354058;
+  --color-studio-400: #55617a;
+  --color-studio-300: #8b93a7;
+  --color-studio-200: #b9c0d0;
+  --color-studio-100: #e6e9f2;
+  --color-accent-300: #b9b2ff;
+  --color-accent-400: #9a8dff;
+  --color-accent-500: #7c6cff;
+  --color-accent-600: #6553ef;
+  --color-accent-700: #5140d6;
+  --color-mint-400: #48e5b5;
+  --color-mint-500: #22c99a;
+  color-scheme: dark;
 }

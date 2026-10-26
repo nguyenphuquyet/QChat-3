@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { useStudio } from "../lib/store";
 import { PERMISSIONS } from "../lib/permissions";
+import { useI18n } from "../lib/useI18n";
 import { cn, errorMessage } from "../lib/utils";
 import type { ProjectManifest } from "../types";
 import { Dialog, DialogHeader, Spinner } from "./ui";
@@ -29,6 +30,7 @@ export function ProjectSettingsDialog({
   const [domainDraft, setDomainDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const { t } = useI18n();
 
   useEffect(() => {
     if (open && project?.manifest) {
@@ -71,7 +73,7 @@ export function ProjectSettingsDialog({
       .replace(/\/.*$/, "");
     if (!value) return;
     if (!/^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(value)) {
-      toast.error("Enter a host such as api.example.com or *.example.com");
+      toast.error(t("new.domainError"));
       return;
     }
     if (domains.includes(value)) {
@@ -79,7 +81,7 @@ export function ProjectSettingsDialog({
       return;
     }
     if (domains.length >= 10) {
-      toast.error("At most 10 network domains are allowed");
+      toast.error(t("new.domainMax"));
       return;
     }
     patch({ networkDomains: [...domains, value] });
@@ -97,7 +99,7 @@ export function ProjectSettingsDialog({
         requestedPermissions: draft.requestedPermissions,
         networkDomains: networkEnabled ? domains : [],
       });
-      toast.success("Manifest updated");
+      toast.success(t("psettings.updated"));
       onClose();
     } catch (caught) {
       setError(errorMessage(caught));
@@ -110,22 +112,24 @@ export function ProjectSettingsDialog({
     <Dialog open={open} onClose={onClose} width="max-w-2xl">
       <DialogHeader
         icon={<FileJson2 size={16} />}
-        title="Project settings"
-        subtitle="Edit manifest.json without leaving the studio. Build again to apply package changes."
+        title={t("psettings.title")}
+        subtitle={t("psettings.subtitle")}
         onClose={onClose}
       />
 
       <div className="max-h-[70vh] overflow-auto p-5">
         <div className="mb-4 flex flex-wrap gap-1.5">
-          <span className="chip chip-accent">schema v{draft.schemaVersion}</span>
+          <span className="chip chip-accent">
+            {t("psettings.schema", { schema: draft.schemaVersion })}
+          </span>
           <span className="chip chip-mint">{draft.format}</span>
-          <span className="chip">entry: {draft.entry}</span>
-          <span className="chip">sdk: {draft.sdkVersion}</span>
+          <span className="chip">{t("psettings.entry", { entry: draft.entry })}</span>
+          <span className="chip">{t("psettings.sdk", { sdk: draft.sdkVersion })}</span>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label" htmlFor="manifest-name">Display name</label>
+            <label className="label" htmlFor="manifest-name">{t("psettings.name")}</label>
             <input
               id="manifest-name"
               className={cn("field", !nameValid && "border-rose-400/40")}
@@ -135,7 +139,7 @@ export function ProjectSettingsDialog({
             />
           </div>
           <div>
-            <label className="label" htmlFor="manifest-version">Version</label>
+            <label className="label" htmlFor="manifest-version">{t("psettings.version")}</label>
             <input
               id="manifest-version"
               className={cn("field font-mono", !versionValid && "border-rose-400/40")}
@@ -146,7 +150,7 @@ export function ProjectSettingsDialog({
         </div>
 
         <div className="mt-3">
-          <label className="label" htmlFor="manifest-description">Description</label>
+          <label className="label" htmlFor="manifest-description">{t("psettings.description")}</label>
           <textarea
             id="manifest-description"
             className="field min-h-[60px] resize-none text-[11px]"
@@ -158,7 +162,7 @@ export function ProjectSettingsDialog({
 
         <div className="mt-3 grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="label" htmlFor="manifest-runtime">Minimum runtime</label>
+            <label className="label" htmlFor="manifest-runtime">{t("psettings.minRuntime")}</label>
             <input
               id="manifest-runtime"
               className="field font-mono"
@@ -167,7 +171,7 @@ export function ProjectSettingsDialog({
             />
           </div>
           <div>
-            <label className="label" htmlFor="manifest-sdk">SDK version</label>
+            <label className="label" htmlFor="manifest-sdk">{t("psettings.sdkVersion")}</label>
             <input
               id="manifest-sdk"
               className="field font-mono opacity-70"
@@ -179,9 +183,9 @@ export function ProjectSettingsDialog({
 
         <div className="mt-5">
           <div className="mb-2 flex items-center justify-between">
-            <span className="label mb-0">Permissions</span>
+            <span className="label mb-0">{t("psettings.permissions")}</span>
             <span className="text-[9px] text-studio-500">
-              {draft.requestedPermissions.length} declared
+              {t("psettings.declared", { count: draft.requestedPermissions.length })}
             </span>
           </div>
           <div className="grid gap-1.5 sm:grid-cols-2">
@@ -210,7 +214,7 @@ export function ProjectSettingsDialog({
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[10px] font-medium text-studio-200">
-                      {permission.label}
+                      {t(`perm.${permission.id}.label`, undefined, permission.label)}
                     </span>
                     <span className="block truncate text-[8.5px] text-studio-500">
                       {permission.id}
@@ -225,7 +229,7 @@ export function ProjectSettingsDialog({
         {networkEnabled ? (
           <div className="mt-3 rounded-xl border border-sky-400/15 bg-sky-400/[0.045] p-3">
             <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-sky-300">
-              <Globe2 size={10} /> Network allowlist
+              <Globe2 size={10} /> {t("psettings.networkAllowlist")}
             </div>
             <div className="mt-2 flex gap-1.5">
               <input
@@ -259,7 +263,7 @@ export function ProjectSettingsDialog({
             </div>
             {!networkValid ? (
               <div className="mt-1.5 text-[8.5px] text-amber-300">
-                Add at least one domain, or remove the network permission.
+                {t("psettings.networkRequired")}
               </div>
             ) : null}
           </div>
@@ -267,8 +271,7 @@ export function ProjectSettingsDialog({
 
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 text-[9px] leading-4 text-studio-500">
           <Info size={11} className="mt-0.5 shrink-0" />
-          The server owns the app identity. Do not add an appId to the manifest; bump the version
-          and upload a new build to release changes.
+          {t("psettings.serverNote")}
         </div>
 
         {error ? (
@@ -280,14 +283,14 @@ export function ProjectSettingsDialog({
 
       <div className="flex items-center justify-between gap-3 border-t border-white/[0.065] px-5 py-3">
         <span className="flex items-center gap-1.5 text-[9px] text-studio-500">
-          <Sparkles size={10} className="text-accent-300" /> Changes are written to manifest.json
+          <Sparkles size={10} className="text-accent-300" /> {t("psettings.changesNote")}
         </span>
         <div className="flex gap-2">
           <button className="btn btn-ghost h-8 px-3" onClick={onClose} disabled={saving}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button className="btn btn-primary h-8 px-4" onClick={() => void save()} disabled={!canSave}>
-            {saving ? <Spinner size={11} /> : <Save size={11} />} Save manifest
+            {saving ? <Spinner size={11} /> : <Save size={11} />} {t("psettings.save")}
           </button>
         </div>
       </div>

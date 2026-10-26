@@ -8,6 +8,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { useStudio } from "../lib/store";
+import { useI18n } from "../lib/useI18n";
 import { cn } from "../lib/utils";
 
 export function ActivityBar({
@@ -27,6 +28,7 @@ export function ActivityBar({
   const setBottomTab = useStudio((state) => state.setBottomTab);
   const cli = useStudio((state) => state.cli);
   const project = useStudio((state) => state.project);
+  const { t } = useI18n();
 
   const select = (tab: "project" | "build" | "packages") => {
     if (sidebarOpen && sidebarTab === tab) {
@@ -48,7 +50,7 @@ export function ActivityBar({
               : "text-studio-400 hover:bg-white/[0.05] hover:text-studio-100",
           )}
           onClick={() => select("project")}
-          title="Project explorer"
+          title={t("activity.project")}
         >
           {sidebarOpen && sidebarTab === "project" ? (
             <span className="absolute -left-2 h-5 w-[2px] rounded-full bg-accent-400" />
@@ -63,7 +65,7 @@ export function ActivityBar({
               : "text-studio-400 hover:bg-white/[0.05] hover:text-studio-100",
           )}
           onClick={() => select("build")}
-          title="Build and test"
+          title={t("activity.build")}
         >
           {sidebarOpen && sidebarTab === "build" ? (
             <span className="absolute -left-2 h-5 w-[2px] rounded-full bg-accent-400" />
@@ -78,7 +80,7 @@ export function ActivityBar({
               : "text-studio-400 hover:bg-white/[0.05] hover:text-studio-100",
           )}
           onClick={() => select("packages")}
-          title="Built packages"
+          title={t("activity.packages")}
         >
           {sidebarOpen && sidebarTab === "packages" ? (
             <span className="absolute -left-2 h-5 w-[2px] rounded-full bg-accent-400" />
@@ -88,7 +90,7 @@ export function ActivityBar({
         <button
           className="group flex h-10 w-10 items-center justify-center rounded-xl text-studio-400 transition hover:bg-white/[0.05] hover:text-studio-100"
           onClick={onPalette}
-          title="Search commands"
+          title={t("activity.search")}
         >
           <Search size={19} strokeWidth={1.8} />
         </button>
@@ -98,7 +100,7 @@ export function ActivityBar({
             setBottomOpen(true);
             setBottomTab("terminal");
           }}
-          title="Terminal"
+          title={t("activity.terminal")}
         >
           <TerminalSquare size={19} strokeWidth={1.8} />
         </button>
@@ -107,7 +109,7 @@ export function ActivityBar({
       <div className="mt-auto flex flex-col items-center gap-0.5">
         <div
           className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03]"
-          title={project ? `Project: ${project.name}` : "No project"}
+          title={project ? t("activity.projectTitle", { name: project.name }) : t("activity.noProject")}
         >
           {project?.manifest ? (
             <span className="text-[10px] font-bold text-accent-300">
@@ -120,20 +122,20 @@ export function ActivityBar({
         <button
           className="group flex h-10 w-10 items-center justify-center rounded-xl text-studio-400 transition hover:bg-white/[0.05] hover:text-studio-100"
           onClick={onSettings}
-          title="Settings"
+          title={t("activity.settings")}
         >
           <Settings size={19} strokeWidth={1.8} />
         </button>
         <button
           className="group flex h-10 w-10 items-center justify-center rounded-xl text-studio-400 transition hover:bg-white/[0.05] hover:text-studio-100"
           onClick={onAbout}
-          title="About"
+          title={t("activity.about")}
         >
           <CircleHelp size={19} strokeWidth={1.8} />
         </button>
         <button
           className="mt-1 flex h-8 w-8 items-center justify-center rounded-lg"
-          title={cli?.ready ? "CLI connected" : "CLI not detected"}
+          title={cli?.ready ? t("activity.cliConnected") : t("activity.cliMissing")}
           onClick={onSettings}
         >
           <span

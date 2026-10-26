@@ -13,6 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useStudio } from "../lib/store";
+import { useI18n } from "../lib/useI18n";
 import { cn, clockTime } from "../lib/utils";
 
 export function BottomPanel({
@@ -40,6 +41,7 @@ export function BottomPanel({
   const outputRef = useRef<HTMLDivElement>(null);
   const stickRef = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (tab !== "output" || !stickRef.current) return;
@@ -82,7 +84,7 @@ export function BottomPanel({
             )}
             onClick={() => setTab("output")}
           >
-            Output
+            {t("bottom.output")}
             {logs.length ? <span className="rounded bg-white/[0.07] px-1 text-[8.5px] text-studio-400">{logs.length}</span> : null}
           </button>
           <button
@@ -92,7 +94,7 @@ export function BottomPanel({
             )}
             onClick={() => setTab("problems")}
           >
-            Problems
+            {t("bottom.problems")}
             {problems.length ? (
               <span
                 className={cn(
@@ -111,7 +113,7 @@ export function BottomPanel({
             )}
             onClick={() => setTab("terminal")}
           >
-            Terminal
+            {t("bottom.terminal")}
           </button>
         </div>
 
@@ -119,27 +121,31 @@ export function BottomPanel({
           {running ? (
             <span className="flex items-center gap-1.5 text-[9px] font-medium text-accent-300">
               <span className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-accent-400/30 border-t-accent-300" />
-              Working
+              {t("bottom.working")}
             </span>
           ) : null}
           {devRunning ? (
             <button
               className="flex items-center gap-1 rounded-full border border-mint-400/20 bg-mint-400/[0.08] px-2 py-0.5 text-[9px] font-semibold text-mint-400"
               onClick={() => void stopDev()}
-              title="Stop dev watcher"
+              title={t("bottom.stopDev")}
             >
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-mint-400" />
-              Watching
+              {t("bottom.watching")}
               <Square size={7} />
             </button>
           ) : null}
-          <button className="icon-btn h-6 w-6" onClick={clearLogs} title="Clear output">
+          <button className="icon-btn h-6 w-6" onClick={clearLogs} title={t("bottom.clear")}>
             <Eraser size={12} />
           </button>
-          <button className="icon-btn h-6 w-6" onClick={onMaximize} title={maximized ? "Restore panel" : "Maximize panel"}>
+          <button
+            className="icon-btn h-6 w-6"
+            onClick={onMaximize}
+            title={maximized ? t("bottom.restore") : t("bottom.maximize")}
+          >
             {maximized ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
           </button>
-          <button className="icon-btn h-6 w-6" onClick={() => setOpen(false)} title="Hide panel">
+          <button className="icon-btn h-6 w-6" onClick={() => setOpen(false)} title={t("bottom.hide")}>
             <ChevronDown size={13} />
           </button>
         </div>
@@ -156,7 +162,7 @@ export function BottomPanel({
         >
           {logs.length === 0 ? (
             <div className="flex h-full items-center justify-center gap-2 text-[10.5px] text-studio-600">
-              <TerminalIcon size={13} /> Build output and CLI logs appear here.
+              <TerminalIcon size={13} /> {t("bottom.emptyOutput")}
             </div>
           ) : (
             logs.map((entry) => (
@@ -192,7 +198,7 @@ export function BottomPanel({
         <div className="min-h-0 flex-1 overflow-auto">
           {problems.length === 0 ? (
             <div className="flex h-full items-center justify-center gap-2 text-[10.5px] text-studio-600">
-              <CircleAlert size={13} /> No problems detected. Build or test the project.
+              <CircleAlert size={13} /> {t("bottom.noProblems")}
             </div>
           ) : (
             <div className="divide-y divide-white/[0.035]">
@@ -228,9 +234,7 @@ export function BottomPanel({
           <div className="min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-[10px] leading-[1.65]">
             {terminalHistory.length === 0 ? (
               <div className="mb-2 text-studio-600">
-                QChat CLI terminal. Try <span className="text-accent-300">build --dir .</span>,{" "}
-                <span className="text-accent-300">test --dir .</span> or{" "}
-                <span className="text-accent-300">inspect dist/app.japp</span>.
+                {t("bottom.terminalHint")}
               </div>
             ) : (
               terminalHistory
@@ -244,7 +248,7 @@ export function BottomPanel({
                 ))
             )}
             <div className="mt-2 flex items-center gap-1.5 text-[9px] text-studio-600">
-              <Clock3 size={9} /> Commands run in the current project directory. Output also lands in the Output tab.
+              <Clock3 size={9} /> {t("bottom.terminalNote")}
             </div>
           </div>
           <div className="flex items-center gap-2 border-t border-white/[0.05] px-3 py-2">
@@ -278,7 +282,7 @@ export function BottomPanel({
               className="flex h-6 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.04] px-2 text-[9px] font-semibold text-studio-300 transition hover:border-white/15 hover:text-white"
               onClick={execute}
             >
-              <Play size={9} /> Run
+              <Play size={9} /> {t("bottom.run")}
             </button>
           </div>
         </div>

@@ -25,6 +25,7 @@ import {
 import { useStudio } from "../lib/store";
 import { api } from "../lib/api";
 import { runAction } from "../lib/feedback";
+import { useI18n } from "../lib/useI18n";
 import { cn } from "../lib/utils";
 import type { StudioCommands } from "./TitleBar";
 
@@ -66,6 +67,7 @@ export function CommandPalette({
   const sidebarOpen = useStudio((state) => state.sidebarOpen);
   const setSidebarOpen = useStudio((state) => state.setSidebarOpen);
   const setBottomTab = useStudio((state) => state.setBottomTab);
+  const { t } = useI18n();
 
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -75,96 +77,96 @@ export function CommandPalette({
     return [
       {
         id: "new",
-        label: "New mini app",
-        hint: "Scaffold a TSX project",
+        label: t("palette.new"),
+        hint: t("palette.newHint"),
         icon: <FilePlus2 size={14} />,
         shortcut: "Ctrl N",
-        group: "Project",
+        group: t("palette.groupProject"),
         run: studio.newProject,
       },
       {
         id: "open",
-        label: "Open project",
-        hint: "Choose a folder",
+        label: t("palette.open"),
+        hint: t("palette.openHint"),
         icon: <FolderOpen size={14} />,
         shortcut: "Ctrl O",
-        group: "Project",
+        group: t("palette.groupProject"),
         run: studio.openProject,
       },
       {
         id: "settings-project",
-        label: "Edit project manifest",
-        hint: "Name, version, permissions",
+        label: t("palette.editManifest"),
+        hint: t("palette.editManifestHint"),
         icon: <Settings size={14} />,
-        group: "Project",
+        group: t("palette.groupProject"),
         disabled: !project,
         run: studio.projectSettings,
       },
       {
         id: "build",
-        label: "Build .japp package",
-        hint: "Typecheck, bundle and verify",
+        label: t("palette.build"),
+        hint: t("palette.buildHint"),
         icon: <Hammer size={14} />,
         shortcut: "Ctrl B",
-        group: "Build",
+        group: t("palette.groupBuild"),
         disabled: !canBuild,
-        run: () => runAction(() => buildProject(false), "Package built successfully"),
+        run: () => runAction(() => buildProject(false), t("common.packageBuilt")),
       },
       {
         id: "quick-build",
-        label: "Build without typecheck",
-        hint: "Faster bundle for iteration",
+        label: t("palette.quickBuild"),
+        hint: t("palette.quickBuildHint"),
         icon: <Zap size={14} />,
         shortcut: "Ctrl ⇧ B",
-        group: "Build",
+        group: t("palette.groupBuild"),
         disabled: !canBuild,
-        run: () => runAction(() => buildProject(true), "Bundle built"),
+        run: () => runAction(() => buildProject(true), t("common.bundleBuilt")),
       },
       {
         id: "test",
-        label: "Test runtime",
-        hint: "Compile and dispatch a host event",
+        label: t("palette.test"),
+        hint: t("palette.testHint"),
         icon: <FlaskConical size={14} />,
         shortcut: "Ctrl T",
-        group: "Build",
+        group: t("palette.groupBuild"),
         disabled: !canBuild,
-        run: () => runAction(() => runTests(), "Runtime test passed"),
+        run: () => runAction(() => runTests(), t("common.runtimePassed")),
       },
       {
         id: "validate",
-        label: "Validate package",
-        hint: activeArtifact ? "Check the selected .japp" : "Choose a .japp to validate",
+        label: t("palette.validate"),
+        hint: activeArtifact ? t("palette.validateHintSelected") : t("palette.validateHintPick"),
         icon: <ShieldCheck size={14} />,
-        group: "Build",
+        group: t("palette.groupBuild"),
         disabled: !canBuild,
         run: async () => {
           if (activeArtifact) {
-            await runAction(() => validateArtifact(activeArtifact), "Package is valid");
+            await runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
             return;
           }
           const path = await api.pickPackage(project?.path);
-          if (path) await runAction(() => validateArtifact(path), "Package is valid");
+          if (path) await runAction(() => validateArtifact(path), t("common.packageValid"));
         },
       },
       {
         id: "dev",
-        label: devRunning ? "Stop dev watcher" : "Start dev watcher",
-        hint: "Rebuild on file changes",
+        label: devRunning ? t("palette.devStop") : t("palette.devStart"),
+        hint: t("palette.devHint"),
         icon: devRunning ? <Square size={14} /> : <Play size={14} />,
         shortcut: "F5",
-        group: "Run",
+        group: t("palette.groupRun"),
         disabled: !canBuild,
         run: () =>
           devRunning
             ? stopDev()
-            : runAction(() => startDev(), "Dev watcher started"),
+            : runAction(() => startDev(), t("common.devStarted")),
       },
       {
         id: "terminal",
-        label: "Open terminal",
-        hint: "Run qapp commands",
+        label: t("palette.terminal"),
+        hint: t("palette.terminalHint"),
         icon: <TerminalSquare size={14} />,
-        group: "Run",
+        group: t("palette.groupRun"),
         run: () => {
           setBottomOpen(true);
           setBottomTab("terminal");
@@ -172,59 +174,59 @@ export function CommandPalette({
       },
       {
         id: "refresh",
-        label: "Refresh explorer",
-        hint: "Reload the project tree",
+        label: t("palette.refresh"),
+        hint: t("palette.refreshHint"),
         icon: <RefreshCw size={14} />,
-        group: "View",
+        group: t("palette.groupView"),
         disabled: !project,
         run: () => refreshTree(),
       },
       {
         id: "preview",
-        label: previewOpen ? "Hide device panel" : "Show device panel",
-        hint: "Package and runtime summary",
+        label: previewOpen ? t("palette.hidePreview") : t("palette.showPreview"),
+        hint: t("palette.previewHint"),
         icon: <PanelRight size={14} />,
-        group: "View",
+        group: t("palette.groupView"),
         run: () => setPreviewOpen(!previewOpen),
       },
       {
         id: "bottom",
-        label: bottomOpen ? "Hide output panel" : "Show output panel",
-        hint: "Logs, problems and terminal",
+        label: bottomOpen ? t("palette.hideBottom") : t("palette.showBottom"),
+        hint: t("palette.bottomHint"),
         icon: <PanelBottom size={14} />,
-        group: "View",
+        group: t("palette.groupView"),
         run: () => setBottomOpen(!bottomOpen),
       },
       {
         id: "sidebar",
-        label: sidebarOpen ? "Hide sidebar" : "Show sidebar",
-        hint: "Explorer, build and packages",
+        label: sidebarOpen ? t("palette.hideSidebar") : t("palette.showSidebar"),
+        hint: t("palette.sidebarHint"),
         icon: <FolderTree size={14} />,
-        group: "View",
+        group: t("palette.groupView"),
         run: () => setSidebarOpen(!sidebarOpen),
       },
       {
         id: "clear",
-        label: "Clear output",
-        hint: "Remove all CLI logs",
+        label: t("palette.clear"),
+        hint: t("palette.clearHint"),
         icon: <Trash2 size={14} />,
-        group: "View",
+        group: t("palette.groupView"),
         run: clearLogs,
       },
       {
         id: "settings",
-        label: "Studio settings",
-        hint: "CLI paths and editor preferences",
+        label: t("palette.settings"),
+        hint: t("palette.settingsHint"),
         icon: <Settings size={14} />,
-        group: "Tools",
+        group: t("palette.groupTools"),
         run: studio.settings,
       },
       {
         id: "docs",
-        label: "Open mini app documentation",
-        hint: "Package format and runtime APIs",
+        label: t("palette.docs"),
+        hint: t("palette.docsHint"),
         icon: <Boxes size={14} />,
-        group: "Help",
+        group: t("palette.groupHelp"),
         run: () =>
           api.openUrl(
             "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md",
@@ -232,10 +234,10 @@ export function CommandPalette({
       },
       {
         id: "about",
-        label: "About QChat Studio",
-        hint: "Version and runtime information",
+        label: t("palette.about"),
+        hint: t("palette.aboutHint"),
         icon: <Sparkles size={14} />,
-        group: "Help",
+        group: t("palette.groupHelp"),
         run: studio.about,
       },
     ];
@@ -257,6 +259,7 @@ export function CommandPalette({
     startDev,
     stopDev,
     studio,
+    t,
     validateArtifact,
     cli?.ready,
   ]);
@@ -323,7 +326,7 @@ export function CommandPalette({
             autoFocus
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Type a command or search…"
+            placeholder={t("palette.placeholder")}
             className="h-12 min-w-0 flex-1 bg-transparent text-[12.5px] text-studio-100 outline-none placeholder:text-studio-500"
           />
           <span className="kbd">Esc</span>
@@ -332,7 +335,7 @@ export function CommandPalette({
         <div className="max-h-[52vh] overflow-auto p-1.5">
           {filtered.length === 0 ? (
             <div className="flex items-center justify-center gap-2 py-10 text-[11px] text-studio-500">
-              <Wand2 size={13} /> No matching commands
+              <Wand2 size={13} /> {t("palette.empty")}
             </div>
           ) : (
             filtered.map((command, itemIndex) => (
@@ -384,10 +387,10 @@ export function CommandPalette({
         <div className="flex h-8 items-center justify-between border-t border-white/[0.06] px-3 text-[8.5px] text-studio-600">
           <span className="flex items-center gap-2">
             <span className="kbd">↑</span>
-            <span className="kbd">↓</span> navigate
-            <span className="kbd">↵</span> run
+            <span className="kbd">↓</span> {t("palette.navigate")}
+            <span className="kbd">↵</span> {t("palette.run")}
           </span>
-          <span>{filtered.length} commands</span>
+          <span>{t("palette.commandsCount", { count: filtered.length })}</span>
         </div>
       </div>
     </div>,

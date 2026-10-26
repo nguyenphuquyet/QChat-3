@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useStudio } from "../lib/store";
 import { api } from "../lib/api";
 import { runAction } from "../lib/feedback";
+import { useI18n } from "../lib/useI18n";
 import {
   cn,
   formatBytes,
@@ -37,6 +38,7 @@ function PhonePreview() {
   const buildProject = useStudio((state) => state.buildProject);
   const startDev = useStudio((state) => state.startDev);
   const stopDev = useStudio((state) => state.stopDev);
+  const { t } = useI18n();
 
   const manifest = inspection?.manifest ?? project?.manifest;
   const permissions = manifest?.requestedPermissions ?? [];
@@ -45,7 +47,7 @@ function PhonePreview() {
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative rounded-[38px] border border-white/[0.12] bg-gradient-to-b from-studio-700/80 to-studio-900 p-[3px] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]">
+      <div className="relative rounded-[38px] border border-white/[0.12] bg-gradient-to-b from-studio-700/80 to-studio-900 p-[3px] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]" data-keep-white data-keep-dark>
         <div className="absolute -inset-6 -z-10 rounded-[60px] bg-accent-500/[0.08] blur-3xl" />
         <div className="relative overflow-hidden rounded-[35px] border border-black/50 bg-[#07090d]">
           <div className="absolute left-1/2 top-2 z-20 h-[22px] w-[86px] -translate-x-1/2 rounded-full bg-black">
@@ -67,9 +69,9 @@ function PhonePreview() {
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-studio-500">
                   <Smartphone size={22} />
                 </div>
-                <div className="text-[11px] font-medium text-studio-300">No app loaded</div>
+                <div className="text-[11px] font-medium text-studio-300">{t("preview.noApp")}</div>
                 <div className="text-[9.5px] leading-4 text-studio-500">
-                  Open or create a mini app project to see its package summary here.
+                  {t("preview.noAppHint")}
                 </div>
               </div>
             ) : (
@@ -95,14 +97,14 @@ function PhonePreview() {
                     </div>
                   </div>
                   <p className="mt-3 line-clamp-2 text-[9.5px] leading-4 text-white/50">
-                    {manifest.description || "A native QChat mini app."}
+                    {manifest.description || t("preview.defaultDesc")}
                   </p>
                 </div>
 
                 <div className="mx-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[7.5px] font-semibold tracking-[0.15em] text-white/35">
-                      PACKAGE
+                      {t("preview.package")}
                     </span>
                     <span
                       className={cn(
@@ -123,29 +125,29 @@ function PhonePreview() {
                         )}
                       />
                       {buildStatus === "success"
-                        ? "VERIFIED"
+                        ? t("preview.verified")
                         : buildStatus === "error"
-                          ? "FAILED"
-                          : "NOT BUILT"}
+                          ? t("preview.failed")
+                          : t("preview.notBuilt")}
                     </span>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <div>
-                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">Size</div>
+                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">{t("preview.size")}</div>
                       <div className="mt-0.5 font-mono text-[10px] text-white/80">
                         {inspection ? formatBytes(inspection.size) : "—"}
                       </div>
                     </div>
                     <div>
-                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">Files</div>
+                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">{t("preview.files")}</div>
                       <div className="mt-0.5 font-mono text-[10px] text-white/80">
                         {inspection ? inspection.files.length : "—"}
                       </div>
                     </div>
                     <div className="col-span-2">
-                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">SHA-256</div>
+                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">{t("preview.sha")}</div>
                       <div className="mt-0.5 truncate font-mono text-[8.5px] text-white/60">
-                        {inspection ? inspection.sha256 : "Build to generate a package hash"}
+                        {inspection ? inspection.sha256 : t("preview.hashHint")}
                       </div>
                     </div>
                   </div>
@@ -153,11 +155,11 @@ function PhonePreview() {
 
                 <div className="mx-3 mt-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3">
                   <div className="text-[7.5px] font-semibold tracking-[0.15em] text-white/35">
-                    PERMISSIONS
+                    {t("preview.permissions")}
                   </div>
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     {permissions.length === 0 ? (
-                      <span className="text-[8.5px] text-white/35">No permissions requested</span>
+                      <span className="text-[8.5px] text-white/35">{t("preview.noPermissions")}</span>
                     ) : (
                       permissions.map((permission) => (
                         <span
@@ -184,7 +186,7 @@ function PhonePreview() {
                   {domains.length ? (
                     <div className="mt-2 border-t border-white/[0.05] pt-2">
                       <div className="text-[7.5px] uppercase tracking-wider text-white/30">
-                        Network domains
+                        {t("preview.networkDomains")}
                       </div>
                       <div className="mt-1 space-y-0.5">
                         {domains.slice(0, 3).map((domain) => (
@@ -193,7 +195,9 @@ function PhonePreview() {
                           </div>
                         ))}
                         {domains.length > 3 ? (
-                          <div className="text-[7.5px] text-white/30">+{domains.length - 3} more</div>
+                          <div className="text-[7.5px] text-white/30">
+                            {t("preview.moreDomains", { count: domains.length - 3 })}
+                          </div>
                         ) : null}
                       </div>
                     </div>
@@ -202,7 +206,7 @@ function PhonePreview() {
 
                 <div className="mt-2 flex items-center gap-1.5 px-3 text-[8px] leading-3 text-white/30">
                   <Info size={9} className="shrink-0" />
-                  Static summary. The live UI renders only in the QChat Flutter runtime.
+                  {t("preview.staticNote")}
                 </div>
 
                 <div className="mt-auto flex gap-1.5 px-3 pb-4 pt-3">
@@ -211,12 +215,12 @@ function PhonePreview() {
                     onClick={() =>
                       void runAction(
                         () => buildProject(false),
-                        "Package built successfully",
+                        t("common.packageBuilt"),
                       )
                     }
                     disabled={!ready || buildStatus === "running"}
                   >
-                    <Hammer size={9} /> Build
+                    <Hammer size={9} /> {t("common.build")}
                   </button>
                   <button
                     className={cn(
@@ -227,12 +231,12 @@ function PhonePreview() {
                     )}
                     onClick={() => {
                       if (devRunning) void stopDev();
-                      else void runAction(() => startDev(), "Dev watcher started");
+                      else void runAction(() => startDev(), t("common.devStarted"));
                     }}
                     disabled={!ready}
                   >
                     {devRunning ? <Square size={8} /> : <Play size={8} />}
-                    {devRunning ? "Stop" : "Dev"}
+                    {devRunning ? t("common.stop") : t("common.dev")}
                   </button>
                 </div>
               </div>
@@ -246,11 +250,11 @@ function PhonePreview() {
       </div>
       <div className="mt-2 text-center text-[8.5px] text-studio-600">
         {devRunning ? (
-          <span className="text-mint-400/80">Dev watcher running · rebuilds on save</span>
+          <span className="text-mint-400/80">{t("preview.devRunning")}</span>
         ) : buildMessage ? (
           buildMessage
         ) : (
-          "QChat device preview"
+          t("preview.devicePreview")
         )}
       </div>
     </div>
@@ -265,6 +269,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
   const artifacts = useStudio((state) => state.artifacts);
   const validateArtifact = useStudio((state) => state.validateArtifact);
   const manifest = inspection?.manifest ?? project?.manifest;
+  const { t, language } = useI18n();
 
   return (
     <aside className="flex h-full min-h-0 flex-col bg-studio-950/45">
@@ -272,12 +277,12 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-2">
           <Smartphone size={13} className="text-studio-400" />
           <span className="text-[10px] font-semibold tracking-[0.14em] text-studio-400">
-            DEVICE
+            {t("preview.device")}
           </span>
         </div>
         <div className="flex items-center gap-1">
           <span className="chip text-[8.5px]">QChat 1.0</span>
-          <button className="icon-btn h-6 w-6" onClick={onClose} title="Close device panel">
+          <button className="icon-btn h-6 w-6" onClick={onClose} title={t("preview.close")}>
             <X size={13} />
           </button>
         </div>
@@ -290,14 +295,14 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
           <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.14em] text-studio-500">
-                <Package size={11} /> ARTIFACT
+                <Package size={11} /> {t("preview.artifact")}
               </span>
               {activeArtifact ? (
                 <span className="flex items-center gap-1 text-[8.5px] font-medium text-mint-400">
-                  <Check size={9} /> ready
+                  <Check size={9} /> {t("preview.ready")}
                 </span>
               ) : (
-                <span className="text-[8.5px] text-studio-600">none</span>
+                <span className="text-[8.5px] text-studio-600">{t("common.none")}</span>
               )}
             </div>
             {activeArtifact ? (
@@ -307,7 +312,12 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="mt-1.5 flex items-center justify-between text-[8.5px] text-studio-500">
                   <span>{inspection ? formatBytes(inspection.size) : "—"}</span>
-                  <span>{timeAgo(artifacts.find((item) => item.path === activeArtifact)?.modifiedMs)}</span>
+                  <span>
+                    {timeAgo(
+                      artifacts.find((item) => item.path === activeArtifact)?.modifiedMs,
+                      language,
+                    )}
+                  </span>
                 </div>
                 <div className="mt-2 flex gap-1.5">
                   <button
@@ -315,11 +325,11 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
                     onClick={() =>
                       void runAction(
                         () => validateArtifact(activeArtifact),
-                        "Package is valid",
+                        t("common.packageValid"),
                       )
                     }
                   >
-                    <ShieldCheck size={10} /> Validate
+                    <ShieldCheck size={10} /> {t("common.validate")}
                   </button>
                   <button
                     className="btn btn-secondary h-6 px-2"
@@ -332,9 +342,9 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
                       className="btn btn-secondary h-6 px-2"
                       onClick={() => {
                         void navigator.clipboard.writeText(inspection.sha256);
-                        toast.success("SHA-256 copied");
+                        toast.success(t("common.shaCopied"));
                       }}
-                      title="Copy SHA-256"
+                      title={t("common.copy")}
                     >
                       <Copy size={10} />
                     </button>
@@ -343,7 +353,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
               </>
             ) : (
               <div className="mt-2 rounded-lg border border-dashed border-white/[0.08] px-2 py-3 text-center text-[9px] leading-4 text-studio-600">
-                Build the project to create a .japp artifact.
+                {t("preview.buildArtifactHint")}
               </div>
             )}
           </div>
@@ -352,10 +362,10 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
             <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.14em] text-studio-500">
-                  <Boxes size={11} /> PACKAGE FILES
+                  <Boxes size={11} /> {t("preview.packageFiles")}
                 </span>
                 <span className="text-[8.5px] text-studio-600">
-                  {inspection.files.length} entries
+                  {t("common.entries", { count: inspection.files.length })}
                 </span>
               </div>
               <div className="mt-2 space-y-1">
@@ -371,21 +381,25 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
               </div>
               <div className="mt-2 flex items-center gap-1 text-[8px] text-studio-600">
                 <Clock3 size={9} />
-                built {new Date(inspection.metadata.builtAt).toLocaleString()}
+                {t("preview.builtAt", {
+                  date: new Date(inspection.metadata.builtAt).toLocaleString(
+                    language === "vi" ? "vi-VN" : language === "zh" ? "zh-CN" : "en-US",
+                  ),
+                })}
               </div>
             </div>
           ) : null}
 
           <div className="rounded-xl border border-accent-500/15 bg-accent-500/[0.045] p-3">
             <div className="flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.14em] text-accent-300">
-              <Info size={11} /> SHIP TO QCHAT
+              <Info size={11} /> {t("preview.ship")}
             </div>
             <ol className="mt-2 space-y-1.5">
               {[
-                "Build a verified .japp package.",
-                "Upload it in Developer Center → Builds.",
-                "Submit for review, then release the version.",
-                "Open the app in QChat to run the live UI.",
+                t("preview.ship1"),
+                t("preview.ship2"),
+                t("preview.ship3"),
+                t("preview.ship4"),
               ].map((step, index) => (
                 <li key={step} className="flex items-start gap-1.5 text-[9px] leading-4 text-studio-400">
                   <span className="mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded bg-white/[0.06] font-mono text-[7.5px] text-studio-300">
@@ -403,14 +417,14 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
                 )
               }
             >
-              Open platform docs <ChevronRight size={9} />
+              {t("preview.docs")} <ChevronRight size={9} />
             </button>
           </div>
         </div>
       </div>
 
       <div className="flex h-7 shrink-0 items-center justify-between border-t border-white/[0.05] px-3 text-[8.5px] text-studio-600">
-        <span>{manifest ? `${manifest.name} · v${manifest.version}` : "No manifest"}</span>
+        <span>{manifest ? `${manifest.name} · v${manifest.version}` : t("preview.noManifest")}</span>
         <span className="flex items-center gap-1">
           <span
             className={cn(

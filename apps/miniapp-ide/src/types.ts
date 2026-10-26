@@ -88,6 +88,10 @@ export interface EditorTab {
 
 export type LogStream = "stdout" | "stderr" | "system";
 
+export type Language = "vi" | "zh" | "en";
+
+export type Theme = "dark" | "light";
+
 export interface LogEntry {
   id: string;
   at: number;
@@ -113,6 +117,8 @@ export interface Settings {
   minimap: boolean;
   wordWrap: boolean;
   confirmDelete: boolean;
+  language: Language;
+  theme: Theme;
 }
 
 export interface NewProjectInput {

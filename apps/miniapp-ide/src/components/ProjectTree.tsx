@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStudio } from "../lib/store";
+import { useI18n } from "../lib/useI18n";
 import type { FsEntry } from "../types";
 import { cn, errorMessage, formatBytes } from "../lib/utils";
 
@@ -154,6 +155,7 @@ export function ProjectTree() {
   const renameEntry = useStudio((state) => state.renameEntry);
   const deleteEntry = useStudio((state) => state.deleteEntry);
   const settings = useStudio((state) => state.settings);
+  const { t } = useI18n();
 
   const [expanded, setExpanded] = useState<Set<string>>(new Set(["src", "assets"]));
   const [filter, setFilter] = useState("");
@@ -217,24 +219,24 @@ export function ProjectTree() {
     if (!project) return;
     const base = parent ?? project.path;
     const name = window.prompt(
-      directory ? "New folder name" : "New file name (e.g. src/components/Card.tsx)",
+      directory ? t("tree.newFolderName") : t("tree.newFileName"),
       directory ? "components" : "src/components/Card.tsx",
     );
     if (!name?.trim()) return;
     try {
       await createEntry(base, name.trim(), directory);
-      toast.success(directory ? "Folder created" : "File created");
+      toast.success(directory ? t("tree.folderCreated") : t("tree.fileCreated"));
     } catch (error) {
       toast.error(errorMessage(error));
     }
   };
 
   const rename = async (entry: FsEntry) => {
-    const next = window.prompt(`Rename ${entry.name}`, entry.name);
+    const next = window.prompt(t("tree.renamePrompt", { name: entry.name }), entry.name);
     if (!next?.trim() || next.trim() === entry.name) return;
     try {
       await renameEntry(entry.path, next.trim());
-      toast.success("Renamed");
+      toast.success(t("tree.renamed"));
     } catch (error) {
       toast.error(errorMessage(error));
     }
@@ -244,14 +246,15 @@ export function ProjectTree() {
     if (
       settings.confirmDelete &&
       !window.confirm(
-        `Delete ${entry.name}?${entry.isDir ? " The whole folder is removed." : ""}`,
+        t("tree.deletePrompt", { name: entry.name }) +
+          (entry.isDir ? t("tree.deleteFolderNote") : ""),
       )
     ) {
       return;
     }
     try {
       await deleteEntry(entry.path);
-      toast.success("Deleted");
+      toast.success(t("tree.deleted"));
     } catch (error) {
       toast.error(errorMessage(error));
     }
@@ -267,14 +270,14 @@ export function ProjectTree() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/[0.05] px-3">
         <span className="text-[10px] font-semibold tracking-[0.14em] text-studio-400">
-          EXPLORER
+          {t("tree.explorer")}
         </span>
         <div className="flex items-center gap-0.5">
           <button
             className="icon-btn h-6 w-6"
             onClick={() => void newEntry(false)}
             disabled={!project}
-            title="New file"
+            title={t("tree.newFile")}
           >
             <FilePlus2 size={13} />
           </button>
@@ -282,7 +285,7 @@ export function ProjectTree() {
             className="icon-btn h-6 w-6"
             onClick={() => void newEntry(true)}
             disabled={!project}
-            title="New folder"
+            title={t("tree.newFolder")}
           >
             <FolderPlus size={13} />
           </button>
@@ -290,14 +293,14 @@ export function ProjectTree() {
             className="icon-btn h-6 w-6"
             onClick={() => void refreshTree()}
             disabled={!project || treeLoading}
-            title="Refresh"
+            title={t("common.refresh")}
           >
             <RefreshCw size={13} className={cn(treeLoading && "animate-spin")} />
           </button>
           <button
             className="icon-btn h-6 w-6"
             onClick={() => setExpanded(new Set())}
-            title="Collapse all"
+            title={t("tree.collapseAll")}
           >
             <ChevronsDownUp size={13} />
           </button>
@@ -313,7 +316,7 @@ export function ProjectTree() {
           <input
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
-            placeholder="Filter files"
+            placeholder={t("tree.filter")}
             className="h-6 w-full rounded-md border border-white/[0.06] bg-black/20 pl-7 pr-2 text-[11px] text-studio-200 outline-none placeholder:text-studio-600 focus:border-accent-500/40"
           />
         </div>
@@ -322,9 +325,9 @@ export function ProjectTree() {
       <div className="min-h-0 flex-1 overflow-auto px-1.5 py-1.5">
         {!project ? (
           <div className="px-3 py-8 text-center text-[11px] leading-5 text-studio-500">
-            No project open.
+            {t("tree.noProject")}
             <br />
-            Create a mini app to start.
+            {t("tree.noProjectHint")}
           </div>
         ) : treeLoading ? (
           <div className="space-y-1.5 p-2">
@@ -338,7 +341,7 @@ export function ProjectTree() {
           </div>
         ) : treeNodes.length === 0 ? (
           <div className="px-3 py-8 text-center text-[11px] leading-5 text-studio-500">
-            {filter ? "No files match your filter." : "This folder is empty."}
+            {filter ? t("tree.noMatch") : t("tree.empty")}
           </div>
         ) : (
           treeNodes.map((node) => (
@@ -358,7 +361,7 @@ export function ProjectTree() {
       </div>
 
       <div className="flex h-8 shrink-0 items-center justify-between border-t border-white/[0.05] px-3 text-[9.5px] text-studio-500">
-        <span>{tree.filter((entry) => !entry.isDir).length} files</span>
+        <span>{t("common.files", { count: tree.filter((entry) => !entry.isDir).length })}</span>
         <span>{tree.length ? formatBytes(tree.reduce((sum, entry) => sum + (entry.isDir ? 0 : entry.size), 0)) : "0 B"}</span>
       </div>
 
@@ -378,7 +381,7 @@ export function ProjectTree() {
                   void newEntry(false, context.entry.path);
                 }}
               >
-                <FilePlus2 size={13} /> New file
+                <FilePlus2 size={13} /> {t("tree.newFile")}
               </button>
               <button
                 className="menu-item"
@@ -387,7 +390,7 @@ export function ProjectTree() {
                   void newEntry(true, context.entry.path);
                 }}
               >
-                <FolderPlus size={13} /> New folder
+                <FolderPlus size={13} /> {t("tree.newFolder")}
               </button>
               <div className="menu-separator" />
             </>
@@ -399,7 +402,7 @@ export function ProjectTree() {
               void rename(context.entry);
             }}
           >
-            <Pencil size={13} /> Rename
+            <Pencil size={13} /> {t("common.rename")}
           </button>
           <button
             className="menu-item text-rose-300"
@@ -408,7 +411,7 @@ export function ProjectTree() {
               void remove(context.entry);
             }}
           >
-            <Trash2 size={13} /> Delete
+            <Trash2 size={13} /> {t("common.delete")}
           </button>
           <div className="menu-separator" />
           <button
@@ -418,7 +421,7 @@ export function ProjectTree() {
               void import("../lib/api").then(({ api }) => api.reveal(context.entry.path));
             }}
           >
-            <Folder size={13} /> Reveal in explorer
+            <Folder size={13} /> {t("tree.reveal")}
           </button>
         </div>
       ) : null}

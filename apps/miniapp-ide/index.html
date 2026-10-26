@@ -1,10 +1,46 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="vi" class="dark" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#080a0f" />
     <title>QChat Mini App Studio</title>
+    <script>
+      // Apply the persisted theme and language before the first paint so the
+      // window never flashes the wrong colour scheme or typeface.
+      (function () {
+        var theme = "dark";
+        var language = "vi";
+        try {
+          var raw = localStorage.getItem("qchat-miniapp-studio");
+          if (raw) {
+            var saved = JSON.parse(raw);
+            var settings = (saved && saved.state && saved.state.settings) || {};
+            if (settings.theme === "light" || settings.theme === "dark") {
+              theme = settings.theme;
+            }
+            if (
+              settings.language === "vi" ||
+              settings.language === "zh" ||
+              settings.language === "en"
+            ) {
+              language = settings.language;
+            }
+          }
+        } catch (error) {
+          // Ignore malformed storage; the app falls back to the defaults.
+        }
+        var root = document.documentElement;
+        root.lang = language;
+        root.dataset.theme = theme;
+        root.style.colorScheme = theme;
+        root.className = theme;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute("content", theme === "light" ? "#f6f7fb" : "#080a0f");
+        }
+      })();
+    </script>
     <style>
       html,
       body,
@@ -13,21 +49,40 @@
         margin: 0;
         background: #080a0f;
       }
+      html[data-theme="light"],
+      html[data-theme="light"] body,
+      html[data-theme="light"] #root {
+        background: #f6f7fb;
+      }
       #boot {
         display: flex;
         align-items: center;
         justify-content: center;
         height: 100%;
         color: #8b93a7;
-        font: 500 13px/1.5 system-ui, sans-serif;
+        font:
+          500 13px/1.5 "Segoe UI",
+          system-ui,
+          sans-serif;
         letter-spacing: 0.02em;
+      }
+      html[data-theme="light"] #boot {
+        color: #6f7889;
       }
     </style>
   </head>
   <body>
     <div id="root">
-      <div id="boot">Loading QChat Mini App Studio…</div>
+      <div id="boot"></div>
     </div>
+    <script>
+      document.getElementById("boot").textContent =
+        document.documentElement.lang === "zh"
+          ? "正在加载 QChat Mini App Studio…"
+          : document.documentElement.lang === "en"
+            ? "Loading QChat Mini App Studio…"
+            : "Đang tải QChat Mini App Studio…";
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

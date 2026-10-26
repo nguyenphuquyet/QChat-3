@@ -78,12 +78,35 @@ after changing settings.
   settings and project settings dialogs.
 - Frameless window with a studio-themed title bar, custom window controls and
   edge resizing, so the desktop chrome matches the dark UI.
+- Vietnamese (default), Chinese and English interfaces, a dark/light theme
+  switch, and bundled Be Vietnam Pro fonts for offline Vietnamese typography.
+- The browser/WebView right-click menu is suppressed; Monaco and opted-in
+  surfaces keep their own menus.
 - New projects default to `<Documents>/QChat Mini App Studio Project` and always
   create a single folder named after the app (`.../game1`, never nested twice).
 
 Builds call the real CLI, so the artifact is exactly
 `dist/<slug>-<version>.japp`; the IDE also inspects it and surfaces checksum and
 file details.
+
+## Localization and themes
+
+- **Vietnamese is the default language.** Chinese and English are also
+  available. Switch from **Settings → Appearance** or the language menu in the
+  title bar; it is persisted in `localStorage` (`qchat-miniapp-studio`) and
+  applied before the first paint.
+- Be Vietnam Pro (400/500/600/700, Vietnamese and Latin subsets) is bundled in
+  `src/assets/fonts` and declared with local `@font-face` rules, so Vietnamese
+  typography works offline. `html[lang="vi"]` maps `--font-sans` to it, while
+  Chinese and English keep Inter.
+- The IDE has dark (default) and light themes. The light theme inverts the
+  studio greyscale plus the `white` alpha utilities, so existing `text-white`,
+  `bg-white/*` and `border-white/*` classes adapt automatically. Brand
+  gradients, controls and the phone preview opt out with `data-keep-white` or
+  `data-keep-dark`. Monaco uses `qchat-studio-light` in light mode.
+- The native browser/WebView context menu is blocked globally. Monaco keeps its
+  own editor menu and any element can opt in with
+  `data-native-context-menu`.
 
 ## Resource preparation
 
@@ -131,7 +154,8 @@ configured.
 
 ```
 apps/miniapp-ide/
-  src/                 React UI, store, CLI bridge and Monaco setup
+  src/                 React UI, store, CLI bridge, i18n and Monaco setup
+  src/assets/fonts/    Bundled Be Vietnam Pro woff2 subsets
   src-tauri/           Rust commands, capabilities, icons and config
   assets/icon-source.png  Source image for `tauri icon`
   scripts/prepare-cli.mjs
@@ -144,7 +168,8 @@ granted.
 
 ## Verification status
 
-- `corepack pnpm typecheck` and `corepack pnpm build` pass for the frontend.
+- `corepack pnpm typecheck` and `corepack pnpm build` run for the frontend in the
+  workflow above.
 - The bundled resource set builds a real `.japp` through
   `resources/qapp/cli.js build`, including typechecking and esbuild.
 - `cargo check`, `tauri dev` and installer builds are **unverified on this

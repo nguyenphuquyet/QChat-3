@@ -15,6 +15,7 @@ import type {
   Settings,
 } from "../types";
 import { api, inspectPackage } from "./api";
+import { translate } from "./i18n";
 import { TEMPLATE_LABELS } from "./templates";
 import {
   basename,
@@ -58,6 +59,8 @@ const DEFAULT_SETTINGS: Settings = {
   minimap: false,
   wordWrap: true,
   confirmDelete: true,
+  language: "vi",
+  theme: "dark",
 };
 
 let logCounter = 0;
@@ -246,7 +249,7 @@ export const useStudio = create<StudioState>()(
             info.ready ? "system" : "stderr",
             info.ready
               ? `QChat CLI ${info.cliVersion ?? ""} ready\nNode ${info.nodeVersion ?? ""}\n${info.cliPath ?? ""}`
-              : info.error || "QChat CLI was not found.",
+              : info.error || translate(get().settings.language, "store.cliNotFound"),
           );
           const last = get().lastProject;
           if (last && info.ready) {
@@ -273,8 +276,11 @@ export const useStudio = create<StudioState>()(
           get().appendLog(
             info.ready ? "system" : "stderr",
             info.ready
-              ? `Detected QChat CLI ${info.cliVersion ?? ""} at ${info.cliPath ?? ""}`
-              : info.error || "QChat CLI was not found.",
+              ? translate(get().settings.language, "store.cliDetected", {
+                  version: info.cliVersion ?? "",
+                  path: info.cliPath ?? "",
+                })
+              : info.error || translate(get().settings.language, "store.cliNotFound"),
           );
           return info;
         } catch (error) {
@@ -392,7 +398,10 @@ export const useStudio = create<StudioState>()(
           };
           set({ tabs: [...get().tabs, tab], activePath: path });
         } catch (error) {
-          get().appendLog("stderr", `Cannot open ${path}: ${errorMessage(error)}`);
+          get().appendLog("stderr", translate(get().settings.language, "store.cannotOpen", {
+            path,
+            error: errorMessage(error),
+          }));
           throw error;
         }
       },
@@ -435,7 +444,10 @@ export const useStudio = create<StudioState>()(
             }
           }
         } catch (error) {
-          get().appendLog("stderr", `Cannot save ${path}: ${errorMessage(error)}`);
+          get().appendLog("stderr", translate(get().settings.language, "store.cannotSave", {
+            path,
+            error: errorMessage(error),
+          }));
           throw error;
         }
       },
@@ -443,7 +455,15 @@ export const useStudio = create<StudioState>()(
       closeTab(path) {
         const tab = get().tabs.find((item) => item.path === path);
         if (tab && tab.content !== tab.saved) {
-          if (!window.confirm(`Discard unsaved changes in ${tab.name}?`)) return;
+          if (
+            !window.confirm(
+              translate(get().settings.language, "store.discardChanges", {
+                name: tab.name,
+              }),
+            )
+          ) {
+            return;
+          }
         }
         const tabs = get().tabs.filter((item) => item.path !== path);
         let activePath = get().activePath;
@@ -455,11 +475,12 @@ export const useStudio = create<StudioState>()(
 
       async createProject(input) {
         const cli = get().cli;
-        if (!cli?.ready) throw new Error("QChat CLI is not ready. Open Settings and detect it first.");
+        const language = get().settings.language;
+        if (!cli?.ready) throw new Error(translate(language, "store.cliNotReady"));
         const name = slugify(input.name);
         const directory = input.directory.replace(/[\\/]+$/, "");
-        if (!name) throw new Error("Enter a project name.");
-        if (!directory) throw new Error("Choose a location for the project.");
+        if (!name) throw new Error(translate(language, "store.enterName"));
+        if (!directory) throw new Error(translate(language, "store.chooseLocation"));
         // Scaffold exactly one folder below the chosen location: <location>/<name>.
         const projectPath = joinPath(directory, name);
         get().appendLog("system", `$ qapp create ${name} --dir ${projectPath}`);
@@ -472,7 +493,7 @@ export const useStudio = create<StudioState>()(
         if (result.stdout) get().appendLog("stdout", result.stdout);
         if (result.stderr) get().appendLog("stderr", result.stderr);
         if (result.code !== 0) {
-          throw new Error(result.stderr.trim() || "qapp create failed");
+          throw new Error(result.stderr.trim() || translate(language, "store.createFailed"));
         }
 
         const manifestPath = joinPath(projectPath, "manifest.json");
@@ -492,18 +513,22 @@ export const useStudio = create<StudioState>()(
           joinPath(projectPath, "src", "main.tsx"),
           TEMPLATE_LABELS[input.template].source,
         );
-        get().appendLog("system", `Created ${projectPath}`);
+        get().appendLog("system", translate(language, "store.created", { path: projectPath }));
         await get().openProject(projectPath);
         return projectPath;
       },
 
       async buildProject(noTypecheck = false) {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
-        if (!get().cli?.ready) throw new Error("QChat CLI is not ready.");
+        const language = get().settings.language;
+        if (!project) throw new Error(translate(language, "store.openFirst"));
+        if (!get().cli?.ready) throw new Error(translate(language, "store.cliNotReadyShort"));
         set({
           buildStatus: "running",
-          buildMessage: noTypecheck ? "Bundling without typecheck…" : "Typechecking and bundling…",
+          buildMessage: translate(
+            language,
+            noTypecheck ? "store.bundling" : "store.typechecking",
+          ),
           bottomOpen: true,
           bottomTab: "output",
         });
@@ -523,10 +548,10 @@ export const useStudio = create<StudioState>()(
           if (result.code !== 0) {
             set({
               buildStatus: "error",
-              buildMessage: "Build failed. Check the output panel.",
+              buildMessage: translate(language, "store.buildFailedCheck"),
               problems,
             });
-            throw new Error(result.stderr.trim() || "Build failed");
+            throw new Error(result.stderr.trim() || translate(language, "store.buildFailed"));
           }
           const artifacts = await api.listArtifacts(project.path);
           set({ artifacts, lastBuildAt: Date.now(), problems });
@@ -545,8 +570,8 @@ export const useStudio = create<StudioState>()(
           set({
             buildStatus: "success",
             buildMessage: match
-              ? `Built ${match.name}`
-              : "Build completed.",
+              ? translate(language, "store.built", { name: match.name })
+              : translate(language, "store.buildCompleted"),
           });
         } catch (error) {
           set({
@@ -559,7 +584,8 @@ export const useStudio = create<StudioState>()(
 
       async runTests() {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
+        const language = get().settings.language;
+        if (!project) throw new Error(translate(language, "store.openFirst"));
         set({ bottomOpen: true, bottomTab: "output", buildStatus: "running" });
         const args = ["test", "--dir", project.path];
         get().appendLog("system", `$ qapp ${args.join(" ")}`);
@@ -575,10 +601,10 @@ export const useStudio = create<StudioState>()(
           const problems = outputProblems(result.stdout, result.stderr, "test");
           set({ problems });
           if (result.code !== 0) {
-            set({ buildStatus: "error", buildMessage: "Tests failed." });
-            throw new Error(result.stderr.trim() || "Tests failed");
+            set({ buildStatus: "error", buildMessage: translate(language, "store.testsFailed") });
+            throw new Error(result.stderr.trim() || translate(language, "store.testsFailed"));
           }
-          set({ buildStatus: "success", buildMessage: "Runtime test passed." });
+          set({ buildStatus: "success", buildMessage: translate(language, "store.testPassed") });
         } catch (error) {
           set({ buildStatus: "error", buildMessage: errorMessage(error) });
           throw error;
@@ -610,15 +636,19 @@ export const useStudio = create<StudioState>()(
             problems: outputProblems(result.stdout, result.stderr, "validate"),
           });
         } else {
+          const invalidPackage = translate(
+            get().settings.language,
+            "store.invalidPackage",
+          );
           set({
             validation: {
               status: "fail",
-              text: result.stderr.trim() || "Package is not valid.",
+              text: result.stderr.trim() || invalidPackage,
               at: Date.now(),
             },
             problems: outputProblems(result.stdout, result.stderr, "validate"),
           });
-          throw new Error(result.stderr.trim() || "Package is not valid.");
+          throw new Error(result.stderr.trim() || invalidPackage);
         }
       },
 
@@ -640,7 +670,7 @@ export const useStudio = create<StudioState>()(
 
       async startDev() {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
+        if (!project) throw new Error(translate(get().settings.language, "store.openFirst"));
         if (get().devRunning) return;
         set({ bottomOpen: true, bottomTab: "output" });
         get().appendLog("system", `$ qapp dev --dir ${project.path}`);
@@ -660,7 +690,7 @@ export const useStudio = create<StudioState>()(
       async stopDev() {
         await api.stopDev();
         set({ devPid: null, devRunning: false, buildStatus: "idle" });
-        get().appendLog("system", "Dev watcher stopped.");
+        get().appendLog("system", translate(get().settings.language, "store.devStopped"));
       },
 
       appendLog(stream, text) {
@@ -689,7 +719,7 @@ export const useStudio = create<StudioState>()(
         set({ devRunning: false, devPid: null });
         get().appendLog(
           event.code === 0 ? "system" : "stderr",
-          `Dev watcher exited with code ${event.code}.`,
+          translate(get().settings.language, "store.devExited", { code: event.code }),
         );
       },
 
@@ -724,7 +754,10 @@ export const useStudio = create<StudioState>()(
         if (!tokens.length) return;
         if (tokens[0] === "qapp" || tokens[0] === "qchat") tokens.shift();
         if (!tokens.length) {
-          get().appendLog("stderr", "Type a qapp command, for example: build --dir .");
+          get().appendLog(
+            "stderr",
+            translate(get().settings.language, "store.typeCommand"),
+          );
           return;
         }
         set({
@@ -746,7 +779,12 @@ export const useStudio = create<StudioState>()(
             await get().refreshArtifacts();
           }
           if (result.code !== 0) {
-            get().appendLog("system", `Process exited with code ${result.code}.`);
+            get().appendLog(
+              "system",
+              translate(get().settings.language, "store.processExited", {
+                code: result.code,
+              }),
+            );
           }
         } catch (error) {
           get().appendLog("stderr", errorMessage(error));
@@ -792,7 +830,7 @@ export const useStudio = create<StudioState>()(
 
       async saveManifest(manifest) {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
+        if (!project) throw new Error(translate(get().settings.language, "store.openFirst"));
         await api.writeText(
           joinPath(project.path, "manifest.json"),
           `${JSON.stringify(manifest, null, 2)}\n`,
@@ -819,6 +857,17 @@ export const useStudio = create<StudioState>()(
         recent: state.recent,
         lastProject: state.lastProject,
       }),
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<StudioState>;
+        return {
+          ...current,
+          ...saved,
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...(saved.settings ?? {}),
+          },
+        };
+      },
     },
   ),
 );

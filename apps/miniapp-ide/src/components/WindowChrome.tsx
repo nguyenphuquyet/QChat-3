@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { api } from "../lib/api";
+import { useI18n } from "../lib/useI18n";
 import { cn } from "../lib/utils";
 
 type ResizeDirection =
@@ -87,6 +88,7 @@ export function useWindowDrag() {
 
 export function WindowControls({ className }: { className?: string }) {
   const { desktop, maximized } = useWindowState();
+  const { t } = useI18n();
   if (!desktop) return null;
   const win = getCurrentWindow();
 
@@ -95,24 +97,24 @@ export function WindowControls({ className }: { className?: string }) {
       <button
         className="window-control"
         onClick={() => void win.minimize()}
-        title="Minimize"
-        aria-label="Minimize window"
+        title={t("window.minimize")}
+        aria-label={t("window.minimizeLabel")}
       >
         <Minus size={14} strokeWidth={1.8} />
       </button>
       <button
         className="window-control"
         onClick={() => void win.toggleMaximize()}
-        title={maximized ? "Restore" : "Maximize"}
-        aria-label={maximized ? "Restore window" : "Maximize window"}
+        title={maximized ? t("window.restore") : t("window.maximize")}
+        aria-label={maximized ? t("window.restoreLabel") : t("window.maximizeLabel")}
       >
         {maximized ? <Copy size={11} strokeWidth={2} /> : <Square size={10} strokeWidth={2} />}
       </button>
       <button
         className="window-control window-control-close"
         onClick={() => void win.close()}
-        title="Close"
-        aria-label="Close window"
+        title={t("window.close")}
+        aria-label={t("window.closeLabel")}
       >
         <X size={15} strokeWidth={1.7} />
       </button>

@@ -21,6 +21,7 @@ import {
 import { useStudio } from "../lib/store";
 import { api } from "../lib/api";
 import { runAction } from "../lib/feedback";
+import { useI18n } from "../lib/useI18n";
 import {
   cn,
   formatBytes,
@@ -100,6 +101,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
   const validateArtifact = useStudio((state) => state.validateArtifact);
   const activeArtifact = useStudio((state) => state.activeArtifact);
   const setSidebarTab = useStudio((state) => state.setSidebarTab);
+  const { t, language } = useI18n();
 
   const ready = Boolean(project && cli?.ready);
   const running = buildStatus === "running";
@@ -121,12 +123,12 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/[0.05] px-3">
         <span className="text-[10px] font-semibold tracking-[0.14em] text-studio-400">
-          BUILD & TEST
+          {t("build.panelTitle")}
         </span>
         <button
           className="icon-btn h-6 w-6"
           onClick={() => void refreshArtifacts()}
-          title="Refresh packages"
+          title={t("build.refreshPackages")}
         >
           <RefreshCw size={13} />
         </button>
@@ -135,7 +137,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
         {!project ? (
           <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-[11px] leading-5 text-studio-500">
-            Open a mini app project to build, test and inspect packages.
+            {t("build.noProject")}
           </div>
         ) : (
           <>
@@ -143,7 +145,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-accent-500/20 blur-2xl" />
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-semibold tracking-[0.16em] text-accent-300">
-                  PACKAGE PIPELINE
+                  {t("build.pipeline")}
                 </span>
                 <span
                   className={cn(
@@ -160,33 +162,33 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               </div>
               <div className="mt-2 text-[15px] font-semibold text-white">
                 {buildStatus === "success"
-                  ? "Package ready"
+                  ? t("build.statusSuccess")
                   : buildStatus === "running"
-                    ? "Compiling TSX…"
+                    ? t("build.statusRunning")
                     : buildStatus === "error"
-                      ? "Build needs attention"
-                      : "Ready to build"}
+                      ? t("build.statusError")
+                      : t("build.statusIdle")}
               </div>
               <p className="mt-1 min-h-8 text-[10.5px] leading-4 text-studio-400">
-                {buildMessage || "Runs TypeScript check, bundles with esbuild and writes an immutable .japp."}
+                {buildMessage || t("build.pipelineHint")}
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <button
                   className="btn btn-primary h-7 flex-1 px-2 text-[10.5px]"
                   onClick={() =>
-                    void runAction(() => buildProject(false), "Package built successfully")
+                    void runAction(() => buildProject(false), t("common.packageBuilt"))
                   }
                   disabled={!ready || running}
                 >
-                  <Hammer size={11} /> Build .japp
+                  <Hammer size={11} /> {t("build.buildJapp")}
                 </button>
                 <button
                   className="btn btn-secondary h-7 px-2 text-[10.5px]"
                   onClick={() =>
-                    void runAction(() => buildProject(true), "Bundle built without typecheck")
+                    void runAction(() => buildProject(true), t("common.bundleBuilt"))
                   }
                   disabled={!ready || running}
-                  title="Skip TypeScript check"
+                  title={t("build.skipTypecheck")}
                 >
                   <Zap size={11} />
                 </button>
@@ -194,10 +196,10 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                   className={cn("btn h-7 px-2 text-[10.5px]", devRunning ? "btn-danger" : "btn-secondary")}
                   onClick={() => {
                     if (devRunning) void stopDev();
-                    else void runAction(() => startDev(), "Dev watcher started");
+                    else void runAction(() => startDev(), t("common.devStarted"));
                   }}
                   disabled={!ready}
-                  title={devRunning ? "Stop dev watcher" : "Watch files and rebuild"}
+                  title={devRunning ? t("bottom.stopDev") : t("build.watchTitle")}
                 >
                   {devRunning ? <Square size={10} /> : <Play size={10} />}
                 </button>
@@ -207,49 +209,53 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
             <Card>
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-[9px] font-semibold tracking-[0.15em] text-studio-500">
-                  PIPELINE
+                  {t("build.pipelineTitle")}
                 </span>
                 {lastBuildAt ? (
                   <span className="flex items-center gap-1 text-[9px] text-studio-500">
-                    <Clock3 size={9} /> {timeAgo(lastBuildAt)}
+                    <Clock3 size={9} /> {timeAgo(lastBuildAt, language)}
                   </span>
                 ) : null}
               </div>
               <div className="space-y-2.5">
                 <PipelineStep
                   state={stepState(0)}
-                  title="TypeScript"
-                  detail="Strict check against the TSX SDK"
+                  title={t("build.stepTypescript")}
+                  detail={t("build.stepTypescriptDetail")}
                 />
                 <PipelineStep
                   state={stepState(1)}
-                  title="esbuild bundle"
-                  detail="Single app.js for QuickJS"
+                  title={t("build.stepEsbuild")}
+                  detail={t("build.stepEsbuildDetail")}
                 />
                 <PipelineStep
                   state={stepState(2)}
-                  title="Hash & package"
-                  detail="Manifest, metadata, permissions"
+                  title={t("build.stepPackage")}
+                  detail={t("build.stepPackageDetail")}
                 />
                 <PipelineStep
                   state={stepState(3)}
-                  title={buildStatus === "success" ? "Verified" : "Verification"}
-                  detail="Checksums, paths, package layout"
+                  title={
+                    buildStatus === "success"
+                      ? t("build.stepVerified")
+                      : t("build.stepVerification")
+                  }
+                  detail={t("build.stepVerifyDetail")}
                 />
               </div>
               <button
                 className="btn btn-secondary mt-3 h-7 w-full text-[10.5px]"
-                onClick={() => void runAction(() => runTests(), "Runtime test passed")}
+                onClick={() => void runAction(() => runTests(), t("common.runtimePassed"))}
                 disabled={!ready || running}
               >
-                <Terminal size={11} /> Run host event test
+                <Terminal size={11} /> {t("build.runHostTest")}
               </button>
             </Card>
 
             <div className="grid grid-cols-2 gap-2">
               <Card className="p-2.5">
                 <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-studio-500">
-                  <CircleAlert size={10} className="text-rose-300" /> Errors
+                  <CircleAlert size={10} className="text-rose-300" /> {t("build.errors")}
                 </div>
                 <div className={cn("mt-1 text-lg font-semibold", errors ? "text-rose-300" : "text-studio-200")}>
                   {errors}
@@ -257,7 +263,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               </Card>
               <Card className="p-2.5">
                 <div className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-studio-500">
-                  <TriangleAlert size={10} className="text-amber-300" /> Warnings
+                  <TriangleAlert size={10} className="text-amber-300" /> {t("build.warnings")}
                 </div>
                 <div className={cn("mt-1 text-lg font-semibold", warnings ? "text-amber-300" : "text-studio-200")}>
                   {warnings}
@@ -268,13 +274,13 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
             <Card>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[9px] font-semibold tracking-[0.15em] text-studio-500">
-                  LATEST PACKAGE
+                  {t("build.latestPackage")}
                 </span>
                 <button
                   className="text-[9px] font-semibold text-accent-300 hover:text-accent-200"
                   onClick={() => setSidebarTab("packages")}
                 >
-                  View all
+                  {t("build.viewAll")}
                 </button>
               </div>
               {latest ? (
@@ -283,7 +289,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                   onClick={() => {
                     void runAction(
                       () => useStudio.getState().inspectArtifact(latest.path),
-                      "Package inspected",
+                      t("common.packageInspected"),
                     );
                   }}
                 >
@@ -295,14 +301,14 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                       {latest.name}
                     </span>
                     <span className="text-[9px] text-studio-500">
-                      {formatBytes(latest.size)} · {timeAgo(latest.modifiedMs)}
+                      {formatBytes(latest.size)} · {timeAgo(latest.modifiedMs, language)}
                     </span>
                   </span>
                   <ArrowUpRight size={12} className="text-studio-500" />
                 </button>
               ) : (
                 <div className="rounded-lg border border-dashed border-white/10 px-3 py-4 text-center text-[10px] text-studio-500">
-                  No .japp yet. Run a build.
+                  {t("build.noJapp")}
                 </div>
               )}
               {validation.status !== "idle" ? (
@@ -316,7 +322,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                 >
                   {validation.status === "pass" ? <ShieldCheck size={12} /> : <CircleAlert size={12} />}
                   <span className="min-w-0 flex-1 whitespace-pre-wrap break-words">
-                    {validation.status === "running" ? "Validating…" : validation.text || validation.status}
+                    {validation.status === "running" ? t("build.validating") : validation.text || validation.status}
                   </span>
                 </div>
               ) : null}
@@ -325,18 +331,18 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                 disabled={!activeArtifact}
                 onClick={() => {
                   if (activeArtifact) {
-                    void runAction(() => validateArtifact(activeArtifact), "Package is valid");
+                    void runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
                   }
                 }}
               >
-                <ShieldCheck size={11} /> Validate latest package
+                <ShieldCheck size={11} /> {t("build.validateLatest")}
               </button>
             </Card>
 
             <Card>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[9px] font-semibold tracking-[0.15em] text-studio-500">
-                  ENVIRONMENT
+                  {t("build.environment")}
                 </span>
                 <span
                   className={cn(
@@ -348,21 +354,21 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               <div className="space-y-1.5 text-[10px]">
                 <div className="flex items-center gap-2 text-studio-400">
                   <Cpu size={11} className="text-studio-500" />
-                  <span className="w-14 shrink-0">Node</span>
+                  <span className="w-14 shrink-0">{t("settings.node")}</span>
                   <span className="truncate font-mono text-studio-300">
-                    {cli?.nodeVersion || "not found"}
+                    {cli?.nodeVersion || t("build.notFound")}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-studio-400">
                   <Terminal size={11} className="text-studio-500" />
-                  <span className="w-14 shrink-0">CLI</span>
+                  <span className="w-14 shrink-0">{t("settings.cli")}</span>
                   <span className="truncate font-mono text-studio-300">
-                    {cli?.cliVersion || "not found"}
+                    {cli?.cliVersion || t("build.notFound")}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-studio-400">
                   <FolderOpen size={11} className="text-studio-500" />
-                  <span className="w-14 shrink-0">Workspace</span>
+                  <span className="w-14 shrink-0">{t("build.workspace")}</span>
                   <span className="truncate font-mono text-studio-300" title={cli?.workspace ?? ""}>
                     {cli?.workspace || "—"}
                   </span>
@@ -373,7 +379,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                   className="btn btn-secondary mt-2 h-7 w-full text-[10px]"
                   onClick={onSettings}
                 >
-                  Configure CLI
+                  {t("build.configureCli")}
                 </button>
               ) : null}
             </Card>
@@ -392,22 +398,25 @@ export function PackagesSidebar() {
   const inspectArtifact = useStudio((state) => state.inspectArtifact);
   const validateArtifact = useStudio((state) => state.validateArtifact);
   const project = useStudio((state) => state.project);
+  const { t, language } = useI18n();
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/[0.05] px-3">
         <span className="text-[10px] font-semibold tracking-[0.14em] text-studio-400">
-          PACKAGES
+          {t("packages.title")}
         </span>
-        <span className="text-[9px] text-studio-500">{artifacts.length} artifacts</span>
+        <span className="text-[9px] text-studio-500">
+          {t("packages.count", { count: artifacts.length })}
+        </span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-2.5">
         {artifacts.length === 0 ? (
           <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-[11px] leading-5 text-studio-500">
-            No .japp packages yet.
+            {t("packages.empty")}
             <br />
-            Build the project to create one.
+            {t("packages.emptyHint")}
           </div>
         ) : (
           <div className="space-y-1.5">
@@ -430,7 +439,7 @@ export function PackagesSidebar() {
                       {artifact.name}
                     </span>
                     <span className="text-[9px] text-studio-500">
-                      {formatBytes(artifact.size)} · {timeAgo(artifact.modifiedMs)}
+                      {formatBytes(artifact.size)} · {timeAgo(artifact.modifiedMs, language)}
                     </span>
                   </span>
                   {inspecting && activeArtifact === artifact.path ? (
@@ -450,7 +459,7 @@ export function PackagesSidebar() {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <div className="text-[9px] font-semibold tracking-[0.14em] text-studio-500">
-                    INSPECTION
+                    {t("packages.inspection")}
                   </div>
                   <div className="mt-1 text-[13px] font-semibold text-white">
                     {inspection.manifest.name}
@@ -459,30 +468,30 @@ export function PackagesSidebar() {
                     v{inspection.manifest.version} · {formatBytes(inspection.size)}
                   </div>
                 </div>
-                <span className="chip chip-mint">VALID</span>
+                <span className="chip chip-mint">{t("packages.valid")}</span>
               </div>
               <div className="mt-3 space-y-1.5 text-[9.5px]">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-studio-500">SHA-256</span>
+                  <span className="text-studio-500">{t("packages.sha")}</span>
                   <span className="max-w-[170px] truncate font-mono text-studio-300" title={inspection.sha256}>
                     {inspection.sha256}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-studio-500">Built</span>
+                  <span className="text-studio-500">{t("packages.built")}</span>
                   <span className="text-studio-300">
-                    {new Date(inspection.metadata.builtAt).toLocaleString()}
+                    {new Date(inspection.metadata.builtAt).toLocaleString(language === "vi" ? "vi-VN" : language === "zh" ? "zh-CN" : "en-US")}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-studio-500">Runtime</span>
+                  <span className="text-studio-500">{t("packages.runtime")}</span>
                   <span className="text-studio-300">{inspection.manifest.minRuntimeVersion}</span>
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
                 {(inspection.manifest.requestedPermissions.length
                   ? inspection.manifest.requestedPermissions
-                  : ["no permissions"]
+                  : [t("packages.noPermissions")]
                 ).map((permission) => (
                   <span key={permission} className={cn("chip", permissionTone(permission) === "mint" && "chip-mint")}>
                     {permission}
@@ -494,16 +503,16 @@ export function PackagesSidebar() {
                   className="btn btn-secondary h-7 flex-1 text-[10px]"
                   onClick={() => {
                     if (activeArtifact) {
-                      void runAction(() => validateArtifact(activeArtifact), "Package is valid");
+                      void runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
                     }
                   }}
                 >
-                  <ShieldCheck size={11} /> Validate
+                  <ShieldCheck size={11} /> {t("packages.validate")}
                 </button>
                 <button
                   className="btn btn-secondary h-7 px-2"
                   onClick={() => activeArtifact && void api.reveal(activeArtifact)}
-                  title="Reveal package"
+                  title={t("packages.reveal")}
                 >
                   <ArrowUpRight size={11} />
                 </button>
@@ -513,7 +522,7 @@ export function PackagesSidebar() {
             <Card>
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[9px] font-semibold tracking-[0.14em] text-studio-500">
-                  FILES
+                  {t("packages.files")}
                 </span>
                 <span className="text-[9px] text-studio-500">{inspection.files.length}</span>
               </div>
@@ -535,7 +544,7 @@ export function PackagesSidebar() {
           </div>
         ) : artifacts.length ? (
           <div className="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-[10px] leading-4 text-studio-500">
-            Select a package to inspect its manifest, checksum and files.
+            {t("packages.selectHint")}
           </div>
         ) : null}
 
@@ -544,7 +553,7 @@ export function PackagesSidebar() {
             className="btn btn-ghost mt-3 h-7 w-full text-[10px]"
             onClick={() => void api.reveal(`${project.path}/dist`)}
           >
-            <FolderOpen size={11} /> Open dist folder
+            <FolderOpen size={11} /> {t("packages.openDist")}
           </button>
         ) : null}
       </div>

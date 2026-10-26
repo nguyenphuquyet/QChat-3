@@ -17,6 +17,7 @@ import { WindowResizeHandles } from "./components/WindowChrome";
 import { api } from "./lib/api";
 import { runAction } from "./lib/feedback";
 import { useStudio } from "./lib/store";
+import { useI18n } from "./lib/useI18n";
 import { cn } from "./lib/utils";
 import type { DevExit, DevLog } from "./types";
 
@@ -69,6 +70,7 @@ export default function App() {
   const bootstrap = useStudio((state) => state.bootstrap);
   const project = useStudio((state) => state.project);
   const settings = useStudio((state) => state.settings);
+  const { t } = useI18n();
   const sidebarOpen = useStudio((state) => state.sidebarOpen);
   const bottomOpen = useStudio((state) => state.bottomOpen);
   const previewOpen = useStudio((state) => state.previewOpen);
@@ -205,7 +207,7 @@ export default function App() {
         event.preventDefault();
         if (!project) return;
         if (devRunning) void stopDev();
-        else void runAction(() => startDev(), "Dev watcher started");
+        else void runAction(() => startDev(), t("common.devStarted"));
         return;
       }
       if (mod && key === "b") {
@@ -213,14 +215,14 @@ export default function App() {
         if (!project) return;
         void runAction(
           () => buildProject(event.shiftKey),
-          event.shiftKey ? "Bundle built without typecheck" : "Package built successfully",
+          event.shiftKey ? t("common.bundleBuilt") : t("common.packageBuilt"),
         );
         return;
       }
       if (mod && key === "t") {
         event.preventDefault();
         if (!project) return;
-        void runAction(() => runTests(), "Runtime test passed");
+        void runAction(() => runTests(), t("common.runtimePassed"));
         return;
       }
       if (mod && key === "s") {
@@ -249,17 +251,39 @@ export default function App() {
     saveActive,
     startDev,
     stopDev,
+    t,
   ]);
 
-  // Persist compact workspace preferences.
+  // Keep the document language, colour scheme and theme class in sync.
   useEffect(() => {
-    document.documentElement.classList.add("dark");
+    const root = document.documentElement;
+    root.lang = settings.language;
+    root.dataset.theme = settings.theme;
+    root.style.colorScheme = settings.theme;
+    root.classList.toggle("dark", settings.theme === "dark");
+    root.classList.toggle("light", settings.theme === "light");
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", settings.theme === "light" ? "#f6f7fb" : "#080a0f");
+  }, [settings.language, settings.theme]);
+
+  // Block the browser/WebView context menu. Monaco and explicitly opted-in
+  // surfaces keep their own menus.
+  useEffect(() => {
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".monaco-editor, [data-native-context-menu]")) return;
+      event.preventDefault();
+    };
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
   }, []);
 
   useEffect(() => {
-    const name = project?.name ? `${project.name} — QChat Studio` : "QChat Mini App Studio";
-    document.title = name;
-  }, [project?.name]);
+    document.title = project?.name
+      ? t("app.titleWithProject", { name: project.name })
+      : t("app.title");
+  }, [project?.name, t]);
 
   const maximizeBottom = () => {
     if (bottomMax) {
@@ -381,22 +405,28 @@ export default function App() {
           className="fixed bottom-8 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/10 bg-studio-900/90 px-3 py-1 text-[10px] text-studio-300 shadow-panel backdrop-blur transition hover:text-white"
           onClick={() => setBottomOpen(true)}
         >
-          Show panel
+          {t("common.showingPanel")}
         </button>
       ) : null}
 
       <WindowResizeHandles />
 
       <Toaster
-        theme="dark"
+        theme={settings.theme}
         position="bottom-right"
         offset={38}
         closeButton
         toastOptions={{
           style: {
-            background: "rgba(14, 18, 26, 0.94)",
-            border: "1px solid rgba(255,255,255,0.09)",
-            color: "#e6e9f2",
+            background:
+              settings.theme === "light"
+                ? "rgba(255, 255, 255, 0.96)"
+                : "rgba(14, 18, 26, 0.94)",
+            border:
+              settings.theme === "light"
+                ? "1px solid rgba(15, 23, 42, 0.12)"
+                : "1px solid rgba(255,255,255,0.09)",
+            color: settings.theme === "light" ? "#161c28" : "#e6e9f2",
             fontSize: "12px",
             backdropFilter: "blur(18px)",
             borderRadius: "12px",
