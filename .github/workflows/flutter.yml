@@ -184,7 +184,7 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - name: Build iOS device app without signing
         run: >-
-          flutter build ios --release --no-codesign
+          flutter build ios --release --no-codesign -v
           --dart-define="API_URL=$API_URL"
           --dart-define="REALTIME_URL=$REALTIME_URL"
       - name: Package unsigned IPA
