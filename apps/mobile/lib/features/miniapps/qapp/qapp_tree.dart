@@ -165,13 +165,20 @@ QappNode _parseNode(Object? raw, _TreeBudget budget, int depth) {
       for (final child in rawChildren) _parseNode(child, budget, depth + 1),
   ];
 
+  QappStyle style;
+  try {
+    style = QappStyle.fromMap(props['style']);
+  } on QappStyleException catch (error) {
+    throw QappTreeException(error.code, error.message);
+  }
+
   return QappNode(
     id: id,
     type: type,
     props: props,
     events: events,
     children: children,
-    style: QappStyle.fromMap(props['style']),
+    style: style,
   );
 }
 

@@ -1,11 +1,28 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import 'qapp_contract.generated.dart';
 
+/// Raised when a style object uses a key or a value the contract does not
+/// allow. The tree parser converts this into a `QappTreeException`.
+class QappStyleException implements Exception {
+  const QappStyleException(this.code, this.message);
+
+  final String code;
+  final String message;
+
+  @override
+  String toString() => '$code: $message';
+}
+
 /// Small, Flutter-oriented style subset used by the QChat TSX runtime.
 ///
 /// The values are parsed once per node when a render frame arrives so the
-/// widget tree can be rebuilt cheaply on every state change.
+/// widget tree can be rebuilt cheaply on every state change. Every accepted key
+/// and enum value comes from `qapp_contract.generated.dart`, so a frame that
+/// uses an unknown key or an unsupported value is rejected instead of being
+/// silently ignored.
 class QappStyle {
   const QappStyle({
     this.width,
@@ -19,9 +36,12 @@ class QappStyle {
     this.padding = EdgeInsets.zero,
     this.margin = EdgeInsets.zero,
     this.gap = 0,
+    this.rowGap,
+    this.columnGap,
     this.flex,
     this.flexGrow,
     this.flexShrink,
+    this.flexBasis,
     this.flexDirection = 'column',
     this.flexWrap = 'nowrap',
     this.alignItems,
@@ -32,12 +52,22 @@ class QappStyle {
     this.right,
     this.bottom,
     this.left,
+    this.zIndex = 0,
     this.backgroundColor,
+    this.gradient,
     this.color,
     this.opacity = 1,
     this.borderRadius = BorderRadius.zero,
     this.borderWidth = 0,
     this.borderColor,
+    this.borderTopWidth,
+    this.borderTopColor,
+    this.borderRightWidth,
+    this.borderRightColor,
+    this.borderBottomWidth,
+    this.borderBottomColor,
+    this.borderLeftWidth,
+    this.borderLeftColor,
     this.fontSize,
     this.fontWeight,
     this.fontStyle,
@@ -47,8 +77,10 @@ class QappStyle {
     this.textAlign,
     this.textDecoration,
     this.textTransform = 'none',
-    this.overflowHidden = false,
+    this.numberOfLines,
+    this.overflow = 'visible',
     this.shadow = false,
+    this.boxShadows = const <BoxShadow>[],
     this.elevation = 0,
     this.aspectRatio,
     this.rotate = 0,
@@ -68,9 +100,12 @@ class QappStyle {
   final EdgeInsets padding;
   final EdgeInsets margin;
   final double gap;
+  final double? rowGap;
+  final double? columnGap;
   final int? flex;
   final double? flexGrow;
   final double? flexShrink;
+  final double? flexBasis;
   final String flexDirection;
   final String flexWrap;
   final String? alignItems;
@@ -81,12 +116,22 @@ class QappStyle {
   final double? right;
   final double? bottom;
   final double? left;
+  final int zIndex;
   final Color? backgroundColor;
+  final Gradient? gradient;
   final Color? color;
   final double opacity;
   final BorderRadius borderRadius;
   final double borderWidth;
   final Color? borderColor;
+  final double? borderTopWidth;
+  final Color? borderTopColor;
+  final double? borderRightWidth;
+  final Color? borderRightColor;
+  final double? borderBottomWidth;
+  final Color? borderBottomColor;
+  final double? borderLeftWidth;
+  final Color? borderLeftColor;
   final double? fontSize;
   final FontWeight? fontWeight;
   final FontStyle? fontStyle;
@@ -96,8 +141,10 @@ class QappStyle {
   final TextAlign? textAlign;
   final TextDecoration? textDecoration;
   final String textTransform;
-  final bool overflowHidden;
+  final int? numberOfLines;
+  final String overflow;
   final bool shadow;
+  final List<BoxShadow> boxShadows;
   final double elevation;
   final double? aspectRatio;
   final double rotate;
@@ -109,6 +156,28 @@ class QappStyle {
   bool get isRow => flexDirection == 'row' || flexDirection == 'row-reverse';
   bool get isReverse =>
       flexDirection == 'row-reverse' || flexDirection == 'column-reverse';
+  bool get clipsContent => overflow == 'hidden' || overflow == 'clip';
+
+  /// Distance between children along the main axis, honouring the axis
+  /// specific overrides.
+  double mainGapFor(bool isRow) => (isRow ? columnGap : rowGap) ?? gap;
+
+  /// A per-edge border, falling back to the uniform `borderWidth`/`borderColor`
+  /// for any edge that was not set.
+  Border? boxBorder() {
+    final top = borderTopWidth ?? borderWidth;
+    final right = borderRightWidth ?? borderWidth;
+    final bottom = borderBottomWidth ?? borderWidth;
+    final left = borderLeftWidth ?? borderWidth;
+    if (top <= 0 && right <= 0 && bottom <= 0 && left <= 0) return null;
+    final fallback = borderColor ?? const Color(0xff000000);
+    return Border(
+      top: BorderSide(width: top, color: borderTopColor ?? fallback),
+      right: BorderSide(width: right, color: borderRightColor ?? fallback),
+      bottom: BorderSide(width: bottom, color: borderBottomColor ?? fallback),
+      left: BorderSide(width: left, color: borderLeftColor ?? fallback),
+    );
+  }
 
   factory QappStyle.fromMap(Object? raw) {
     if (raw is! Map) return const QappStyle();
@@ -126,6 +195,28 @@ class QappStyle {
       final enumName = qappStyleEnumKeys[key];
       if (enumName == null) return value;
       return qappStyleEnumAliases[enumName]?[value] ?? value;
+    }
+
+    for (final key in raw.keys) {
+      final name = key.toString();
+      if (!qappStyleKeys.contains(name)) {
+        throw QappStyleException(
+          'STYLE_KEY_UNKNOWN',
+          'Unknown style key: $name',
+        );
+      }
+    }
+    for (final entry in qappStyleEnumKeys.entries) {
+      if (raw[entry.key] == null) continue;
+      final normalized = enumText(entry.key);
+      final allowed = qappStyleEnumValues[entry.value];
+      if (allowed == null || normalized == null) continue;
+      if (!allowed.contains(normalized)) {
+        throw QappStyleException(
+          'STYLE_VALUE_INVALID',
+          'Invalid value for ${entry.key}: ${raw[entry.key]}',
+        );
+      }
     }
 
     double widthValue;
@@ -164,6 +255,7 @@ class QappStyle {
     );
 
     final flexValue = number('flex');
+    final numberOfLinesValue = number('numberOfLines');
     return QappStyle(
       width: widthFactor == null && rawWidth != null ? widthValue : null,
       height: heightFactor == null && rawHeight != null ? heightValue : null,
@@ -194,9 +286,12 @@ class QappStyle {
         left: 'marginLeft',
       ),
       gap: number('gap') ?? 0,
+      rowGap: number('rowGap'),
+      columnGap: number('columnGap'),
       flex: flexValue?.round(),
       flexGrow: number('flexGrow'),
       flexShrink: number('flexShrink'),
+      flexBasis: number('flexBasis'),
       flexDirection: enumText('flexDirection') ?? 'column',
       flexWrap: enumText('flexWrap') ?? 'nowrap',
       alignItems: enumText('alignItems'),
@@ -207,12 +302,22 @@ class QappStyle {
       right: number('right'),
       bottom: number('bottom'),
       left: number('left'),
+      zIndex: (number('zIndex') ?? 0).round(),
       backgroundColor: qappColor(raw['backgroundColor']),
+      gradient: _gradient(raw['gradient']),
       color: qappColor(raw['color']),
       opacity: (number('opacity') ?? 1).clamp(0, 1),
       borderRadius: borderRadius,
       borderWidth: number('borderWidth') ?? 0,
       borderColor: qappColor(raw['borderColor']),
+      borderTopWidth: number('borderTopWidth'),
+      borderTopColor: qappColor(raw['borderTopColor']),
+      borderRightWidth: number('borderRightWidth'),
+      borderRightColor: qappColor(raw['borderRightColor']),
+      borderBottomWidth: number('borderBottomWidth'),
+      borderBottomColor: qappColor(raw['borderBottomColor']),
+      borderLeftWidth: number('borderLeftWidth'),
+      borderLeftColor: qappColor(raw['borderLeftColor']),
       fontSize: number('fontSize'),
       fontWeight: _fontWeight(raw['fontWeight']),
       fontStyle: enumText('fontStyle') == 'italic' ? FontStyle.italic : null,
@@ -222,8 +327,10 @@ class QappStyle {
       textAlign: _textAlign(enumText('textAlign')),
       textDecoration: _decoration(enumText('textDecoration')),
       textTransform: enumText('textTransform') ?? 'none',
-      overflowHidden: raw['overflow'] == 'hidden' || raw['overflow'] == 'clip',
+      numberOfLines: numberOfLinesValue?.round(),
+      overflow: enumText('overflow') ?? 'visible',
       shadow: raw['shadow'] == true,
+      boxShadows: _boxShadows(raw),
       elevation: number('elevation') ?? 0,
       aspectRatio: number('aspectRatio'),
       rotate: number('rotate') ?? 0,
@@ -278,6 +385,65 @@ class QappStyle {
       _number(raw[top]) ?? v,
       _number(raw[right]) ?? h,
       _number(raw[bottom]) ?? v,
+    );
+  }
+
+  static List<BoxShadow> _boxShadows(Map raw) {
+    final result = <BoxShadow>[];
+    final value = raw['boxShadow'];
+    final entries = value is List
+        ? value
+        : (value is Map ? <Object>[value] : const <Object>[]);
+    for (final entry in entries) {
+      if (entry is! Map) continue;
+      result.add(
+        BoxShadow(
+          color: qappColor(entry['color']) ?? const Color(0x1f000000),
+          offset: Offset(_number(entry['offsetX']) ?? 0, _number(entry['offsetY']) ?? 0),
+          blurRadius: _number(entry['blurRadius']) ?? 8,
+          spreadRadius: _number(entry['spreadRadius']) ?? 0,
+        ),
+      );
+    }
+    if (result.isEmpty && raw['shadow'] == true) {
+      result.add(
+        const BoxShadow(
+          color: Color(0x1f000000),
+          blurRadius: 16,
+          offset: Offset(0, 4),
+        ),
+      );
+    }
+    return result;
+  }
+
+  static Gradient? _gradient(Object? value) {
+    if (value is! Map) return null;
+    final rawStops = value['stops'];
+    if (rawStops is! List || rawStops.isEmpty) return null;
+    final colors = <Color>[];
+    final positions = <double>[];
+    for (final stop in rawStops) {
+      if (stop is! Map) continue;
+      final color = qappColor(stop['color']);
+      if (color == null) continue;
+      colors.add(color);
+      positions.add((_number(stop['offset']) ?? 0).clamp(0.0, 1.0));
+    }
+    if (colors.length < 2) return null;
+    if (value['type']?.toString() == 'radial') {
+      return RadialGradient(colors: colors, stops: positions);
+    }
+    // CSS convention: 0deg points up, 90deg to the right, 180deg down.
+    final angle = _number(value['angle']) ?? 180;
+    final radians = angle * math.pi / 180;
+    final dx = math.sin(radians);
+    final dy = -math.cos(radians);
+    return LinearGradient(
+      begin: Alignment(-dx, -dy),
+      end: Alignment(dx, dy),
+      colors: colors,
+      stops: positions,
     );
   }
 

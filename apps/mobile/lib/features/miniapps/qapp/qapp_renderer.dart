@@ -160,7 +160,9 @@ class _QappNodeView extends StatelessWidget {
       fallbackSize: 15,
     );
     final maxLines = node.props['numberOfLines'];
-    final lines = maxLines is num ? maxLines.round() : null;
+    final lines = maxLines is num
+        ? maxLines.round()
+        : style.numberOfLines;
     if (node.props['selectable'] == true) {
       return SelectableText(
         content,
@@ -191,13 +193,16 @@ class _QappNodeView extends StatelessWidget {
         : axis;
     final main = _mainAlignment(node);
     final cross = _crossAlignment(node);
+    final mainGap = node.style.mainGapFor(isRow);
+    final crossGap =
+        (isRow ? node.style.rowGap : node.style.columnGap) ?? node.style.gap;
     if (node.props['flexWrap'] == 'wrap' || node.style.flexWrap == 'wrap') {
       return Wrap(
         direction: effectiveAxis,
         alignment: _wrapAlignment(main),
         crossAxisAlignment: _wrapCross(cross),
-        spacing: node.style.gap,
-        runSpacing: node.style.gap,
+        spacing: mainGap,
+        runSpacing: crossGap,
         textDirection: reversed ? TextDirection.rtl : null,
         verticalDirection: reversed && !isRow
             ? VerticalDirection.up
@@ -210,7 +215,7 @@ class _QappNodeView extends StatelessWidget {
             mainAxisAlignment: main,
             crossAxisAlignment: cross,
             textDirection: reversed ? TextDirection.rtl : null,
-            spacing: node.style.gap,
+            spacing: mainGap,
             children: children,
           )
         : Column(
@@ -219,7 +224,7 @@ class _QappNodeView extends StatelessWidget {
             verticalDirection: reversed && !isRow
                 ? VerticalDirection.up
                 : VerticalDirection.down,
-            spacing: node.style.gap,
+            spacing: mainGap,
             children: children,
           );
     return flex;
@@ -230,7 +235,7 @@ class _QappNodeView extends StatelessWidget {
     BuildContext context, {
     required bool parentIsFlex,
   }) {
-    final widget = _QappNodeView(
+    var widget = _QappNodeView(
       node: child,
       onEvent: onEvent,
       loadAsset: loadAsset,
@@ -245,11 +250,37 @@ class _QappNodeView extends StatelessWidget {
                 (child.props['size'] as num) == 0))) {
       return const Expanded(child: SizedBox.shrink());
     }
+    // `alignSelf` overrides the parent's cross-axis alignment for one child.
+    final alignSelf = style.alignSelf;
+    if (alignSelf != null && alignSelf != 'auto') {
+      final alignment = _selfAlignment(alignSelf, _isRow(node));
+      widget = Align(
+        alignment: alignment,
+        widthFactor: _isRow(node) ? 1 : null,
+        heightFactor: _isRow(node) ? null : 1,
+        child: widget,
+      );
+    }
+    final basis = style.flexBasis;
+    if (basis != null && basis > 0) {
+      widget = _isRow(node)
+          ? SizedBox(width: basis, child: widget)
+          : SizedBox(height: basis, child: widget);
+    }
     final flex = style.flex ?? style.flexGrow;
     if (flex != null && flex > 0) {
       return Expanded(flex: flex.round().clamp(1, 1000), child: widget);
     }
     return widget;
+  }
+
+  Alignment _selfAlignment(String value, bool isRow) {
+    return switch (value) {
+      'start' => isRow ? Alignment.topCenter : Alignment.centerLeft,
+      'end' => isRow ? Alignment.bottomCenter : Alignment.centerRight,
+      'stretch' => Alignment.center,
+      _ => Alignment.center,
+    };
   }
 
   Widget _scroll(BuildContext context) {
@@ -315,7 +346,15 @@ class _QappNodeView extends StatelessWidget {
 
   Widget _stack(BuildContext context) {
     final children = <Widget>[];
-    for (final child in node.children) {
+    // Stack paints in list order; `zIndex` reorders while keeping equal
+    // indices stable.
+    final ordered = node.children.asMap().entries.toList()
+      ..sort((a, b) {
+        final byZ = a.value.style.zIndex.compareTo(b.value.style.zIndex);
+        return byZ != 0 ? byZ : a.key.compareTo(b.key);
+      });
+    for (final entry in ordered) {
+      final child = entry.value;
       if (child.type == 'Positioned' || child.style.isAbsolute) {
         final style = child.style;
         final content = _QappNodeView(
@@ -689,36 +728,34 @@ class _QappNodeView extends StatelessWidget {
 
   Widget _decorate(BuildContext context, Widget child) {
     final style = node.style;
-    final hasBackground = style.backgroundColor != null;
-    final hasBorder = style.borderWidth > 0 && style.borderColor != null;
+    final border = style.boxBorder();
+    final shadows = style.boxShadows;
     final hasRadius = style.borderRadius != BorderRadius.zero;
+    final hasDecoration =
+        style.backgroundColor != null ||
+        style.gradient != null ||
+        border != null ||
+        shadows.isNotEmpty;
     var content = child;
-    if (hasBackground || hasBorder || style.shadow) {
+    if (hasDecoration) {
       content = Container(
         padding: style.padding == EdgeInsets.zero ? null : style.padding,
         decoration: BoxDecoration(
-          color: style.backgroundColor,
+          color: style.gradient == null ? style.backgroundColor : null,
+          gradient: style.gradient,
           borderRadius: hasRadius ? style.borderRadius : null,
-          border: hasBorder
-              ? Border.all(color: style.borderColor!, width: style.borderWidth)
-              : null,
-          boxShadow: style.shadow
-              ? [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: .12),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+          border: border,
+          boxShadow: shadows.isEmpty ? null : shadows,
         ),
         child: content,
       );
     } else if (style.padding != EdgeInsets.zero) {
       content = Padding(padding: style.padding, child: content);
     }
-    if (hasRadius && style.overflowHidden) {
-      content = ClipRRect(borderRadius: style.borderRadius, child: content);
+    if (style.clipsContent) {
+      content = hasRadius
+          ? ClipRRect(borderRadius: style.borderRadius, child: content)
+          : ClipRect(child: content);
     }
     content = _constrain(context, content);
     if (style.margin != EdgeInsets.zero) {
