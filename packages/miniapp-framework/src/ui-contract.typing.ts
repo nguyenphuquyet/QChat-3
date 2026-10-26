@@ -97,6 +97,7 @@ void STYLE_KEYS_CONFORMANCE;
 // View
 const ViewProps_CONFORMANCE: Record<keyof ViewProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -108,6 +109,7 @@ void ViewProps_CONFORMANCE;
 // Text
 const TextProps_CONFORMANCE: Record<keyof TextProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -121,6 +123,7 @@ void TextProps_CONFORMANCE;
 // Button
 const ButtonProps_CONFORMANCE: Record<keyof ButtonProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -138,6 +141,7 @@ void ButtonProps_CONFORMANCE;
 // Pressable
 const PressableProps_CONFORMANCE: Record<keyof PressableProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -152,6 +156,7 @@ void PressableProps_CONFORMANCE;
 // Image
 const ImageProps_CONFORMANCE: Record<keyof ImageProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -169,6 +174,7 @@ void ImageProps_CONFORMANCE;
 // Icon
 const IconProps_CONFORMANCE: Record<keyof IconProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -183,6 +189,7 @@ void IconProps_CONFORMANCE;
 // TextField
 const TextFieldProps_CONFORMANCE: Record<keyof TextFieldProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -207,6 +214,7 @@ void TextFieldProps_CONFORMANCE;
 // Checkbox
 const CheckboxProps_CONFORMANCE: Record<keyof CheckboxProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -223,6 +231,7 @@ void CheckboxProps_CONFORMANCE;
 // Switch
 const SwitchProps_CONFORMANCE: Record<keyof SwitchProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -238,6 +247,7 @@ void SwitchProps_CONFORMANCE;
 // Slider
 const SliderProps_CONFORMANCE: Record<keyof SliderProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -256,6 +266,7 @@ void SliderProps_CONFORMANCE;
 // ScrollView
 const ScrollViewProps_CONFORMANCE: Record<keyof ScrollViewProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -273,6 +284,7 @@ void ScrollViewProps_CONFORMANCE;
 // ListView
 const ListViewProps_CONFORMANCE: Record<keyof ListViewProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -289,6 +301,7 @@ void ListViewProps_CONFORMANCE;
 // GridView
 const GridViewProps_CONFORMANCE: Record<keyof GridViewProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -304,6 +317,7 @@ void GridViewProps_CONFORMANCE;
 // Stack
 const StackProps_CONFORMANCE: Record<keyof StackProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -316,6 +330,7 @@ void StackProps_CONFORMANCE;
 // Positioned
 const PositionedProps_CONFORMANCE: Record<keyof PositionedProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -331,6 +346,7 @@ void PositionedProps_CONFORMANCE;
 // Spacer
 const SpacerProps_CONFORMANCE: Record<keyof SpacerProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -343,6 +359,7 @@ void SpacerProps_CONFORMANCE;
 // Divider
 const DividerProps_CONFORMANCE: Record<keyof DividerProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -356,6 +373,7 @@ void DividerProps_CONFORMANCE;
 // ActivityIndicator
 const ActivityIndicatorProps_CONFORMANCE: Record<keyof ActivityIndicatorProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -369,6 +387,7 @@ void ActivityIndicatorProps_CONFORMANCE;
 // SafeArea
 const SafeAreaProps_CONFORMANCE: Record<keyof SafeAreaProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -381,6 +400,7 @@ void SafeAreaProps_CONFORMANCE;
 // AnimatedView
 const AnimatedViewProps_CONFORMANCE: Record<keyof AnimatedViewProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -394,6 +414,7 @@ void AnimatedViewProps_CONFORMANCE;
 // CustomPaint
 const CustomPaintProps_CONFORMANCE: Record<keyof CustomPaintProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -408,6 +429,7 @@ void CustomPaintProps_CONFORMANCE;
 // Modal
 const ModalProps_CONFORMANCE: Record<keyof ModalProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -423,6 +445,7 @@ void ModalProps_CONFORMANCE;
 // BottomSheet
 const BottomSheetProps_CONFORMANCE: Record<keyof BottomSheetProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -437,6 +460,7 @@ void BottomSheetProps_CONFORMANCE;
 // Dialog
 const DialogProps_CONFORMANCE: Record<keyof DialogProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -454,6 +478,7 @@ void DialogProps_CONFORMANCE;
 // NavBar
 const NavBarProps_CONFORMANCE: Record<keyof NavBarProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,
@@ -471,6 +496,7 @@ void NavBarProps_CONFORMANCE;
 // TabBar
 const TabBarProps_CONFORMANCE: Record<keyof TabBarProps, true> = {
   key: true,
+  ref: true,
   style: true,
   children: true,
   testID: true,

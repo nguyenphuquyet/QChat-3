@@ -168,8 +168,13 @@ export interface Style {
   translateY?: number;
 }
 
+export type QappRef<T = unknown> =
+  | { current: T | null }
+  | ((value: T | null) => void);
+
 export interface BaseProps {
   key?: string | number;
+  ref?: QappRef;
   style?: Style;
   children?: unknown;
   testID?: string;

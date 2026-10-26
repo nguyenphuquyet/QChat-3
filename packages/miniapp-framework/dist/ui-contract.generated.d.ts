@@ -1,9 +1,9 @@
 export declare const CONTRACT_VERSION = 1;
-export declare const PROTOCOL_VERSION = 1;
+export declare const PROTOCOL_VERSION: 1;
 export declare const TEXT_NODE_TYPE = "#text";
 export declare const FRAGMENT_TYPE = "#fragment";
-export declare const SDK_VERSION = "1.0.0";
-export declare const RUNTIME_VERSION = "1.0.0";
+export declare const SDK_VERSION: "1.0.0";
+export declare const RUNTIME_VERSION: "1.0.0";
 export declare const HOST_NODE_TYPES: ReadonlySet<string>;
 export declare const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>>;
 export declare const EVENT_NAMES: readonly ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select"];

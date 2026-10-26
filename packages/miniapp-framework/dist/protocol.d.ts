@@ -9,9 +9,9 @@
  * generated data into the public protocol types.
  */
 import { EVENT_NAMES, PERMISSION_IDS, STYLE_ENUM_ALIASES, STYLE_ENUM_KEYS, STYLE_ENUM_VALUES, STYLE_KEYS, TEXT_NODE_TYPE } from "./ui-contract.generated.js";
-export declare const PROTOCOL_VERSION = 1;
-export declare const SDK_VERSION = "1.0.0";
-export declare const RUNTIME_VERSION = "1.0.0";
+export declare const PROTOCOL_VERSION: 1;
+export declare const SDK_VERSION: "1.0.0";
+export declare const RUNTIME_VERSION: "1.0.0";
 export { EVENT_NAMES, PERMISSION_IDS, STYLE_ENUM_ALIASES, STYLE_ENUM_KEYS, STYLE_ENUM_VALUES, STYLE_KEYS, TEXT_NODE_TYPE, };
 /** Shapes reused by more than one style key. */
 export interface QappBoxShadow {
@@ -116,8 +116,12 @@ export interface Style {
     translateX?: number;
     translateY?: number;
 }
+export type QappRef<T = unknown> = {
+    current: T | null;
+} | ((value: T | null) => void);
 export interface BaseProps {
     key?: string | number;
+    ref?: QappRef;
     style?: Style;
     children?: unknown;
     testID?: string;

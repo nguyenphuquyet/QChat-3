@@ -9,34 +9,34 @@ in sync.
 
 | Component | Props | Events |
 | --- | --- | --- |
-| `View` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
-| `Row` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
-| `Column` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
-| `Text` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `numberOfLines`, `selectable` | — |
-| `Button` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled`, `variant`, `loading`, `icon` | `press`, `longPress` |
-| `Pressable` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled` | `press`, `longPress` |
-| `Image` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `src`, `width`, `height`, `fit`, `borderRadius`, `onPress` | `press` |
-| `Icon` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `name`, `size`, `color` | — |
-| `TextField` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `placeholder`, `onInput`, `onChange`, `onSubmit`, `onFocus`, `onBlur`, `secureTextEntry`, `multiline`, `maxLength`, `keyboardType`, `editable`, `autoFocus` | `input`, `change`, `submit`, `focus`, `blur` |
-| `Checkbox` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `checked`, `onChange`, `onCheckedChange`, `label`, `disabled` | `change` |
-| `Switch` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
-| `Slider` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `min`, `max`, `step`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
-| `ScrollView` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `horizontal`, `vertical`, `showsScrollIndicator`, `onScroll`, `grid`, `numColumns` | `scroll` |
-| `ListView` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `horizontal`, `empty`, `renderItem`, `keyExtractor` | — |
-| `GridView` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `numColumns`, `empty`, `renderItem` | — |
-| `Stack` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `alignment` | — |
-| `Positioned` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `top`, `right`, `bottom`, `left` | — |
-| `Spacer` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size` | — |
-| `Divider` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `color`, `thickness` | — |
-| `ActivityIndicator` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size`, `color` | — |
-| `SafeArea` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `edges` | — |
-| `AnimatedView` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `animate`, `duration` | — |
-| `CustomPaint` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `draw`, `width`, `height` | — |
-| `Modal` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `transparent`, `animationType` | `press` |
-| `BottomSheet` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `height` | `press` |
-| `Dialog` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `title`, `onClose`, `onConfirm`, `confirmText`, `cancelText` | `press` |
-| `NavBar` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight` | `press` |
-| `TabBar` | `key`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `tabs`, `activeKey`, `activeIndex`, `onChange`, `safeArea` | `change` |
+| `View` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
+| `Row` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
+| `Column` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
+| `Text` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `numberOfLines`, `selectable` | — |
+| `Button` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled`, `variant`, `loading`, `icon` | `press`, `longPress` |
+| `Pressable` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled` | `press`, `longPress` |
+| `Image` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `src`, `width`, `height`, `fit`, `borderRadius`, `onPress` | `press` |
+| `Icon` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `name`, `size`, `color` | — |
+| `TextField` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `placeholder`, `onInput`, `onChange`, `onSubmit`, `onFocus`, `onBlur`, `secureTextEntry`, `multiline`, `maxLength`, `keyboardType`, `editable`, `autoFocus` | `input`, `change`, `submit`, `focus`, `blur` |
+| `Checkbox` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `checked`, `onChange`, `onCheckedChange`, `label`, `disabled` | `change` |
+| `Switch` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
+| `Slider` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `min`, `max`, `step`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
+| `ScrollView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `horizontal`, `vertical`, `showsScrollIndicator`, `onScroll`, `grid`, `numColumns` | `scroll` |
+| `ListView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `horizontal`, `empty`, `renderItem`, `keyExtractor` | — |
+| `GridView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `numColumns`, `empty`, `renderItem` | — |
+| `Stack` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `alignment` | — |
+| `Positioned` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `top`, `right`, `bottom`, `left` | — |
+| `Spacer` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size` | — |
+| `Divider` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `color`, `thickness` | — |
+| `ActivityIndicator` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size`, `color` | — |
+| `SafeArea` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `edges` | — |
+| `AnimatedView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `animate`, `duration` | — |
+| `CustomPaint` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `draw`, `width`, `height` | — |
+| `Modal` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `transparent`, `animationType` | `press` |
+| `BottomSheet` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `height` | `press` |
+| `Dialog` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `title`, `onClose`, `onConfirm`, `confirmText`, `cancelText` | `press` |
+| `NavBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight` | `press` |
+| `TabBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `tabs`, `activeKey`, `activeIndex`, `onChange`, `safeArea` | `change` |
 
 ## Events
 

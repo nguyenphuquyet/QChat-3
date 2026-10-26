@@ -1,7 +1,8 @@
-export { h, node, Fragment, start, dispose, useState, useReducer, useRef, useMemo, useCallback, useEffect, useLifecycle, getRenderTree, dispatchEvent, hostNodeTypes, } from "./runtime.js";
-export type { VNode, VNodeChild, Component } from "./runtime.js";
+export { h, node, Fragment, start, dispose, useState, useReducer, useRef, useMemo, useCallback, useEffect, useLayoutEffect, useId, createContext, useContext, useLifecycle, getRenderTree, dispatchEvent, hostNodeTypes, } from "./runtime.js";
+export type { VNode, VNodeChild, Component, Context, ContextProvider, } from "./runtime.js";
 export { PROTOCOL_VERSION, SDK_VERSION, RUNTIME_VERSION, QChatError, } from "./protocol.js";
-export type { Style, BaseProps, EventName, EventPayload, RenderNode, RenderTree, HostMethod, HostBridge, HostError, HostResponse, } from "./protocol.js";
+export type { Style, BaseProps, EventName, EventPayload, RenderNode, RenderTree, HostMethod, HostBridge, HostError, HostResponse, QappBoxShadow, QappGradient, QappGradientStop, QappLinearGradient, QappRadialGradient, QappRef, } from "./protocol.js";
+export { normalizeStyleEnum } from "./protocol.js";
 export { getAppInfo, getSystemInfo, getUserInfo, chooseImage, share, } from "./app.js";
 export type { AppInfo, SystemInfo, UserInfo, ChosenImage, } from "./app.js";
 export { navigateTo, navigateBack, closeMiniApp, showToast, openExternal, } from "./navigation.js";

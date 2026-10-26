@@ -72,6 +72,7 @@
   },
   "baseProps": {
     "key": "string | number",
+    "ref": "QappRef",
     "style": "Style",
     "children": "VNodeChild",
     "testID": "string",
@@ -80,6 +81,7 @@
   },
   "helperTypes": {
     "VNodeChild": "VNode | string | number | boolean | null | undefined | VNodeChild[]",
+    "QappRef": "{ current: unknown | null } | ((value: unknown | null) => void)",
     "BoxShadow": "{ color?: string; offsetX?: number; offsetY?: number; blurRadius?: number; spreadRadius?: number }",
     "GradientStop": "{ offset: number; color: string }",
     "LinearGradient": "{ type?: \"linear\"; angle?: number; stops: GradientStop[] }",

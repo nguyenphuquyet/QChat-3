@@ -10,12 +10,22 @@ export {
   useMemo,
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useId,
+  createContext,
+  useContext,
   useLifecycle,
   getRenderTree,
   dispatchEvent,
   hostNodeTypes,
 } from "./runtime.js";
-export type { VNode, VNodeChild, Component } from "./runtime.js";
+export type {
+  VNode,
+  VNodeChild,
+  Component,
+  Context,
+  ContextProvider,
+} from "./runtime.js";
 export {
   PROTOCOL_VERSION,
   SDK_VERSION,
@@ -33,7 +43,14 @@ export type {
   HostBridge,
   HostError,
   HostResponse,
+  QappBoxShadow,
+  QappGradient,
+  QappGradientStop,
+  QappLinearGradient,
+  QappRadialGradient,
+  QappRef,
 } from "./protocol.js";
+export { normalizeStyleEnum } from "./protocol.js";
 export {
   getAppInfo,
   getSystemInfo,
