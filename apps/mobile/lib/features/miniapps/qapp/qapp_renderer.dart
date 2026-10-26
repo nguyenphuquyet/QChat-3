@@ -193,65 +193,95 @@ class _QappNodeView extends StatelessWidget {
 
   Widget _flex(BuildContext context, {bool? forceRow}) {
     final isRow = forceRow ?? _isRow(node);
-    final children = <Widget>[];
-    for (final child in node.children) {
-      children.add(_buildChild(child, context, parentIsFlex: true));
-    }
-    final axis = isRow ? Axis.horizontal : Axis.vertical;
     final reversed = _isReverse(node);
-    final effectiveAxis = reversed
-        ? (isRow ? Axis.horizontal : Axis.vertical)
-        : axis;
+    final wrap =
+        node.props['flexWrap'] == 'wrap' || node.style.flexWrap == 'wrap';
     final main = _mainAlignment(node);
-    final cross = _crossAlignment(node);
-    final mainGap = node.style.mainGapFor(isRow);
-    final crossGap =
-        (isRow ? node.style.rowGap : node.style.columnGap) ?? node.style.gap;
-    if (node.props['flexWrap'] == 'wrap' || node.style.flexWrap == 'wrap') {
-      return Wrap(
-        direction: effectiveAxis,
-        alignment: _wrapAlignment(main),
-        crossAxisAlignment: _wrapCross(cross),
-        spacing: mainGap,
-        runSpacing: crossGap,
-        textDirection: reversed ? TextDirection.rtl : null,
-        verticalDirection: reversed && !isRow
-            ? VerticalDirection.up
-            : VerticalDirection.down,
-        children: children,
-      );
-    }
-    final flex = isRow
-        ? Row(
-            mainAxisAlignment: main,
-            crossAxisAlignment: cross,
-            textDirection: reversed ? TextDirection.rtl : null,
+    final effectiveAxis = isRow ? Axis.horizontal : Axis.vertical;
+    // A Column always lays its children out with an unbounded main axis, and a
+    // vertical scroller does the same to its content. `stretch`, `spaceBetween`
+    // and `Expanded` need a finite extent, so the real constraints decide which
+    // of them the node can use.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mainBounded = isRow
+            ? constraints.hasBoundedWidth
+            : constraints.hasBoundedHeight;
+        final crossBounded = isRow
+            ? constraints.hasBoundedHeight
+            : constraints.hasBoundedWidth;
+        final effectiveMain = !mainBounded && main != MainAxisAlignment.start
+            ? MainAxisAlignment.start
+            : main;
+        var cross = _crossAlignment(node);
+        // React Native stretches children across the cross axis by default.
+        // Flutter cannot stretch against an infinite constraint (a Row inside
+        // a Column, a Column inside a vertical scroller), so fall back to
+        // `start` instead of throwing "BoxConstraints forces an infinite
+        // height".
+        if (cross == CrossAxisAlignment.stretch && !crossBounded) {
+          cross = CrossAxisAlignment.start;
+        }
+        final children = <Widget>[
+          for (final child in node.children)
+            _buildChild(
+              child,
+              context,
+              parentIsFlex: true,
+              allowFlex: mainBounded,
+            ),
+        ];
+        final mainGap = node.style.mainGapFor(isRow);
+        final crossGap =
+            (isRow ? node.style.rowGap : node.style.columnGap) ??
+            node.style.gap;
+        if (wrap) {
+          return Wrap(
+            direction: effectiveAxis,
+            alignment: _wrapAlignment(effectiveMain),
+            crossAxisAlignment: _wrapCross(cross),
             spacing: mainGap,
-            children: children,
-          )
-        : Column(
-            mainAxisAlignment: main,
-            crossAxisAlignment: cross,
+            runSpacing: crossGap,
+            textDirection: reversed ? TextDirection.rtl : null,
             verticalDirection: reversed && !isRow
                 ? VerticalDirection.up
                 : VerticalDirection.down,
-            spacing: mainGap,
             children: children,
           );
-    return flex;
+        }
+        return isRow
+            ? Row(
+                mainAxisAlignment: effectiveMain,
+                crossAxisAlignment: cross,
+                textDirection: reversed ? TextDirection.rtl : null,
+                spacing: mainGap,
+                children: children,
+              )
+            : Column(
+                mainAxisAlignment: effectiveMain,
+                crossAxisAlignment: cross,
+                verticalDirection: reversed && !isRow
+                    ? VerticalDirection.up
+                    : VerticalDirection.down,
+                spacing: mainGap,
+                children: children,
+              );
+      },
+    );
   }
 
   Widget _buildChild(
     QappNode child,
     BuildContext context, {
     required bool parentIsFlex,
+    bool allowFlex = true,
   }) {
     Widget widget = _QappNodeView(
       node: child,
       onEvent: onEvent,
       loadAsset: loadAsset,
       networkHosts: networkHosts,
-      insideFlex: parentIsFlex,
+      insideFlex: parentIsFlex && allowFlex,
     );
     if (!parentIsFlex) return widget;
     final style = child.style;
@@ -259,7 +289,10 @@ class _QappNodeView extends StatelessWidget {
         (child.props['size'] == null ||
             (child.props['size'] is num &&
                 (child.props['size'] as num) == 0))) {
-      return const Expanded(child: SizedBox.shrink());
+      // `Spacer` only works when the flex has a finite main axis to share.
+      return allowFlex
+          ? const Expanded(child: SizedBox.shrink())
+          : const SizedBox.shrink();
     }
     // `alignSelf` overrides the parent's cross-axis alignment for one child.
     final alignSelf = style.alignSelf;
@@ -279,7 +312,7 @@ class _QappNodeView extends StatelessWidget {
           : SizedBox(height: basis, child: widget);
     }
     final flex = style.flex ?? style.flexGrow;
-    if (flex != null && flex > 0) {
+    if (allowFlex && flex != null && flex > 0) {
       return Expanded(flex: flex.round().clamp(1, 1000), child: widget);
     }
     return widget;
@@ -356,11 +389,27 @@ class _QappNodeView extends StatelessWidget {
         }
         return false;
       },
-      child: ScrollConfiguration(
-        behavior: ScrollConfiguration.of(
-          context,
-        ).copyWith(scrollbars: showsIndicator),
-        child: scroller,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // A scroller nested in a scroller (or in a Column) with the same
+          // direction gets an unbounded main axis, and a Flutter viewport
+          // refuses that. Let the outer scroll own the scrolling and render the
+          // content directly instead of throwing.
+          final unbounded = horizontal
+              ? !constraints.hasBoundedWidth
+              : !constraints.hasBoundedHeight;
+          if (unbounded) {
+            return padding == EdgeInsets.zero
+                ? content
+                : Padding(padding: padding, child: content);
+          }
+          return ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: showsIndicator),
+            child: scroller,
+          );
+        },
       ),
     );
   }
@@ -373,24 +422,39 @@ class _QappNodeView extends StatelessWidget {
     final showsIndicator = node.props['showsScrollIndicator'] != false;
     final children = _childWidgets(context);
     final padding = node.style.padding;
-    if (node.type == 'GridView') {
-      final columns = node.props['numColumns'];
-      final count = columns is num ? columns.round().clamp(1, 12) : 2;
-      return GridView.count(
-        crossAxisCount: count,
-        padding: padding,
-        mainAxisSpacing: node.style.gap,
-        crossAxisSpacing: node.style.gap,
-        childAspectRatio: node.style.aspectRatio ?? 1,
-        physics: showsIndicator ? null : const NeverScrollableScrollPhysics(),
-        children: children,
-      );
-    }
-    return ListView(
-      scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
-      padding: padding,
-      physics: showsIndicator ? null : const NeverScrollableScrollPhysics(),
-      children: children,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // A list inside a same-direction scroller or a Column has no bounded
+        // main axis. A Flutter viewport cannot size itself there, so shrink the
+        // window to its content and let the outer scroll own the scrolling.
+        final unbounded = horizontal
+            ? !constraints.hasBoundedWidth
+            : !constraints.hasBoundedHeight;
+        final physics = showsIndicator && !unbounded
+            ? null
+            : const NeverScrollableScrollPhysics();
+        if (node.type == 'GridView') {
+          final columns = node.props['numColumns'];
+          final count = columns is num ? columns.round().clamp(1, 12) : 2;
+          return GridView.count(
+            crossAxisCount: count,
+            shrinkWrap: unbounded,
+            padding: padding,
+            mainAxisSpacing: node.style.gap,
+            crossAxisSpacing: node.style.gap,
+            childAspectRatio: node.style.aspectRatio ?? 1,
+            physics: physics,
+            children: children,
+          );
+        }
+        return ListView(
+          scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
+          shrinkWrap: unbounded,
+          padding: padding,
+          physics: physics,
+          children: children,
+        );
+      },
     );
   }
 
@@ -729,7 +793,26 @@ class _QappNodeView extends StatelessWidget {
       });
     for (final entry in ordered) {
       final child = entry.value;
-      if (child.type == 'Positioned' || child.style.isAbsolute) {
+      // Overlays paint a barrier over the whole stack; a Stack only sizes a
+      // child to its own content, so they must fill the stack explicitly or
+      // the barrier would cover just the sheet.
+      final isOverlay =
+          child.type == 'Modal' ||
+          child.type == 'BottomSheet' ||
+          child.type == 'Dialog';
+      if (isOverlay) {
+        children.add(
+          Positioned.fill(
+            child: _QappNodeView(
+              node: child,
+              onEvent: onEvent,
+              loadAsset: loadAsset,
+              networkHosts: networkHosts,
+              insideFlex: false,
+            ),
+          ),
+        );
+      } else if (child.type == 'Positioned' || child.style.isAbsolute) {
         final style = child.style;
         final content = _QappNodeView(
           node: child,
@@ -1279,12 +1362,14 @@ class _QappNodeView extends StatelessWidget {
     'topLeft' => Alignment.topLeft,
     'topCenter' => Alignment.topCenter,
     'topRight' => Alignment.topRight,
+    'center' => Alignment.center,
     'centerLeft' => Alignment.centerLeft,
     'centerRight' => Alignment.centerRight,
     'bottomLeft' => Alignment.bottomLeft,
     'bottomCenter' => Alignment.bottomCenter,
     'bottomRight' => Alignment.bottomRight,
-    _ => Alignment.center,
+    // React Native stacks align non-positioned children at the top left.
+    _ => Alignment.topLeft,
   };
 
   bool _isAllowedImageUri(String value) {

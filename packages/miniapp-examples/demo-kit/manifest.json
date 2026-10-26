@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Demo Kit",
+  "description": "Playground Mini App: an owned NavBar, five TabBar tabs and an internal route that exercise every qapp component, the host APIs, storage, timers and lifecycle events.",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": [
+    "toast",
+    "storage",
+    "user.profile",
+    "media.choose",
+    "share",
+    "qchat.api",
+    "network"
+  ],
+  "networkDomains": ["api.github.com"],
+  "source": "src/main.tsx"
+}
