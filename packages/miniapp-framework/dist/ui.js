@@ -44,7 +44,7 @@ export function ScrollView(props) {
 export function ListView(props) {
     const { data = [], renderItem, empty, ...rest } = props;
     const children = data.length === 0
-        ? empty ?? null
+        ? (empty ?? null)
         : data.map((item, index) => renderItem?.(item, index) ?? null);
     return view("ScrollView", {
         ...rest,
@@ -55,7 +55,7 @@ export function ListView(props) {
 export function GridView(props) {
     const { data = [], renderItem, empty, numColumns = 2, ...rest } = props;
     const children = data.length === 0
-        ? empty ?? null
+        ? (empty ?? null)
         : data.map((item, index) => renderItem?.(item, index) ?? null);
     return view("ScrollView", {
         ...rest,
@@ -80,7 +80,10 @@ export function Positioned(props) {
     return view("Positioned", { ...props, style });
 }
 export function Spacer(props) {
-    return view("Spacer", { ...props, size: props.size ?? 0 });
+    return view("Spacer", {
+        ...props,
+        size: props.size ?? 0,
+    });
 }
 export function Divider(props = {}) {
     return view("Divider", props);
@@ -93,6 +96,21 @@ export function SafeArea(props) {
 }
 export function AnimatedView(props) {
     return view("AnimatedView", props);
+}
+export function Modal(props) {
+    return view("Modal", props);
+}
+export function BottomSheet(props) {
+    return view("BottomSheet", props);
+}
+export function Dialog(props) {
+    return view("Dialog", props);
+}
+export function NavBar(props) {
+    return view("NavBar", props);
+}
+export function TabBar(props) {
+    return view("TabBar", props);
 }
 /**
  * Custom drawing uses a deliberately small, declarative path language rather

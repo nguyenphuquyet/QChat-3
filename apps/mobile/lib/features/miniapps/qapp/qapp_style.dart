@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 
+import 'qapp_contract.generated.dart';
+
 /// Small, Flutter-oriented style subset used by the QChat TSX runtime.
 ///
 /// The values are parsed once per node when a render frame arrives so the
@@ -116,6 +118,16 @@ class QappStyle {
       return value is String && value.isNotEmpty ? value : null;
     }
 
+    // CSS-like aliases (`"space-between"`) are normalized to the canonical
+    // camelCase value in exactly one place, driven by the generated contract.
+    String? enumText(String key) {
+      final value = raw[key];
+      if (value is! String || value.isEmpty) return null;
+      final enumName = qappStyleEnumKeys[key];
+      if (enumName == null) return value;
+      return qappStyleEnumAliases[enumName]?[value] ?? value;
+    }
+
     double widthValue;
     double? widthFactor;
     final rawWidth = raw['width'];
@@ -185,12 +197,12 @@ class QappStyle {
       flex: flexValue?.round(),
       flexGrow: number('flexGrow'),
       flexShrink: number('flexShrink'),
-      flexDirection: text('flexDirection') ?? 'column',
-      flexWrap: text('flexWrap') ?? 'nowrap',
-      alignItems: text('alignItems'),
-      justifyContent: text('justifyContent'),
-      alignSelf: text('alignSelf'),
-      position: text('position') ?? 'relative',
+      flexDirection: enumText('flexDirection') ?? 'column',
+      flexWrap: enumText('flexWrap') ?? 'nowrap',
+      alignItems: enumText('alignItems'),
+      justifyContent: enumText('justifyContent'),
+      alignSelf: enumText('alignSelf'),
+      position: enumText('position') ?? 'relative',
       top: number('top'),
       right: number('right'),
       bottom: number('bottom'),
@@ -203,13 +215,13 @@ class QappStyle {
       borderColor: qappColor(raw['borderColor']),
       fontSize: number('fontSize'),
       fontWeight: _fontWeight(raw['fontWeight']),
-      fontStyle: text('fontStyle') == 'italic' ? FontStyle.italic : null,
+      fontStyle: enumText('fontStyle') == 'italic' ? FontStyle.italic : null,
       fontFamily: text('fontFamily'),
       lineHeight: number('lineHeight'),
       letterSpacing: number('letterSpacing'),
-      textAlign: _textAlign(raw['textAlign']),
-      textDecoration: _decoration(raw['textDecoration']),
-      textTransform: text('textTransform') ?? 'none',
+      textAlign: _textAlign(enumText('textAlign')),
+      textDecoration: _decoration(enumText('textDecoration')),
+      textTransform: enumText('textTransform') ?? 'none',
       overflowHidden: raw['overflow'] == 'hidden' || raw['overflow'] == 'clip',
       shadow: raw['shadow'] == true,
       elevation: number('elevation') ?? 0,

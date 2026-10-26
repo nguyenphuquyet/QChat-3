@@ -1,49 +1,15 @@
+import 'qapp_contract.generated.dart';
 import 'qapp_style.dart';
 
-/// Node types the Flutter renderer knows how to draw. `Row`, `Column`,
-/// `ListView` and `GridView` are normalized by the TSX runtime into `View` and
-/// `ScrollView`, but they stay accepted so a future SDK can serialize them
-/// directly.
-const qappNodeTypes = {
-  'View',
-  'Text',
-  'Image',
-  'Icon',
-  'Row',
-  'Column',
-  'Stack',
-  'Positioned',
-  'ScrollView',
-  'ListView',
-  'GridView',
-  'Button',
-  'TextField',
-  'Checkbox',
-  'Switch',
-  'Slider',
-  'Spacer',
-  'Divider',
-  'ActivityIndicator',
-  'SafeArea',
-  'Pressable',
-  'AnimatedView',
-  'CustomPaint',
-  '#text',
-};
-
-const qappEventNames = {
-  'press',
-  'longPress',
-  'change',
-  'input',
-  'submit',
-  'valueChange',
-  'scroll',
-  'refresh',
-  'focus',
-  'blur',
-  'select',
-};
+/// Node types and event names the Flutter renderer accepts are generated from
+/// `packages/contracts/miniapp-ui.contract.json` (see
+/// `corepack pnpm contract:generate`), so the TypeScript SDK, this validator and
+/// the Studio typings can never disagree. `Row`, `Column`, `ListView` and
+/// `GridView` are normalized by the TSX runtime into `View` and `ScrollView` but
+/// stay accepted.
+///
+/// `qappNodeTypes` and `qappEventNames` come from
+/// `qapp_contract.generated.dart`.
 
 class QappTreeException implements Exception {
   const QappTreeException(this.code, this.message);

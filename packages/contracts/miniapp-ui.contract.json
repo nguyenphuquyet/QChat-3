@@ -1,0 +1,434 @@
+{
+  "version": 1,
+  "protocolVersion": 1,
+  "protocolName": "qapp",
+  "textNodeType": "#text",
+  "fragmentType": "#fragment",
+  "runtimeVersion": "1.0.0",
+  "sdkVersion": "1.0.0",
+  "permissions": [
+    { "id": "toast", "apis": ["showToast"] },
+    { "id": "user.profile", "apis": ["getUserInfo", "request:/users/me", "request:/friends"] },
+    { "id": "media.choose", "apis": ["chooseImage"] },
+    { "id": "share", "apis": ["share"] },
+    { "id": "storage", "apis": ["getStorage", "setStorage", "removeStorage"] },
+    { "id": "qchat.api", "apis": ["request:/conversations"] },
+    { "id": "network", "apis": ["fetch"] }
+  ],
+  "hostMethods": [
+    { "name": "getAppInfo", "permission": null },
+    { "name": "getSystemInfo", "permission": null },
+    { "name": "getUserInfo", "permission": "user.profile" },
+    { "name": "showToast", "permission": "toast" },
+    { "name": "chooseImage", "permission": "media.choose" },
+    { "name": "share", "permission": "share" },
+    { "name": "navigateTo", "permission": null },
+    { "name": "navigateBack", "permission": null },
+    { "name": "closeMiniApp", "permission": null },
+    { "name": "getStorage", "permission": "storage" },
+    { "name": "setStorage", "permission": "storage" },
+    { "name": "removeStorage", "permission": "storage" },
+    { "name": "request", "permission": "qchat.api" },
+    { "name": "fetch", "permission": "network" },
+    { "name": "clipboard.write", "permission": "clipboard" },
+    { "name": "clipboard.read", "permission": "clipboard" },
+    { "name": "haptic", "permission": "haptic" },
+    { "name": "setTimeout", "permission": null },
+    { "name": "clearTimeout", "permission": null },
+    { "name": "setInterval", "permission": null },
+    { "name": "clearInterval", "permission": null },
+    { "name": "requestAnimationFrame", "permission": null }
+  ],
+  "events": [
+    "press",
+    "longPress",
+    "change",
+    "input",
+    "submit",
+    "valueChange",
+    "scroll",
+    "refresh",
+    "focus",
+    "blur",
+    "select"
+  ],
+  "propEvents": {
+    "onPress": "press",
+    "onClose": "press",
+    "onConfirm": "press",
+    "onBack": "press",
+    "onLongPress": "longPress",
+    "onChange": "change",
+    "onCheckedChange": "change",
+    "onInput": "input",
+    "onSubmit": "submit",
+    "onValueChange": "valueChange",
+    "onValueChangeEnd": "valueChange",
+    "onScroll": "scroll",
+    "onRefresh": "refresh",
+    "onFocus": "focus",
+    "onBlur": "blur",
+    "onSelect": "select"
+  },
+  "baseProps": {
+    "key": "string | number",
+    "style": "Style",
+    "children": "VNodeChild",
+    "testID": "string",
+    "accessibleLabel": "string",
+    "pointerEvents": "\"auto\" | \"none\""
+  },
+  "helperTypes": {
+    "VNodeChild": "VNode | string | number | boolean | null | undefined | VNodeChild[]",
+    "BoxShadow": "{ color?: string; offsetX?: number; offsetY?: number; blurRadius?: number; spreadRadius?: number }",
+    "GradientStop": "{ offset: number; color: string }",
+    "LinearGradient": "{ type?: \"linear\"; angle?: number; stops: GradientStop[] }",
+    "RadialGradient": "{ type: \"radial\"; stops: GradientStop[] }",
+    "QappGradient": "LinearGradient | RadialGradient",
+    "TabItem": "{ key: string; label: string; icon?: string; badge?: string }",
+    "TabChangePayload": "{ index: number; key: string; value: string }",
+    "ScrollOffset": "{ x: number; y: number }",
+    "EventPayload": "string | number | boolean | null | Record<string, unknown>"
+  },
+  "enums": {
+    "flexDirection": { "values": ["row", "column", "row-reverse", "column-reverse"], "aliases": {} },
+    "flexWrap": { "values": ["nowrap", "wrap"], "aliases": { "no-wrap": "nowrap" } },
+    "alignItems": {
+      "values": ["start", "end", "center", "stretch", "baseline"],
+      "aliases": { "flex-start": "start", "flex-end": "end" }
+    },
+    "justifyContent": {
+      "values": ["start", "end", "center", "spaceBetween", "spaceAround", "spaceEvenly"],
+      "aliases": {
+        "flex-start": "start",
+        "flex-end": "end",
+        "space-between": "spaceBetween",
+        "space-around": "spaceAround",
+        "space-evenly": "spaceEvenly"
+      }
+    },
+    "alignSelf": {
+      "values": ["auto", "start", "end", "center", "stretch", "baseline"],
+      "aliases": { "flex-start": "start", "flex-end": "end" }
+    },
+    "position": { "values": ["relative", "absolute"], "aliases": {} },
+    "overflow": { "values": ["visible", "hidden", "clip"], "aliases": {} },
+    "fontWeight": {
+      "values": ["normal", "bold", "100", "200", "300", "400", "500", "600", "700", "800", "900"],
+      "aliases": {}
+    },
+    "fontStyle": { "values": ["normal", "italic"], "aliases": {} },
+    "textAlign": {
+      "values": ["left", "right", "center", "justify"],
+      "aliases": { "start": "left", "end": "right" }
+    },
+    "textDecoration": {
+      "values": ["none", "underline", "lineThrough"],
+      "aliases": { "line-through": "lineThrough" }
+    },
+    "textTransform": { "values": ["none", "uppercase", "lowercase", "capitalize"], "aliases": {} },
+    "stackAlignment": {
+      "values": [
+        "topLeft",
+        "topCenter",
+        "topRight",
+        "centerLeft",
+        "center",
+        "centerRight",
+        "bottomLeft",
+        "bottomCenter",
+        "bottomRight"
+      ],
+      "aliases": {}
+    },
+    "imageFit": {
+      "values": ["cover", "contain", "fill", "fitWidth", "fitHeight"],
+      "aliases": { "cover-fill": "cover" }
+    },
+    "animate": { "values": ["fadeIn", "slideUp", "scaleIn"], "aliases": {} },
+    "keyboardType": { "values": ["text", "number", "email", "phone", "url"], "aliases": {} },
+    "buttonVariant": { "values": ["primary", "secondary", "text", "danger"], "aliases": {} },
+    "safeAreaEdge": { "values": ["top", "right", "bottom", "left"], "aliases": {} },
+    "modalAnimation": { "values": ["none", "fade", "slide"], "aliases": {} },
+    "toastIcon": { "values": ["success", "error", "none"], "aliases": {} },
+    "gradientType": { "values": ["linear", "radial"], "aliases": {} }
+  },
+  "components": {
+    "View": { "props": { "children": "VNodeChild" }, "events": [] },
+    "Row": { "props": { "children": "VNodeChild" }, "events": [] },
+    "Column": { "props": { "children": "VNodeChild" }, "events": [] },
+    "Text": {
+      "props": { "children": "VNodeChild", "numberOfLines": "number", "selectable": "boolean" },
+      "events": []
+    },
+    "Button": {
+      "props": {
+        "children": "VNodeChild",
+        "onPress": "() => void",
+        "onLongPress": "() => void",
+        "disabled": "boolean",
+        "variant": "ButtonVariant",
+        "loading": "boolean",
+        "icon": "string"
+      },
+      "events": ["press", "longPress"]
+    },
+    "Pressable": {
+      "props": {
+        "children": "VNodeChild",
+        "onPress": "() => void",
+        "onLongPress": "() => void",
+        "disabled": "boolean"
+      },
+      "events": ["press", "longPress"]
+    },
+    "Image": {
+      "props": {
+        "src": "string",
+        "width": "number",
+        "height": "number",
+        "fit": "ImageFit",
+        "borderRadius": "number",
+        "onPress": "() => void"
+      },
+      "events": ["press"]
+    },
+    "Icon": { "props": { "name": "string", "size": "number", "color": "string" }, "events": [] },
+    "TextField": {
+      "props": {
+        "value": "string",
+        "placeholder": "string",
+        "onInput": "(value: string) => void",
+        "onChange": "(value: string) => void",
+        "onSubmit": "(value: string) => void",
+        "onFocus": "() => void",
+        "onBlur": "() => void",
+        "secureTextEntry": "boolean",
+        "multiline": "boolean",
+        "maxLength": "number",
+        "keyboardType": "KeyboardType",
+        "editable": "boolean",
+        "autoFocus": "boolean"
+      },
+      "events": ["input", "change", "submit", "focus", "blur"]
+    },
+    "Checkbox": {
+      "props": {
+        "checked": "boolean",
+        "onChange": "(value: boolean) => void",
+        "onCheckedChange": "(checked: boolean) => void",
+        "label": "string",
+        "disabled": "boolean"
+      },
+      "events": ["change"]
+    },
+    "Switch": {
+      "props": {
+        "value": "boolean",
+        "onChange": "(value: boolean) => void",
+        "onValueChange": "(value: boolean) => void",
+        "disabled": "boolean"
+      },
+      "events": ["change", "valueChange"]
+    },
+    "Slider": {
+      "props": {
+        "value": "number",
+        "min": "number",
+        "max": "number",
+        "step": "number",
+        "onChange": "(value: number) => void",
+        "onValueChange": "(value: number) => void",
+        "disabled": "boolean"
+      },
+      "events": ["change", "valueChange"]
+    },
+    "ScrollView": {
+      "props": {
+        "children": "VNodeChild",
+        "horizontal": "boolean",
+        "vertical": "boolean",
+        "showsScrollIndicator": "boolean",
+        "onScroll": "(offset: ScrollOffset) => void",
+        "grid": "boolean",
+        "numColumns": "number"
+      },
+      "events": ["scroll"]
+    },
+    "ListView": {
+      "props": { "data": "readonly unknown[]", "horizontal": "boolean", "empty": "VNodeChild" },
+      "localProps": { "renderItem": "(item: any, index: number) => VNodeChild", "keyExtractor": "(item: any, index: number) => string" },
+      "events": []
+    },
+    "GridView": {
+      "props": { "data": "readonly unknown[]", "numColumns": "number", "empty": "VNodeChild" },
+      "localProps": { "renderItem": "(item: any, index: number) => VNodeChild" },
+      "events": []
+    },
+    "Stack": { "props": { "children": "VNodeChild", "alignment": "StackAlignment" }, "events": [] },
+    "Positioned": {
+      "props": {
+        "children": "VNodeChild",
+        "top": "number",
+        "right": "number",
+        "bottom": "number",
+        "left": "number"
+      },
+      "events": []
+    },
+    "Spacer": { "props": { "size": "number" }, "events": [] },
+    "Divider": { "props": { "color": "string", "thickness": "number" }, "events": [] },
+    "ActivityIndicator": { "props": { "size": "number", "color": "string" }, "events": [] },
+    "SafeArea": { "props": { "children": "VNodeChild", "edges": "SafeAreaEdge[]" }, "events": [] },
+    "AnimatedView": {
+      "props": { "children": "VNodeChild", "animate": "AnimateKind", "duration": "number" },
+      "events": []
+    },
+    "CustomPaint": {
+      "props": { "draw": "string", "width": "number", "height": "number" },
+      "events": []
+    },
+    "Modal": {
+      "props": {
+        "children": "VNodeChild",
+        "visible": "boolean",
+        "onClose": "() => void",
+        "transparent": "boolean",
+        "animationType": "ModalAnimation"
+      },
+      "events": ["press"]
+    },
+    "BottomSheet": {
+      "props": { "children": "VNodeChild", "visible": "boolean", "onClose": "() => void", "height": "number" },
+      "events": ["press"]
+    },
+    "Dialog": {
+      "props": {
+        "children": "VNodeChild",
+        "visible": "boolean",
+        "title": "string",
+        "onClose": "() => void",
+        "onConfirm": "() => void",
+        "confirmText": "string",
+        "cancelText": "string"
+      },
+      "events": ["press"]
+    },
+    "NavBar": {
+      "props": {
+        "children": "VNodeChild",
+        "title": "string",
+        "subtitle": "string",
+        "onBack": "() => void",
+        "showBack": "boolean",
+        "safeArea": "boolean",
+        "reserveRight": "number"
+      },
+      "events": ["press"]
+    },
+    "TabBar": {
+      "props": {
+        "tabs": "TabItem[]",
+        "activeKey": "string",
+        "activeIndex": "number",
+        "onChange": "(payload: TabChangePayload) => void",
+        "safeArea": "boolean"
+      },
+      "events": ["change"]
+    }
+  },
+  "styleKeys": {
+    "width": "number | string",
+    "height": "number | string",
+    "minWidth": "number",
+    "minHeight": "number",
+    "maxWidth": "number",
+    "maxHeight": "number",
+    "padding": "number",
+    "paddingHorizontal": "number",
+    "paddingVertical": "number",
+    "paddingTop": "number",
+    "paddingRight": "number",
+    "paddingBottom": "number",
+    "paddingLeft": "number",
+    "margin": "number",
+    "marginHorizontal": "number",
+    "marginVertical": "number",
+    "marginTop": "number",
+    "marginRight": "number",
+    "marginBottom": "number",
+    "marginLeft": "number",
+    "gap": "number",
+    "rowGap": "number",
+    "columnGap": "number",
+    "flex": "number",
+    "flexGrow": "number",
+    "flexShrink": "number",
+    "flexBasis": "number | string",
+    "flexDirection": "FlexDirection",
+    "flexWrap": "FlexWrap",
+    "alignItems": "AlignItems",
+    "justifyContent": "JustifyContent",
+    "alignSelf": "AlignSelf",
+    "alignContent": "JustifyContent",
+    "position": "Position",
+    "top": "number",
+    "right": "number",
+    "bottom": "number",
+    "left": "number",
+    "zIndex": "number",
+    "overflow": "Overflow",
+    "aspectRatio": "number",
+    "backgroundColor": "string",
+    "color": "string",
+    "opacity": "number",
+    "borderRadius": "number",
+    "borderTopLeftRadius": "number",
+    "borderTopRightRadius": "number",
+    "borderBottomLeftRadius": "number",
+    "borderBottomRightRadius": "number",
+    "borderWidth": "number",
+    "borderColor": "string",
+    "borderTopWidth": "number",
+    "borderTopColor": "string",
+    "borderRightWidth": "number",
+    "borderRightColor": "string",
+    "borderBottomWidth": "number",
+    "borderBottomColor": "string",
+    "borderLeftWidth": "number",
+    "borderLeftColor": "string",
+    "fontSize": "number",
+    "fontWeight": "FontWeight",
+    "fontStyle": "FontStyle",
+    "fontFamily": "string",
+    "lineHeight": "number",
+    "letterSpacing": "number",
+    "textAlign": "TextAlign",
+    "textDecoration": "TextDecoration",
+    "textTransform": "TextTransform",
+    "numberOfLines": "number",
+    "shadow": "boolean",
+    "boxShadow": "BoxShadow | BoxShadow[]",
+    "elevation": "number",
+    "gradient": "QappGradient",
+    "rotate": "number",
+    "scale": "number",
+    "translateX": "number",
+    "translateY": "number"
+  },
+  "styleEnumKeys": {
+    "flexDirection": "flexDirection",
+    "flexWrap": "flexWrap",
+    "alignItems": "alignItems",
+    "justifyContent": "justifyContent",
+    "alignSelf": "alignSelf",
+    "alignContent": "justifyContent",
+    "position": "position",
+    "overflow": "overflow",
+    "fontWeight": "fontWeight",
+    "fontStyle": "fontStyle",
+    "textAlign": "textAlign",
+    "textDecoration": "textDecoration",
+    "textTransform": "textTransform"
+  }
+}

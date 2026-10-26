@@ -1,6 +1,7 @@
 import { emit, host } from "./host.js";
+import { FRAGMENT_TYPE, HOST_NODE_TYPES, PROP_EVENT_MAP, TEXT_NODE_TYPE, } from "./ui-contract.generated.js";
 import { PROTOCOL_VERSION, QChatError, SDK_VERSION, } from "./protocol.js";
-export const Fragment = "#fragment";
+export const Fragment = FRAGMENT_TYPE;
 function isVNode(value) {
     return (typeof value === "object" &&
         value !== null &&
@@ -157,7 +158,7 @@ function normalizeChild(child) {
     if (typeof child === "string" || typeof child === "number") {
         return [
             {
-                type: "#text",
+                type: TEXT_NODE_TYPE,
                 props: { text: String(child) },
                 children: [],
             },
@@ -182,42 +183,23 @@ function normalizeChild(child) {
         },
     ];
 }
+/** Map a JSX event prop (for example `onPress`) to its wire event name. */
 function eventNameFor(prop) {
-    if (!prop.startsWith("on") || prop.length < 3)
-        return null;
-    const raw = prop.slice(2);
-    if (raw === "Press")
-        return "press";
-    if (raw === "LongPress")
-        return "longPress";
-    if (raw === "Change")
-        return "change";
-    if (raw === "CheckedChange")
-        return "change";
-    if (raw === "Input")
-        return "input";
-    if (raw === "Submit")
-        return "submit";
-    if (raw === "ValueChange")
-        return "valueChange";
-    if (raw === "Scroll")
-        return "scroll";
-    if (raw === "Refresh")
-        return "refresh";
-    if (raw === "Focus")
-        return "focus";
-    if (raw === "Blur")
-        return "blur";
-    if (raw === "Select")
-        return "select";
-    return null;
+    // Only props declared in the contract can become events, so an unknown
+    // handler is dropped instead of leaking a function into the render frame.
+    const event = PROP_EVENT_MAP[prop];
+    return event ? event : null;
 }
 function serialize(vnode, path, parent) {
     const id = path;
-    if (vnode.type === "#text") {
-        return { id, type: "#text", props: { text: String(vnode.props.text ?? "") } };
+    if (vnode.type === TEXT_NODE_TYPE) {
+        return {
+            id,
+            type: TEXT_NODE_TYPE,
+            props: { text: String(vnode.props.text ?? "") },
+        };
     }
-    if (vnode.type === "#fragment")
+    if (vnode.type === Fragment)
         return null;
     const props = {};
     const events = [];
@@ -368,34 +350,10 @@ function installGlobals() {
         }
     };
 }
-/** Validate that a host-supplied tree only contains supported node types. */
-export const hostNodeTypes = new Set([
-    "View",
-    "Text",
-    "Image",
-    "Icon",
-    "Row",
-    "Column",
-    "Stack",
-    "Positioned",
-    "ScrollView",
-    "ListView",
-    "GridView",
-    "Button",
-    "TextField",
-    "Checkbox",
-    "Switch",
-    "Slider",
-    "Spacer",
-    "Divider",
-    "ActivityIndicator",
-    "SafeArea",
-    "Pressable",
-    "AnimatedView",
-    "CustomPaint",
-]);
+/** Node types the host understands, generated from the UI contract. */
+export const hostNodeTypes = HOST_NODE_TYPES;
 export function assertKnownType(type) {
-    if (type === "#text" || hostNodeTypes.has(type))
+    if (type === TEXT_NODE_TYPE || hostNodeTypes.has(type))
         return;
     throw new QChatError("UNSUPPORTED_COMPONENT", `Unsupported component ${type}`);
 }

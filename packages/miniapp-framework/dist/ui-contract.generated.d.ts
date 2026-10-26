@@ -1,0 +1,20 @@
+export declare const CONTRACT_VERSION = 1;
+export declare const PROTOCOL_VERSION = 1;
+export declare const TEXT_NODE_TYPE = "#text";
+export declare const FRAGMENT_TYPE = "#fragment";
+export declare const SDK_VERSION = "1.0.0";
+export declare const RUNTIME_VERSION = "1.0.0";
+export declare const HOST_NODE_TYPES: ReadonlySet<string>;
+export declare const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>>;
+export declare const EVENT_NAMES: readonly ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select"];
+export type GeneratedEventName = (typeof EVENT_NAMES)[number];
+export declare const PROP_EVENT_MAP: Readonly<Record<string, string>>;
+export declare const STYLE_KEYS: readonly ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "padding", "paddingHorizontal", "paddingVertical", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "margin", "marginHorizontal", "marginVertical", "marginTop", "marginRight", "marginBottom", "marginLeft", "gap", "rowGap", "columnGap", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection", "flexWrap", "alignItems", "justifyContent", "alignSelf", "alignContent", "position", "top", "right", "bottom", "left", "zIndex", "overflow", "aspectRatio", "backgroundColor", "color", "opacity", "borderRadius", "borderTopLeftRadius", "borderTopRightRadius", "borderBottomLeftRadius", "borderBottomRightRadius", "borderWidth", "borderColor", "borderTopWidth", "borderTopColor", "borderRightWidth", "borderRightColor", "borderBottomWidth", "borderBottomColor", "borderLeftWidth", "borderLeftColor", "fontSize", "fontWeight", "fontStyle", "fontFamily", "lineHeight", "letterSpacing", "textAlign", "textDecoration", "textTransform", "numberOfLines", "shadow", "boxShadow", "elevation", "gradient", "rotate", "scale", "translateX", "translateY"];
+export type GeneratedStyleKey = (typeof STYLE_KEYS)[number];
+export declare const STYLE_ENUM_VALUES: Readonly<Record<string, readonly string[]>>;
+export declare const STYLE_ENUM_ALIASES: Readonly<Record<string, Readonly<Record<string, string>>>>;
+export declare const STYLE_ENUM_KEYS: Readonly<Record<string, string>>;
+export declare const PERMISSION_IDS: readonly ["toast", "user.profile", "media.choose", "share", "storage", "qchat.api", "network"];
+export type GeneratedPermission = (typeof PERMISSION_IDS)[number];
+export declare const HOST_METHOD_PERMISSIONS: Readonly<Record<string, string | null>>;
+//# sourceMappingURL=ui-contract.generated.d.ts.map

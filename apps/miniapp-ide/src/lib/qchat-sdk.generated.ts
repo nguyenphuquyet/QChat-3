@@ -1,0 +1,225 @@
+// AUTO-GENERATED FILE - DO NOT EDIT BY HAND.
+// Source of truth: packages/contracts/miniapp-ui.contract.json
+// Regenerate: corepack pnpm contract:generate
+/* eslint-disable */
+
+export const sdkTypes = `
+type QChatStyle = Style;
+
+declare module "@mna/qchat" {
+  export interface Style {
+    width?: number | string;
+    height?: number | string;
+    minWidth?: number;
+    minHeight?: number;
+    maxWidth?: number;
+    maxHeight?: number;
+    padding?: number;
+    paddingHorizontal?: number;
+    paddingVertical?: number;
+    paddingTop?: number;
+    paddingRight?: number;
+    paddingBottom?: number;
+    paddingLeft?: number;
+    margin?: number;
+    marginHorizontal?: number;
+    marginVertical?: number;
+    marginTop?: number;
+    marginRight?: number;
+    marginBottom?: number;
+    marginLeft?: number;
+    gap?: number;
+    rowGap?: number;
+    columnGap?: number;
+    flex?: number;
+    flexGrow?: number;
+    flexShrink?: number;
+    flexBasis?: number | string;
+    flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
+    flexWrap?: "nowrap" | "wrap";
+    alignItems?: "start" | "end" | "center" | "stretch" | "baseline";
+    justifyContent?: "start" | "end" | "center" | "spaceBetween" | "spaceAround" | "spaceEvenly";
+    alignSelf?: "auto" | "start" | "end" | "center" | "stretch" | "baseline";
+    alignContent?: "start" | "end" | "center" | "spaceBetween" | "spaceAround" | "spaceEvenly";
+    position?: "relative" | "absolute";
+    top?: number;
+    right?: number;
+    bottom?: number;
+    left?: number;
+    zIndex?: number;
+    overflow?: "visible" | "hidden" | "clip";
+    aspectRatio?: number;
+    backgroundColor?: string;
+    color?: string;
+    opacity?: number;
+    borderRadius?: number;
+    borderTopLeftRadius?: number;
+    borderTopRightRadius?: number;
+    borderBottomLeftRadius?: number;
+    borderBottomRightRadius?: number;
+    borderWidth?: number;
+    borderColor?: string;
+    borderTopWidth?: number;
+    borderTopColor?: string;
+    borderRightWidth?: number;
+    borderRightColor?: string;
+    borderBottomWidth?: number;
+    borderBottomColor?: string;
+    borderLeftWidth?: number;
+    borderLeftColor?: string;
+    fontSize?: number;
+    fontWeight?: "normal" | "bold" | "100" | "200" | "300" | "400" | "500" | "600" | "700" | "800" | "900";
+    fontStyle?: "normal" | "italic";
+    fontFamily?: string;
+    lineHeight?: number;
+    letterSpacing?: number;
+    textAlign?: "left" | "right" | "center" | "justify";
+    textDecoration?: "none" | "underline" | "lineThrough";
+    textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+    numberOfLines?: number;
+    shadow?: boolean;
+    boxShadow?: BoxShadow | BoxShadow[];
+    elevation?: number;
+    gradient?: QappGradient;
+    rotate?: number;
+    scale?: number;
+    translateX?: number;
+    translateY?: number;
+  }
+  export type VNodeChild = unknown | string | number | boolean | null | undefined | unknown[];
+  export type BoxShadow = { color?: string; offsetX?: number; offsetY?: number; blurRadius?: number; spreadRadius?: number };
+  export type GradientStop = { offset: number; color: string };
+  export type LinearGradient = { type?: "linear"; angle?: number; stops: GradientStop[] };
+  export type RadialGradient = { type: "radial"; stops: GradientStop[] };
+  export type QappGradient = LinearGradient | RadialGradient;
+  export type TabItem = { key: string; label: string; icon?: string; badge?: string };
+  export type TabChangePayload = { index: number; key: string; value: string };
+  export type ScrollOffset = { x: number; y: number };
+  export type EventPayload = string | number | boolean | null | Record<string, unknown>;
+  export interface BaseProps {
+    key?: string | number;
+    style?: Style;
+    children?: VNodeChild;
+    testID?: string;
+    accessibleLabel?: string;
+    pointerEvents?: "auto" | "none";
+  }
+  export interface AppInfo {
+    appId: string;
+    name: string;
+    version: string;
+    runtimeVersion: string;
+    minRuntimeVersion: string;
+    permissions?: string[];
+  }
+  export interface SystemInfo {
+    platform: string;
+    locale?: string;
+    theme?: "light" | "dark";
+    screenWidth: number;
+    screenHeight: number;
+    pixelRatio?: number;
+    safeAreaTop?: number;
+    safeAreaBottom?: number;
+  }
+  export interface UserInfo {
+    id: string;
+    qchatId: string;
+    nickname: string;
+    avatarUrl?: string | null;
+  }
+  export function start(component: (props: { children?: unknown }) => unknown, options?: { appId?: string }): void;
+  export function useState<T>(initial: T | (() => T)): [T, (value: T | ((previous: T) => T)) => void];
+  export function useReducer<S, A>(reducer: (state: S, action: A) => S, initial: S): [S, (action: A) => void];
+  export function useRef<T>(initial: T): { current: T };
+  export function useMemo<T>(factory: () => T, deps?: unknown[]): T;
+  export function useCallback<T extends (...args: never[]) => unknown>(callback: T, deps?: unknown[]): T;
+  export function useEffect(effect: () => void | (() => void), deps?: unknown[]): void;
+  export function useLayoutEffect(effect: () => void | (() => void), deps?: unknown[]): void;
+  export function useId(): string;
+  export function createContext<T>(defaultValue: T): { Provider: (props: { value: T; children?: unknown }) => unknown; };
+  export function useContext<T>(context: unknown): T;
+  export function useLifecycle(handler: (event: string, payload?: unknown) => void): void;
+  export function getAppInfo(): Promise<AppInfo>;
+  export function getSystemInfo(): Promise<SystemInfo>;
+  export function getUserInfo(): Promise<UserInfo>;
+  export function chooseImage(options?: { maxWidth?: number; maxHeight?: number; quality?: number }): Promise<{ dataUrl: string; mimeType: string; width: number; height: number; size: number }>;
+  export function share(options: { title?: string; text?: string; url?: string }): Promise<boolean>;
+  export const Fragment: unknown;
+  export function h(type: unknown, props: Record<string, unknown> | null, children?: unknown): unknown;
+}
+
+declare module "@mna/qchat/ui" {
+  import type { BaseProps } from "@mna/qchat";
+  export type Component<P = Record<string, unknown>> = (props: P & BaseProps) => unknown;
+  export const View: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none" }>;
+  export const Row: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none" }>;
+  export const Column: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none" }>;
+  export const Text: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; numberOfLines?: number; selectable?: boolean }>;
+  export const Button: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; onPress?: () => void; onLongPress?: () => void; disabled?: boolean; variant?: "primary" | "secondary" | "text" | "danger"; loading?: boolean; icon?: string }>;
+  export const Pressable: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; onPress?: () => void; onLongPress?: () => void; disabled?: boolean }>;
+  export const Image: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; src?: string; width?: number; height?: number; fit?: "cover" | "contain" | "fill" | "fitWidth" | "fitHeight"; borderRadius?: number; onPress?: () => void }>;
+  export const Icon: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; name?: string; size?: number; color?: string }>;
+  export const TextField: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; value?: string; placeholder?: string; onInput?: (value: string) => void; onChange?: (value: string) => void; onSubmit?: (value: string) => void; onFocus?: () => void; onBlur?: () => void; secureTextEntry?: boolean; multiline?: boolean; maxLength?: number; keyboardType?: "text" | "number" | "email" | "phone" | "url"; editable?: boolean; autoFocus?: boolean }>;
+  export const Checkbox: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; checked?: boolean; onChange?: (value: boolean) => void; onCheckedChange?: (checked: boolean) => void; label?: string; disabled?: boolean }>;
+  export const Switch: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; value?: boolean; onChange?: (value: boolean) => void; onValueChange?: (value: boolean) => void; disabled?: boolean }>;
+  export const Slider: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; value?: number; min?: number; max?: number; step?: number; onChange?: (value: number) => void; onValueChange?: (value: number) => void; disabled?: boolean }>;
+  export const ScrollView: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; horizontal?: boolean; vertical?: boolean; showsScrollIndicator?: boolean; onScroll?: (offset: ScrollOffset) => void; grid?: boolean; numColumns?: number }>;
+  export const ListView: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; data?: readonly unknown[]; horizontal?: boolean; empty?: VNodeChild; renderItem?: (item: any, index: number) => VNodeChild; keyExtractor?: (item: any, index: number) => string }>;
+  export const GridView: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; data?: readonly unknown[]; numColumns?: number; empty?: VNodeChild; renderItem?: (item: any, index: number) => VNodeChild }>;
+  export const Stack: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; alignment?: "topLeft" | "topCenter" | "topRight" | "centerLeft" | "center" | "centerRight" | "bottomLeft" | "bottomCenter" | "bottomRight" }>;
+  export const Positioned: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; top?: number; right?: number; bottom?: number; left?: number }>;
+  export const Spacer: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; size?: number }>;
+  export const Divider: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; color?: string; thickness?: number }>;
+  export const ActivityIndicator: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; size?: number; color?: string }>;
+  export const SafeArea: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; edges?: "top" | "right" | "bottom" | "left"[] }>;
+  export const AnimatedView: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; animate?: "fadeIn" | "slideUp" | "scaleIn"; duration?: number }>;
+  export const CustomPaint: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; draw?: string; width?: number; height?: number }>;
+  export const Modal: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; visible?: boolean; onClose?: () => void; transparent?: boolean; animationType?: "none" | "fade" | "slide" }>;
+  export const BottomSheet: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; visible?: boolean; onClose?: () => void; height?: number }>;
+  export const Dialog: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; visible?: boolean; title?: string; onClose?: () => void; onConfirm?: () => void; confirmText?: string; cancelText?: string }>;
+  export const NavBar: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; title?: string; subtitle?: string; onBack?: () => void; showBack?: boolean; safeArea?: boolean; reserveRight?: number }>;
+  export const TabBar: Component<{ key?: string | number; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; tabs?: TabItem[]; activeKey?: string; activeIndex?: number; onChange?: (payload: TabChangePayload) => void; safeArea?: boolean }>;
+}
+
+declare module "@mna/qchat/navigation" {
+  export function navigateTo(path: string, params?: Record<string, unknown>): Promise<void>;
+  export function navigateBack(): Promise<void>;
+  export function closeMiniApp(): Promise<void>;
+  export function showToast(message: string, options?: { icon?: "success" | "error" | "none"; duration?: number }): Promise<void>;
+  export function openExternal(url: string): Promise<void>;
+}
+
+declare module "@mna/qchat/storage" {
+  export function getStorage<T>(key: string): Promise<T | null>;
+  export function setStorage(key: string, value: unknown): Promise<void>;
+  export function removeStorage(key: string): Promise<void>;
+  export function createStorage(prefix: string): {
+    get<T>(key: string): Promise<T | null>;
+    set(key: string, value: unknown): Promise<void>;
+    remove(key: string): Promise<void>;
+  };
+}
+
+declare module "@mna/qchat/network" {
+  export function request<T = unknown>(path: string, options?: { method?: string; query?: Record<string, string | number | boolean>; body?: unknown; headers?: Record<string, string> }): Promise<T>;
+  export function fetch<T = unknown>(input: string, options?: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number }): Promise<{ status: number; headers: Record<string, string>; data: T }>;
+  export function fetchJson<T = unknown>(input: string, options?: { method?: string; headers?: Record<string, string>; body?: string; timeoutMs?: number }): Promise<T>;
+}
+
+declare module "@mna/qchat/jsx-runtime" {
+  export namespace JSX {
+    interface Element {}
+    interface ElementChildrenAttribute { children: {} }
+    interface IntrinsicElements { [element: string]: unknown }
+  }
+  export function jsx(type: unknown, props: unknown, key?: unknown): unknown;
+  export const jsxs: typeof jsx;
+  export const Fragment: unknown;
+}
+
+declare module "@mna/qchat/jsx-dev-runtime" {
+  export * from "@mna/qchat/jsx-runtime";
+  export const jsxDEV: unknown;
+}
+`;

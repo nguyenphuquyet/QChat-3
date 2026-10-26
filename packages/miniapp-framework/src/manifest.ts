@@ -1,18 +1,13 @@
+import { PERMISSION_IDS } from "./ui-contract.generated.js";
+
 export const QAPP_FORMAT = "qapp";
 export const QAPP_SCHEMA_VERSION = 2;
 export const QAPP_ENTRY = "app.js";
 export const MAX_QAPP_BYTES = 20 * 1024 * 1024;
 export const MAX_QAPP_APP_JS_BYTES = 4 * 1024 * 1024;
 
-export const QAPP_PERMISSIONS = [
-  "toast",
-  "user.profile",
-  "media.choose",
-  "share",
-  "storage",
-  "qchat.api",
-  "network",
-] as const;
+/** Permission ids come from the contract so the manifest can never drift. */
+export const QAPP_PERMISSIONS = PERMISSION_IDS;
 
 export type QappPermission = (typeof QAPP_PERMISSIONS)[number];
 
