@@ -267,12 +267,28 @@ export interface HostResponse<T = unknown> {
   error?: HostError;
 }
 
+/**
+ * Fire-and-forget messages. `timer` asks the host to wake the runtime after
+ * `{ delayMs }`, which is how `setTimeout` and friends work in an engine with
+ * no event loop; a negative `delayMs` cancels the pending wake.
+ */
+export type HostSendKind = "render" | "ready" | "log" | "lifecycle" | "timer";
+
+/**
+ * Structural shape of an abort signal. Declared here, next to the protocol, so
+ * the network layer and the environment package agree without either importing
+ * the other.
+ */
+export interface AbortSignalLike {
+  readonly aborted: boolean;
+  readonly reason?: unknown;
+  addEventListener(type: "abort", listener: () => void): void;
+  removeEventListener(type: "abort", listener: () => void): void;
+}
+
 export interface HostBridge {
-  /** Fire-and-forget UI/lifecycle message. */
-  send(
-    kind: "render" | "ready" | "log" | "lifecycle",
-    payload: unknown,
-  ): void;
+  /** Fire-and-forget UI/lifecycle/timer message. */
+  send(kind: HostSendKind, payload: unknown): void;
   /** Request/response call to a privileged host method. */
   call(
     method: HostMethod,

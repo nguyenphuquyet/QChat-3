@@ -67,7 +67,20 @@ function sdkModulePath(subpath: string): string {
     const candidate = path.join(moduleDir, `${base}${extension}`);
     if (existsSync(candidate)) return candidate;
   }
+  // `@mna/qchat/env` resolves to the `env/index.ts` folder entry.
+  for (const extension of [".ts", ".tsx", ".js"]) {
+    const candidate = path.join(moduleDir, base, `index${extension}`);
+    if (existsSync(candidate)) return candidate;
+  }
   throw new Error(`QChat SDK module not found: ${subpath}`);
+}
+
+const sdkPackageRoot = path.resolve(moduleDir, "..");
+
+/** The QuickJS global declarations every qapp project type-checks against. */
+export function envTypingPath(): string | null {
+  const file = path.join(sdkPackageRoot, "types", "qchat-env.d.ts");
+  return existsSync(file) ? file : null;
 }
 
 const sdkResolverPlugin = {
@@ -123,17 +136,54 @@ export function findTypeScript(): string | null {
   }
 }
 
+/**
+ * Reads the project libs to decide whether the QuickJS globals may be added.
+ * A project that pulls in `DOM` or Node types already declares `console`,
+ * `setTimeout`, `URL` and friends; adding a second declaration with different
+ * signatures would only produce duplicate-identifier errors.
+ */
+function declaredLibs(projectDir: string): { dom: boolean; node: boolean } {
+  const file = path.join(projectDir, "tsconfig.json");
+  try {
+    const raw = readFileSync(file, "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^\s*\/\/.*$/gm, "");
+    const parsed = JSON.parse(raw) as {
+      compilerOptions?: { lib?: unknown; types?: unknown };
+    };
+    const lib = parsed.compilerOptions?.lib;
+    const types = parsed.compilerOptions?.types;
+    const list = Array.isArray(lib) ? lib : [];
+    const dom = list.some(
+      (entry) => typeof entry === "string" && entry.toLowerCase().startsWith("dom"),
+    );
+    const nodeTypes = Array.isArray(types) ? types : [];
+    return { dom, node: nodeTypes.some((entry) => entry === "node") };
+  } catch {
+    return { dom: false, node: false };
+  }
+}
+
 export function typecheckProject(projectDir: string): {
   skipped: boolean;
   output: string;
+  warnings: string[];
 } {
   const tsconfig = path.join(projectDir, "tsconfig.json");
   if (!existsSync(tsconfig)) {
-    return { skipped: true, output: "No tsconfig.json; type checking skipped." };
+    return {
+      skipped: true,
+      output: "No tsconfig.json; type checking skipped.",
+      warnings: [],
+    };
   }
   const tsc = findTypeScript();
   if (!tsc) {
-    return { skipped: true, output: "TypeScript is not installed; type checking skipped." };
+    return {
+      skipped: true,
+      output: "TypeScript is not installed; type checking skipped.",
+      warnings: [],
+    };
   }
   // Point the SDK imports at the compiler's own copy of the framework so a
   // freshly created project type-checks before `npm install`.
@@ -144,6 +194,20 @@ export function typecheckProject(projectDir: string): {
     ? `${relativeSdk}/index.d.ts`
     : `${relativeSdk}/index.ts`;
   const configPath = path.join(projectDir, ".qchat-tsconfig.json");
+  const warnings: string[] = [];
+  const libs = declaredLibs(projectDir);
+  const envTypings = envTypingPath();
+  const include = ["src/**/*.ts", "src/**/*.tsx"];
+  if (libs.dom || libs.node) {
+    warnings.push(
+      "tsconfig.json declares the DOM or Node libs; a qapp runs in QuickJS with neither. " +
+        "Remove them (keep lib: [\"ES2020\"]) and the SDK supplies the QuickJS globals.",
+    );
+  } else if (envTypings) {
+    // The QuickJS globals (console, timers, structuredClone, URL, TextEncoder,
+    // AbortController) are declared by the SDK, not by lib.dom.
+    include.push(envTypings.replaceAll("\\", "/"));
+  }
   const config = {
     extends: "./tsconfig.json",
     compilerOptions: {
@@ -154,7 +218,7 @@ export function typecheckProject(projectDir: string): {
         "@mna/qchat/*": [`${relativeSdk}/*`],
       },
     },
-    include: ["src/**/*.ts", "src/**/*.tsx"],
+    include,
   };
   writeFileSync(configPath, JSON.stringify(config, null, 2));
   try {
@@ -164,7 +228,7 @@ export function typecheckProject(projectDir: string): {
       stdio: "pipe",
       timeout: 120_000,
     });
-    return { skipped: false, output };
+    return { skipped: false, output, warnings };
   } catch (error: any) {
     const output = `${error.stdout ?? ""}${error.stderr ?? ""}`.trim();
     throw new Error(`TYPECHECK_FAILED\n${output || error.message}`);
@@ -207,17 +271,16 @@ function collectAssets(projectDir: string, warnings: string[]): Array<{ name: st
   return files;
 }
 
-export async function bundleProject(
-  projectDir: string,
-  options: { minify?: boolean } = {},
-): Promise<{ appJs: string; manifest: QappManifest; source: string }> {
-  const { manifest } = await readProjectManifest(projectDir);
-  const source = manifest.source ?? "src/main.tsx";
-  if (!isSafeRelativePath(source)) throw new Error("UNSAFE_SOURCE_PATH");
-  const sourcePath = path.join(projectDir, source);
-  if (!existsSync(sourcePath)) {
-    throw new Error(`SOURCE_MISSING: ${source}`);
-  }
+/**
+ * Bundles one entry file exactly like the compiler does. Used by
+ * `bundleProject` and by the framework tests, so the test harness runs the same
+ * output a device would.
+ */
+export async function bundleEntry(
+  sourcePath: string,
+  options: { minify?: boolean; metafile?: boolean } = {},
+): Promise<{ appJs: string; metafile?: unknown }> {
+  if (!existsSync(sourcePath)) throw new Error(`SOURCE_MISSING: ${sourcePath}`);
   const result = await esbuild({
     entryPoints: [sourcePath],
     bundle: true,
@@ -233,6 +296,7 @@ export async function bundleProject(
     charset: "utf8",
     jsx: "automatic",
     jsxImportSource: "@mna/qchat",
+    metafile: options.metafile ?? false,
     define: {
       "process.env.NODE_ENV": '"production"',
       __DEV__: "false",
@@ -246,6 +310,21 @@ export async function bundleProject(
   if (Buffer.byteLength(appJs, "utf8") > MAX_QAPP_APP_JS_BYTES) {
     throw new Error("APP_JS_TOO_LARGE");
   }
+  return options.metafile ? { appJs, metafile: result.metafile } : { appJs };
+}
+
+export async function bundleProject(
+  projectDir: string,
+  options: { minify?: boolean } = {},
+): Promise<{ appJs: string; manifest: QappManifest; source: string }> {
+  const { manifest } = await readProjectManifest(projectDir);
+  const source = manifest.source ?? "src/main.tsx";
+  if (!isSafeRelativePath(source)) throw new Error("UNSAFE_SOURCE_PATH");
+  const sourcePath = path.join(projectDir, source);
+  if (!existsSync(sourcePath)) {
+    throw new Error(`SOURCE_MISSING: ${source}`);
+  }
+  const { appJs } = await bundleEntry(sourcePath, { minify: options.minify });
   return { appJs, manifest, source };
 }
 
@@ -258,6 +337,7 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
     options.onStage?.("typecheck");
     const result = typecheckProject(projectDir);
     if (result.skipped) warnings.push(result.output);
+    warnings.push(...result.warnings);
   }
   options.onStage?.("bundle");
   const { appJs } = await bundleProject(projectDir, {

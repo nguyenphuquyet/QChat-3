@@ -299,6 +299,78 @@ the top-right corner the host floats its menu and close buttons over, and
 `initialCount` items (60 by default) and let Flutter build the rest as they
 scroll in, so one frame never has to carry an unbounded list.
 
+### JavaScript environment (QuickJS)
+
+QuickJS is an ECMAScript engine: it is not a browser and not Node. It has no
+`console`, no timers, no `URL`, no `TextEncoder`, no `AbortController`, no
+`structuredClone` and no `Intl`. The SDK ships those pieces and an app opts in
+once:
+
+```tsx
+import "@mna/qchat/env/auto"; // everything, one line
+// or, when the app wants the result and the options:
+import { installEnv } from "@mna/qchat/env";
+const installed = installEnv({ locale: "vi-VN" });
+```
+
+`installEnv()` returns which parts it installed (`timers`, `console`,
+`structuredClone`, `url`, `encoding`, `abort`, `intl`), can be told to skip any
+of them, and never overwrites a global that already exists, so calling it twice
+is harmless. The polyfills live in separate esbuild modules with no top-level
+side effect, so a bundle only carries what the app imports. Measured in this
+repository: an app that never mentions the environment adds 0 bytes, the `Intl`
+subset about 10 KB and the whole environment about 26 KB to `app.js` (minified,
+before gzip).
+
+The globals keep their web names and behaviour:
+
+| Global | Notes |
+| --- | --- |
+| `console`, `print` | `log`/`info`/`warn`/`error`/`debug`/`trace`. Arguments are formatted onto one line, huge lines are truncated, and every call becomes a host log entry with its level and, for an `Error` argument, the stack. |
+| `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | delays are floored, `0` or a negative or non-finite delay means "as soon as possible", an interval is at least 1 ms |
+| `requestAnimationFrame`, `cancelAnimationFrame` | run on the next host tick; the callback receives the frame time |
+| `queueMicrotask` | runs in the same tick, before any timer |
+| `structuredClone` | data only: objects, arrays, `Date`, `RegExp`, `Map`, `Set`, `ArrayBuffer` and typed arrays; cycles are preserved; functions, symbols and class instances throw a `DataCloneError` |
+| `URL`, `URLSearchParams` | parse, resolve relative references, and keep `url.searchParams` in sync with `url.search` and back |
+| `TextEncoder`, `TextDecoder` | UTF-8 only; any other label throws a `RangeError` |
+| `AbortController`, `AbortSignal` | `abort(reason)`, `reason`, `throwIfAborted()`, `addEventListener("abort")`, `AbortSignal.abort()`, `AbortSignal.timeout(ms)` (which needs the timers) |
+| `Intl.NumberFormat`, `Intl.DateTimeFormat` | the subset below; `Number.prototype.toLocaleString` and the three `Date.prototype.toLocale*` methods are routed through it |
+
+Two budgets keep a runaway app from owning the frame: at most 512 timers are
+scheduled at once, and one host tick runs at most 500 callbacks, so a 1 ms
+`setInterval` cannot stall the UI. A timer that throws is reported as an `error`
+log line instead of killing the app. A bundle that type-checks against
+`lib: ["ES2020"]` and these globals is exactly the bundle the compiler accepts:
+the SDK ships the declarations in `types/qchat-env.d.ts`, and `qapp build`, `qapp
+test` and the Studio add them, so `setTimeout`, `console`, `URL`, `TextEncoder`,
+`structuredClone` and `AbortController` type-check without a DOM lib. Adding
+`"DOM"` to `lib` produces a warning instead of a silent mismatch.
+
+#### Intl subset
+
+QuickJS has no ECMA-402, so the SDK ships a small `Intl` for the two locales
+QChat supports:
+
+| | |
+| --- | --- |
+| Locales | `vi-VN` and `en-US`. An unknown locale throws a `RangeError` instead of quietly formatting in a language the user cannot read. |
+| `Intl.NumberFormat` | `decimal`, `percent`, `currency` (`currencyDisplay: "symbol"` or `"code"`, minor units from the locale table), `notation: "compact"`, `minimum/maximumFractionDigits`, `minimumIntegerDigits`, `signDisplay`, `useGrouping`, `formatToParts`, `resolvedOptions` |
+| `Intl.DateTimeFormat` | `dateStyle`/`timeStyle`, the component options (`weekday`, `year`, `month`, `day`, `hour`, `minute`, `second`), `hour12`, `timeZone: "UTC"`, `formatToParts`, `resolvedOptions` |
+
+Only `UTC` (or nothing, which means the device zone) is accepted as a
+`timeZone`: a named zone would need the full IANA database, and silently
+formatting in the wrong zone is worse than an error. On an engine that already
+has a native `Intl` (JavaScriptCore on iOS does) the native implementation is
+kept unless `forceIntl: true` is passed to `installEnv()`.
+
+Timers have no clock of their own inside QuickJS. The JavaScript side keeps the
+queue and asks the host how long to wait with
+`__qchatNative.send("timer", { delayMs })`, where a negative delay means
+"nothing is pending any more". The host answers by calling
+`globalThis.__qchatTickTimers(nowMs)`, which runs everything due at that
+timestamp. Flutter implements that with one `Timer`; the Node test harness
+implements it with a virtual clock, so timer tests never wait for real time.
+
 ## UI contract
 
 The component list, props, events, style keys, enums and permissions are
@@ -345,6 +417,9 @@ in `packages/miniapp-examples` are built this way; they are not hardcoded
 screens. `shell` is the reference four-tab app: it owns a `NavBar` header and a
 `TabBar`, keeps a `TextField` and a `Switch` on the home tab, persists the
 switch through storage and renders a long `ListView` on the discover tab.
+`env-demo` imports the whole environment and puts it on screen: `Intl` in both
+locales, `URL`, `TextEncoder`, `structuredClone`, an aborted `AbortController`
+signal and four timers a real host tick has to run.
 
 The framework is built with
 `corepack pnpm --filter @mna/qchat build`; the root `qapp` script runs that
@@ -407,7 +482,11 @@ The renderer:
    host.
 3. JavaScript sends `{ id, method, params }` over a synchronous channel. The
    host answers asynchronously through `__qchatResolve(id, json)`, and pending
-   promises are flushed with the QuickJS job queue.
+   promises are flushed with the QuickJS job queue. Timers use the same channel
+   the other way round: `send("timer", { delayMs })` asks the host to wake the
+   engine after that delay, Dart sets one `Timer` for it, and the wake calls
+   `globalThis.__qchatTickTimers(nowMs)`. A negative delay cancels the pending
+   wake, and disposing the runtime cancels it too.
 4. The app renders a serialized virtual tree
    (`{ v, appId, revision, root }`). Dart validates node ids, component types,
    event names, style keys and enum values, tree depth and node count, then maps
@@ -453,6 +532,7 @@ corepack pnpm test:qapp
 corepack pnpm qapp build --dir packages/miniapp-examples/hello-world
 corepack pnpm qapp build --dir packages/miniapp-examples/counter
 corepack pnpm qapp build --dir packages/miniapp-examples/shell
+corepack pnpm qapp build --dir packages/miniapp-examples/env-demo
 
 # desktop Studio (requires Rust; browser-only UI: corepack pnpm dev)
 cd apps/miniapp-ide
@@ -490,13 +570,35 @@ reproducible from Git alone; back them up with the database.
   batching, the standardized event payloads, the new components and the
   `ListView` window. `shell` typechecks and packs through the real compiler.
 - The Flutter side of this change (the style parser and renderer, the new
-  components and `apps/mobile/test/qapp_style_test.dart` and
-  `qapp_components_test.dart`) was written on a host without a Dart or Flutter
-  SDK, so `flutter analyze` and those widget tests were not run here. They must
-  be run on a machine with the Flutter toolchain before release.
-- `flutter analyze` reports no issues. Flutter tests cover qapp tree parsing,
-  cache checksum/metadata/permission enforcement, native backend path guards,
-  renderer components and events, plus storage and bridge tests.
+  components, the timer wake in `qapp_js_runtime_native.dart` and
+  `apps/mobile/test/qapp_style_test.dart`, `qapp_components_test.dart` and the
+  new timer case in `qapp_js_runtime_test.dart`) was written on a host without a
+  Dart or Flutter SDK, so `flutter analyze` and those tests were not run here.
+  They must be run on a machine with the Flutter toolchain before release. The
+  timer case is the end-to-end one: it runs the compiled `env-demo` `.japp` in
+  the real QuickJS bridge and expects the app's own `Timer` to wake the engine
+  and reach `Timers: early,late` and `Ticks: 3`; it skips when the bundle or the
+  flutter_js bridge library is missing, like the existing Hello World test.
+- Flutter tests cover qapp tree parsing, cache checksum/metadata/permission
+  enforcement, native backend path guards, renderer components and events, plus
+  storage and bridge tests. `flutter analyze` was last run before the qapp work,
+  so its clean result does not cover the Dart files added or changed since.
+- The JavaScript environment runs in a real QuickJS engine in
+  `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
+  device executes, with only `__qchatNative` and the timer protocol injected,
+  reporting its `Intl`, `URL`, `TextEncoder`/`TextDecoder`, `structuredClone`,
+  `AbortController`, `console` and timer results back over the host log channel.
+  The environment demo app renders, updates through timers and is re-rendered
+  from a real host tick in that engine. Timers are driven by a virtual clock, so
+  the assertions are exact instead of timing-dependent.
+- Environment size is measured, not assumed: `env-bundle.test.ts` bundles a
+  fixture with no environment import, one that installs only `Intl` and one that
+  installs everything, asserts which polyfills are present by their own error
+  strings (`0` / `intl` / all seven) and prints the cost (about 10 KB for the
+  `Intl` subset, 26 KB for the whole environment). A second fixture proves the
+  same source does not compile without the SDK declarations while `qapp
+  build`'s check accepts it with `lib: ["ES2020"]` and no DOM, and that adding
+  the DOM lib is reported as a warning rather than silently accepted.
 - `packages/miniapp-examples/hello-world` and `counter` produce real `.japp`
   files through the compiler; `qapp inspect` confirms `schemaVersion: 2`,
   checksums and no `appId`.

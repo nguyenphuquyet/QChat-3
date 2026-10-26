@@ -1,8 +1,10 @@
+import type { AbortSignalLike } from "./protocol.js";
 export interface RequestOptions {
     method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     query?: Record<string, string | number | boolean>;
     body?: unknown;
     headers?: Record<string, string>;
+    signal?: AbortSignalLike;
 }
 /**
  * Read-only QChat API call. Only `/users/me`, `/friends` and `/conversations`
@@ -14,6 +16,7 @@ export interface FetchOptions {
     headers?: Record<string, string>;
     body?: string;
     timeoutMs?: number;
+    signal?: AbortSignalLike;
 }
 export interface FetchResponse<T = unknown> {
     status: number;

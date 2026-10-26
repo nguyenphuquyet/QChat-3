@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Env Demo",
+  "description": "Exercises the QuickJS environment: timers, console, Intl, URL, TextEncoder, structuredClone and AbortController",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": [],
+  "source": "src/main.tsx"
+}

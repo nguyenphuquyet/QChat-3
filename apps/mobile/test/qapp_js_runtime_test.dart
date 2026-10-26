@@ -67,6 +67,13 @@ String _nodeText(Map<String, dynamic> node) {
       .join();
 }
 
+/// Reads `app.js` out of a compiled `.japp` package.
+String _appJsOf(String japp) {
+  final archive = ZipDecoder().decodeBytes(File(japp).readAsBytesSync());
+  final appFile = archive.files.firstWhere((file) => file.name == 'app.js');
+  return utf8.decode(appFile.content as List<int>);
+}
+
 String? _quickJsBridgeLibrary() {
   final cache =
       Platform.environment['PUB_CACHE'] ??
@@ -96,6 +103,18 @@ String? _quickJsBridgeLibrary() {
 
 void main() {
   final quickJsLibrary = _quickJsBridgeLibrary();
+  final envDemo = p.normalize(
+    p.join(
+      Directory.current.path,
+      '..',
+      '..',
+      'packages',
+      'miniapp-examples',
+      'env-demo',
+      'dist',
+      'env-demo-1.0.0.japp',
+    ),
+  );
   final example = p.normalize(
     p.join(
       Directory.current.path,
@@ -155,6 +174,43 @@ void main() {
     },
     skip: !File(example).existsSync()
         ? 'Build the hello-world example first'
+        : (Platform.isWindows || Platform.isLinux) && quickJsLibrary == null
+        ? 'QuickJS shared library not found'
+        : false,
+  );
+
+  test(
+    'the host wakes the JavaScript timer queue and the app rerenders',
+    () async {
+      final runtime = createQappJsRuntime();
+      addTearDown(runtime.dispose);
+      final host = _Host();
+      await runtime.start(appJs: _appJsOf(envDemo), host: host);
+      await Future<void>.delayed(Duration.zero);
+
+      String lastText() => _nodeText(
+        Map<String, dynamic>.from(host.renders.last['root'] as Map),
+      );
+
+      expect(host.renders, isNotEmpty);
+      expect(lastText(), contains('Timers: waiting'));
+      expect(lastText(), contains('Ticks: 0'));
+
+      // The app schedules a 10 ms and a 30 ms timeout, then clears a 15 ms
+      // interval 50 ms in. Every wake-up is a real Dart `Timer` the host set
+      // from the delay the bundle asked for, so a little slack is all it needs.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      final text = lastText();
+      expect(text, contains('Timers: early,late'), reason: text);
+      expect(text, contains('Ticks: 3'), reason: text);
+      expect(text, contains('Aborted: true'));
+      expect(text, contains('1.234.567,5'), reason: 'the Intl polyfill ran');
+
+      // `console.warn`/`debug` reached the host through the log channel.
+      expect(host.logs, contains(startsWith('warn: this is a warning')));
+    },
+    skip: !File(envDemo).existsSync()
+        ? 'Build the env-demo example first'
         : (Platform.isWindows || Platform.isLinux) && quickJsLibrary == null
         ? 'QuickJS shared library not found'
         : false,

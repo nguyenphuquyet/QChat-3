@@ -52,17 +52,30 @@ function outFile(args: string[]): string | undefined {
   return argValue(args, "--out");
 }
 
-const helloSource = `import { useState } from "@mna/qchat";
+const helloSource = `import "@mna/qchat/env/auto";
+import { start, useEffect, useState } from "@mna/qchat";
 import { Button, Text, View } from "@mna/qchat/ui";
-import { start } from "@mna/qchat";
 
 export default function App() {
   const [count, setCount] = useState(0);
+  const [seconds, setSeconds] = useState(0);
+
+  // QuickJS has no timers of its own: importing the environment installs
+  // setTimeout/setInterval, and the host wakes the app on time.
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    console.log("counter is now", count);
+  }, [count]);
 
   return (
     <View style={{ flex: 1, padding: 24, gap: 12, justifyContent: "center" }}>
       <Text style={{ fontSize: 28, fontWeight: "bold" }}>QChat Mini App</Text>
       <Text>Count: {count}</Text>
+      <Text>Running for {seconds}s</Text>
       <Button onPress={() => setCount(count + 1)}>Increment</Button>
     </View>
   );
@@ -141,7 +154,7 @@ async function create(args: string[]): Promise<void> {
   );
   await writeFile(
     path.join(directory, "README.md"),
-    `# ${name}\n\nQChat Mini App created with \`qchat create\`.\n\n\`\`\`sh\nnpm install\nnpx qchat build\n\`\`\`\n\nThe build writes an immutable \`.japp\` package to \`dist/\`.\n`,
+    `# ${name}\n\nQChat Mini App created with \`qchat create\`.\n\n\`\`\`sh\nnpm install\nnpx qchat build\n\`\`\`\n\nThe build writes an immutable \`.japp\` package to \`dist/\`.\n\n\`src/main.tsx\` starts with \`import "@mna/qchat/env/auto"\`, which installs the\nQuickJS environment (timers, console, structuredClone, URL, TextEncoder,\nAbortController and the vi-VN/en-US Intl polyfill). Remove that import and the\nbundle only contains what the app installs explicitly.\n`,
   );
   console.log(`Created ${name} in ${directory}`);
   console.log(
@@ -202,6 +215,12 @@ async function testProject(args: string[]): Promise<void> {
     typecheck: !args.includes("--no-typecheck"),
   });
   const harness = runQapp(result.bytes);
+  // Run everything the app scheduled for "right now" (requestAnimationFrame,
+  // queueMicrotask) before judging the frame.
+  harness.timers.advance(0);
+  for (const entry of harness.logs) {
+    console.log(`  [${entry.level}] ${entry.message}`);
+  }
   const tree = harness.latest();
   if (!tree?.root) throw new Error("TEST_FAILED: no render tree was produced");
   const buttons = countButtons(tree);

@@ -20,6 +20,8 @@ export interface CompileResult {
     entries: ZipEntry[];
     warnings: string[];
 }
+/** The QuickJS global declarations every qapp project type-checks against. */
+export declare function envTypingPath(): string | null;
 export declare function sha256(bytes: Buffer | string): string;
 export declare function readProjectManifest(projectDir: string): Promise<{
     manifest: QappManifest;
@@ -30,7 +32,20 @@ export declare function findTypeScript(): string | null;
 export declare function typecheckProject(projectDir: string): {
     skipped: boolean;
     output: string;
+    warnings: string[];
 };
+/**
+ * Bundles one entry file exactly like the compiler does. Used by
+ * `bundleProject` and by the framework tests, so the test harness runs the same
+ * output a device would.
+ */
+export declare function bundleEntry(sourcePath: string, options?: {
+    minify?: boolean;
+    metafile?: boolean;
+}): Promise<{
+    appJs: string;
+    metafile?: unknown;
+}>;
 export declare function bundleProject(projectDir: string, options?: {
     minify?: boolean;
 }): Promise<{

@@ -1,4 +1,4 @@
-import { sdkTypes } from "./qchat-sdk.generated";
+import { envTypes, sdkTypes } from "./qchat-sdk.generated";
 import * as monaco from "monaco-editor";
 import { loader } from "@monaco-editor/react";
 
@@ -120,7 +120,9 @@ monaco.typescript.typescriptDefaults.setCompilerOptions({
   strict: true,
   noEmit: true,
   skipLibCheck: true,
-  lib: ["es2020", "dom"],
+  // A qapp runs in QuickJS: no DOM. The QuickJS globals come from the SDK's
+  // `types/qchat-env.d.ts`, injected below as a second extra lib.
+  lib: ["es2020"],
 });
 
 let configured = false;
@@ -134,6 +136,14 @@ export function configureMonaco(): void {
   monaco.typescript.javascriptDefaults.addExtraLib(
     sdkTypes,
     "file:///node_modules/@mna/qchat/index.d.ts",
+  );
+  monaco.typescript.typescriptDefaults.addExtraLib(
+    envTypes,
+    "file:///node_modules/@mna/qchat/types/qchat-env.d.ts",
+  );
+  monaco.typescript.javascriptDefaults.addExtraLib(
+    envTypes,
+    "file:///node_modules/@mna/qchat/types/qchat-env.d.ts",
   );
   monaco.json.jsonDefaults.setDiagnosticsOptions({
     validate: true,

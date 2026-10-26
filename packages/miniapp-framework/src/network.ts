@@ -1,10 +1,47 @@
 import { callHost } from "./host.js";
+import type { AbortSignalLike } from "./protocol.js";
+
+/**
+ * The QuickJS bridge has no cancel channel, so an abort stops the promise in
+ * the app while the host may still finish its own work. Create the signal with
+ * the `AbortController` from `@mna/qchat/env` and pass it as `signal`.
+ */
+function abortError(reason?: unknown): Error {
+  const error = new Error(
+    reason === undefined ? "The operation was aborted" : String(reason),
+  );
+  error.name = "AbortError";
+  return error;
+}
+
+function withSignal<T>(
+  signal: AbortSignalLike | undefined,
+  run: () => Promise<T>,
+): Promise<T> {
+  if (!signal) return run();
+  if (signal.aborted) return Promise.reject(abortError(signal.reason));
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(abortError(signal.reason));
+    signal.addEventListener("abort", onAbort);
+    run().then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Record<string, string | number | boolean>;
   body?: unknown;
   headers?: Record<string, string>;
+  signal?: AbortSignalLike;
 }
 
 /**
@@ -15,13 +52,15 @@ export function request<T = unknown>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  return callHost<T>("request", {
-    path,
-    method: options.method ?? "GET",
-    query: options.query,
-    body: options.body,
-    headers: options.headers,
-  });
+  return withSignal(options.signal, () =>
+    callHost<T>("request", {
+      path,
+      method: options.method ?? "GET",
+      query: options.query,
+      body: options.body,
+      headers: options.headers,
+    }),
+  );
 }
 
 export interface FetchOptions {
@@ -29,6 +68,7 @@ export interface FetchOptions {
   headers?: Record<string, string>;
   body?: string;
   timeoutMs?: number;
+  signal?: AbortSignalLike;
 }
 
 export interface FetchResponse<T = unknown> {
@@ -46,13 +86,15 @@ export function fetch<T = unknown>(
   url: string,
   options: FetchOptions = {},
 ): Promise<FetchResponse<T>> {
-  return callHost<FetchResponse<T>>("fetch", {
-    url,
-    method: options.method ?? "GET",
-    headers: options.headers,
-    body: options.body,
-    timeoutMs: options.timeoutMs,
-  });
+  return withSignal(options.signal, () =>
+    callHost<FetchResponse<T>>("fetch", {
+      url,
+      method: options.method ?? "GET",
+      headers: options.headers,
+      body: options.body,
+      timeoutMs: options.timeoutMs,
+    }),
+  );
 }
 
 export async function fetchJson<T = unknown>(

@@ -38,6 +38,14 @@
       "types": "./dist/jsx-runtime.d.ts",
       "import": "./dist/jsx-runtime.js"
     },
+    "./env": {
+      "types": "./dist/env/index.d.ts",
+      "import": "./dist/env/index.js"
+    },
+    "./env/auto": {
+      "types": "./dist/env/auto.d.ts",
+      "import": "./dist/env/auto.js"
+    },
     "./compiler": {
       "types": "./dist/compiler.d.ts",
       "import": "./dist/compiler.js"
@@ -46,9 +54,13 @@
   },
   "files": [
     "dist",
+    "types",
     "README.md"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/env/auto.js",
+    "./src/env/auto.ts"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "test": "tsx --test test/*.test.ts",
@@ -59,6 +71,7 @@
   },
   "devDependencies": {
     "@types/node": "24.10.1",
+    "quickjs-emscripten": "0.32.0",
     "tsx": "4.21.0",
     "typescript": "5.9.3"
   },

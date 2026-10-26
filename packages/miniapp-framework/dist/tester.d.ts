@@ -4,6 +4,28 @@ export interface HarnessOptions {
     timeoutMs?: number;
     /** Extra host responses, keyed by method. */
     responses?: Record<string, (params: Record<string, unknown>) => unknown>;
+    /** Virtual clock start; the harness owns time, negative values are clamped. */
+    now?: number;
+}
+/**
+ * The host clock the harness exposes to the app. The bundle keeps the timer
+ * queue and the harness owns the time, so timer tests are deterministic: no
+ * real waiting and no flaky ordering.
+ */
+export interface HarnessTimers {
+    /** Current virtual time in milliseconds. */
+    now(): number;
+    /** Moves the clock forward and runs everything that is due. */
+    advance(milliseconds: number): number;
+    /** Number of timers the app still has scheduled. */
+    pending(): number;
+    /** Delay the app last asked the host to wait for, or `null` when idle. */
+    nextDelay(): number | null;
+}
+export interface HarnessLog {
+    level: string;
+    message: string;
+    stack?: string;
 }
 export interface HarnessResult {
     tree: SerializedTree | null;
@@ -12,10 +34,8 @@ export interface HarnessResult {
         method: string;
         params: Record<string, unknown>;
     }>;
-    logs: Array<{
-        level: string;
-        message: string;
-    }>;
+    logs: HarnessLog[];
+    timers: HarnessTimers;
     dispatch(id: string, event: string, payload?: unknown): SerializedTree | null;
     latest(): SerializedTree | null;
     dispose(): void;

@@ -10,7 +10,12 @@
     "esModuleInterop": true,
     "jsx": "react-jsx",
     "jsxImportSource": "@mna/qchat",
-    "types": ["node"]
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@mna/qchat": ["./src/index.ts"],
+      "@mna/qchat/*": ["./src/*", "./src/*/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "test/**/*.tsx"]
 }

@@ -282,6 +282,14 @@ function tsTypeFor(contract, type) {
     .replace(/TextTransform\b/g, contract.enums.textTransform.values.map((v) => JSON.stringify(v)).join(" | "));
 }
 
+// The QuickJS global declarations live with the SDK types and are embedded in
+// the Studio typings, so Monaco completes `setTimeout`, `console`, `URL` and
+// friends exactly like the CLI type check does.
+function envTypingSource() {
+  const file = path.join(repoRoot, "packages/miniapp-framework/types/qchat-env.d.ts");
+  return existsSync(file) ? readFileSync(file, "utf8") : "";
+}
+
 function renderIdeTypes(contract) {
   const styleLines = Object.entries(contract.styleKeys).map(
     ([key, type]) => `    ${key}?: ${tsTypeFor(contract, type)};`,
@@ -408,7 +416,16 @@ declare module "@mna/qchat/jsx-dev-runtime" {
   export const jsxDEV: unknown;
 }
 `;
-  return [...HARNESS_HEADER, "export const sdkTypes = `" + body.replaceAll("`", "\\`").replaceAll("${", "\\${") + "`;", ""].join("\n");
+  const envTypes = envTypingSource()
+    .replaceAll("`", "\\`")
+    .replaceAll("${", "\\${");
+  return [
+    ...HARNESS_HEADER,
+    "export const sdkTypes = `" + body.replaceAll("`", "\\`").replaceAll("${", "\\${") + "`;",
+    "",
+    "export const envTypes = `" + envTypes + "`;",
+    "",
+  ].join("\n");
 }
 
 /* -------------------------------------------------------------------------- */

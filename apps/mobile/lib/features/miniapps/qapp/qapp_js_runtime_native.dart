@@ -14,6 +14,9 @@ QappJsRuntime createQappJsRuntime() => FlutterJsQappRuntime();
 /// * `globalThis.__qchatNative.send(kind, payload)` for render frames and logs.
 /// * `globalThis.__qchatNative.call(method, params)` which returns a Promise
 ///   resolved by `globalThis.__qchatResolve(id, json)` after Flutter replies.
+/// * `globalThis.__qchatNative.send("timer", { delayMs })` for the JavaScript
+///   timer queue, answered by calling `globalThis.__qchatTickTimers(nowMs)`.
+///   A negative `delayMs` cancels the pending wake.
 ///
 /// XHR/fetch are disabled when the engine is created, so network access is only
 /// possible through the permission-checked native bridge.
@@ -22,6 +25,7 @@ class FlutterJsQappRuntime implements QappJsRuntime {
   QappJsHost? _host;
   bool _disposed = false;
   static const _channel = 'qchat';
+  Timer? _wakeTimer;
 
   @override
   Future<void> start({required String appJs, required QappJsHost host}) async {
@@ -90,6 +94,8 @@ class FlutterJsQappRuntime implements QappJsRuntime {
     _host = null;
     final runtime = _runtime;
     _runtime = null;
+    _wakeTimer?.cancel();
+    _wakeTimer = null;
     try {
       runtime?.dispose();
     } catch (_) {
@@ -128,6 +134,15 @@ class FlutterJsQappRuntime implements QappJsRuntime {
                 payload['message']?.toString() ?? '',
                 payload['stack']?.toString(),
               );
+            }
+            break;
+          case 'timer':
+            // The JavaScript side keeps its own timer queue and asks the host
+            // when to run the next callback. A negative delay cancels the
+            // pending wake.
+            if (payload is Map) {
+              final delay = payload['delayMs'];
+              _scheduleWake(delay is num ? delay.toInt() : -1);
             }
             break;
           case 'lifecycle':
@@ -189,6 +204,24 @@ class FlutterJsQappRuntime implements QappJsRuntime {
     } catch (error) {
       _host?.onLog('error', error.toString(), null);
     }
+  }
+
+  /// `setTimeout`/`setInterval`/`requestAnimationFrame` live in the JavaScript
+  /// timer queue, which has no clock of its own: it asks the host for a wake-up
+  /// delay and expects the engine to be ticked with the current time. A
+  /// negative delay means no timer is pending any more, so the wake is dropped.
+  void _scheduleWake(int delayMs) {
+    _wakeTimer?.cancel();
+    _wakeTimer = null;
+    if (_disposed || delayMs < 0) return;
+    _wakeTimer = Timer(Duration(milliseconds: delayMs), () {
+      _wakeTimer = null;
+      if (_disposed) return;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      _evaluate(
+        'globalThis.__qchatTickTimers && globalThis.__qchatTickTimers($now);',
+      );
+    });
   }
 
   void _pump() {
