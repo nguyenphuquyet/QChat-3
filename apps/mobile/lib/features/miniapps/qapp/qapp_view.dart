@@ -169,7 +169,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     // makes the list jump: the new frame can change the content extent under an
     // active drag, and with the iOS rubber-band that reads as the list snapping
     // back down mid-gesture. Keep the newest frame and paint it once the finger
-    // is off the screen.
+    // is off the screen. `_settle` is only ever armed by a drag, never by a
+    // fling, so a tap always paints.
     if (_dragging || (_settle?.isActive ?? false)) {
       _pendingTree = tree;
       return;
@@ -192,23 +193,55 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     }
   }
 
-  /// Holds render frames back while the mini program is being scrolled, then
-  /// paints the newest one.
+  /// Holds render frames back while a finger is dragging the mini program's
+  /// content, then paints the newest one after the release.
   ///
   /// A frame that lands under an active drag changes the content extent while
   /// the list is past its edge, and Flutter's range-maintaining physics then
   /// pulls the content back into range: the list springs back while the finger
   /// is still down. A mini program may only settle back after the release, so
   /// the flush waits for the finger to lift and for the spring-back to finish.
+  ///
+  /// Only a finger on the screen holds a frame back. A fling, a programmatic
+  /// scroll or the spring-back itself must never hold one: a tap that lands
+  /// then is dispatched to JavaScript and re-renders, but the new frame would
+  /// stay invisible until the animation stopped, which reads as "the tab bar
+  /// does not respond until a moment later".
   bool _onScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollStartNotification) {
-      if (notification.dragDetails != null) _dragging = true;
-    } else if (notification is ScrollEndNotification) {
-      if (notification.dragDetails != null) _dragging = false;
+    final dragged = switch (notification) {
+      ScrollEndNotification() => false,
+      ScrollStartNotification(:final dragDetails) => dragDetails != null,
+      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
+      OverscrollNotification(:final dragDetails) => dragDetails != null,
+      _ => _dragging,
+    };
+    if (dragged) {
+      _dragging = true;
+      // Re-armed on every drag notification so the watchdog only starts once
+      // the finger stops moving.
+      _armSettle();
+    } else if (_dragging) {
+      _dragging = false;
+      _armSettle();
     }
+    return false;
+  }
+
+  /// Paints the held frame once the drag has been quiet for a moment.
+  void _armSettle() {
     _settle?.cancel();
     _settle = Timer(const Duration(milliseconds: 120), _settled);
-    return false;
+  }
+
+  /// A lifted finger is never still dragging, even when the scrollable never
+  /// reported its end: a cancelled gesture, or a rebuild that replaced the
+  /// list, would otherwise leave the frames held until the watchdog fired.
+  void _releaseDrag() {
+    // A plain tap that never dragged anything has no frame to protect, so it
+    // must not open a settle window: the render it triggers paints at once.
+    if (!_dragging && _pendingTree == null) return;
+    _dragging = false;
+    _armSettle();
   }
 
   void _settled() {
@@ -303,12 +336,19 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     return ColoredBox(
       color: qchatBackground(context),
       child: SizedBox.expand(
-        child: NotificationListener<ScrollNotification>(
-          onNotification: _onScrollNotification,
-          child: QappRenderer(
-            root: tree.root,
-            onEvent: _dispatch,
-            loadAsset: _loadAsset,
+        // Raw pointer events, not a gesture: a tap that a child wins still
+        // tells the host that the finger is gone, so no frame stays held.
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerUp: (_) => _releaseDrag(),
+          onPointerCancel: (_) => _releaseDrag(),
+          child: NotificationListener<ScrollNotification>(
+            onNotification: _onScrollNotification,
+            child: QappRenderer(
+              root: tree.root,
+              onEvent: _dispatch,
+              loadAsset: _loadAsset,
+            ),
           ),
         ),
       ),
