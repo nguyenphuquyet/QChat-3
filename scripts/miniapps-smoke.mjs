@@ -98,7 +98,6 @@ function build(version, files) {
     sdkVersion: "1.0.0",
     minRuntimeVersion: "1.0.0",
     requestedPermissions: ["toast", "storage"],
-    networkDomains: [],
     appSha256: sha256(appJs),
   };
   const entries = [
@@ -108,7 +107,6 @@ function build(version, files) {
       name: "permissions.json",
       data: JSON.stringify({
         requestedPermissions: manifest.requestedPermissions,
-        networkDomains: manifest.networkDomains,
       }),
     },
     ...(files ?? []),
