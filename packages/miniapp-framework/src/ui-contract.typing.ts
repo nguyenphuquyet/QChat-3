@@ -4,7 +4,7 @@
 /* eslint-disable */
 
 import type { Style } from "./protocol.js";
-import type { ActivityIndicatorProps, AnimatedViewProps, BottomSheetProps, ButtonProps, CheckboxProps, CustomPaintProps, DialogProps, DividerProps, GridViewProps, IconProps, ImageProps, ListViewProps, ModalProps, NavBarProps, PositionedProps, PressableProps, SafeAreaProps, ScrollViewProps, SliderProps, SpacerProps, StackProps, SwitchProps, TabBarProps, TextFieldProps, TextProps, ViewProps } from "./ui.js";
+import type { ActivityIndicatorProps, AnimatedViewProps, AvatarProps, BadgeProps, BottomSheetProps, ButtonProps, CheckboxProps, CustomPaintProps, DialogProps, DividerProps, GridViewProps, IconProps, ImageProps, LinkProps, ListViewProps, ModalProps, NavBarProps, PositionedProps, PressableProps, RichTextProps, SafeAreaProps, ScrollViewProps, SliderProps, SpacerProps, StackProps, SwitchProps, TabBarProps, TagProps, TextFieldProps, TextProps, ViewProps } from "./ui.js";
 
 // Both directions: a key missing from `Style` or an extra key on `Style`
 // fails to compile.
@@ -120,6 +120,83 @@ const TextProps_CONFORMANCE: Record<keyof TextProps, true> = {
 };
 void TextProps_CONFORMANCE;
 
+// RichText
+const RichTextProps_CONFORMANCE: Record<keyof RichTextProps, true> = {
+  key: true,
+  ref: true,
+  style: true,
+  children: true,
+  testID: true,
+  accessibleLabel: true,
+  pointerEvents: true,
+  numberOfLines: true,
+  selectable: true,
+};
+void RichTextProps_CONFORMANCE;
+
+// Link
+const LinkProps_CONFORMANCE: Record<keyof LinkProps, true> = {
+  key: true,
+  ref: true,
+  style: true,
+  children: true,
+  testID: true,
+  accessibleLabel: true,
+  pointerEvents: true,
+  href: true,
+  external: true,
+  onPress: true,
+  disabled: true,
+};
+void LinkProps_CONFORMANCE;
+
+// Badge
+const BadgeProps_CONFORMANCE: Record<keyof BadgeProps, true> = {
+  key: true,
+  ref: true,
+  style: true,
+  children: true,
+  testID: true,
+  accessibleLabel: true,
+  pointerEvents: true,
+  count: true,
+  max: true,
+  dot: true,
+  visible: true,
+  tone: true,
+};
+void BadgeProps_CONFORMANCE;
+
+// Tag
+const TagProps_CONFORMANCE: Record<keyof TagProps, true> = {
+  key: true,
+  ref: true,
+  style: true,
+  children: true,
+  testID: true,
+  accessibleLabel: true,
+  pointerEvents: true,
+  tone: true,
+  size: true,
+};
+void TagProps_CONFORMANCE;
+
+// Avatar
+const AvatarProps_CONFORMANCE: Record<keyof AvatarProps, true> = {
+  key: true,
+  ref: true,
+  style: true,
+  children: true,
+  testID: true,
+  accessibleLabel: true,
+  pointerEvents: true,
+  src: true,
+  name: true,
+  size: true,
+  shape: true,
+};
+void AvatarProps_CONFORMANCE;
+
 // Button
 const ButtonProps_CONFORMANCE: Record<keyof ButtonProps, true> = {
   key: true,
@@ -133,6 +210,7 @@ const ButtonProps_CONFORMANCE: Record<keyof ButtonProps, true> = {
   onLongPress: true,
   disabled: true,
   variant: true,
+  size: true,
   loading: true,
   icon: true,
 };
@@ -369,6 +447,8 @@ const DividerProps_CONFORMANCE: Record<keyof DividerProps, true> = {
   pointerEvents: true,
   color: true,
   thickness: true,
+  vertical: true,
+  inset: true,
 };
 void DividerProps_CONFORMANCE;
 

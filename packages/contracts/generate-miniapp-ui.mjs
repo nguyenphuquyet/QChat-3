@@ -258,28 +258,30 @@ function renderDartContract(contract) {
 /* 4. Studio (Monaco) typings                                                 */
 /* -------------------------------------------------------------------------- */
 
+// Enum type names are derived from the contract so adding an enum never needs a
+// second edit here. `AnimateKind` is the one historical name that does not
+// follow `PascalCase(enumKey)`; it is kept for backwards compatibility.
+const ENUM_TYPE_ALIASES = { AnimateKind: "animate" };
+
+function enumUnion(contract, typeName) {
+  const key =
+    ENUM_TYPE_ALIASES[typeName] ??
+    `${typeName.charAt(0).toLowerCase()}${typeName.slice(1)}`;
+  const spec = contract.enums[key];
+  if (!spec) return null;
+  return spec.values.map((value) => JSON.stringify(value)).join(" | ");
+}
+
 function tsTypeFor(contract, type) {
   if (!type) return "unknown";
-  return type
-    .replace(/ButtonVariant\b/g, '"primary" | "secondary" | "text" | "danger"')
-    .replace(/ImageFit\b/g, '"cover" | "contain" | "fill" | "fitWidth" | "fitHeight"')
-    .replace(/KeyboardType\b/g, '"text" | "number" | "email" | "phone" | "url"')
-    .replace(/StackAlignment\b/g, contract.enums.stackAlignment.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/AnimateKind\b/g, '"fadeIn" | "slideUp" | "scaleIn"')
-    .replace(/ModalAnimation\b/g, '"none" | "fade" | "slide"')
-    .replace(/SafeAreaEdge\b/g, '"top" | "right" | "bottom" | "left"')
-    .replace(/FlexDirection\b/g, contract.enums.flexDirection.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/FlexWrap\b/g, contract.enums.flexWrap.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/AlignItems\b/g, contract.enums.alignItems.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/JustifyContent\b/g, contract.enums.justifyContent.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/AlignSelf\b/g, contract.enums.alignSelf.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/Position\b/g, '"relative" | "absolute"')
-    .replace(/Overflow\b/g, '"visible" | "hidden" | "clip"')
-    .replace(/FontWeight\b/g, contract.enums.fontWeight.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/FontStyle\b/g, '"normal" | "italic"')
-    .replace(/TextAlign\b/g, contract.enums.textAlign.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/TextDecoration\b/g, contract.enums.textDecoration.values.map((v) => JSON.stringify(v)).join(" | "))
-    .replace(/TextTransform\b/g, contract.enums.textTransform.values.map((v) => JSON.stringify(v)).join(" | "));
+  // Only tokens that name a contract enum are replaced; `Style`, `VNodeChild`
+  // and the helper types pass through untouched. A trailing `[]` keeps its
+  // meaning by parenthesising the union (`SafeAreaEdge[]`).
+  return type.replace(/\b([A-Z][A-Za-z0-9]*)(\[\])?/g, (whole, name, array) => {
+    const union = enumUnion(contract, name);
+    if (!union) return whole;
+    return array ? `(${union})[]` : union;
+  });
 }
 
 // The QuickJS global declarations live with the SDK types and are embedded in

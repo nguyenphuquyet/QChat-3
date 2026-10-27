@@ -1,4 +1,5 @@
 import { h } from "./runtime.js";
+import { navigateTo } from "./navigation.js";
 const view = (type, props) => h(type, props);
 export function View(props) {
     return view("View", props);
@@ -13,6 +14,39 @@ export function Column(props) {
 }
 export function Text(props) {
     return view("Text", props);
+}
+export function RichText(props) {
+    return view("RichText", props);
+}
+export function Link(props) {
+    const { href, external, onPress, ...rest } = props;
+    const isExternal = external === true;
+    return view("Link", {
+        ...rest,
+        href,
+        external: isExternal,
+        onPress: () => {
+            onPress?.();
+            // In-app routes go through the host router so the path is validated on
+            // the native side. An external URL is only reported to the app: opening
+            // another application is a privileged host API that is not wired yet.
+            if (href && !isExternal) {
+                void navigateTo(href).catch(() => {
+                    // The host rejects routes that leave the Mini App. The tap still
+                    // reached `onPress`, so a failed navigation is not fatal.
+                });
+            }
+        },
+    });
+}
+export function Badge(props) {
+    return view("Badge", props);
+}
+export function Tag(props) {
+    return view("Tag", props);
+}
+export function Avatar(props) {
+    return view("Avatar", props);
 }
 export function Button(props) {
     return view("Button", props);
@@ -128,7 +162,12 @@ export function TabBar(props) {
 /**
  * Custom drawing uses a deliberately small, declarative path language rather
  * than arbitrary Dart code: `M x y L x y Q cx cy x y C ... Z` plus optional
- * `fill:` and `stroke:` prefixes. The Flutter renderer owns the painter.
+ * `fill:`, `stroke:`, `strokeWidth:` and `cap:` prefixes. The Flutter renderer
+ * owns the painter.
+ *
+ * `cap:` is `round` (the default), `butt` or `square`. Arcs should ask for
+ * `butt`: a round cap extends half the stroke width past the end angle, so a
+ * gauge bleeds over its own track where the arc starts.
  */
 export function CustomPaint(props) {
     return view("CustomPaint", props);

@@ -99,7 +99,8 @@
     "QappToggleEvent": "{ type: string; value: boolean }",
     "QappNumberEvent": "{ type: string; value: number }",
     "QappScrollEvent": "{ type: string; x: number; y: number; value: { x: number; y: number } }",
-    "QappTabEvent": "{ type: string; index: number; key: string; value: TabChangePayload }"
+    "QappTabEvent": "{ type: string; index: number; key: string; value: TabChangePayload }",
+    "QappLinkEvent": "{ type: string; href: string; external: boolean }"
   },
   "enums": {
     "flexDirection": { "values": ["row", "column", "row-reverse", "column-reverse"], "aliases": {} },
@@ -158,7 +159,16 @@
     },
     "animate": { "values": ["fadeIn", "slideUp", "scaleIn"], "aliases": {} },
     "keyboardType": { "values": ["text", "number", "email", "phone", "url"], "aliases": {} },
-    "buttonVariant": { "values": ["primary", "secondary", "text", "danger"], "aliases": {} },
+    "buttonVariant": { "values": ["primary", "secondary", "outline", "text", "danger"], "aliases": {} },
+    "controlSize": {
+      "values": ["sm", "md", "lg"],
+      "aliases": { "small": "sm", "medium": "md", "large": "lg" }
+    },
+    "tagTone": {
+      "values": ["neutral", "success", "warning", "danger", "info"],
+      "aliases": { "default": "neutral", "error": "danger" }
+    },
+    "avatarShape": { "values": ["circle", "rounded"], "aliases": { "square": "rounded" } },
     "safeAreaEdge": { "values": ["top", "right", "bottom", "left"], "aliases": {} },
     "modalAnimation": { "values": ["none", "fade", "slide"], "aliases": {} },
     "toastIcon": { "values": ["success", "error", "none"], "aliases": {} },
@@ -172,6 +182,48 @@
       "props": { "children": "VNodeChild", "numberOfLines": "number", "selectable": "boolean" },
       "events": []
     },
+    "RichText": {
+      "props": {
+        "children": "VNodeChild",
+        "numberOfLines": "number",
+        "selectable": "boolean"
+      },
+      "events": []
+    },
+    "Link": {
+      "props": {
+        "children": "VNodeChild",
+        "href": "string",
+        "external": "boolean",
+        "onPress": "() => void",
+        "disabled": "boolean"
+      },
+      "events": ["press"]
+    },
+    "Badge": {
+      "props": {
+        "children": "VNodeChild",
+        "count": "number",
+        "max": "number",
+        "dot": "boolean",
+        "visible": "boolean",
+        "tone": "TagTone"
+      },
+      "events": []
+    },
+    "Tag": {
+      "props": { "children": "VNodeChild", "tone": "TagTone", "size": "ControlSize" },
+      "events": []
+    },
+    "Avatar": {
+      "props": {
+        "src": "string",
+        "name": "string",
+        "size": "number",
+        "shape": "AvatarShape"
+      },
+      "events": []
+    },
     "Button": {
       "props": {
         "children": "VNodeChild",
@@ -179,6 +231,7 @@
         "onLongPress": "() => void",
         "disabled": "boolean",
         "variant": "ButtonVariant",
+        "size": "ControlSize",
         "loading": "boolean",
         "icon": "string"
       },
@@ -298,7 +351,15 @@
       "events": []
     },
     "Spacer": { "props": { "size": "number" }, "events": [] },
-    "Divider": { "props": { "color": "string", "thickness": "number" }, "events": [] },
+    "Divider": {
+      "props": {
+        "color": "string",
+        "thickness": "number",
+        "vertical": "boolean",
+        "inset": "number"
+      },
+      "events": []
+    },
     "ActivityIndicator": { "props": { "size": "number", "color": "string" }, "events": [] },
     "SafeArea": { "props": { "children": "VNodeChild", "edges": "SafeAreaEdge[]" }, "events": [] },
     "AnimatedView": {

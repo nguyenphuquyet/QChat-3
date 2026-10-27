@@ -1,9 +1,11 @@
 import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/design_system/components.dart';
+import '../../../core/localization/strings.dart';
 import 'qapp_custom_paint.dart';
 import 'qapp_style.dart';
 import 'qapp_tree.dart';
@@ -88,7 +90,21 @@ class _QappNodeView extends StatelessWidget {
     if (style.opacity < 1) {
       child = Opacity(opacity: style.opacity, child: child);
     }
-    return KeyedSubtree(key: ValueKey(node.id), child: child);
+    // Base props every component inherits from the contract.
+    if (node.props['pointerEvents'] == 'none') {
+      child = IgnorePointer(child: child);
+    }
+    final label = node.props['accessibleLabel'];
+    // `Button` builds its own semantics node from the same label, so wrapping
+    // it again would make a screen reader announce the label twice.
+    if (label is String && label.isNotEmpty && node.type != 'Button') {
+      child = Semantics(label: label, child: child);
+    }
+    final testID = node.props['testID'];
+    return KeyedSubtree(
+      key: ValueKey(testID is String && testID.isNotEmpty ? testID : node.id),
+      child: child,
+    );
   }
 
   Widget _content(BuildContext context) {
@@ -104,6 +120,16 @@ class _QappNodeView extends StatelessWidget {
         );
       case 'Text':
         return _text(context);
+      case 'RichText':
+        return _richText(context);
+      case 'Link':
+        return _link(context);
+      case 'Badge':
+        return _badge(context);
+      case 'Tag':
+        return _tag(context);
+      case 'Avatar':
+        return _avatar(context);
       case 'View':
         return _flex(context);
       case 'Row':
@@ -174,23 +200,231 @@ class _QappNodeView extends StatelessWidget {
     final lines = maxLines is num
         ? maxLines.round()
         : style.numberOfLines;
-    if (node.props['selectable'] == true) {
-      return SelectionContainer.disabled(
-        child: Text(
-          content,
-          maxLines: lines,
-          style: textStyle,
-          textAlign: style.textAlign,
-        ),
-      );
-    }
-    return Text(
+    final text = Text(
       content,
       maxLines: lines,
       overflow: lines == null ? TextOverflow.clip : TextOverflow.ellipsis,
       style: textStyle,
       textAlign: style.textAlign,
     );
+    // Real text selection with a QChat copy bubble. `SelectionArea` lives in
+    // Material, so the renderer builds the widgets-level `SelectableRegion`
+    // itself and supplies its own toolbar.
+    if (node.props['selectable'] == true) {
+      return _selectable(context, text);
+    }
+    return text;
+  }
+
+  /// Inline text with mixed styles.
+  ///
+  /// `RichText` never receives HTML: its children are the same `Text`, `Link`
+  /// and `#text` nodes as everywhere else, and each one contributes a span with
+  /// its own style. Links become tappable spans, so the paragraph still wraps
+  /// and aligns as one run of text.
+  Widget _richText(BuildContext context) {
+    final maxLines = node.props['numberOfLines'];
+    return _QappRichText(
+      key: ValueKey('${node.id}:rich'),
+      node: node,
+      onEvent: onEvent,
+      baseStyle: node.style.toTextStyle(
+        fallbackColor: ink(context),
+        fallbackSize: 15,
+      ),
+      maxLines: maxLines is num ? maxLines.round() : node.style.numberOfLines,
+      textAlign: node.style.textAlign,
+      selectable: node.props['selectable'] == true,
+    );
+  }
+
+  Widget _link(BuildContext context) {
+    final disabled = node.props['disabled'] == true;
+    final style = node.style.toTextStyle(
+      fallbackColor: disabled ? qchatMuted(context) : QChatColors.green,
+      fallbackSize: 15,
+    );
+    final text = Text(
+      qappTextContent(node),
+      maxLines: node.style.numberOfLines,
+      style: style.copyWith(
+        decoration: style.decoration ?? TextDecoration.underline,
+      ),
+      textAlign: node.style.textAlign,
+    );
+    if (disabled || !node.hasEvent('press')) return text;
+    return Semantics(
+      link: true,
+      label: node.props['accessibleLabel']?.toString(),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onEvent(node.id, 'press', _linkPayload(node)),
+        child: text,
+      ),
+    );
+  }
+
+  static Map<String, Object?> _linkPayload(QappNode link) {
+    final href = link.props['href'];
+    return {
+      'type': 'press',
+      'href': href is String ? href : '',
+      'external': link.props['external'] == true,
+    };
+  }
+
+  Widget _badge(BuildContext context) {
+    final children = _childWidgets(context);
+    final anchor = children.isEmpty
+        ? null
+        : children.length == 1
+        ? children.first
+        : _stretchColumn(children);
+    if (node.props['visible'] == false) {
+      return anchor ?? const SizedBox.shrink();
+    }
+    final dot = node.props['dot'] == true;
+    final count = _number(node.props['count']);
+    final label = dot ? '' : _badgeCount(count, node.props['max']);
+    if (!dot && label.isEmpty) {
+      return anchor ?? const SizedBox.shrink();
+    }
+    final color = _toneColor(context, node.props['tone']?.toString());
+    final pill = dot
+        ? Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          )
+        : Container(
+            constraints: const BoxConstraints(minWidth: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(9),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: const TextStyle(
+                fontSize: 11,
+                height: 1.2,
+                fontWeight: FontWeight.w600,
+                color: QChatColors.white,
+              ),
+            ),
+          );
+    if (anchor == null) return pill;
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        anchor,
+        Positioned(top: -6, right: -6, child: pill),
+      ],
+    );
+  }
+
+  /// `count` clamped to a sane range; anything past `max` is shown as `max+`.
+  static String _badgeCount(double? count, Object? rawMax) {
+    if (count == null || count <= 0) return '';
+    final max = (_number(rawMax) ?? 99).clamp(1, 999);
+    final value = count.floor();
+    return value > max ? '${max.round()}+' : '$value';
+  }
+
+  Widget _tag(BuildContext context) {
+    final tone = node.props['tone']?.toString() ?? 'neutral';
+    final size = node.props['size']?.toString() ?? 'md';
+    final (fontSize, horizontal, vertical) = switch (size) {
+      'sm' => (11.0, 6.0, 1.0),
+      'lg' => (14.0, 10.0, 4.0),
+      _ => (12.0, 8.0, 2.0),
+    };
+    final foreground = tone == 'neutral'
+        ? qchatInk(context)
+        : _toneColor(context, tone);
+    final background =
+        node.style.backgroundColor ??
+        (tone == 'neutral'
+            ? qchatFill(context)
+            : foreground.withValues(alpha: .14));
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        qappTextContent(node),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: node.style
+            .toTextStyle(fallbackColor: foreground, fallbackSize: fontSize)
+            .copyWith(fontWeight: node.style.fontWeight ?? FontWeight.w500),
+      ),
+    );
+  }
+
+  Widget _avatar(BuildContext context) {
+    final size = (_number(node.props['size']) ?? node.style.width ?? 40).clamp(
+      16.0,
+      160.0,
+    );
+    final name = node.props['name']?.toString() ?? '';
+    final src = node.props['src']?.toString() ?? '';
+    final initials = _avatarInitials(name, size);
+    final body = src.isEmpty
+        ? initials
+        : _imageBody(
+            context,
+            src,
+            BoxFit.cover,
+            size,
+            size,
+            placeholder: initials,
+          );
+    final radius = node.props['shape'] == 'rounded'
+        ? BorderRadius.circular(size * .28)
+        : BorderRadius.circular(size / 2);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ClipRRect(borderRadius: radius, child: body),
+    );
+  }
+
+  Widget _avatarInitials(String name, double size) {
+    final initials = _initials(name);
+    return Container(
+      color: QChatColors.green.withValues(alpha: .16),
+      alignment: Alignment.center,
+      child: initials.isEmpty
+          ? QChatIcon('user', size: size * .5, color: QChatColors.green)
+          : Text(
+              initials,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: size * .38,
+                fontWeight: FontWeight.w600,
+                color: QChatColors.green,
+              ),
+            ),
+    );
+  }
+
+  /// First letter of the first two words, which is what a chat avatar shows
+  /// when it has no picture.
+  static String _initials(String name) {
+    final words = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .take(2)
+        .toList(growable: false);
+    if (words.isEmpty) return '';
+    return words.map((word) => String.fromCharCode(word.runes.first)).join().toUpperCase();
   }
 
   Widget _flex(BuildContext context, {bool? forceRow}) {
@@ -903,22 +1137,26 @@ class _QappNodeView extends StatelessWidget {
           ? 8
           : node.style.borderRadius.topLeft.x,
     );
-    final (background, foreground) = switch (variant) {
-      'secondary' => (
-        qchatFill(context),
-        ink(context),
-      ),
-      'text' => (QChatColors.transparent, QChatColors.green),
-      'danger' => (const Color(0xffe5484d), QChatColors.white),
-      _ => (QChatColors.green, QChatColors.white),
+    final (minHeight, horizontal, vertical, fontSize, iconSize) =
+        switch (node.props['size']) {
+          'sm' => (32.0, 12.0, 5.0, 13.0, 14.0),
+          'lg' => (48.0, 22.0, 12.0, 16.0, 20.0),
+          _ => (40.0, 16.0, 9.0, 15.0, 17.0),
+        };
+    final (background, foreground, borderColor) = switch (variant) {
+      'secondary' => (qchatFill(context), ink(context), null),
+      'outline' => (QChatColors.transparent, QChatColors.green, QChatColors.green),
+      'text' => (QChatColors.transparent, QChatColors.green, null),
+      'danger' => (const Color(0xffe5484d), QChatColors.white, null),
+      _ => (QChatColors.green, QChatColors.white, null),
     };
     final buttonStyle = styleToTextStyle(
       context,
       fallbackColor: foreground,
-      fallbackSize: 15,
+      fallbackSize: fontSize,
     );
     final content = loading
-        ? QChatLoading(size: 18, color: foreground)
+        ? QChatLoading(size: iconSize, color: foreground)
         : Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -927,7 +1165,7 @@ class _QappNodeView extends StatelessWidget {
               if (node.props['icon'] is String)
                 QChatIcon(
                   node.props['icon'] as String,
-                  size: 17,
+                  size: iconSize,
                   color: foreground,
                 ),
               Flexible(
@@ -941,32 +1179,38 @@ class _QappNodeView extends StatelessWidget {
               ),
             ],
           );
+    final border = node.style.borderWidth > 0
+        ? Border.all(
+            color: node.style.borderColor ?? background,
+            width: node.style.borderWidth,
+          )
+        : borderColor == null
+        ? null
+        : Border.all(color: borderColor);
     final button = AnimatedOpacity(
       duration: const Duration(milliseconds: 120),
       opacity: disabled ? .45 : 1,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 40, minWidth: 64),
+        constraints: BoxConstraints(minHeight: minHeight, minWidth: 64),
         padding: node.style.padding == EdgeInsets.zero
-            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 9)
+            ? EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical)
             : node.style.padding,
         decoration: BoxDecoration(
           color: background,
           borderRadius: radius,
-          border: node.style.borderWidth > 0
-              ? Border.all(
-                  color: node.style.borderColor ?? background,
-                  width: node.style.borderWidth,
-                )
-              : null,
+          border: border,
         ),
         alignment: Alignment.center,
         child: content,
       ),
     );
     if (disabled) return button;
+    final accessibleLabel = node.props['accessibleLabel'];
     return Semantics(
       button: true,
-      label: label,
+      label: accessibleLabel is String && accessibleLabel.isNotEmpty
+          ? accessibleLabel
+          : label,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => onEvent(node.id, 'press', null),
@@ -1010,39 +1254,7 @@ class _QappNodeView extends StatelessWidget {
       'fitHeight' => BoxFit.fitHeight,
       _ => BoxFit.cover,
     };
-    Widget body;
-    if (src.startsWith('data:')) {
-      final bytes = _decodeDataUrl(src);
-      body = bytes == null
-          ? _imageFallback(context, width, height)
-          : Image.memory(
-              bytes,
-              fit: fit,
-              width: width,
-              height: height,
-              gaplessPlayback: true,
-              errorBuilder: (_, _, _) => _imageFallback(context, width, height),
-            );
-    } else if (src.startsWith('assets/')) {
-      body = _QappAssetImage(
-        key: ValueKey(node.id),
-        loader: loadAsset,
-        path: src,
-        fit: fit,
-        width: width,
-        height: height,
-      );
-    } else if (_isRemoteImageUri(src)) {
-      body = Image.network(
-        src,
-        fit: fit,
-        width: width,
-        height: height,
-        errorBuilder: (_, _, _) => _imageFallback(context, width, height),
-      );
-    } else {
-      body = _imageFallback(context, width, height);
-    }
+    var body = _imageBody(context, src, fit, width, height);
     if (radius > 0) {
       body = ClipRRect(
         borderRadius: BorderRadius.circular(radius),
@@ -1056,6 +1268,53 @@ class _QappNodeView extends StatelessWidget {
       );
     }
     return body;
+  }
+
+  /// The one place that turns an image reference into a widget, so `Image` and
+  /// `Avatar` follow the same asset policy: `data:` URLs, packaged `assets/`
+  /// paths and HTTPS URLs only.
+  Widget _imageBody(
+    BuildContext context,
+    String src,
+    BoxFit fit,
+    double? width,
+    double? height, {
+    Widget? placeholder,
+  }) {
+    final fallback = placeholder ?? _imageFallback(context, width, height);
+    if (src.startsWith('data:')) {
+      final bytes = _decodeDataUrl(src);
+      if (bytes == null) return fallback;
+      return Image.memory(
+        bytes,
+        fit: fit,
+        width: width,
+        height: height,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+    if (src.startsWith('assets/')) {
+      return _QappAssetImage(
+        key: ValueKey('${node.id}:image'),
+        loader: loadAsset,
+        path: src,
+        fit: fit,
+        width: width,
+        height: height,
+        placeholder: placeholder,
+      );
+    }
+    if (_isRemoteImageUri(src)) {
+      return Image.network(
+        src,
+        fit: fit,
+        width: width,
+        height: height,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+    return fallback;
   }
 
   Widget _imageFallback(BuildContext context, double? width, double? height) =>
@@ -1094,7 +1353,9 @@ class _QappNodeView extends StatelessWidget {
   }
 
   Widget _spacer(BuildContext context) {
-    final size = _number(node.props['size']) ?? 0;
+    // A negative or absurd `size` must not overflow the layout: the host clamps
+    // it, and a zero-size spacer still expands when it sits in a flex.
+    final size = (_number(node.props['size']) ?? 0).clamp(0.0, 400.0);
     if (size > 0) {
       return SizedBox(height: size, width: size);
     }
@@ -1124,10 +1385,31 @@ class _QappNodeView extends StatelessWidget {
 
   Widget _divider(BuildContext context) {
     final color = qappColor(node.props['color']) ?? node.style.color;
-    final thickness = _number(node.props['thickness']) ?? 1;
-    return Container(
-      height: thickness,
-      color: color ?? QChatColors.line,
+    final thickness = (_number(node.props['thickness']) ?? 1).clamp(0.5, 24.0);
+    final inset = (_number(node.props['inset']) ?? 0).clamp(0.0, 400.0);
+    final lineColor = color ?? qchatLine(context);
+    if (node.props['vertical'] == true) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // A rule inside a `Row` has no bounded height; fall back to a short
+          // one instead of handing `double.infinity` to a `SizedBox`.
+          final height =
+              node.style.height ??
+              (constraints.hasBoundedHeight ? constraints.maxHeight : 24.0);
+          return Padding(
+            padding: EdgeInsets.only(top: inset),
+            child: SizedBox(
+              width: thickness,
+              height: height,
+              child: ColoredBox(color: lineColor),
+            ),
+          );
+        },
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.only(left: inset),
+      child: Container(height: thickness, color: lineColor),
     );
   }
 
@@ -1410,6 +1692,16 @@ class _QappNodeView extends StatelessWidget {
     _ => Alignment.topLeft,
   };
 
+  /// Accent colour for a `Tag` or `Badge` tone. Neutral resolves through the
+  /// theme so it stays readable in dark mode.
+  Color _toneColor(BuildContext context, String? tone) => switch (tone) {
+    'success' => QChatColors.green,
+    'warning' => const Color(0xfff5a524),
+    'danger' => const Color(0xffe5484d),
+    'info' => const Color(0xff3b82f6),
+    _ => qchatMuted(context),
+  };
+
   /// Remote images are allowed from any HTTPS host: a mini program does not
   /// declare a host allowlist, the `network` permission covers them all.
   bool _isRemoteImageUri(String value) {
@@ -1442,6 +1734,196 @@ class _QappNodeView extends StatelessWidget {
       value.isEmpty ? value : '${value[0].toUpperCase()}${value.substring(1)}',
     _ => value,
   };
+}
+
+/// One paragraph built from inline `Text`, `Link` and `#text` children.
+///
+/// A `TextSpan` recogniser must be disposed with the widget, so the spans are
+/// rebuilt by a `State` that owns them instead of a `StatelessWidget`.
+class _QappRichText extends StatefulWidget {
+  const _QappRichText({
+    super.key,
+    required this.node,
+    required this.onEvent,
+    required this.baseStyle,
+    required this.maxLines,
+    required this.textAlign,
+    required this.selectable,
+  });
+
+  final QappNode node;
+  final QappEventHandler onEvent;
+  final TextStyle baseStyle;
+  final int? maxLines;
+  final TextAlign? textAlign;
+  final bool selectable;
+
+  @override
+  State<_QappRichText> createState() => _QappRichTextState();
+}
+
+class _QappRichTextState extends State<_QappRichText> {
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  TapGestureRecognizer _recognizerFor(QappNode link) {
+    final recognizer = TapGestureRecognizer()
+      ..onTap = () => widget.onEvent(
+        link.id,
+        'press',
+        _QappNodeView._linkPayload(link),
+      );
+    _recognizers.add(recognizer);
+    return recognizer;
+  }
+
+  /// Flattens the inline nodes into spans. A `Link` passes its recogniser down
+  /// to its own text, so a link made of several spans stays one tappable run.
+  void _walk(
+    QappNode current,
+    TextStyle inherited,
+    List<InlineSpan> spans, {
+    GestureRecognizer? recognizer,
+  }) {
+    if (current.type == '#text') {
+      if (current.text.isEmpty) return;
+      spans.add(
+        TextSpan(
+          text: current.text,
+          style: inherited,
+          recognizer: recognizer,
+        ),
+      );
+      return;
+    }
+    final style = inherited.merge(current.style.toTextStyle());
+    final isLink = current.type == 'Link';
+    // A link keeps the paragraph's metrics but is green and underlined unless
+    // the node asked for something else.
+    final effective = isLink
+        ? style.copyWith(
+            color: current.style.color ?? QChatColors.green,
+            decoration:
+                current.style.textDecoration ?? TextDecoration.underline,
+          )
+        : style;
+    final active = isLink ? _recognizerFor(current) : recognizer;
+    if (current.children.isEmpty) {
+      final text = current.text;
+      if (text.isNotEmpty) {
+        spans.add(TextSpan(text: text, style: effective, recognizer: active));
+      }
+      return;
+    }
+    for (final child in current.children) {
+      _walk(child, effective, spans, recognizer: active);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Every build replaces the spans, so the recognisers from the previous
+    // build are released first instead of leaking one per frame.
+    _disposeRecognizers();
+    final spans = <InlineSpan>[];
+    for (final child in widget.node.children) {
+      _walk(child, widget.baseStyle, spans);
+    }
+    final paragraph = Text.rich(
+      TextSpan(style: widget.baseStyle, children: spans),
+      maxLines: widget.maxLines,
+      overflow: widget.maxLines == null
+          ? TextOverflow.clip
+          : TextOverflow.ellipsis,
+      textAlign: widget.textAlign,
+    );
+    return widget.selectable ? _selectable(context, paragraph) : paragraph;
+  }
+}
+
+/// Wraps a paragraph in a selectable region with the QChat copy bubble.
+///
+/// `SelectionArea` is a Material widget, so the runtime uses the underlying
+/// `SelectableRegion` with Cupertino handles and a toolbar drawn from the
+/// design system instead.
+Widget _selectable(BuildContext context, Widget child) {
+  return _QappSelectable(child: child);
+}
+
+class _QappSelectable extends StatefulWidget {
+  const _QappSelectable({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_QappSelectable> createState() => _QappSelectableState();
+}
+
+class _QappSelectableState extends State<_QappSelectable> {
+  /// `SelectableRegionState` exposes the selection only through its callback,
+  /// so the toolbar reads the text captured here.
+  String _selectedText = '';
+
+  @override
+  Widget build(BuildContext context) {
+    return SelectableRegion(
+      selectionControls: cupertinoTextSelectionControls,
+      onSelectionChanged: (content) =>
+          _selectedText = content?.plainText ?? '',
+      contextMenuBuilder: (context, state) =>
+          _QappCopyToolbar(state: state, text: _selectedText),
+      child: widget.child,
+    );
+  }
+}
+
+class _QappCopyToolbar extends StatelessWidget {
+  const _QappCopyToolbar({required this.state, required this.text});
+
+  final SelectableRegionState state;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: qchatInk(context),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (text.isNotEmpty) {
+            Clipboard.setData(ClipboardData(text: text));
+          }
+          state.hideToolbar();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            tr(context, 'copy'),
+            style: TextStyle(
+              color: qchatSurface(context),
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Pressable extends StatefulWidget {
@@ -1501,6 +1983,7 @@ class _QappAssetImage extends StatefulWidget {
     required this.fit,
     required this.width,
     required this.height,
+    this.placeholder,
   });
 
   final QappAssetLoader loader;
@@ -1508,6 +1991,10 @@ class _QappAssetImage extends StatefulWidget {
   final BoxFit fit;
   final double? width;
   final double? height;
+
+  /// Shown while the asset is loading. `Avatar` passes its initials so the
+  /// image fades in over a stable surface instead of a spinner.
+  final Widget? placeholder;
 
   @override
   State<_QappAssetImage> createState() => _QappAssetImageState();
@@ -1523,6 +2010,8 @@ class _QappAssetImageState extends State<_QappAssetImage> {
       builder: (context, snapshot) {
         final bytes = snapshot.data;
         if (bytes == null || bytes.isEmpty) {
+          final placeholder = widget.placeholder;
+          if (placeholder != null) return placeholder;
           return SizedBox(
             width: widget.width,
             height: widget.height ?? 48,
@@ -1537,11 +2026,17 @@ class _QappAssetImageState extends State<_QappAssetImage> {
           width: widget.width,
           height: widget.height,
           gaplessPlayback: true,
-          errorBuilder: (_, _, _) => SizedBox(
-            width: widget.width,
-            height: widget.height ?? 48,
-            child: const QChatIcon('image', size: 20, color: QChatColors.muted),
-          ),
+          errorBuilder: (_, _, _) =>
+              widget.placeholder ??
+              SizedBox(
+                width: widget.width,
+                height: widget.height ?? 48,
+                child: const QChatIcon(
+                  'image',
+                  size: 20,
+                  color: QChatColors.muted,
+                ),
+              ),
         );
       },
     );

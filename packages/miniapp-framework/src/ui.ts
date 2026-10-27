@@ -1,4 +1,5 @@
 import { h, type VNode, type VNodeChild } from "./runtime.js";
+import { navigateTo } from "./navigation.js";
 import type {
   BaseProps,
   QappBoxShadow,
@@ -24,7 +25,15 @@ export type StackAlignment =
 
 export type ImageFit = "cover" | "contain" | "fill" | "fitWidth" | "fitHeight";
 export type KeyboardType = "text" | "number" | "email" | "phone" | "url";
-export type ButtonVariant = "primary" | "secondary" | "text" | "danger";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "outline"
+  | "text"
+  | "danger";
+export type ControlSize = "sm" | "md" | "lg";
+export type TagTone = "neutral" | "success" | "warning" | "danger" | "info";
+export type AvatarShape = "circle" | "rounded";
 export type SafeAreaEdge = "top" | "right" | "bottom" | "left";
 export type ModalAnimation = "none" | "fade" | "slide";
 export type AnimateKind = "fadeIn" | "slideUp" | "scaleIn";
@@ -55,12 +64,59 @@ export interface TextProps extends BaseProps {
   numberOfLines?: number;
   selectable?: boolean;
 }
+/**
+ * Inline text with mixed styles. Children are `Text`, `Link` or plain strings;
+ * they are flattened into one native paragraph. No HTML is accepted.
+ */
+export interface RichTextProps extends BaseProps {
+  children?: VNodeChild;
+  numberOfLines?: number;
+  selectable?: boolean;
+}
+/**
+ * Tappable text. `href` navigates inside the Mini App through the host router,
+ * so the path is validated on the native side. `external` links are reported to
+ * the app through `onPress` with the URL in the payload; the host does not open
+ * other applications yet.
+ */
+export interface LinkProps extends BaseProps {
+  children?: VNodeChild;
+  href?: string;
+  external?: boolean;
+  onPress?: () => void;
+  disabled?: boolean;
+}
+/**
+ * A count, a status dot, or both, drawn over `children` (usually an icon or an
+ * avatar). A count of zero hides the badge, like a chat app would.
+ */
+export interface BadgeProps extends BaseProps {
+  children?: VNodeChild;
+  count?: number;
+  max?: number;
+  dot?: boolean;
+  visible?: boolean;
+  tone?: TagTone;
+}
+export interface TagProps extends BaseProps {
+  children?: VNodeChild;
+  tone?: TagTone;
+  size?: ControlSize;
+}
+export interface AvatarProps extends BaseProps {
+  src?: string;
+  /** Used for the initials shown while the image loads or when `src` is empty. */
+  name?: string;
+  size?: number;
+  shape?: AvatarShape;
+}
 export interface ButtonProps extends BaseProps {
   children?: VNodeChild;
   onPress?: () => void;
   onLongPress?: () => void;
   disabled?: boolean;
   variant?: ButtonVariant;
+  size?: ControlSize;
   loading?: boolean;
   icon?: string;
 }
@@ -166,6 +222,10 @@ export interface SpacerProps extends BaseProps {
 export interface DividerProps extends BaseProps {
   color?: string;
   thickness?: number;
+  /** A vertical rule for a `Row`. */
+  vertical?: boolean;
+  /** Leading inset: left for a horizontal rule, top for a vertical one. */
+  inset?: number;
 }
 export interface ActivityIndicatorProps extends BaseProps {
   size?: number;
@@ -242,6 +302,44 @@ export function Column(props: ViewProps): VNode {
 
 export function Text(props: TextProps): VNode {
   return view("Text", props as Record<string, unknown>);
+}
+
+export function RichText(props: RichTextProps): VNode {
+  return view("RichText", props as Record<string, unknown>);
+}
+
+export function Link(props: LinkProps): VNode {
+  const { href, external, onPress, ...rest } = props;
+  const isExternal = external === true;
+  return view("Link", {
+    ...rest,
+    href,
+    external: isExternal,
+    onPress: () => {
+      onPress?.();
+      // In-app routes go through the host router so the path is validated on
+      // the native side. An external URL is only reported to the app: opening
+      // another application is a privileged host API that is not wired yet.
+      if (href && !isExternal) {
+        void navigateTo(href).catch(() => {
+          // The host rejects routes that leave the Mini App. The tap still
+          // reached `onPress`, so a failed navigation is not fatal.
+        });
+      }
+    },
+  } as Record<string, unknown>);
+}
+
+export function Badge(props: BadgeProps): VNode {
+  return view("Badge", props as Record<string, unknown>);
+}
+
+export function Tag(props: TagProps): VNode {
+  return view("Tag", props as Record<string, unknown>);
+}
+
+export function Avatar(props: AvatarProps): VNode {
+  return view("Avatar", props as Record<string, unknown>);
 }
 
 export function Button(props: ButtonProps): VNode {

@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/core/design_system/components.dart';
@@ -238,5 +239,320 @@ void main() {
     );
     await tester.pumpWidget(host(root, (_, _, _) {}));
     expect(find.byType(SingleChildScrollView), findsNothing);
+  });
+
+  testWidgets('RichText merges inline styles and links report press', (
+    tester,
+  ) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'RichText',
+      props: {'numberOfLines': 2},
+      children: [
+        node(
+          'n0.0',
+          'Text',
+          props: {
+            'style': {'fontWeight': 'bold'},
+          },
+          children: [node('n0.0.0', '#text', props: {'text': 'Bold'})],
+        ),
+        node('n0.1', '#text', props: {'text': ' and '}),
+        node(
+          'n0.2',
+          'Link',
+          props: {'href': '/details'},
+          events: const ['press'],
+          children: [node('n0.2.0', '#text', props: {'text': 'more'})],
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    final paragraph = tester.widget<Text>(
+      find.byWidgetPredicate((widget) => widget is Text && widget.textSpan != null),
+    );
+    final span = paragraph.textSpan! as TextSpan;
+    expect(paragraph.maxLines, 2);
+    expect(span.children!.length, 3);
+    final bold = span.children![0] as TextSpan;
+    expect(bold.text, 'Bold');
+    expect(bold.style?.fontWeight, FontWeight.bold);
+    final link = span.children![2] as TextSpan;
+    expect(link.text, 'more');
+    expect(link.style?.decoration, TextDecoration.underline);
+    expect(link.style?.color, QChatColors.green);
+    expect(link.recognizer, isA<TapGestureRecognizer>());
+    (link.recognizer! as TapGestureRecognizer).onTap!();
+    await tester.pump();
+    expectEvent(events, 'n0.2', 'press', {
+      'type': 'press',
+      'href': '/details',
+      'external': false,
+    });
+  });
+
+  testWidgets('Link renders an underlined label and reports its href', (
+    tester,
+  ) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'Link',
+      props: {'href': '/details'},
+      events: const ['press'],
+      children: [node('n0.0', '#text', props: {'text': 'Details'})],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    final label = tester.widget<Text>(find.text('Details'));
+    expect(label.style?.decoration, TextDecoration.underline);
+    await tester.tap(find.text('Details'));
+    await tester.pump();
+    expectEvent(events, 'n0', 'press', {
+      'type': 'press',
+      'href': '/details',
+      'external': false,
+    });
+  });
+
+  testWidgets('a disabled Link is muted and does not react', (tester) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'Link',
+      props: {'href': '/details', 'disabled': true},
+      events: const ['press'],
+      children: [node('n0.0', '#text', props: {'text': 'Details'})],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    expect(tester.widget<Text>(find.text('Details')).style?.color, QChatColors.muted);
+    await tester.tap(find.text('Details'));
+    await tester.pump();
+    expect(events, isEmpty);
+  });
+
+  testWidgets('Badge caps its count, draws a dot and hides at zero', (
+    tester,
+  ) async {
+    QappNode badge(Map<String, dynamic> props) =>
+        node('n0', 'Badge', props: props);
+
+    await tester.pumpWidget(host(badge({'count': 120, 'max': 99}), (_, _, _) {}));
+    expect(find.text('99+'), findsOneWidget);
+
+    await tester.pumpWidget(host(badge({'count': 0}), (_, _, _) {}));
+    expect(find.byType(Text), findsNothing);
+
+    await tester.pumpWidget(host(badge({'dot': true}), (_, _, _) {}));
+    expect(find.byType(Text), findsNothing);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Container &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(
+      host(badge({'count': 5, 'visible': false}), (_, _, _) {}),
+    );
+    expect(find.byType(Text), findsNothing);
+  });
+
+  testWidgets('Badge overlays its child without changing its size', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'Badge',
+      props: {'count': 3},
+      children: [
+        node('n0.0', 'Avatar', props: {'name': 'Quyet', 'size': 40}),
+      ],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(find.text('3'), findsOneWidget);
+    expect(find.byType(Stack), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is SizedBox && widget.width == 40 && widget.height == 40,
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Tag paints its tone from the design system', (tester) async {
+    final root = node(
+      'n0',
+      'View',
+      children: [
+        node(
+          'n0.0',
+          'Tag',
+          props: {'tone': 'danger', 'size': 'sm'},
+          children: [node('n0.0.0', '#text', props: {'text': 'Hot'})],
+        ),
+        node(
+          'n0.1',
+          'Tag',
+          props: {'tone': 'success'},
+          children: [node('n0.1.0', '#text', props: {'text': 'Done'})],
+        ),
+      ],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(tester.widget<Text>(find.text('Hot')).style?.color, const Color(0xffe5484d));
+    expect(tester.widget<Text>(find.text('Done')).style?.color, QChatColors.green);
+  });
+
+  testWidgets('Avatar falls back to initials and honours its shape', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'Avatar',
+      props: {'name': 'quyet guic', 'size': 40, 'shape': 'rounded'},
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(find.text('QG'), findsOneWidget);
+    final clip = tester.widget<ClipRRect>(find.byType(ClipRRect));
+    expect(clip.borderRadius, BorderRadius.circular(11.2));
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is SizedBox && widget.width == 40 && widget.height == 40,
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Avatar shows an icon when it has neither image nor name', (
+    tester,
+  ) async {
+    final root = node('n0', 'Avatar', props: {'size': 32});
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is QChatIcon && widget.name == 'user',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('Button supports the outline variant and every size', (
+    tester,
+  ) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'Button',
+      props: {'variant': 'outline', 'size': 'sm'},
+      events: const ['press'],
+      children: [node('n0.0', '#text', props: {'text': 'Add'})],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    final container = tester.widget<Container>(
+      find.ancestor(of: find.text('Add'), matching: find.byType(Container)).first,
+    );
+    final decoration = container.decoration! as BoxDecoration;
+    expect(decoration.color, QChatColors.transparent);
+    expect(decoration.border, isNotNull);
+    expect(container.constraints, const BoxConstraints(minHeight: 32, minWidth: 64));
+    await tester.tap(find.text('Add'));
+    await tester.pump();
+    expectEvent(events, 'n0', 'press', null);
+  });
+
+  testWidgets('Divider draws a vertical rule with a leading inset', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'Row',
+      children: [
+        node(
+          'n0.0',
+          'Divider',
+          props: {'vertical': true, 'thickness': 2, 'inset': 8},
+        ),
+      ],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is SizedBox && widget.width == 2,
+      ),
+      findsOneWidget,
+    );
+    final padding = tester.widget<Padding>(
+      find.ancestor(
+        of: find.byWidgetPredicate(
+          (widget) => widget is SizedBox && widget.width == 2,
+        ),
+        matching: find.byType(Padding),
+      ).first,
+    );
+    expect(padding.padding, const EdgeInsets.only(top: 8));
+  });
+
+  testWidgets('Spacer clamps an invalid size instead of overflowing', (
+    tester,
+  ) async {
+    final root = node('n0', 'View', children: [node('n0.0', 'Spacer', props: {'size': -40})]);
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('base props map to keys, semantics and pointer events', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final root = node(
+      'n0',
+      'Text',
+      props: {
+        'testID': 'greeting',
+        'accessibleLabel': 'Greeting text',
+        'pointerEvents': 'none',
+      },
+      children: [node('n0.0', '#text', props: {'text': 'Hello'})],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final keyed = find.byKey(const ValueKey('greeting'));
+    expect(keyed, findsOneWidget);
+    expect(find.bySemanticsLabel('Greeting text'), findsOneWidget);
+    expect(
+      find.descendant(of: keyed, matching: find.byType(IgnorePointer)),
+      findsOneWidget,
+    );
+    handle.dispose();
+  });
+
+  testWidgets('selectable text opts into native selection', (tester) async {
+    final plain = node(
+      'n0',
+      'Text',
+      children: [node('n0.0', '#text', props: {'text': 'Plain'})],
+    );
+    await tester.pumpWidget(host(plain, (_, _, _) {}));
+    expect(find.byType(SelectableRegion), findsNothing);
+
+    final selectable = node(
+      'n0',
+      'Text',
+      props: {'selectable': true},
+      children: [node('n0.0', '#text', props: {'text': 'Copy me'})],
+    );
+    await tester.pumpWidget(host(selectable, (_, _, _) {}));
+    expect(find.byType(SelectableRegion), findsOneWidget);
   });
 }

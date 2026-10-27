@@ -10,13 +10,18 @@ export const FRAGMENT_TYPE = "#fragment";
 export const SDK_VERSION = "1.0.0" as const;
 export const RUNTIME_VERSION = "1.0.0" as const;
 
-export const HOST_NODE_TYPES: ReadonlySet<string> = new Set<string>(["View", "Row", "Column", "Text", "Button", "Pressable", "Image", "Icon", "TextField", "Checkbox", "Switch", "Slider", "ScrollView", "ListView", "GridView", "Stack", "Positioned", "Spacer", "Divider", "ActivityIndicator", "SafeArea", "AnimatedView", "CustomPaint", "Modal", "BottomSheet", "Dialog", "NavBar", "TabBar", "#text"]);
+export const HOST_NODE_TYPES: ReadonlySet<string> = new Set<string>(["View", "Row", "Column", "Text", "RichText", "Link", "Badge", "Tag", "Avatar", "Button", "Pressable", "Image", "Icon", "TextField", "Checkbox", "Switch", "Slider", "ScrollView", "ListView", "GridView", "Stack", "Positioned", "Spacer", "Divider", "ActivityIndicator", "SafeArea", "AnimatedView", "CustomPaint", "Modal", "BottomSheet", "Dialog", "NavBar", "TabBar", "#text"]);
 
 export const COMPONENT_EVENTS: Readonly<Record<string, readonly string[]>> = Object.freeze({
   "View": [],
   "Row": [],
   "Column": [],
   "Text": [],
+  "RichText": [],
+  "Link": ["press"],
+  "Badge": [],
+  "Tag": [],
+  "Avatar": [],
   "Button": ["press", "longPress"],
   "Pressable": ["press", "longPress"],
   "Image": ["press"],
@@ -85,7 +90,10 @@ export const STYLE_ENUM_VALUES: Readonly<Record<string, readonly string[]>> = Ob
   "imageFit": ["cover", "contain", "fill", "fitWidth", "fitHeight"],
   "animate": ["fadeIn", "slideUp", "scaleIn"],
   "keyboardType": ["text", "number", "email", "phone", "url"],
-  "buttonVariant": ["primary", "secondary", "text", "danger"],
+  "buttonVariant": ["primary", "secondary", "outline", "text", "danger"],
+  "controlSize": ["sm", "md", "lg"],
+  "tagTone": ["neutral", "success", "warning", "danger", "info"],
+  "avatarShape": ["circle", "rounded"],
   "safeAreaEdge": ["top", "right", "bottom", "left"],
   "modalAnimation": ["none", "fade", "slide"],
   "toastIcon": ["success", "error", "none"],
@@ -110,6 +118,9 @@ export const STYLE_ENUM_ALIASES: Readonly<Record<string, Readonly<Record<string,
   "animate": Object.freeze({}),
   "keyboardType": Object.freeze({}),
   "buttonVariant": Object.freeze({}),
+  "controlSize": Object.freeze({"small": "sm", "medium": "md", "large": "lg"}),
+  "tagTone": Object.freeze({"default": "neutral", "error": "danger"}),
+  "avatarShape": Object.freeze({"square": "rounded"}),
   "safeAreaEdge": Object.freeze({}),
   "modalAnimation": Object.freeze({}),
   "toastIcon": Object.freeze({}),

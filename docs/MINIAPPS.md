@@ -267,11 +267,35 @@ function App() {
 start(App);
 ```
 
-Components: `View`, `Row`, `Column`, `Text`, `Button`, `Pressable`, `Image`,
-`Icon`, `TextField`, `Checkbox`, `Switch`, `Slider`, `ScrollView`, `ListView`,
-`GridView`, `Stack`, `Positioned`, `Spacer`, `Divider`, `ActivityIndicator`,
-`SafeArea`, `AnimatedView`, `CustomPaint`, `Modal`, `BottomSheet`, `Dialog`,
-`NavBar` and `TabBar`.
+Components: `View`, `Row`, `Column`, `Text`, `RichText`, `Link`, `Button`,
+`Pressable`, `Image`, `Avatar`, `Icon`, `TextField`, `Checkbox`, `Switch`,
+`Slider`, `ScrollView`, `ListView`, `GridView`, `Stack`, `Positioned`, `Spacer`,
+`Divider`, `Badge`, `Tag`, `ActivityIndicator`, `SafeArea`, `AnimatedView`,
+`CustomPaint`, `Modal`, `BottomSheet`, `Dialog`, `NavBar` and `TabBar`.
+
+`Text` renders a paragraph: `numberOfLines` truncates with an ellipsis and
+`selectable` turns on native selection with a QChat copy bubble. `RichText` takes
+`Text`, `Link` and plain strings as children and flattens them into one
+paragraph, so mixed styles still wrap and align as a single run; it never
+accepts HTML. `Link` draws an underlined label and reports `press` with
+`{ type, href, external }`; an in-app `href` also goes through the host router
+(the path is validated on the native side), while `external: true` only reports
+the URL — opening another application is a privileged host API that is not wired
+yet.
+
+`Button` has `primary`, `secondary`, `outline`, `text` and `danger` variants,
+`sm`/`md`/`lg` sizes, an optional `icon`, `loading` and `disabled`. `Divider`
+takes `color`, `thickness`, `vertical` and a leading `inset`, and `Spacer`
+clamps its `size` so a bad value cannot overflow the layout. `Badge` shows
+`count` (capped at `max`, hidden at zero), a `dot`, or both over its `children`.
+`Tag` has `neutral`, `success`, `warning`, `danger` and `info` tones, and
+`Avatar` shows `src`, falls back to the initials of `name`, and is `circle` or
+`rounded`.
+
+Every component also honours the base props: `testID` becomes the widget key,
+`accessibleLabel` becomes the semantics label, `pointerEvents: "none"` makes the
+subtree ignore pointers, and `SafeArea` reads the real device insets (Flutter
+consumes the padding it applies, so nesting it does not add the inset twice).
 
 Hooks: `useState`, `useReducer`, `useRef`, `useMemo`, `useCallback`, `useEffect`,
 `useLayoutEffect`, `useId`, `useLifecycle`, `createContext` and `useContext`.
@@ -617,6 +641,15 @@ reproducible from Git alone; back them up with the database.
   enforcement, native backend path guards, renderer components and events, plus
   storage and bridge tests. `flutter analyze` was last run before the qapp work,
   so its clean result does not cover the Dart files added or changed since.
+- Phase 1 (text, links, buttons, dividers, spacers, badges, tags, avatars and the
+  base props) adds `primitives.test.ts`, which builds a real `.japp` through the
+  compiler and runs it in the runtime: it asserts every new node type and prop,
+  that an in-app `Link` asks the host router for its path, and that an external
+  `Link` never does. The suite passes, `node_modules/typescript/bin/tsc
+  --noEmit` is clean and `flutter analyze --no-pub` reports no issues. The new
+  Flutter widget cases in `qapp_components_test.dart` were analyzed but not run
+  on this machine, because the repository owner asked for no local
+  `flutter test`; `.github/workflows/flutter.yml` runs them.
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,

@@ -13,7 +13,12 @@ in sync.
 | `Row` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
 | `Column` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children` | — |
 | `Text` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `numberOfLines`, `selectable` | — |
-| `Button` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled`, `variant`, `loading`, `icon` | `press`, `longPress` |
+| `RichText` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `numberOfLines`, `selectable` | — |
+| `Link` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `href`, `external`, `onPress`, `disabled` | `press` |
+| `Badge` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `count`, `max`, `dot`, `visible`, `tone` | — |
+| `Tag` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `tone`, `size` | — |
+| `Avatar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `src`, `name`, `size`, `shape` | — |
+| `Button` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled`, `variant`, `size`, `loading`, `icon` | `press`, `longPress` |
 | `Pressable` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `onPress`, `onLongPress`, `disabled` | `press`, `longPress` |
 | `Image` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `src`, `width`, `height`, `fit`, `borderRadius`, `onPress` | `press` |
 | `Icon` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `name`, `size`, `color` | — |
@@ -27,7 +32,7 @@ in sync.
 | `Stack` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `alignment` | — |
 | `Positioned` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `top`, `right`, `bottom`, `left` | — |
 | `Spacer` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size` | — |
-| `Divider` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `color`, `thickness` | — |
+| `Divider` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `color`, `thickness`, `vertical`, `inset` | — |
 | `ActivityIndicator` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size`, `color` | — |
 | `SafeArea` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `edges` | — |
 | `AnimatedView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `animate`, `duration` | — |
@@ -161,7 +166,10 @@ in sync.
 - `imageFit`: `cover`, `contain`, `fill`, `fitWidth`, `fitHeight` (aliases: `cover-fill`→`cover`)
 - `animate`: `fadeIn`, `slideUp`, `scaleIn`
 - `keyboardType`: `text`, `number`, `email`, `phone`, `url`
-- `buttonVariant`: `primary`, `secondary`, `text`, `danger`
+- `buttonVariant`: `primary`, `secondary`, `outline`, `text`, `danger`
+- `controlSize`: `sm`, `md`, `lg` (aliases: `small`→`sm`, `medium`→`md`, `large`→`lg`)
+- `tagTone`: `neutral`, `success`, `warning`, `danger`, `info` (aliases: `default`→`neutral`, `error`→`danger`)
+- `avatarShape`: `circle`, `rounded` (aliases: `square`→`rounded`)
 - `safeAreaEdge`: `top`, `right`, `bottom`, `left`
 - `modalAnimation`: `none`, `fade`, `slide`
 - `toastIcon`: `success`, `error`, `none`

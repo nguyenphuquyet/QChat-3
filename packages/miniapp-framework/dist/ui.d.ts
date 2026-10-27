@@ -3,7 +3,10 @@ import type { BaseProps, QappBoxShadow, QappGradient, QappNumberEvent, QappScrol
 export type StackAlignment = "topLeft" | "topCenter" | "topRight" | "centerLeft" | "center" | "centerRight" | "bottomLeft" | "bottomCenter" | "bottomRight";
 export type ImageFit = "cover" | "contain" | "fill" | "fitWidth" | "fitHeight";
 export type KeyboardType = "text" | "number" | "email" | "phone" | "url";
-export type ButtonVariant = "primary" | "secondary" | "text" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "text" | "danger";
+export type ControlSize = "sm" | "md" | "lg";
+export type TagTone = "neutral" | "success" | "warning" | "danger" | "info";
+export type AvatarShape = "circle" | "rounded";
 export type SafeAreaEdge = "top" | "right" | "bottom" | "left";
 export type ModalAnimation = "none" | "fade" | "slide";
 export type AnimateKind = "fadeIn" | "slideUp" | "scaleIn";
@@ -30,12 +33,59 @@ export interface TextProps extends BaseProps {
     numberOfLines?: number;
     selectable?: boolean;
 }
+/**
+ * Inline text with mixed styles. Children are `Text`, `Link` or plain strings;
+ * they are flattened into one native paragraph. No HTML is accepted.
+ */
+export interface RichTextProps extends BaseProps {
+    children?: VNodeChild;
+    numberOfLines?: number;
+    selectable?: boolean;
+}
+/**
+ * Tappable text. `href` navigates inside the Mini App through the host router,
+ * so the path is validated on the native side. `external` links are reported to
+ * the app through `onPress` with the URL in the payload; the host does not open
+ * other applications yet.
+ */
+export interface LinkProps extends BaseProps {
+    children?: VNodeChild;
+    href?: string;
+    external?: boolean;
+    onPress?: () => void;
+    disabled?: boolean;
+}
+/**
+ * A count, a status dot, or both, drawn over `children` (usually an icon or an
+ * avatar). A count of zero hides the badge, like a chat app would.
+ */
+export interface BadgeProps extends BaseProps {
+    children?: VNodeChild;
+    count?: number;
+    max?: number;
+    dot?: boolean;
+    visible?: boolean;
+    tone?: TagTone;
+}
+export interface TagProps extends BaseProps {
+    children?: VNodeChild;
+    tone?: TagTone;
+    size?: ControlSize;
+}
+export interface AvatarProps extends BaseProps {
+    src?: string;
+    /** Used for the initials shown while the image loads or when `src` is empty. */
+    name?: string;
+    size?: number;
+    shape?: AvatarShape;
+}
 export interface ButtonProps extends BaseProps {
     children?: VNodeChild;
     onPress?: () => void;
     onLongPress?: () => void;
     disabled?: boolean;
     variant?: ButtonVariant;
+    size?: ControlSize;
     loading?: boolean;
     icon?: string;
 }
@@ -141,6 +191,10 @@ export interface SpacerProps extends BaseProps {
 export interface DividerProps extends BaseProps {
     color?: string;
     thickness?: number;
+    /** A vertical rule for a `Row`. */
+    vertical?: boolean;
+    /** Leading inset: left for a horizontal rule, top for a vertical one. */
+    inset?: number;
 }
 export interface ActivityIndicatorProps extends BaseProps {
     size?: number;
@@ -202,6 +256,11 @@ export declare function View(props: ViewProps): VNode;
 export declare function Row(props: ViewProps): VNode;
 export declare function Column(props: ViewProps): VNode;
 export declare function Text(props: TextProps): VNode;
+export declare function RichText(props: RichTextProps): VNode;
+export declare function Link(props: LinkProps): VNode;
+export declare function Badge(props: BadgeProps): VNode;
+export declare function Tag(props: TagProps): VNode;
+export declare function Avatar(props: AvatarProps): VNode;
 export declare function Button(props: ButtonProps): VNode;
 export declare function Pressable(props: PressableProps): VNode;
 export declare function Image(props: ImageProps): VNode;
@@ -233,7 +292,12 @@ export declare function TabBar(props: TabBarProps): VNode;
 /**
  * Custom drawing uses a deliberately small, declarative path language rather
  * than arbitrary Dart code: `M x y L x y Q cx cy x y C ... Z` plus optional
- * `fill:` and `stroke:` prefixes. The Flutter renderer owns the painter.
+ * `fill:`, `stroke:`, `strokeWidth:` and `cap:` prefixes. The Flutter renderer
+ * owns the painter.
+ *
+ * `cap:` is `round` (the default), `butt` or `square`. Arcs should ask for
+ * `butt`: a round cap extends half the stroke width past the end angle, so a
+ * gauge bleeds over its own track where the arc starts.
  */
 export declare function CustomPaint(props: CustomPaintProps): VNode;
 export type { QappBoxShadow, QappGradient, Style };
