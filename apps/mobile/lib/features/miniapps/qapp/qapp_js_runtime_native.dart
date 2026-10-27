@@ -26,6 +26,9 @@ class FlutterJsQappRuntime implements QappJsRuntime {
   bool _disposed = false;
   static const _channel = 'qchat';
   Timer? _wakeTimer;
+  int? _wakeDelayMs;
+  DateTime? _wakeDueAt;
+  bool _ticksPaused = false;
 
   @override
   Future<void> start({required String appJs, required QappJsHost host}) async {
@@ -96,6 +99,8 @@ class FlutterJsQappRuntime implements QappJsRuntime {
     _runtime = null;
     _wakeTimer?.cancel();
     _wakeTimer = null;
+    _wakeDelayMs = null;
+    _wakeDueAt = null;
     try {
       runtime?.dispose();
     } catch (_) {
@@ -210,18 +215,64 @@ class FlutterJsQappRuntime implements QappJsRuntime {
   /// timer queue, which has no clock of its own: it asks the host for a wake-up
   /// delay and expects the engine to be ticked with the current time. A
   /// negative delay means no timer is pending any more, so the wake is dropped.
+  ///
+  /// While the host is painting a gesture ([pauseTicks]) the delay is only
+  /// remembered: running a callback then would render a new frame on the UI
+  /// thread in the middle of the animation.
   void _scheduleWake(int delayMs) {
     _wakeTimer?.cancel();
     _wakeTimer = null;
-    if (_disposed || delayMs < 0) return;
-    _wakeTimer = Timer(Duration(milliseconds: delayMs), () {
-      _wakeTimer = null;
-      if (_disposed) return;
-      final now = DateTime.now().millisecondsSinceEpoch;
-      _evaluate(
-        'globalThis.__qchatTickTimers && globalThis.__qchatTickTimers($now);',
-      );
-    });
+    if (_disposed || delayMs < 0) {
+      _wakeDelayMs = null;
+      _wakeDueAt = null;
+      return;
+    }
+    _wakeDelayMs = delayMs;
+    _wakeDueAt = DateTime.now().add(Duration(milliseconds: delayMs));
+    if (_ticksPaused) return;
+    _startWake(delayMs);
+  }
+
+  void _startWake(int delayMs) {
+    _wakeTimer?.cancel();
+    _wakeTimer = Timer(Duration(milliseconds: delayMs), _tickTimers);
+  }
+
+  void _tickTimers() {
+    _wakeTimer = null;
+    if (_disposed) return;
+    if (_ticksPaused) {
+      // Paused between the timer firing and this callback running: keep the
+      // delay so `resumeTicks` can run the tick straight away.
+      return;
+    }
+    _wakeDelayMs = null;
+    _wakeDueAt = null;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    _evaluate(
+      'globalThis.__qchatTickTimers && globalThis.__qchatTickTimers($now);',
+    );
+  }
+
+  @override
+  void pauseTicks() {
+    if (_disposed || _ticksPaused) return;
+    _ticksPaused = true;
+    _wakeTimer?.cancel();
+    _wakeTimer = null;
+  }
+
+  @override
+  void resumeTicks() {
+    if (_disposed || !_ticksPaused) return;
+    _ticksPaused = false;
+    final delay = _wakeDelayMs;
+    final dueAt = _wakeDueAt;
+    if (delay == null || dueAt == null) return;
+    // Keep the timer's own schedule: a callback that was due 800ms into the
+    // gesture still fires 200ms from now when the tick had 1000ms to go.
+    final remaining = dueAt.difference(DateTime.now()).inMilliseconds;
+    _startWake(remaining < 0 ? 0 : remaining);
   }
 
   void _pump() {

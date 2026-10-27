@@ -497,11 +497,17 @@ The renderer:
    the other way round: `send("timer", { delayMs })` asks the host to wake the
    engine after that delay, Dart sets one `Timer` for it, and the wake calls
    `globalThis.__qchatTickTimers(nowMs)`. A negative delay cancels the pending
-   wake, and disposing the runtime cancels it too.
+   wake, and disposing the runtime cancels it too. While a finger is dragging or
+   the list is still flinging the host parks that wake, so no timer callback runs
+   JavaScript on the UI thread in the middle of the animation; the pending delay
+   resumes when the list comes to rest.
 4. The app renders a serialized virtual tree
    (`{ v, appId, revision, root }`). Dart validates node ids, component types,
    event names, style keys and enum values, tree depth and node count, then maps
-   it to real Flutter widgets. No HTML is loaded and no WebView is created.
+   it to real Flutter widgets. No HTML is loaded and no WebView is created. The
+   JSON frame is parsed and applied at paint time, and while the content is
+   moving the newest frame is kept and painted once the list stops: a render that
+   landed mid-gesture would otherwise rebuild the tree under the animation.
 5. Press, input, change, submit and scroll events are sent back to JavaScript.
    A state update re-renders the tree synchronously and sends a new revision.
 6. The first successful frame reveals the app; a JavaScript error or invalid

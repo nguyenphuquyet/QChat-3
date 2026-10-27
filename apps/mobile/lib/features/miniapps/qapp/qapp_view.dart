@@ -70,7 +70,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
 
   QappJsRuntime? _runtime;
   QappTree? _tree;
-  QappTree? _pendingTree;
+  Map<String, dynamic>? _pendingRender;
   Timer? _scrollWatchdog;
   bool _dragging = false;
   bool _scrolling = false;
@@ -117,7 +117,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _generation += 1;
     _scrollWatchdog?.cancel();
-    _pendingTree = null;
+    _pendingRender = null;
     _runtime?.dispose();
     _runtime = null;
     _assetCache.clear();
@@ -130,7 +130,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _runtime = null;
     _firstFrameSent = false;
     _routes.clear();
-    _pendingTree = null;
+    _pendingRender = null;
     _dragging = false;
     _scrolling = false;
     _pointerUpAt = null;
@@ -156,6 +156,32 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
 
   void _receiveRender(Map<String, dynamic> payload, int generation) {
     if (!mounted || generation != _generation) return;
+    final revision = _revisionOf(payload);
+    final current = _tree;
+    if (current != null && revision <= current.revision) return;
+    final pending = _pendingRender;
+    if (pending != null && revision <= _revisionOf(pending)) return;
+    // Parsing the JSON frame and rebuilding the widget tree are the expensive
+    // halves of a render. Both run at paint time, so a frame that arrives while
+    // the content is moving cannot push a long task into the middle of the
+    // animation: that is the single hitch that was still felt while scrolling.
+    // Keep the newest frame and paint it once the list comes to rest; a frame a
+    // tap produced is never held, so the tab bar always answers.
+    if (_shouldHoldFrame()) {
+      _pendingRender = payload;
+      return;
+    }
+    _paint(payload);
+  }
+
+  int _revisionOf(Map<String, dynamic> payload) {
+    final revision = payload['revision'];
+    return revision is num ? revision.round() : 0;
+  }
+
+  /// Validates, parses and applies one render frame.
+  void _paint(Map<String, dynamic> payload) {
+    _pendingRender = null;
     QappTree tree;
     try {
       tree = QappTree.fromJson(payload);
@@ -166,21 +192,6 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
       );
       return;
     }
-    final current = _tree;
-    if (current != null && tree.revision <= current.revision) return;
-    final pending = _pendingTree;
-    if (pending != null && tree.revision <= pending.revision) return;
-    // Keep the newest frame and paint it once the list comes to rest; a frame a
-    // tap produced is never held, so the tab bar always answers.
-    if (_shouldHoldFrame()) {
-      _pendingTree = tree;
-      return;
-    }
-    _applyTree(tree);
-  }
-
-  void _applyTree(QappTree tree) {
-    _pendingTree = null;
     setState(() {
       _tree = tree;
       _failureCode = null;
@@ -218,14 +229,22 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   bool _onScrollNotification(ScrollNotification notification) {
     if (notification is ScrollEndNotification) {
       // The list is at rest, so the held frame can be painted without a rebuild
-      // landing in the middle of an animation.
+      // landing in the middle of an animation, and the timer queue can run
+      // again.
       _scrolling = false;
       _dragging = false;
       _scrollWatchdog?.cancel();
-      _flushPendingTree();
+      _runtime?.resumeTicks();
+      _flushPendingRender();
       return false;
     }
-    _scrolling = true;
+    if (!_scrolling) {
+      _scrolling = true;
+      // JavaScript runs on the UI thread, so a timer callback landing in the
+      // middle of a fling renders a whole frame there: the content stops for a
+      // beat and then jumps. Park the timer queue until the list is still.
+      _runtime?.pauseTicks();
+    }
     _armScrollWatchdog();
     final dragged = switch (notification) {
       ScrollStartNotification(:final dragDetails) => dragDetails != null,
@@ -259,7 +278,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
       return;
     }
     _scrolling = false;
-    _flushPendingTree();
+    _runtime?.resumeTicks();
+    _flushPendingRender();
   }
 
   /// A lifted finger is never still dragging, even when the scrollable never
@@ -269,20 +289,20 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _pointerUpAt = DateTime.now();
     if (!_dragging) return;
     _dragging = false;
-    if (!_scrolling) _flushPendingTree();
+    if (!_scrolling) _flushPendingRender();
   }
 
-  void _flushPendingTree() {
-    final pending = _pendingTree;
+  void _flushPendingRender() {
+    final pending = _pendingRender;
     if (pending == null || !mounted) return;
     if (SchedulerBinding.instance.schedulerPhase ==
         SchedulerPhase.persistentCallbacks) {
       SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted && identical(_pendingTree, pending)) _applyTree(pending);
+        if (mounted && identical(_pendingRender, pending)) _paint(pending);
       });
       return;
     }
-    _applyTree(pending);
+    _paint(pending);
   }
 
   void _fail(String code, String message) {

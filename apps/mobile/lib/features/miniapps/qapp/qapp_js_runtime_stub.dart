@@ -18,6 +18,13 @@ class UnsupportedQappJsRuntime implements QappJsRuntime {
 
   @override
   void lifecycle(String event, [Object? payload]) {}
+
+  @override
+  void pauseTicks() {}
+
+  @override
+  void resumeTicks() {}
+
   @override
   void dispose() {}
 }
