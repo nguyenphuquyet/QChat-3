@@ -368,14 +368,14 @@ class _QappNodeView extends StatelessWidget {
         children: children,
       );
     }
+    // No `physics` override: a mini program keeps the platform's own feel, so
+    // iOS still rubber-bands past the last item while Android clamps. The jump
+    // that used to make that feel broken came from applying a new render frame
+    // in the middle of a drag, not from the physics; `QappView` now holds the
+    // frame until the gesture ends.
     final scroller = SingleChildScrollView(
       scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
       padding: padding,
-      // Mini programs scroll like embedded content, not like a native page:
-      // the list stops dead at its last pixel on every platform. iOS would
-      // otherwise rubber-band past the end and spring back, which reads as the
-      // content jumping back down while the finger is still dragging.
-      physics: const ClampingScrollPhysics(),
       child: content,
     );
     final showsIndicator = node.props['showsScrollIndicator'] != false;
@@ -437,10 +437,10 @@ class _QappNodeView extends StatelessWidget {
         final unbounded = horizontal
             ? !constraints.hasBoundedWidth
             : !constraints.hasBoundedHeight;
-        // Same rule as `_scroll`: a mini program list clamps at its edges
-        // instead of bouncing, so the position never springs back on iOS.
+        // Same rule as `_scroll`: the list keeps the platform physics, so iOS
+        // bounces at the edges and Android clamps.
         final physics = showsIndicator && !unbounded
-            ? const ClampingScrollPhysics()
+            ? null
             : const NeverScrollableScrollPhysics();
         if (node.type == 'GridView') {
           final columns = node.props['numColumns'];

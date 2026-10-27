@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../core/design_system/components.dart';
@@ -71,6 +72,9 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
 
   QappJsRuntime? _runtime;
   QappTree? _tree;
+  QappTree? _pendingTree;
+  Timer? _settle;
+  bool _dragging = false;
   String? _failureCode;
   String? _failureMessage;
   int _generation = 0;
@@ -112,6 +116,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     widget.controller?._detach(this);
     WidgetsBinding.instance.removeObserver(this);
     _generation += 1;
+    _settle?.cancel();
+    _pendingTree = null;
     _runtime?.dispose();
     _runtime = null;
     _assetCache.clear();
@@ -124,6 +130,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _runtime = null;
     _firstFrameSent = false;
     _routes.clear();
+    _pendingTree = null;
+    _dragging = false;
     if (mounted) {
       setState(() {
         _tree = null;
@@ -157,6 +165,22 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     }
     final current = _tree;
     if (current != null && tree.revision <= current.revision) return;
+    final pending = _pendingTree;
+    if (pending != null && tree.revision <= pending.revision) return;
+    // A mini program that re-renders while a finger is dragging its content
+    // makes the list jump: the new frame can change the content extent under an
+    // active drag, and with the iOS rubber-band that reads as the list snapping
+    // back down mid-gesture. Keep the newest frame and paint it once the finger
+    // is off the screen.
+    if (_dragging || (_settle?.isActive ?? false)) {
+      _pendingTree = tree;
+      return;
+    }
+    _applyTree(tree);
+  }
+
+  void _applyTree(QappTree tree) {
+    _pendingTree = null;
     setState(() {
       _tree = tree;
       _failureCode = null;
@@ -168,6 +192,44 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
         if (mounted) widget.onFirstFrame?.call();
       });
     }
+  }
+
+  /// Holds render frames back while the mini program is scrolling, then paints
+  /// the newest one.
+  ///
+  /// A frame that lands mid-gesture changes the content extent under the active
+  /// drag; with the iOS rubber-band the list then reads as jumping back down
+  /// while the finger is still on the screen. The gesture is only "over" when
+  /// the motion really stopped, so the flush waits for the scroll notifications
+  /// to go quiet (drag release still has a spring-back to run).
+  bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification) {
+      if (notification.dragDetails != null) _dragging = true;
+    } else if (notification is ScrollEndNotification) {
+      if (notification.dragDetails != null) _dragging = false;
+    }
+    _settle?.cancel();
+    _settle = Timer(const Duration(milliseconds: 120), _settled);
+    return false;
+  }
+
+  void _settled() {
+    // A cancelled drag never reports its end; never hold frames forever.
+    _dragging = false;
+    _flushPendingTree();
+  }
+
+  void _flushPendingTree() {
+    final pending = _pendingTree;
+    if (pending == null || !mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(_pendingTree, pending)) _applyTree(pending);
+      });
+      return;
+    }
+    _applyTree(pending);
   }
 
   void _fail(String code, String message) {
@@ -235,11 +297,14 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     return ColoredBox(
       color: qchatBackground(context),
       child: SizedBox.expand(
-        child: QappRenderer(
-          root: tree.root,
-          onEvent: _dispatch,
-          loadAsset: _loadAsset,
-          networkHosts: widget.networkHosts,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _onScrollNotification,
+          child: QappRenderer(
+            root: tree.root,
+            onEvent: _dispatch,
+            loadAsset: _loadAsset,
+            networkHosts: widget.networkHosts,
+          ),
         ),
       ),
     );
