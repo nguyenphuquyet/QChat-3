@@ -298,12 +298,17 @@ void main() {
     final label = tester.getSize(find.text('Notifications'));
     expect(label.height, lessThan(40));
     expect(label.width, greaterThan(200));
-    expect(tester.getSize(find.byKey(const ValueKey('n0.1'))).width, 38);
+    // The renderer keys both the node wrapper and the pressable itself, so the
+    // finder matches the wrapper first.
+    final pressable = find.byKey(const ValueKey('n0.1')).first;
+    expect(tester.getSize(pressable).width, 38);
+    expect(tester.getTopLeft(pressable).dx, 375 - 16 - 38);
   });
 
   testWidgets('a stack aligns unpositioned children at the top left', (
     tester,
-  ) async {    setPhone(tester);
+  ) async {
+    setPhone(tester);
     final root = node(
       'n0',
       'Stack',
