@@ -33,9 +33,12 @@ corepack pnpm tauri dev
 `prepare:cli` copies the whole compiled SDK — subdirectories included, so
 `@mna/qchat/env` ships with it — plus esbuild (with the platform binary) and
 TypeScript into `src-tauri/resources/qapp`, and the QuickJS declarations into
-`src-tauri/resources/types` (that is where the CLI looks for `qchat-env.d.ts`
-when it type-checks a project). Without it the packaged app cannot build
-projects, although the IDE still detects a CLI from the repo checkout.
+both `src-tauri/resources/types` and `src-tauri/resources/qapp/types`. The
+compiler accepts either location, and `tauri.conf.json` bundles both: a Studio
+that ships the CLI without `qchat-env.d.ts` type-checks `console`, `setTimeout`
+and `URL` as `Cannot find name`, which is exactly the error an incomplete
+resource set produces. Without the CLI copy the packaged app cannot build
+projects at all, although the IDE still detects a CLI from the repo checkout.
 
 Browser-only UI work:
 

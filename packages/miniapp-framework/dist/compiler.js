@@ -44,10 +44,21 @@ function sdkModulePath(subpath) {
     throw new Error(`QChat SDK module not found: ${subpath}`);
 }
 const sdkPackageRoot = path.resolve(moduleDir, "..");
-/** The QuickJS global declarations every qapp project type-checks against. */
+/**
+ * The QuickJS global declarations every qapp project type-checks against.
+ *
+ * In the package they sit beside the SDK (`<sdk>/types/qchat-env.d.ts`), but a
+ * packaged Studio copies the CLI into `resources/qapp`, so the typings are also
+ * accepted inside the CLI directory. `null` means the installation is
+ * incomplete: a project would then fail on `console`, `setTimeout`, `URL`…
+ */
 export function envTypingPath() {
-    const file = path.join(sdkPackageRoot, "types", "qchat-env.d.ts");
-    return existsSync(file) ? file : null;
+    for (const root of [sdkPackageRoot, moduleDir]) {
+        const file = path.join(root, "types", "qchat-env.d.ts");
+        if (existsSync(file))
+            return file;
+    }
+    return null;
 }
 const sdkResolverPlugin = {
     name: "qchat-sdk-resolver",
@@ -176,7 +187,14 @@ export function typecheckProject(projectDir) {
     }
     catch (error) {
         const output = `${error.stdout ?? ""}${error.stderr ?? ""}`.trim();
-        throw new Error(`TYPECHECK_FAILED\n${output || error.message}`);
+        // A missing declaration file turns every QuickJS global into a bogus
+        // "Cannot find name" error, so name the real cause first.
+        const hint = envTypings || libs.dom || libs.node
+            ? ""
+            : "Build environment error: the QuickJS declarations (types/qchat-env.d.ts) are missing " +
+                "from this SDK install, so console, setTimeout, setInterval, URL and friends look " +
+                "undeclared. Reinstall the QChat Mini App Studio, or re-run prepare:cli.\n\n";
+        throw new Error(`TYPECHECK_FAILED\n${hint}${output || error.message}`);
     }
     finally {
         rmSync(configPath, { force: true });

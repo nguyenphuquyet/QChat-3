@@ -74,6 +74,59 @@ jobs:
           test -f apps/miniapp-ide/src-tauri/resources/qapp/node_modules/typescript/bin/tsc
           test -f apps/miniapp-ide/src-tauri/resources/qapp/node_modules/esbuild/lib/main.js
           test -d apps/miniapp-ide/src-tauri/resources/qapp/node_modules/@esbuild
+          test -f apps/miniapp-ide/src-tauri/resources/types/qchat-env.d.ts
+          test -f apps/miniapp-ide/src-tauri/resources/qapp/types/qchat-env.d.ts
+
+      # A QuickJS-only project outside the checkout: no `@types/node`, no DOM
+      # lib. This is the layout an installed Studio builds, and it is where a
+      # missing `qchat-env.d.ts` shows up as "Cannot find name 'console'".
+      - name: Typecheck a QuickJS-only project with the bundled CLI
+        run: |
+          probe="$RUNNER_TEMP/qapp-probe"
+          mkdir -p "$probe/src"
+          cat > "$probe/manifest.json" <<'JSON'
+          {
+            "schemaVersion": 2,
+            "format": "qapp",
+            "name": "Probe",
+            "description": "Typecheck probe",
+            "version": "1.0.0",
+            "entry": "app.js",
+            "sdkVersion": "1.0.0",
+            "minRuntimeVersion": "1.0.0",
+            "requestedPermissions": ["toast"],
+            "source": "src/main.tsx"
+          }
+          JSON
+          cat > "$probe/tsconfig.json" <<'JSON'
+          {
+            "compilerOptions": {
+              "target": "ES2020",
+              "lib": ["ES2020"],
+              "module": "ESNext",
+              "moduleResolution": "Bundler",
+              "strict": true,
+              "skipLibCheck": true,
+              "noEmit": true,
+              "jsx": "react-jsx",
+              "jsxImportSource": "@mna/qchat"
+            },
+            "include": ["src/**/*.ts", "src/**/*.tsx"]
+          }
+          JSON
+          cat > "$probe/src/main.tsx" <<'TSX'
+          import { Text } from "@mna/qchat/ui";
+          import "@mna/qchat/env/auto";
+
+          export function App() {
+            const id = setInterval(() => console.log("tick"), 1000);
+            clearInterval(id);
+            setTimeout(() => console.info("later"), 10);
+            return <Text>probe</Text>;
+          }
+          TSX
+          node apps/miniapp-ide/src-tauri/resources/qapp/cli.js build \
+            --dir "$probe" --out "$RUNNER_TEMP/qapp-probe.japp"
 
   build:
     name: Build ${{ matrix.name }} installer

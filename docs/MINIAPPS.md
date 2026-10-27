@@ -438,12 +438,14 @@ host:
 - Project creation, build, typecheck, runtime test, validate and inspect call
   `qapp` directly; the artifact stays `dist/<slug>-<version>.japp`.
 - `prepare:cli` copies the whole built SDK — subdirectories included, so
-  `@mna/qchat/env` is part of the bundle — and the QuickJS declarations into
-  `src-tauri/resources/types`, which is where the CLI looks for
-  `qchat-env.d.ts` when it type-checks a project. A Studio built before that
-  copy existed rejects `import "@mna/qchat/env/auto"` with
-  `QChat SDK module not found: env/auto`; re-running `prepare:cli` (or
-  reinstalling the Studio) is the fix.
+  `@mna/qchat/env` is part of the bundle — and the QuickJS declarations
+  (`qchat-env.d.ts`) into both `src-tauri/resources/types` and
+  `src-tauri/resources/qapp/types`. The compiler looks in both places, and
+  `tauri.conf.json` ships both, because a Studio that loses the declarations
+  type-checks every `console` and `setTimeout` as `Cannot find name 'console'`.
+  A Studio built before the SDK copy existed rejects `import "@mna/qchat/env/auto"`
+  with `QChat SDK module not found: env/auto`; re-running `prepare:cli` (or
+  reinstalling the Studio) is the fix for both.
 - `qapp dev` runs in the background and streams logs and the exit code over
   Tauri events (`qapp-dev-log`, `qapp-dev-exit`).
 - The device panel shows the manifest, permissions, size and SHA-256 of the

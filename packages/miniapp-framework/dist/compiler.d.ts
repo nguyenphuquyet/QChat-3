@@ -20,7 +20,14 @@ export interface CompileResult {
     entries: ZipEntry[];
     warnings: string[];
 }
-/** The QuickJS global declarations every qapp project type-checks against. */
+/**
+ * The QuickJS global declarations every qapp project type-checks against.
+ *
+ * In the package they sit beside the SDK (`<sdk>/types/qchat-env.d.ts`), but a
+ * packaged Studio copies the CLI into `resources/qapp`, so the typings are also
+ * accepted inside the CLI directory. `null` means the installation is
+ * incomplete: a project would then fail on `console`, `setTimeout`, `URL`…
+ */
 export declare function envTypingPath(): string | null;
 export declare function sha256(bytes: Buffer | string): string;
 export declare function readProjectManifest(projectDir: string): Promise<{

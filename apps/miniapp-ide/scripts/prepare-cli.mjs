@@ -141,22 +141,26 @@ function copyFrameworkDist() {
 }
 
 // The QuickJS declarations sit in the SDK package root, which is the directory
-// above the CLI, so a packaged Studio needs them at `resources/types/`.
+// above the CLI. A packaged Studio therefore needs them at `resources/types/`,
+// and copying them into `resources/qapp/types/` as well keeps them inside the
+// bundle glob that ships the CLI, so no separate resource entry can be missed.
 function copyFrameworkTypes() {
   const from = path.join(frameworkDir, "types");
   if (!existsSync(from)) return 0;
-  const targetDir = path.join(resourcesDir, "types");
-  mkdirSync(targetDir, { recursive: true });
+  const targetDirs = [path.join(resourcesDir, "types"), path.join(qappDir, "types")];
   let count = 0;
-  for (const entry of readdirSync(from, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith(".d.ts")) continue;
-    cpSync(path.join(from, entry.name), path.join(targetDir, entry.name));
-    count += 1;
+  for (const targetDir of targetDirs) {
+    mkdirSync(targetDir, { recursive: true });
+    for (const entry of readdirSync(from, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".d.ts")) continue;
+      cpSync(path.join(from, entry.name), path.join(targetDir, entry.name));
+      count += 1;
+    }
+    if (!existsSync(path.join(targetDir, "qchat-env.d.ts"))) {
+      fail(`types/qchat-env.d.ts was not copied into ${targetDir}`);
+    }
   }
-  if (!existsSync(path.join(targetDir, "qchat-env.d.ts"))) {
-    fail("types/qchat-env.d.ts was not copied into resources/types");
-  }
-  return count;
+  return count / targetDirs.length;
 }
 
 function copyEsbuild(version) {
@@ -282,7 +286,7 @@ function main() {
   const stamp = {
     // Bumped when the resource layout changes, so an existing resources folder
     // is refreshed even though the CLI itself did not change.
-    layout: 2,
+    layout: 3,
     version: frameworkPackage.version,
     cliMtime,
     platform: process.platform,
