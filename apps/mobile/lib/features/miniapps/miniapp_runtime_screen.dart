@@ -38,6 +38,8 @@ const _explainedFailures = {
   'UNSUPPORTED_FORMAT',
   'NOT_PUBLISHED',
   'UNAUTHORIZED',
+  'NETWORK_ERROR',
+  'CONNECTION_ERROR',
 };
 
 class MiniAppRuntimeScreen extends ConsumerStatefulWidget {
@@ -190,8 +192,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       final installed = await cache.find(build) ?? await cache.install(build);
       _recordedOpen = false;
       await _startQapp(installed);
-    } on MiniAppException catch (error) {
-      await _handleFailure(error, cache);
     } on MiniAppCacheException catch (error) {
       debugPrint('[miniapps] install failed: ${error.code}');
       await _telemetry('download_failure', error.code);
@@ -201,14 +201,12 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         _loading = false;
       });
     } catch (error, stack) {
-      // A download, disk or plugin failure outside the typed exceptions. Log
-      // it so the code shown in the error view can be traced.
+      // `MiniAppException.from` turns a raw DioException into the code the
+      // server sent (NOT_PUBLISHED, VERSION_REVOKED, NETWORK_ERROR, …). Without
+      // it every API failure was reported as a generic SERVICE_ERROR, which hid
+      // both the reason and the offline fallback to an installed version.
       debugPrint('[miniapps] launch failed: $error\n$stack');
-      if (!mounted) return;
-      setState(() {
-        _error = const MiniAppException('SERVICE_ERROR');
-        _loading = false;
-      });
+      await _handleFailure(MiniAppException.from(error), cache);
     }
   }
 
@@ -718,8 +716,10 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'UNSUPPORTED_FORMAT' => tr(context, 'miniAppsUnsupported'),
       'NOT_PUBLISHED' => tr(context, 'miniAppsUnavailable'),
       'UNAUTHORIZED' => tr(context, 'sessionExpired'),
+      'NETWORK_ERROR' || 'CONNECTION_ERROR' => tr(context, 'networkError'),
       _ => tr(context, 'miniAppsError'),
     };
+    final reason = _failureReason(error);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -740,10 +740,10 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
                 style: const TextStyle(fontSize: 12, color: QChatColors.muted),
               ),
             ],
-            if (!_explainedFailures.contains(error.code)) ...[
+            if (reason != null) ...[
               const SizedBox(height: 6),
               Text(
-                error.code,
+                reason,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontSize: 11,
@@ -763,6 +763,22 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         ),
       ),
     );
+  }
+
+  /// The one line a release build can put in a support request: the failure
+  /// code plus the underlying exception, for the cases the view cannot explain
+  /// in words. Known codes stay clean.
+  String? _failureReason(MiniAppException error) {
+    if (_explainedFailures.contains(error.code)) return null;
+    final detail = error.message?.trim();
+    if (detail == null || detail.isEmpty || detail == error.code) {
+      return error.code;
+    }
+    final single = detail.replaceAll(RegExp(r'\s+'), ' ');
+    final clipped = single.length > 160
+        ? '${single.substring(0, 160)}…'
+        : single;
+    return '${error.code} · $clipped';
   }
 }
 
