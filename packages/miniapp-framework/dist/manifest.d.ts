@@ -7,7 +7,6 @@ export declare const MAX_QAPP_APP_JS_BYTES: number;
 export declare const QAPP_PERMISSIONS: readonly ["toast", "user.profile", "media.choose", "share", "storage", "qchat.api", "network"];
 export type QappPermission = (typeof QAPP_PERMISSIONS)[number];
 export declare const SEMVER_PATTERN: RegExp;
-export declare const HOST_PATTERN: RegExp;
 export interface QappManifest {
     schemaVersion: typeof QAPP_SCHEMA_VERSION;
     format: typeof QAPP_FORMAT;
@@ -19,7 +18,6 @@ export interface QappManifest {
     sdkVersion: string;
     minRuntimeVersion: string;
     requestedPermissions: QappPermission[];
-    networkDomains?: string[];
     /** Source entry used by the compiler; stripped from the packaged manifest. */
     source?: string;
     icon?: string;

@@ -68,7 +68,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   String? _qappDirectory;
   String _qappKey = '';
   int _qappEpoch = 0;
-  Set<String> _qappNetworkHosts = const {};
   CachedMiniApp? _active;
 
   String _name = '';
@@ -281,7 +280,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       api: _api!,
       storage: storage,
       granted: granted,
-      networkDomains: cached.manifest.networkDomains,
       requestPermission: _requestPermission,
       onToast: _showToast,
       onShare: _share,
@@ -301,9 +299,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       _qappDirectory = cached.directory;
       _qappKey =
           '${cached.appId}@${cached.version}#${++_qappEpoch}';
-      _qappNetworkHosts = cached.manifest.networkDomains
-          .map((domain) => domain.toLowerCase())
-          .toSet();
     });
     _revealTimer?.cancel();
     // The native runtime normally paints within a few frames. The timeout only
@@ -677,7 +672,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
             key: ValueKey('qapp:$_qappKey'),
             directory: directory,
             controller: controller,
-            networkHosts: _qappNetworkHosts,
             onHostCall: (method, params) {
               final bridge = _bridge;
               if (bridge == null) {

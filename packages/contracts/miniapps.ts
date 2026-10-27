@@ -107,7 +107,10 @@ export const qappManifestSchema = z
       .array(z.enum(miniappPermissionIds as [string, ...string[]]))
       .max(miniappPermissionIds.length)
       .default([]),
-    networkDomains: z.array(qappNetworkHostSchema).max(10).default([]),
+    /// Deprecated: Mini Apps may call any HTTPS host, so there is no host
+    /// allowlist any more. The field is still accepted (and ignored) so that
+    /// packages built by older toolchains keep validating.
+    networkDomains: z.array(qappNetworkHostSchema).max(10).optional(),
     appSha256: z
       .string()
       .regex(/^[a-f0-9]{64}$/)
@@ -117,16 +120,7 @@ export const qappManifestSchema = z
       .regex(/^[a-f0-9]{64}$/)
       .optional(),
   })
-  .strict()
-  .refine(
-    (value) =>
-      value.requestedPermissions.includes("network") ===
-      (value.networkDomains.length > 0),
-    {
-      message: "network permission and networkDomains must be declared together",
-      path: ["networkDomains"],
-    },
-  );
+  .strict();
 export type QappManifest = z.infer<typeof qappManifestSchema>;
 
 export const runtimeVersion = "1.0.0";

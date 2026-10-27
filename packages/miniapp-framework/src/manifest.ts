@@ -13,8 +13,6 @@ export type QappPermission = (typeof QAPP_PERMISSIONS)[number];
 
 export const SEMVER_PATTERN =
   /^\d{1,4}\.\d{1,4}\.\d{1,4}(?:-[0-9A-Za-z.-]{1,20})?$/;
-export const HOST_PATTERN =
-  /^(?:\*\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63})$/i;
 
 export interface QappManifest {
   schemaVersion: typeof QAPP_SCHEMA_VERSION;
@@ -27,7 +25,6 @@ export interface QappManifest {
   sdkVersion: string;
   minRuntimeVersion: string;
   requestedPermissions: QappPermission[];
-  networkDomains?: string[];
   /** Source entry used by the compiler; stripped from the packaged manifest. */
   source?: string;
   icon?: string;
@@ -121,25 +118,7 @@ export function normalizeManifest(input: unknown): QappManifest {
       permissions.push(value as QappPermission);
     }
   }
-  let networkDomains: string[] | undefined;
-  if (raw.networkDomains != null) {
-    if (!Array.isArray(raw.networkDomains) || raw.networkDomains.length > 10) {
-      throw new ManifestError("MANIFEST_INVALID", "networkDomains must be an array of at most 10 hosts");
-    }
-    networkDomains = [];
-    for (const value of raw.networkDomains) {
-      if (typeof value !== "string" || value.length > 253 || !HOST_PATTERN.test(value)) {
-        throw new ManifestError("MANIFEST_INVALID", `invalid network domain ${String(value)}`);
-      }
-      networkDomains.push(value.toLowerCase());
-    }
-    if (networkDomains.length && !permissions.includes("network")) {
-      throw new ManifestError("MANIFEST_INVALID", "networkDomains requires the network permission");
-    }
-  }
-  if (permissions.includes("network") && !networkDomains?.length) {
-    throw new ManifestError("MANIFEST_INVALID", "network permission requires networkDomains");
-  }
+
   const source = raw.source == null ? "src/main.tsx" : stringValue(raw.source, "source", 1, 200);
   if (!isSafeRelativePath(source)) {
     throw new ManifestError("MANIFEST_INVALID", "source must be a relative path");
@@ -156,7 +135,6 @@ export function normalizeManifest(input: unknown): QappManifest {
     sdkVersion,
     minRuntimeVersion,
     requestedPermissions: permissions,
-    ...(networkDomains?.length ? { networkDomains } : {}),
     ...(source !== "src/main.tsx" ? { source } : {}),
     ...(icon ? { icon } : {}),
   };

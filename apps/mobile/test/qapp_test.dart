@@ -31,12 +31,10 @@ Map<String, List<int>> qappFiles({
     'sdkVersion': '1.0.0',
     'minRuntimeVersion': '1.0.0',
     'requestedPermissions': ['toast'],
-    'networkDomains': [],
     ...?manifestOverride,
   };
   final permissions = <String, dynamic>{
     'requestedPermissions': manifest['requestedPermissions'],
-    'networkDomains': manifest['networkDomains'],
     ...?permissionsOverride,
   };
   final appBytes = utf8.encode(appJs);
@@ -97,7 +95,6 @@ MiniAppBuild qappBuild(
   String version = '1.0.0',
   String url = '',
   List<String> permissions = const ['toast'],
-  List<String> networkDomains = const [],
 }) {
   final files = ZipDecoder().decodeBytes(bytes);
   final manifest =
@@ -122,7 +119,6 @@ MiniAppBuild qappBuild(
     url: url,
     format: 'qapp',
     sdkVersion: '1.0.0',
-    networkDomains: networkDomains,
   );
 }
 

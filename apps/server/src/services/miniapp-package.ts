@@ -82,7 +82,9 @@ const qappMetadataSchema = z
 const qappPermissionsSchema = z
   .object({
     requestedPermissions: z.array(z.string()).max(32).default([]),
-    networkDomains: z.array(z.string()).max(10).default([]),
+    /// Accepted for packages built before the host allowlist was removed; it
+    /// is never read.
+    networkDomains: z.array(z.string()).max(10).optional(),
   })
   .strict();
 
@@ -166,9 +168,7 @@ function qappBuild(
   if (!permissions.success) throw new PackageError("PERMISSIONS_INVALID");
   if (
     JSON.stringify(permissions.data.requestedPermissions) !==
-      JSON.stringify(manifest.requestedPermissions) ||
-    JSON.stringify(permissions.data.networkDomains) !==
-      JSON.stringify(manifest.networkDomains)
+    JSON.stringify(manifest.requestedPermissions)
   ) {
     throw new PackageError("PERMISSIONS_MISMATCH");
   }

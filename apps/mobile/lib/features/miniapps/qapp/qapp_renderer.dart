@@ -21,13 +21,11 @@ class QappRenderer extends StatelessWidget {
     required this.root,
     required this.onEvent,
     required this.loadAsset,
-    this.networkHosts = const {},
   });
 
   final QappNode? root;
   final QappEventHandler onEvent;
   final QappAssetLoader loadAsset;
-  final Set<String> networkHosts;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +35,6 @@ class QappRenderer extends StatelessWidget {
       node: node,
       onEvent: onEvent,
       loadAsset: loadAsset,
-      networkHosts: networkHosts,
       insideFlex: false,
     );
   }
@@ -48,14 +45,12 @@ class _QappNodeView extends StatelessWidget {
     required this.node,
     required this.onEvent,
     required this.loadAsset,
-    required this.networkHosts,
     required this.insideFlex,
   });
 
   final QappNode node;
   final QappEventHandler onEvent;
   final QappAssetLoader loadAsset;
-  final Set<String> networkHosts;
   final bool insideFlex;
 
   @override
@@ -282,7 +277,6 @@ class _QappNodeView extends StatelessWidget {
       node: child,
       onEvent: onEvent,
       loadAsset: loadAsset,
-      networkHosts: networkHosts,
       insideFlex: parentIsFlex && allowFlex,
     );
     if (!parentIsFlex) return widget;
@@ -340,7 +334,6 @@ class _QappNodeView extends StatelessWidget {
           node: child,
           onEvent: onEvent,
           loadAsset: loadAsset,
-          networkHosts: networkHosts,
           insideFlex: false,
         ),
     ];
@@ -472,7 +465,6 @@ class _QappNodeView extends StatelessWidget {
         node: child,
         onEvent: onEvent,
         loadAsset: loadAsset,
-        networkHosts: networkHosts,
         insideFlex: false,
       ),
   ];
@@ -820,7 +812,6 @@ class _QappNodeView extends StatelessWidget {
               node: child,
               onEvent: onEvent,
               loadAsset: loadAsset,
-              networkHosts: networkHosts,
               insideFlex: false,
             ),
           ),
@@ -831,7 +822,6 @@ class _QappNodeView extends StatelessWidget {
           node: child,
           onEvent: onEvent,
           loadAsset: loadAsset,
-          networkHosts: networkHosts,
           insideFlex: false,
         );
         children.add(
@@ -849,7 +839,6 @@ class _QappNodeView extends StatelessWidget {
             node: child,
             onEvent: onEvent,
             loadAsset: loadAsset,
-            networkHosts: networkHosts,
             insideFlex: false,
           ),
         );
@@ -868,7 +857,6 @@ class _QappNodeView extends StatelessWidget {
           node: child,
           onEvent: onEvent,
           loadAsset: loadAsset,
-          networkHosts: networkHosts,
           insideFlex: false,
         ),
     ];
@@ -978,7 +966,6 @@ class _QappNodeView extends StatelessWidget {
               node: child,
               onEvent: onEvent,
               loadAsset: loadAsset,
-              networkHosts: networkHosts,
               insideFlex: false,
             ),
         ],
@@ -1020,7 +1007,7 @@ class _QappNodeView extends StatelessWidget {
         width: width,
         height: height,
       );
-    } else if (_isAllowedImageUri(src)) {
+    } else if (_isRemoteImageUri(src)) {
       body = Image.network(
         src,
         fit: fit,
@@ -1144,7 +1131,6 @@ class _QappNodeView extends StatelessWidget {
               node: child,
               onEvent: onEvent,
               loadAsset: loadAsset,
-              networkHosts: networkHosts,
               insideFlex: false,
             ),
         ],
@@ -1185,7 +1171,6 @@ class _QappNodeView extends StatelessWidget {
               node: child,
               onEvent: onEvent,
               loadAsset: loadAsset,
-              networkHosts: networkHosts,
               insideFlex: false,
             ),
         ],
@@ -1395,19 +1380,11 @@ class _QappNodeView extends StatelessWidget {
     _ => Alignment.topLeft,
   };
 
-  bool _isAllowedImageUri(String value) {
-    if (networkHosts.isEmpty) return false;
+  /// Remote images are allowed from any HTTPS host: a mini program does not
+  /// declare a host allowlist, the `network` permission covers them all.
+  bool _isRemoteImageUri(String value) {
     final uri = Uri.tryParse(value);
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return false;
-    final host = uri.host.toLowerCase();
-    for (final allowed in networkHosts) {
-      final rule = allowed.toLowerCase();
-      if (rule == host) return true;
-      if (rule.startsWith('*.') && host.endsWith(rule.substring(1))) {
-        return true;
-      }
-    }
-    return false;
+    return uri != null && uri.scheme == 'https' && uri.host.isNotEmpty;
   }
 
   static double? _number(Object? value) {

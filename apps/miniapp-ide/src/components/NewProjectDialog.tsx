@@ -13,11 +13,9 @@ import {
   Info,
   Loader2,
   MessageSquare,
-  Plus,
   Shield,
   Sparkles,
   User,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStudio } from "../lib/store";
@@ -75,8 +73,6 @@ export function NewProjectDialog({
   const [version, setVersion] = useState("1.0.0");
   const [template, setTemplate] = useState<"starter" | "counter" | "blank">("starter");
   const [permissions, setPermissions] = useState<string[]>(["toast", "storage"]);
-  const [domains, setDomains] = useState<string[]>([]);
-  const [domainDraft, setDomainDraft] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -104,8 +100,6 @@ export function NewProjectDialog({
   const slug = slugify(name);
   const nameValid = /^[a-z][a-z0-9._-]{1,40}$/.test(slug);
   const versionValid = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version);
-  const networkEnabled = permissions.includes("network");
-  const domainsValid = !networkEnabled || domains.length > 0;
   const projectPath = directory && slug ? joinPath(directory, slug) : "";
   const canCreate =
     desktop &&
@@ -113,32 +107,12 @@ export function NewProjectDialog({
     Boolean(directory) &&
     nameValid &&
     versionValid &&
-    domainsValid &&
     !creating;
 
   const togglePermission = (id: string) => {
     setPermissions((current) =>
       current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
     );
-  };
-
-  const addDomain = () => {
-    const value = domainDraft.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    if (!value) return;
-    if (!/^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(value)) {
-      toast.error(t("new.domainError"));
-      return;
-    }
-    if (domains.includes(value)) {
-      setDomainDraft("");
-      return;
-    }
-    if (domains.length >= 10) {
-      toast.error(t("new.domainMax"));
-      return;
-    }
-    setDomains([...domains, value]);
-    setDomainDraft("");
   };
 
   const create = async () => {
@@ -153,7 +127,6 @@ export function NewProjectDialog({
         version,
         template,
         permissions,
-        networkDomains: domains,
       });
       toast.success(t("new.createdToast", { name: slug }));
       // Start the next "New mini app" from a clean slate instead of reusing a
@@ -161,7 +134,6 @@ export function NewProjectDialog({
       setName("my-mini-app");
       setVersion("1.0.0");
       setPermissions(["toast", "storage"]);
-      setDomains([]);
       onClose();
     } catch (caught) {
       setError(errorMessage(caught));
@@ -376,54 +348,6 @@ export function NewProjectDialog({
               })}
             </div>
           </div>
-
-          {networkEnabled ? (
-            <div className="mt-3 rounded-xl border border-sky-400/15 bg-sky-400/[0.045] p-3">
-              <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-sky-300">
-                <Globe2 size={10} /> {t("new.networkAllowlist")}
-              </div>
-              <p className="mt-1 text-[9px] leading-4 text-studio-500">
-                {t("new.networkHint")}
-              </p>
-              <div className="mt-2 flex gap-1.5">
-                <input
-                  className="field h-8 text-[10.5px]"
-                  value={domainDraft}
-                  onChange={(event) => setDomainDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === ",") {
-                      event.preventDefault();
-                      addDomain();
-                    }
-                  }}
-                  placeholder="api.example.com"
-                />
-                <button className="btn btn-secondary h-8 px-2" onClick={addDomain}>
-                  <Plus size={12} />
-                </button>
-              </div>
-              {domains.length ? (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {domains.map((domain) => (
-                    <span
-                      key={domain}
-                      className="flex items-center gap-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[8.5px] text-sky-300"
-                    >
-                      {domain}
-                      <button onClick={() => setDomains(domains.filter((item) => item !== domain))}>
-                        <X size={8} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              ) : null}
-              {!domainsValid ? (
-                <div className="mt-1.5 text-[8.5px] text-amber-300">
-                  {t("new.domainRequired")}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
 
           {error ? (
             <div className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] p-2.5 text-[10px] leading-4 text-rose-200">

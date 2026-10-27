@@ -23,7 +23,6 @@ class QappView extends StatefulWidget {
     required this.directory,
     required this.onHostCall,
     this.controller,
-    this.networkHosts = const {},
     this.onFirstFrame,
     this.onError,
     this.onLog,
@@ -36,7 +35,6 @@ class QappView extends StatefulWidget {
   )
   onHostCall;
   final QappViewController? controller;
-  final Set<String> networkHosts;
   final VoidCallback? onFirstFrame;
   final void Function(String code, String message)? onError;
   final void Function(String level, String message, String? stack)? onLog;
@@ -311,7 +309,6 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
             root: tree.root,
             onEvent: _dispatch,
             loadAsset: _loadAsset,
-            networkHosts: widget.networkHosts,
           ),
         ),
       ),

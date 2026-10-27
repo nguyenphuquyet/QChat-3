@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-  Check,
-  FileJson2,
-  Globe2,
-  Info,
-  Plus,
-  Save,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { Check, FileJson2, Info, Save, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useStudio } from "../lib/store";
 import { PERMISSIONS } from "../lib/permissions";
@@ -27,7 +18,6 @@ export function ProjectSettingsDialog({
   const project = useStudio((state) => state.project);
   const saveManifest = useStudio((state) => state.saveManifest);
   const [draft, setDraft] = useState<ProjectManifest | null>(null);
-  const [domainDraft, setDomainDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const { t } = useI18n();
@@ -40,19 +30,15 @@ export function ProjectSettingsDialog({
   useEffect(() => {
     if (!open || !project?.manifest) return;
     setDraft(JSON.parse(JSON.stringify(project.manifest)) as ProjectManifest);
-    setDomainDraft("");
     setError("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectPath]);
 
   if (!draft) return null;
 
-  const networkEnabled = draft.requestedPermissions.includes("network");
-  const domains = draft.networkDomains ?? [];
   const versionValid = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(draft.version);
   const nameValid = draft.name.trim().length > 0 && draft.name.length <= 80;
-  const networkValid = !networkEnabled || domains.length > 0;
-  const canSave = nameValid && versionValid && networkValid && !saving;
+  const canSave = nameValid && versionValid && !saving;
 
   const patch = (values: Partial<ProjectManifest>) => {
     setDraft((current) => (current ? { ...current, ...values } : current));
@@ -63,34 +49,7 @@ export function ProjectSettingsDialog({
     const next = selected
       ? draft.requestedPermissions.filter((item) => item !== id)
       : [...draft.requestedPermissions, id];
-    if (!next.includes("network")) {
-      patch({ requestedPermissions: next, networkDomains: [] });
-      return;
-    }
     patch({ requestedPermissions: next });
-  };
-
-  const addDomain = () => {
-    const value = domainDraft
-      .trim()
-      .toLowerCase()
-      .replace(/^https?:\/\//, "")
-      .replace(/\/.*$/, "");
-    if (!value) return;
-    if (!/^(\*\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(value)) {
-      toast.error(t("new.domainError"));
-      return;
-    }
-    if (domains.includes(value)) {
-      setDomainDraft("");
-      return;
-    }
-    if (domains.length >= 10) {
-      toast.error(t("new.domainMax"));
-      return;
-    }
-    patch({ networkDomains: [...domains, value] });
-    setDomainDraft("");
   };
 
   const save = async () => {
@@ -102,7 +61,6 @@ export function ProjectSettingsDialog({
         ...draft,
         name: draft.name.trim(),
         requestedPermissions: draft.requestedPermissions,
-        networkDomains: networkEnabled ? domains : [],
       });
       toast.success(t("psettings.updated"));
       onClose();
@@ -230,49 +188,6 @@ export function ProjectSettingsDialog({
             })}
           </div>
         </div>
-
-        {networkEnabled ? (
-          <div className="mt-3 rounded-xl border border-sky-400/15 bg-sky-400/[0.045] p-3">
-            <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-sky-300">
-              <Globe2 size={10} /> {t("psettings.networkAllowlist")}
-            </div>
-            <div className="mt-2 flex gap-1.5">
-              <input
-                className="field h-8 text-[10.5px]"
-                value={domainDraft}
-                onChange={(event) => setDomainDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === ",") {
-                    event.preventDefault();
-                    addDomain();
-                  }
-                }}
-                placeholder="api.example.com"
-              />
-              <button className="btn btn-secondary h-8 px-2" onClick={addDomain}>
-                <Plus size={12} />
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {domains.map((domain) => (
-                <span
-                  key={domain}
-                  className="flex items-center gap-1 rounded-full border border-sky-400/20 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[8.5px] text-sky-300"
-                >
-                  {domain}
-                  <button onClick={() => patch({ networkDomains: domains.filter((item) => item !== domain) })}>
-                    <X size={8} />
-                  </button>
-                </span>
-              ))}
-            </div>
-            {!networkValid ? (
-              <div className="mt-1.5 text-[8.5px] text-amber-300">
-                {t("psettings.networkRequired")}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
 
         <div className="mt-4 flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 text-[9px] leading-4 text-studio-500">
           <Info size={11} className="mt-0.5 shrink-0" />

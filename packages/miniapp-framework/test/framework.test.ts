@@ -73,13 +73,22 @@ test("manifest requires qapp format and rejects a declared appId", () => {
     () => normalizeManifest({ ...base, requestedPermissions: ["admin"] }),
     (error: unknown) => error instanceof ManifestError,
   );
-  assert.throws(
-    () =>
+  // Any HTTPS host is reachable, so `network` no longer needs a host list, and
+  // a host list from an older package is tolerated and ignored.
+  assert.deepEqual(
+    normalizeManifest({ ...base, requestedPermissions: ["network"] })
+      .requestedPermissions,
+    ["network"],
+  );
+  assert.equal(
+    (
       normalizeManifest({
         ...base,
         requestedPermissions: ["network"],
-      }),
-    /network permission requires networkDomains/,
+        networkDomains: ["api.github.com"],
+      }) as unknown as Record<string, unknown>
+    ).networkDomains,
+    undefined,
   );
 });
 

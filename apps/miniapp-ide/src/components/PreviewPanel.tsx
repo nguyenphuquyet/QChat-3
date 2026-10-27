@@ -42,7 +42,6 @@ function PhonePreview() {
 
   const manifest = inspection?.manifest ?? project?.manifest;
   const permissions = manifest?.requestedPermissions ?? [];
-  const domains = manifest?.networkDomains ?? [];
   const ready = Boolean(project && manifest);
 
   return (
@@ -183,25 +182,6 @@ function PhonePreview() {
                       ))
                     )}
                   </div>
-                  {domains.length ? (
-                    <div className="mt-2 border-t border-white/[0.05] pt-2">
-                      <div className="text-[7.5px] uppercase tracking-wider text-white/30">
-                        {t("preview.networkDomains")}
-                      </div>
-                      <div className="mt-1 space-y-0.5">
-                        {domains.slice(0, 3).map((domain) => (
-                          <div key={domain} className="truncate font-mono text-[8px] text-white/50">
-                            {domain}
-                          </div>
-                        ))}
-                        {domains.length > 3 ? (
-                          <div className="text-[7.5px] text-white/30">
-                            {t("preview.moreDomains", { count: domains.length - 3 })}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="mt-2 flex items-center gap-1.5 px-3 text-[8px] leading-3 text-white/30">

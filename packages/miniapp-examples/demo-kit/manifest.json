@@ -16,6 +16,5 @@
     "qchat.api",
     "network"
   ],
-  "networkDomains": ["api.github.com"],
   "source": "src/main.tsx"
 }

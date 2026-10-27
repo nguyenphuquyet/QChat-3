@@ -78,9 +78,10 @@ export interface FetchResponse<T = unknown> {
 }
 
 /**
- * HTTPS request through the host. Requires the `network` permission and the
- * target host must be declared in `networkDomains` in the manifest. The host
- * enforces the allowlist; the JavaScript side cannot bypass it.
+ * HTTPS request through the host. Requires the `network` permission. Any HTTPS
+ * host is reachable: there is no per-app host allowlist, so the manifest does
+ * not declare one. The host still validates the URL, the permission and the
+ * response size; the JavaScript side cannot bypass any of that.
  */
 export function fetch<T = unknown>(
   url: string,

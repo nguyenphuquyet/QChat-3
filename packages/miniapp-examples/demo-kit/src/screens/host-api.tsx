@@ -326,7 +326,7 @@ export function HostApiScreen() {
 
       <Section
         title="Mạng (network)"
-        caption="Chỉ host trong networkDomains; host không gửi kèm token QChat."
+        caption="Bất kỳ host HTTPS nào cũng gọi được; host không gửi kèm token QChat."
       >
         <Card style={{ gap: 8 }}>
           <ActionButton
@@ -342,16 +342,16 @@ export function HostApiScreen() {
           />
           <ActionButton
             icon="lock"
-            label="fetch host không khai báo (phải bị chặn)"
+            label="fetch http:// (phải bị chặn)"
             onPress={() =>
-              void call("fetch blocked", () =>
-                fetchJson("https://example.com/"),
+              void call("fetch http", () =>
+                fetchJson("http://example.com/"),
               )
             }
           />
           <Note>
-            Nút thứ hai cố tình gọi host ngoài allowlist: host phải trả lỗi
-            NETWORK_DOMAIN_DENIED, đó cũng là một kết quả đúng.
+            Nút thứ hai cố tình dùng http://: host phải trả lỗi INVALID_ARGUMENT
+            vì chỉ cho phép HTTPS, đó cũng là một kết quả đúng.
           </Note>
         </Card>
       </Section>

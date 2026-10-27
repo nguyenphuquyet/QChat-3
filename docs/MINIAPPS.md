@@ -175,8 +175,7 @@ assets/...          (optional)
   "entry": "app.js",
   "sdkVersion": "1.0.0",
   "minRuntimeVersion": "1.0.0",
-  "requestedPermissions": ["storage", "toast"],
-  "networkDomains": []
+  "requestedPermissions": ["storage", "toast"]
 }
 ```
 
@@ -186,8 +185,8 @@ assets/...          (optional)
   and a `files` array of `{ path, sha256, size }`. Every payload file except
   `metadata.json` itself is listed. The device re-verifies these hashes and
   sizes on install and on every open.
-- `permissions.json` repeats `requestedPermissions` and `networkDomains` and
-  must match the manifest exactly.
+- `permissions.json` repeats `requestedPermissions` and must match the manifest
+  exactly.
 - Only allowlisted asset extensions may live under `assets/` (images, fonts,
   JSON/text, audio and video). Undeclared files, symlinks, executables and path
   traversal are rejected.
@@ -204,17 +203,16 @@ Packages may only declare these permissions:
 | `share` | `share` |
 | `storage` | `getStorage`, `setStorage`, `removeStorage` |
 | `qchat.api` | `request("/conversations")` |
-| `network` | `fetch` to HTTPS hosts declared in `networkDomains` |
+| `network` | `fetch` to any HTTPS host |
 
 `getAppInfo`, `getSystemInfo`, `navigateTo` and `closeMiniApp` need no
 permission. Declaring a permission is necessary but not sufficient: the Flutter
 host checks the granted permission on every call.
 
-`networkDomains` accepts at most 10 exact hosts or wildcard hosts such as
-`*.example.com`. The `network` permission and a non-empty `networkDomains` array
-must be declared together. Requests are HTTPS-only, redirects are re-checked
-against the allowlist, responses are capped at 1 MB, and the host never attaches
-a QChat token.
+There is no host allowlist: once `network` is granted, `fetch` reaches any HTTPS
+host. Requests are HTTPS-only (plain HTTP and URLs with embedded credentials are
+rejected), redirects must stay on HTTPS, responses are capped at 1 MB, and the
+host never attaches a QChat token.
 
 ### Upload checks
 

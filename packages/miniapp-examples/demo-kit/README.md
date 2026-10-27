@@ -29,7 +29,7 @@ release, sau đó mở trên app QChat. Không khai báo `appId` trong `manifest
 ## Cấu trúc
 
 ```
-manifest.json          schemaVersion 2, quyền và networkDomains
+manifest.json          schemaVersion 2 và danh sách quyền
 tsconfig.json          lib ES2020, jsxImportSource @mna/qchat
 assets/logo.png        ảnh đóng gói kèm, có hash trong metadata.json
 src/main.tsx           khung app: NavBar + TabBar + điều hướng theo lifecycle
@@ -56,7 +56,7 @@ src/screens/detail.tsx     route nội bộ được host push
 | Tổng quan | `getAppInfo`/`getSystemInfo`, đồng hồ `setInterval`, `Dialog`, `BottomSheet`, `Modal`, `showToast`, `AnimatedView`, `CustomPaint`, `Switch`, bộ đếm lưu bằng `setStorage`/`getStorage`/`removeStorage`, `setTimeout` 900ms, `Button loading` |
 | UI Kit | mọi thành phần: chữ và kiểu chữ, 4 biến thể `Button`, `Pressable` (press/longPress), `Checkbox`, `Switch`, `Slider`, `ActivityIndicator`, flex/`gap`/`flexWrap`, `Stack` + `Positioned`, `Spacer`, `Divider`, `aspectRatio`, gradient, `opacity`, `rotate`, `scale`, viền từng cạnh, `overflow`, `CustomPaint`, `Image` (asset, data URL, ảnh thiếu), 20 `Icon`, `ListView` cửa sổ, `ScrollView` ngang có `onScroll`, `GridView`, `TextField`, `SafeArea` |
 | Form | `keyboardType` text/email/phone/number/url, `secureTextEntry`, `multiline`, `maxLength`, `editable={false}`, `onFocus`/`onBlur`/`onSubmit`, validate bằng `useMemo`, submit giả lập 1000ms rồi mở `Dialog`, ghi log mọi sự kiện |
-| API | `getAppInfo`, `getSystemInfo`, `getUserInfo`, `request('/users/me' \| '/friends' \| '/conversations')`, `chooseImage` (xem lại ảnh bằng `Image`), `share`, `showToast` ba icon, storage ghi/đọc/xoá, `fetchJson` tới host trong allowlist và một host bị chặn, `navigateTo`, `openExternal`, `closeMiniApp` có xác nhận |
+| API | `getAppInfo`, `getSystemInfo`, `getUserInfo`, `request('/users/me' \| '/friends' \| '/conversations')`, `chooseImage` (xem lại ảnh bằng `Image`), `share`, `showToast` ba icon, storage ghi/đọc/xoá, `fetchJson` tới api.github.com và một host lỗi, `navigateTo`, `openExternal`, `closeMiniApp` có xác nhận |
 | Debug | log dùng chung (lọc theo mức, giới hạn 200 dòng), `setInterval` tự dừng sau 5 tick, `setTimeout`, `console.log` ra kênh log của host, `Intl.NumberFormat`/`DateTimeFormat`, sự kiện `resume`/`pause`/`navigate`/`back`, và một handler cố ý ném lỗi để thấy runtime bắt lỗi mà app vẫn chạy |
 
 Route nội bộ: `navigateTo("/detail/42")` push một route, host phát sự kiện
@@ -67,11 +67,12 @@ quyết định vẽ màn hình nào.
 ## Quyền đã khai báo
 
 `toast`, `storage`, `user.profile`, `media.choose`, `share`, `qchat.api`,
-`network` với `networkDomains: ["api.github.com"]`.
+`network`.
 
 Khai báo là chưa đủ: host hỏi người dùng ở lần gọi đầu tiên và kiểm tra lại quyền
-trên từng lời gọi. `network` bắt buộc đi cùng `networkDomains`; request chỉ được
-HTTPS, chỉ tới host trong danh sách, tối đa 1 MB và **không** kèm token QChat.
+trên từng lời gọi. `network` cho phép gọi **bất kỳ host HTTPS nào** — không cần
+khai báo danh sách host trong `manifest.json`; request chỉ được HTTPS, tối đa
+1 MB và **không** kèm token QChat.
 
 ## Lưu ý khi sửa
 

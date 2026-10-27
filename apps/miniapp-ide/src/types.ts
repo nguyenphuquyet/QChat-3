@@ -43,7 +43,6 @@ export interface ProjectManifest {
   sdkVersion: string;
   minRuntimeVersion: string;
   requestedPermissions: string[];
-  networkDomains?: string[];
   source?: string;
   [key: string]: unknown;
 }
@@ -142,7 +141,6 @@ export interface NewProjectInput {
   version: string;
   template: "starter" | "counter" | "blank";
   permissions: string[];
-  networkDomains: string[];
 }
 
 export interface PermissionInfo {

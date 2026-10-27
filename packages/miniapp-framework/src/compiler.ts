@@ -356,7 +356,9 @@ export async function compileProject(options: CompileOptions): Promise<CompileRe
     JSON.stringify(
       {
         requestedPermissions: packaged.requestedPermissions,
-        networkDomains: packaged.networkDomains ?? [],
+        // Legacy runtimes still expect the field; nothing reads it any more
+        // because a Mini App may call any HTTPS host.
+        networkDomains: [],
       },
       null,
       2,
@@ -478,7 +480,7 @@ export function validateQapp(
   }
   const permissionsEntry = byName.get("permissions.json");
   if (!permissionsEntry) throw new Error("PERMISSIONS_MISSING");
-  let permissions: { requestedPermissions?: unknown; networkDomains?: unknown };
+  let permissions: { requestedPermissions?: unknown };
   try {
     permissions = JSON.parse(permissionsEntry.bytes.toString("utf8"));
   } catch {

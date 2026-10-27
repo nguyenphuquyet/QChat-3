@@ -180,11 +180,6 @@ export function configureMonaco(): void {
               },
               uniqueItems: true,
             },
-            networkDomains: {
-              type: "array",
-              maxItems: 10,
-              items: { type: "string" },
-            },
             source: { type: "string" },
           },
         },

@@ -62,7 +62,6 @@ class Harness {
     Set<String> granted = const {},
     bool allowPermission = true,
     bool shareResult = true,
-    List<String> networkDomains = const ['api.example.com'],
   }) {
     bridge = MiniAppBridge(
       appId: _appId,
@@ -75,7 +74,6 @@ class Harness {
       api: api,
       storage: storage,
       granted: granted,
-      networkDomains: networkDomains,
       requestPermission: (permission) async {
         permissionRequests.add(permission);
         return allowPermission;
@@ -255,19 +253,18 @@ void main() {
     expect(harness.permissionRequests, ['qchat.api']);
   });
 
-  test('fetch rejects hosts outside the declared allowlist', () async {
+  test('fetch accepts any HTTPS host and rejects plain HTTP', () async {
     final response = await harness.call(
       'fetch',
-      params: {'url': 'https://evil.example.net/data'},
+      params: {'url': 'http://evil.example.net/data'},
     );
-    expect(harness.errorOf(response)?['code'], 'PERMISSION_DENIED');
+    expect(harness.errorOf(response)?['code'], 'INVALID_ARGUMENT');
   });
 
   test('fetch needs the network permission', () async {
     final limited = Harness(
       harness.storage,
       permissions: const ['toast'],
-      networkDomains: const ['api.example.com'],
     );
     addTearDown(limited.bridge.dispose);
     final response = await limited.call(
