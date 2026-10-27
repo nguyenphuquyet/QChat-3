@@ -251,10 +251,59 @@ void main() {
     expect(close.last.$3, {'type': 'close'});
   });
 
-  testWidgets('a stack aligns unpositioned children at the top left', (
+  testWidgets('a pressable inside a row leaves room for its flex sibling', (
     tester,
   ) async {
     setPhone(tester);
+    // A Pressable stacks its children in a stretch column, which is what makes
+    // a button fill its card. Inside a Row the cross axis is unbounded, and
+    // stretching against infinity used to make the pressable infinitely wide:
+    // the flex sibling then received zero space and its label collapsed to one
+    // character per line.
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {'flexDirection': 'row', 'gap': 12, 'padding': 16},
+      },
+      children: [
+        node(
+          'n0.0',
+          'View',
+          props: {
+            'style': {'flex': 1},
+          },
+          children: [text('n0.0.0', 'Notifications')],
+        ),
+        node(
+          'n0.1',
+          'Pressable',
+          events: const ['press'],
+          children: [
+            node(
+              'n0.1.0',
+              'View',
+              props: {
+                'style': {'width': 38, 'height': 38},
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+
+    expect(tester.takeException(), isNull);
+    final label = tester.getSize(find.text('Notifications'));
+    expect(label.height, lessThan(40));
+    expect(label.width, greaterThan(200));
+    expect(tester.getSize(find.byKey(const ValueKey('n0.1'))).width, 38);
+  });
+
+  testWidgets('a stack aligns unpositioned children at the top left', (
+    tester,
+  ) async {    setPhone(tester);
     final root = node(
       'n0',
       'Stack',

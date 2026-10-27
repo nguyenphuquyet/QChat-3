@@ -319,6 +319,28 @@ class _QappNodeView extends StatelessWidget {
     return widget;
   }
 
+  /// A vertical stack that stretches its children across the width — but only
+  /// when the host actually hands over a finite width.
+  ///
+  /// `Pressable`, `SafeArea` and `AnimatedView` default to `stretch`, which is
+  /// what lets a button fill its card. The moment one of them is a child of a
+  /// `Row`, the cross axis is unbounded, and stretching against infinity makes
+  /// the whole subtree infinitely wide: every flex sibling in that row then
+  /// receives zero space and its text collapses to one character per line.
+  /// `start` keeps the subtree at its natural size instead.
+  Widget _stretchColumn(List<Widget> children, {double spacing = 0}) {
+    return LayoutBuilder(
+      builder: (context, constraints) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: constraints.hasBoundedWidth
+            ? CrossAxisAlignment.stretch
+            : CrossAxisAlignment.start,
+        spacing: spacing,
+        children: children,
+      ),
+    );
+  }
+
   Alignment _selfAlignment(String value, bool isRow) {
     return switch (value) {
       'start' => isRow ? Alignment.topCenter : Alignment.centerLeft,
@@ -357,14 +379,16 @@ class _QappNodeView extends StatelessWidget {
         children: children,
       );
     } else {
-      content = Flex(
-        direction: horizontal ? Axis.horizontal : Axis.vertical,
-        crossAxisAlignment: horizontal
-            ? CrossAxisAlignment.start
-            : CrossAxisAlignment.stretch,
-        spacing: gap,
-        children: children,
-      );
+      content = horizontal
+          ? Flex(
+              direction: Axis.horizontal,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: gap,
+              children: children,
+            )
+          // A vertical scroller nested in a `Row` has no width to stretch to,
+          // so the column has to keep its children at their natural size.
+          : _stretchColumn(children, spacing: gap);
     }
     // Platform physics, plus `_QappScrollPhysics` so a list that is being
     // dragged never gets corrected under the finger.
@@ -611,11 +635,7 @@ class _QappNodeView extends StatelessWidget {
   }
 
   Widget _sheetColumn(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: _childWidgets(context),
-    );
+    return _stretchColumn(_childWidgets(context));
   }
 
   /// A header the Mini App owns. It reads the safe area itself and leaves the
@@ -963,19 +983,15 @@ class _QappNodeView extends StatelessWidget {
       hasLongPress: node.hasEvent('longPress'),
       onPress: () => onEvent(node.id, 'press', null),
       onLongPress: () => onEvent(node.id, 'longPress', null),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final child in node.children)
-            _QappNodeView(
-              node: child,
-              onEvent: onEvent,
-              loadAsset: loadAsset,
-              insideFlex: false,
-            ),
-        ],
-      ),
+      child: _stretchColumn([
+        for (final child in node.children)
+          _QappNodeView(
+            node: child,
+            onEvent: onEvent,
+            loadAsset: loadAsset,
+            insideFlex: false,
+          ),
+      ]),
     );
   }
 
@@ -1128,19 +1144,15 @@ class _QappNodeView extends StatelessWidget {
       right: edges.contains('right'),
       bottom: edges.contains('bottom'),
       left: edges.contains('left'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final child in node.children)
-            _QappNodeView(
-              node: child,
-              onEvent: onEvent,
-              loadAsset: loadAsset,
-              insideFlex: false,
-            ),
-        ],
-      ),
+      child: _stretchColumn([
+        for (final child in node.children)
+          _QappNodeView(
+            node: child,
+            onEvent: onEvent,
+            loadAsset: loadAsset,
+            insideFlex: false,
+          ),
+      ]),
     );
   }
 
@@ -1168,19 +1180,15 @@ class _QappNodeView extends StatelessWidget {
           _ => Opacity(opacity: value, child: content),
         };
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final child in node.children)
-            _QappNodeView(
-              node: child,
-              onEvent: onEvent,
-              loadAsset: loadAsset,
-              insideFlex: false,
-            ),
-        ],
-      ),
+      child: _stretchColumn([
+        for (final child in node.children)
+          _QappNodeView(
+            node: child,
+            onEvent: onEvent,
+            loadAsset: loadAsset,
+            insideFlex: false,
+          ),
+      ]),
     );
   }
 

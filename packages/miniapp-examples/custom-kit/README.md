@@ -74,6 +74,9 @@ chấm đỏ, bật/tắt animation của sheet và toast, và mật độ danh 
 - **`flex: 1` chỉ có tác dụng khi node là con trực tiếp của một flex.** Bên
   trong `Pressable`, các con được xếp trong một `Column` không chia flex, nên
   chỗ nào cần giãn thì đặt `flex` lên chính `Pressable`.
+- **`Pressable` nằm trong một `Row` sẽ co lại bằng nội dung.** Nó chỉ giãn hết
+  bề ngang khi được đặt trong một cột (như nút trong `Card`) hoặc khi chính nó
+  có `flex`.
 - **Mọi thay đổi màu accent đi qua `theme.ts`.** `mix()` trộn hex ở phía TS để
   hero card luôn đủ tối cho chữ trắng, bất kể accent là mint, blue, violet hay
   amber.
