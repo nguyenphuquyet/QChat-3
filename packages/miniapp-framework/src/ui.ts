@@ -385,7 +385,12 @@ export function TabBar(props: TabBarProps): VNode {
 /**
  * Custom drawing uses a deliberately small, declarative path language rather
  * than arbitrary Dart code: `M x y L x y Q cx cy x y C ... Z` plus optional
- * `fill:` and `stroke:` prefixes. The Flutter renderer owns the painter.
+ * `fill:`, `stroke:`, `strokeWidth:` and `cap:` prefixes. The Flutter renderer
+ * owns the painter.
+ *
+ * `cap:` is `round` (the default), `butt` or `square`. Arcs should ask for
+ * `butt`: a round cap extends half the stroke width past the end angle, so a
+ * gauge bleeds over its own track where the arc starts.
  */
 export function CustomPaint(props: CustomPaintProps): VNode {
   return view("CustomPaint", props as Record<string, unknown>);

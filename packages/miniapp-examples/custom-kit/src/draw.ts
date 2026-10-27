@@ -2,9 +2,9 @@
  * Path strings for the `CustomPaint` node.
  *
  * The Flutter host only understands a small declarative language — absolute
- * `M/L/Q/C/Z` plus `fill:`, `stroke:` and `strokeWidth:` prefixes — so every
- * helper here returns one string in that language. Geometry is computed here,
- * in TS, because the host deliberately has no maths API.
+ * `M/L/Q/C/Z` plus `fill:`, `stroke:`, `strokeWidth:` and `cap:` prefixes — so
+ * every helper here returns one string in that language. Geometry is computed
+ * here, in TS, because the host deliberately has no maths API.
  */
 
 /** Round to two decimals and drop trailing zeros; keeps paths short. */
@@ -109,6 +109,11 @@ export function areaDraw(
  * Arc from `startDeg` to `endDeg` — 0° is 3 o'clock and angles grow clockwise,
  * like the ring in the UI. Every quarter gets one cubic, which is accurate to
  * well under a pixel at these radii.
+ *
+ * The stroke ends with `cap:butt` on purpose. The painter defaults to a round
+ * cap, which grows half the stroke width past the end angle: a gauge drawn that
+ * way bleeds over its own grey track at 12 o'clock and shows a shelf, and the
+ * head dot then sits half a stroke off the arc.
  */
 export function arcDraw(
   cx: number,
@@ -148,7 +153,9 @@ export function arcDraw(
       `C ${n(c1.x)} ${n(c1.y)} ${n(c2.x)} ${n(c2.y)} ${n(p1.x)} ${n(p1.y)}`,
     );
   }
-  return `stroke:${color} strokeWidth:${n(strokeWidth)} ${parts.join(" ")}`;
+  return `stroke:${color} strokeWidth:${n(strokeWidth)} cap:butt ${parts.join(
+    " ",
+  )}`;
 }
 
 /** A five-point star, drawn from its ten corners. */

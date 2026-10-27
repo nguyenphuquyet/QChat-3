@@ -60,9 +60,13 @@ chấm đỏ, bật/tắt animation của sheet và toast, và mật độ danh 
   chuỗi path trên lưới 24×24; `Glyph` scale path theo `size` và vẽ bằng
   `CustomPaint`. Icon nhiều nét là nhiều `CustomPaint` xếp trong một `Stack`.
 - **Path language của host rất nhỏ**: chỉ `M L Q C Z` tuyệt đối, cộng tiền tố
-  `fill:`, `stroke:`, `strokeWidth:`. Không có cung `A`, không có nét tròn đầu
-  nét. Vì vậy `draw.ts` tự tính cung tròn (chia mỗi 90° thành một cubic) và
-  đường cong Catmull-Rom cho sparkline.
+  `fill:`, `stroke:`, `strokeWidth:` và `cap:`. Không có cung `A`. Vì vậy
+  `draw.ts` tự tính cung tròn (chia mỗi 90° thành một cubic) và đường cong
+  Catmull-Rom cho sparkline.
+- **Cung tròn phải dùng `cap:butt`.** Mặc định của painter là `round`, và nét
+  tròn phình ra nửa bề dày nét ở mỗi đầu: vòng gauge vẽ kiểu đó sẽ đè lên track
+  xám ở 12 giờ và tạo một bậc, còn chấm ở đầu cung thì lệch nửa nét. `cap:butt`
+  cắt đúng góc, chấm đặt đúng cuối cung.
 - **Một `M` mới sẽ đóng subpath trước đó.** Hình hở phải nằm trong
   `CustomPaint` riêng; hình kín (chữ nhật, sao, vòng tròn) có thể gộp nhiều
   subpath trong một path.
