@@ -194,14 +194,14 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     }
   }
 
-  /// Holds render frames back while the mini program is scrolling, then paints
-  /// the newest one.
+  /// Holds render frames back while the mini program is being scrolled, then
+  /// paints the newest one.
   ///
-  /// A frame that lands mid-gesture changes the content extent under the active
-  /// drag; with the iOS rubber-band the list then reads as jumping back down
-  /// while the finger is still on the screen. The gesture is only "over" when
-  /// the motion really stopped, so the flush waits for the scroll notifications
-  /// to go quiet (drag release still has a spring-back to run).
+  /// A frame that lands under an active drag changes the content extent while
+  /// the list is past its edge, and Flutter's range-maintaining physics then
+  /// pulls the content back into range: the list springs back while the finger
+  /// is still down. A mini program may only settle back after the release, so
+  /// the flush waits for the finger to lift and for the spring-back to finish.
   bool _onScrollNotification(ScrollNotification notification) {
     if (notification is ScrollStartNotification) {
       if (notification.dragDetails != null) _dragging = true;
@@ -214,8 +214,16 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   }
 
   void _settled() {
-    // A cancelled drag never reports its end; never hold frames forever.
-    _dragging = false;
+    if (_dragging) {
+      // The finger is parked past the edge and may stay there for as long as the
+      // user likes. The release always reports its own end, so wait for it; this
+      // watchdog only covers a gesture that was cancelled without one.
+      _settle = Timer(const Duration(seconds: 2), () {
+        _dragging = false;
+        _flushPendingTree();
+      });
+      return;
+    }
     _flushPendingTree();
   }
 

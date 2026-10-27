@@ -368,14 +368,12 @@ class _QappNodeView extends StatelessWidget {
         children: children,
       );
     }
-    // No `physics` override: a mini program keeps the platform's own feel, so
-    // iOS still rubber-bands past the last item while Android clamps. The jump
-    // that used to make that feel broken came from applying a new render frame
-    // in the middle of a drag, not from the physics; `QappView` now holds the
-    // frame until the gesture ends.
+    // Platform physics, plus `_QappScrollPhysics` so a list that is being
+    // dragged never gets corrected under the finger.
     final scroller = SingleChildScrollView(
       scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
       padding: padding,
+      physics: const _QappScrollPhysics(),
       child: content,
     );
     final showsIndicator = node.props['showsScrollIndicator'] != false;
@@ -437,10 +435,11 @@ class _QappNodeView extends StatelessWidget {
         final unbounded = horizontal
             ? !constraints.hasBoundedWidth
             : !constraints.hasBoundedHeight;
-        // Same rule as `_scroll`: the list keeps the platform physics, so iOS
-        // bounces at the edges and Android clamps.
+        // Same rule as `_scroll`: platform physics, kept under the finger while
+        // it is dragging, so iOS still bounces at the edges but only settles
+        // back after the release.
         final physics = showsIndicator && !unbounded
-            ? null
+            ? const _QappScrollPhysics()
             : const NeverScrollableScrollPhysics();
         if (node.type == 'GridView') {
           final columns = node.props['numColumns'];
@@ -1860,6 +1859,39 @@ class _QappSliderState extends State<_QappSlider> {
           });
         }
       },
+    );
+  }
+}
+
+/// Mini program scroll physics: the list stays exactly where the finger put it.
+///
+/// The platform physics carries `RangeMaintainingScrollPhysics`, which pulls an
+/// overscrolled list back into range as soon as its content extent changes, an
+/// image finishing its load, or the app painting a new render frame. That reads
+/// as the list springing back while the finger is still down. A mini program may
+/// only settle back after the release, where the ballistic activity takes over,
+/// so while a drag or fling is running the position is left untouched. Every
+/// other behaviour still comes from the platform physics (iOS bounce included).
+class _QappScrollPhysics extends ScrollPhysics {
+  const _QappScrollPhysics({super.parent});
+
+  @override
+  _QappScrollPhysics applyTo(ScrollPhysics? ancestor) =>
+      _QappScrollPhysics(parent: buildParent(ancestor));
+
+  @override
+  double adjustPositionForNewDimensions({
+    required ScrollMetrics oldPosition,
+    required ScrollMetrics newPosition,
+    required bool isScrolling,
+    required double velocity,
+  }) {
+    if (isScrolling) return newPosition.pixels;
+    return super.adjustPositionForNewDimensions(
+      oldPosition: oldPosition,
+      newPosition: newPosition,
+      isScrolling: isScrolling,
+      velocity: velocity,
     );
   }
 }
