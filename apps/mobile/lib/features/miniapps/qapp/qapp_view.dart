@@ -71,8 +71,10 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   QappJsRuntime? _runtime;
   QappTree? _tree;
   QappTree? _pendingTree;
-  Timer? _settle;
+  Timer? _scrollWatchdog;
   bool _dragging = false;
+  bool _scrolling = false;
+  DateTime? _pointerUpAt;
   String? _failureCode;
   String? _failureMessage;
   int _generation = 0;
@@ -114,7 +116,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     widget.controller?._detach(this);
     WidgetsBinding.instance.removeObserver(this);
     _generation += 1;
-    _settle?.cancel();
+    _scrollWatchdog?.cancel();
     _pendingTree = null;
     _runtime?.dispose();
     _runtime = null;
@@ -130,6 +132,9 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _routes.clear();
     _pendingTree = null;
     _dragging = false;
+    _scrolling = false;
+    _pointerUpAt = null;
+    _scrollWatchdog?.cancel();
     if (mounted) {
       setState(() {
         _tree = null;
@@ -165,13 +170,9 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     if (current != null && tree.revision <= current.revision) return;
     final pending = _pendingTree;
     if (pending != null && tree.revision <= pending.revision) return;
-    // A mini program that re-renders while a finger is dragging its content
-    // makes the list jump: the new frame can change the content extent under an
-    // active drag, and with the iOS rubber-band that reads as the list snapping
-    // back down mid-gesture. Keep the newest frame and paint it once the finger
-    // is off the screen. `_settle` is only ever armed by a drag, never by a
-    // fling, so a tap always paints.
-    if (_dragging || (_settle?.isActive ?? false)) {
+    // Keep the newest frame and paint it once the list comes to rest; a frame a
+    // tap produced is never held, so the tab bar always answers.
+    if (_shouldHoldFrame()) {
       _pendingTree = tree;
       return;
     }
@@ -193,23 +194,40 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     }
   }
 
-  /// Holds render frames back while a finger is dragging the mini program's
-  /// content, then paints the newest one after the release.
+  /// Decides when a render frame may be painted while the content is moving.
   ///
   /// A frame that lands under an active drag changes the content extent while
   /// the list is past its edge, and Flutter's range-maintaining physics then
   /// pulls the content back into range: the list springs back while the finger
   /// is still down. A mini program may only settle back after the release, so
-  /// the flush waits for the finger to lift and for the spring-back to finish.
+  /// such a frame is held until the list comes to rest.
   ///
-  /// Only a finger on the screen holds a frame back. A fling, a programmatic
-  /// scroll or the spring-back itself must never hold one: a tap that lands
-  /// then is dispatched to JavaScript and re-renders, but the new frame would
-  /// stay invisible until the animation stopped, which reads as "the tab bar
-  /// does not respond until a moment later".
+  /// A fling is the same problem seen from the other side: rebuilding the tree
+  /// in the middle of it drops a frame, which is the small stutter that is felt
+  /// right after the finger leaves the screen. Those frames wait for the list to
+  /// stop too — except the one a tap produces, which is always painted at once,
+  /// otherwise the tab bar looks dead until the fling ends.
+  bool _shouldHoldFrame() {
+    if (_dragging) return true;
+    if (!_scrolling) return false;
+    final upAt = _pointerUpAt;
+    return upAt == null ||
+        DateTime.now().difference(upAt) > const Duration(milliseconds: 400);
+  }
+
   bool _onScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollEndNotification) {
+      // The list is at rest, so the held frame can be painted without a rebuild
+      // landing in the middle of an animation.
+      _scrolling = false;
+      _dragging = false;
+      _scrollWatchdog?.cancel();
+      _flushPendingTree();
+      return false;
+    }
+    _scrolling = true;
+    _armScrollWatchdog();
     final dragged = switch (notification) {
-      ScrollEndNotification() => false,
       ScrollStartNotification(:final dragDetails) => dragDetails != null,
       ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
       OverscrollNotification(:final dragDetails) => dragDetails != null,
@@ -217,45 +235,41 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     };
     if (dragged) {
       _dragging = true;
-      // Re-armed on every drag notification so the watchdog only starts once
-      // the finger stops moving.
-      _armSettle();
     } else if (_dragging) {
       _dragging = false;
-      _armSettle();
     }
     return false;
   }
 
-  /// Paints the held frame once the drag has been quiet for a moment.
-  void _armSettle() {
-    _settle?.cancel();
-    _settle = Timer(const Duration(milliseconds: 120), _settled);
+  /// Safety net for a scroll that stops without reporting its end, for example
+  /// when a new tree replaces the list while it is moving.
+  void _armScrollWatchdog() {
+    _scrollWatchdog?.cancel();
+    _scrollWatchdog = Timer(
+      const Duration(milliseconds: 1500),
+      _scrollWatchdogFired,
+    );
+  }
+
+  void _scrollWatchdogFired() {
+    if (_dragging) {
+      // The finger is parked past the edge and may stay there as long as the
+      // user likes; the release always reports itself, so keep waiting.
+      _armScrollWatchdog();
+      return;
+    }
+    _scrolling = false;
+    _flushPendingTree();
   }
 
   /// A lifted finger is never still dragging, even when the scrollable never
   /// reported its end: a cancelled gesture, or a rebuild that replaced the
-  /// list, would otherwise leave the frames held until the watchdog fired.
+  /// list, would otherwise leave the frames held.
   void _releaseDrag() {
-    // A plain tap that never dragged anything has no frame to protect, so it
-    // must not open a settle window: the render it triggers paints at once.
-    if (!_dragging && _pendingTree == null) return;
+    _pointerUpAt = DateTime.now();
+    if (!_dragging) return;
     _dragging = false;
-    _armSettle();
-  }
-
-  void _settled() {
-    if (_dragging) {
-      // The finger is parked past the edge and may stay there for as long as the
-      // user likes. The release always reports its own end, so wait for it; this
-      // watchdog only covers a gesture that was cancelled without one.
-      _settle = Timer(const Duration(seconds: 2), () {
-        _dragging = false;
-        _flushPendingTree();
-      });
-      return;
-    }
-    _flushPendingTree();
+    if (!_scrolling) _flushPendingTree();
   }
 
   void _flushPendingTree() {
