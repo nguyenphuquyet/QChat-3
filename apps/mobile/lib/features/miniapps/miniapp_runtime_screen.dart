@@ -9,7 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -411,10 +411,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
 
   void _showToast(String message, String icon) {
     if (!mounted) return;
-    TToast.showText(
+    showQChatToast(
+      context,
       message,
-      context: context,
-      placement: TToastPlacement.bottom,
       duration: const Duration(milliseconds: 2200),
     );
   }
@@ -438,7 +437,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Theme.of(sheet).colorScheme.surfaceContainerHighest,
+                color: qchatFill(sheet),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(body, style: const TextStyle(fontSize: 14)),
@@ -480,7 +479,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'appVersion': '1.1.0',
       'runtimeVersion': miniAppRuntimeVersion,
       'locale': ref.read(preferencesProvider).locale,
-      'theme': Theme.of(context).brightness == Brightness.dark
+      'theme': qchatDark(context)
           ? 'dark'
           : 'light',
       'screenWidth': size.width,
@@ -668,7 +667,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         child: Text(
           tr(context, 'miniAppsOffline'),
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
+          style: const TextStyle(color: QChatColors.white, fontSize: 12),
         ),
       ),
     ),
@@ -777,11 +776,11 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final dark = qchatDark(context);
     return ColoredBox(
       // The launch page stays plain white (dark in dark mode), matching the
       // mini program splash instead of the app's grey page background.
-      color: dark ? const Color(0xff111111) : Colors.white,
+      color: dark ? const Color(0xff111111) : QChatColors.white,
       child: Align(
         alignment: const Alignment(0, -0.22),
         child: Column(
@@ -805,7 +804,7 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: .06),
+                          color: QChatColors.black.withValues(alpha: .06),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -927,11 +926,11 @@ class _FloatButtonState extends State<_FloatButton> {
           color: _pressed ? const Color(0x9e000000) : const Color(0x5e000000),
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withValues(alpha: .16),
+            color: QChatColors.white.withValues(alpha: .16),
             width: .5,
           ),
         ),
-        child: QChatIcon(widget.icon, size: 17, color: Colors.white),
+        child: QChatIcon(widget.icon, size: 17, color: QChatColors.white),
       ),
     ),
   );

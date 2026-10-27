@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
@@ -98,16 +99,32 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     super.dispose();
   }
 
-  InputDecoration decoration(BuildContext c, String hint) => InputDecoration(
-    hintText: hint,
-    hintStyle: const TextStyle(fontSize: 16, color: Color(0xffb2b2b2)),
-    filled: true,
-    fillColor: surface(c),
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(6),
-      borderSide: BorderSide.none,
+  Widget field(
+    BuildContext c,
+    TextEditingController controller,
+    String hint, {
+    TextInputType? keyboardType,
+    TextInputAction? textInputAction,
+    List<TextInputFormatter>? inputFormatters,
+    int? maxLength,
+  }) => CupertinoTextField(
+    controller: controller,
+    placeholder: hint,
+    placeholderStyle: const TextStyle(
+      fontSize: 16,
+      color: Color(0xffb2b2b2),
     ),
-    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    keyboardType: keyboardType,
+    textInputAction: textInputAction,
+    inputFormatters: inputFormatters,
+    maxLength: maxLength,
+    cursorColor: QChatColors.green,
+    style: TextStyle(fontSize: 16, color: ink(c)),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+    decoration: BoxDecoration(
+      color: surface(c),
+      borderRadius: BorderRadius.circular(6),
+    ),
   );
 
   @override
@@ -135,13 +152,13 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                 ),
                 child: const Row(
                   children: [
-                    QChatIcon('gift', color: Colors.white, size: 34),
+                    QChatIcon('gift', color: QChatColors.white, size: 34),
                     SizedBox(width: 14),
                     Expanded(
                       child: Text(
                         'Hồng bao sẽ được gửi ngay vào cuộc trò chuyện.',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: QChatColors.white,
                           fontSize: 15,
                           height: 1.35,
                         ),
@@ -151,31 +168,28 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                 ),
               ),
             if (widget.redPacket) const SizedBox(height: 16),
-            TextField(
-              controller: to,
+            field(
+              c,
+              to,
+              'QChat ID người nhận',
               keyboardType: TextInputType.text,
               textInputAction: TextInputAction.next,
-              style: TextStyle(fontSize: 16, color: ink(c)),
-              decoration: decoration(c, 'QChat ID người nhận'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: amount,
+            field(
+              c,
+              amount,
+              'Số tiền (đ)',
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.next,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: TextStyle(fontSize: 16, color: ink(c)),
-              decoration: decoration(c, 'Số tiền (đ)'),
             ),
             const SizedBox(height: 12),
-            TextField(
-              controller: note,
+            field(
+              c,
+              note,
+              widget.redPacket ? 'Lời chúc' : 'Lời nhắn',
               maxLength: 100,
-              style: TextStyle(fontSize: 16, color: ink(c)),
-              decoration: decoration(
-                c,
-                widget.redPacket ? 'Lời chúc' : 'Lời nhắn',
-              ),
             ),
             Align(
               alignment: Alignment.centerRight,

@@ -1,12 +1,11 @@
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
-import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/core/network/video_meta.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
@@ -15,6 +14,7 @@ import 'package:qchat/features/chats/home_screen.dart';
 import 'package:qchat/features/chats/message_attachment.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
 import 'package:qchat/features/moments/moments_screen.dart';
+import 'test_app.dart';
 
 class FakeClient extends QChatClient {
   FakeClient({this.isFriend = false, this.group = false, this.owner = false}) {
@@ -98,13 +98,7 @@ Future<void> mount(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [clientProvider.overrideWithValue(client)],
-      child: MaterialApp(
-        locale: const Locale('vi'),
-        supportedLocales: const [Locale('vi')],
-        localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: qchatTheme(false),
-        home: Material(child: screen),
-      ),
+      child: qchatHarness(screen, locale: const Locale('vi')),
     ),
   );
   await tester.pumpAndSettle();
@@ -157,14 +151,14 @@ void main() {
     expect(client.calls, contains('/moments?authorId=peer'));
     expect(find.text('A moment'), findsOneWidget);
     expect(find.text('Legacy comment'), findsNothing);
-    expect(find.byType(TInput), findsNothing);
+    expect(find.byType(CupertinoTextField), findsNothing);
     expect(
       find.byWidgetPredicate((w) => w is QChatIconButton && w.icon == 'plus'),
       findsNothing,
     );
   });
   testWidgets(
-    'three dots opens TDesign details and message avatars use media IDs',
+    'three dots opens details and message avatars use media IDs',
     (tester) async {
       final client = FakeClient();
       await mount(tester, client, const ChatScreen(id: 'chat'));
@@ -175,7 +169,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Chi tiết'), findsOneWidget);
-      expect(find.byType(TSwitch), findsOneWidget);
+      expect(find.byType(QChatSwitch), findsOneWidget);
       expect(find.text('Xóa lịch sử trò chuyện'), findsOneWidget);
       expect(find.text('Giải tán nhóm'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -271,11 +265,14 @@ void main() {
           .value,
       1,
     );
-    // TDesign surface plus a tap region so taps outside dismiss it.
+    // QChat surface plus a tap region so taps outside dismiss it.
     final panel = tester.widget<Container>(
       find.byKey(const Key('message-action-menu')),
     );
-    expect((panel.decoration! as BoxDecoration).color, const Color(0xff25282d));
+    expect(
+      (panel.decoration! as BoxDecoration).color,
+      QChatColors.white,
+    );
     expect(
       find.byKey(const ValueKey('message-action-tap-region')),
       findsOneWidget,
@@ -406,7 +403,7 @@ void main() {
       const Offset(-300, 0),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(TSwipeCellAction), findsNWidgets(3));
+    expect(find.byType(QChatSwipeCell), findsOneWidget);
     expect(find.text('Đánh dấu chưa đọc'), findsOneWidget);
     expect(find.text('Ẩn'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -419,7 +416,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) => const Material(child: HomeScreen()),
+          builder: (_, _) =>
+              const ColoredBox(color: QChatColors.background, child: HomeScreen()),
         ),
         GoRoute(
           path: '/moments',
@@ -438,12 +436,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [clientProvider.overrideWithValue(client)],
-        child: MaterialApp.router(
-          locale: const Locale('vi'),
-          supportedLocales: const [Locale('vi')],
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          theme: qchatTheme(false),
+        child: qchatRouterHarness(
           routerConfig: router,
+          locale: const Locale('vi'),
         ),
       ),
     );

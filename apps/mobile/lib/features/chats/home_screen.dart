@@ -2,7 +2,7 @@ import 'conversation_time.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -199,9 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     child: QChatGlass(
                                       key: searchKey,
                                       border: false,
-                                      color: Theme.of(
-                                        c,
-                                      ).scaffoldBackgroundColor,
+                                      color: qchatBackground(c),
                                       opacity: .88,
                                       child: QChatSearchBar(
                                         controller: search,
@@ -292,33 +290,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final date = DateTime.tryParse(last?['createdAt'] ?? '')?.toLocal();
     final now = DateTime.now();
     final time = conversationTime(date, now, (key) => tr(c, key));
-    return TSwipeCell(
+    return QChatSwipeCell(
       key: ValueKey(item['id']),
-      end: TSwipeCellPanel(
-        children: [
-          TSwipeCellAction(
-            backgroundColor: const Color(0xff168fe5),
-            label: tr(
-              c,
-              member?['markedUnread'] == true ? 'markRead' : 'markUnread',
-            ),
-            onPressed: (_) => conversationAction(
-              item,
-              member?['markedUnread'] == true ? 'read' : 'unread',
-            ),
+      actions: [
+        QChatSwipeAction(
+          backgroundColor: const Color(0xff168fe5),
+          label: tr(
+            c,
+            member?['markedUnread'] == true ? 'markRead' : 'markUnread',
           ),
-          TSwipeCellAction(
-            backgroundColor: const Color(0xffff9c38),
-            label: tr(c, 'hideChat'),
-            onPressed: (_) => conversationAction(item, 'hide'),
+          onPressed: () => conversationAction(
+            item,
+            member?['markedUnread'] == true ? 'read' : 'unread',
           ),
-          TSwipeCellAction(
-            backgroundColor: const Color(0xfffa5151),
-            label: tr(c, 'delete'),
-            onPressed: (_) => conversationAction(item, 'delete'),
-          ),
-        ],
-      ),
+        ),
+        QChatSwipeAction(
+          backgroundColor: const Color(0xffff9c38),
+          label: tr(c, 'hideChat'),
+          onPressed: () => conversationAction(item, 'hide'),
+        ),
+        QChatSwipeAction(
+          backgroundColor: const Color(0xfffa5151),
+          label: tr(c, 'delete'),
+          onPressed: () => conversationAction(item, 'delete'),
+        ),
+      ],
       child: QChatConversationTile(
         name: conversationName(item),
         avatar: item['kind'] == 'DIRECT'

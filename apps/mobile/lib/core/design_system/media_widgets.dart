@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/network/client.dart';
@@ -236,7 +236,7 @@ class _MediaImageState extends ConsumerState<MediaImage> {
     }
     return widget.placeholder ??
         ColoredBox(
-          color: Theme.of(c).brightness == Brightness.dark
+          color: qchatDark(c)
               ? const Color(0xff2a2a2a)
               : const Color(0xffededed),
         );
@@ -247,7 +247,7 @@ class _MediaImageState extends ConsumerState<MediaImage> {
       GestureDetector(
         onTap: () => setState(_load),
         child: const Center(
-          child: TIcon(TIcons.refresh, size: 20, color: QChatColors.muted),
+          child: QChatIcon('refresh', size: 20, color: QChatColors.muted),
         ),
       );
 }
@@ -268,32 +268,23 @@ class UserAvatar extends StatelessWidget {
     final nickname = user['nickname']?.toString() ?? '';
     final fallback = QChatAvatar(nickname, size: size);
 
-    return Theme(
-      data: Theme.of(c).copyWith(
-        extensions: [
-          ...Theme.of(c).extensions.values.where((e) => e is! TAvatarThemeData),
-          TAvatarThemeData(dimension: size, squareBorderRadius: 5),
-        ],
-      ),
-      child: TAvatar(
-        shape: TAvatarShape.square,
-        onTap: !openProfile || user['id'] == null
-            ? null
-            : () => c.push('/user/${user['id']}'),
-        child: avatarId == null || avatarId.isEmpty
-            ? fallback
-            : SizedBox.square(
-                dimension: size,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(5),
-                  child: MediaImage(
-                    id: avatarId,
-                    placeholder: fallback,
-                    errorWidget: fallback,
-                  ),
-                ),
+    final content = avatarId == null || avatarId.isEmpty
+        ? fallback
+        : SizedBox.square(
+            dimension: size,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(5),
+              child: MediaImage(
+                id: avatarId,
+                placeholder: fallback,
+                errorWidget: fallback,
               ),
-      ),
+            ),
+          );
+    if (!openProfile || user['id'] == null) return content;
+    return GestureDetector(
+      onTap: () => c.push('/user/${user['id']}'),
+      child: content,
     );
   }
 }
@@ -374,7 +365,7 @@ class GroupAvatar extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: Theme.of(c).brightness == Brightness.dark
+            color: qchatDark(c)
                 ? const Color(0xff333333)
                 : const Color(0xffeaeaea),
             borderRadius: borderRadius,

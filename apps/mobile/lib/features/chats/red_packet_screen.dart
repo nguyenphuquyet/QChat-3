@@ -1,9 +1,9 @@
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
-import '../../core/design_system/qchat_icons.dart';
 import '../payments/payments_screen.dart';
 import 'money_message.dart';
 
@@ -89,8 +89,8 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
 
   @override
   Widget build(BuildContext c) {
-    return Material(
-      color: Colors.transparent,
+    return ColoredBox(
+      color: QChatColors.transparent,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: opened
             ? SystemUiOverlayStyle.dark

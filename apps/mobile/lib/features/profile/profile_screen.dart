@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -39,7 +39,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final qrSize = (MediaQuery.sizeOf(c).width * .5)
         .clamp(170.0, 230.0)
         .toDouble();
-    final link = Theme.of(c).brightness == Brightness.dark
+    final link = qchatDark(c)
         ? const Color(0xff8ba0c6)
         : const Color(0xff576b95);
     return ListView(
@@ -109,7 +109,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         data: 'qchat://user/${u['qchatId']}',
                         size: qrSize,
                         padding: EdgeInsets.zero,
-                        backgroundColor: Colors.white,
+                        backgroundColor: QChatColors.white,
                         errorCorrectionLevel: QrErrorCorrectLevel.H,
                         eyeStyle: QrEyeStyle(
                           eyeShape: QrEyeShape.square,
@@ -646,7 +646,7 @@ class _QrMarkPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.scale(size.width / 100, size.height / 100);
     final white = Paint()
-      ..color = Colors.white
+      ..color = QChatColors.white
       ..style = PaintingStyle.fill;
     final black = Paint()
       ..color = const Color(0xff1c1c1c)
@@ -705,7 +705,7 @@ class _ScanScreenState extends State<ScanScreen> {
   Widget build(BuildContext c) => QChatPage(
     // Let the camera preview reach behind the system home/navigation bar.
     edgeToEdge: true,
-    navigationBackground: Colors.black,
+    navigationBackground: QChatColors.black,
     title: tr(c, 'scan'),
     leading: QChatIconButton(
       'back',

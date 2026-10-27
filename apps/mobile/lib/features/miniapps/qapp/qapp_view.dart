@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../core/design_system/components.dart';
 import '../../../core/localization/strings.dart';
@@ -228,17 +228,12 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     final tree = _tree;
     if (tree == null) {
       return ColoredBox(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        child: const Center(
-          child: SizedBox.square(
-            dimension: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.2),
-          ),
-        ),
+        color: qchatBackground(context),
+        child: const QChatLoading(size: 22),
       );
     }
     return ColoredBox(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: qchatBackground(context),
       child: SizedBox.expand(
         child: QappRenderer(
           root: tree.root,
@@ -257,7 +252,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
       _ => tr(context, 'miniAppsError'),
     };
     return ColoredBox(
-      color: Theme.of(context).scaffoldBackgroundColor,
+      color: qchatBackground(context),
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),

@@ -16,7 +16,7 @@ Profile fields are on User. Membership and per-conversation user state share Con
 
 ## Design
 
-QChat uses original line icons, square avatars with 5px corners, thin separators, neutral headers, a four-tab navigation bar and green/white conversation bubbles. TDesign 1.0.0 provides TButton and TInput. MaterialApp is only the Flutter/TDesign compatibility host; default Material or Cupertino navigation, cards, dialogs, and buttons are not used.
+QChat uses original line icons, square avatars with 5px corners, thin separators, neutral headers, a four-tab navigation bar and green/white conversation bubbles. Every screen is drawn by the QChat design system in `apps/mobile/lib/core/design_system` on top of a plain `WidgetsApp.router`; there is no `MaterialApp`, no Material theme, and no Material or TDesign widget in the shipped app. Text fields use `CupertinoTextField`, and navigation uses custom routes, so no Google Material visual language reaches the user.
 
 ## Boundaries still requiring work
 

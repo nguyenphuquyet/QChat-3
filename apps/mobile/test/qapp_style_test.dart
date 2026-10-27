@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
+import 'test_app.dart';
 
 QappNode node(
   String id,
@@ -22,14 +23,8 @@ QappNode node(
 }
 
 Widget host(QappNode root) {
-  return MaterialApp(
-    home: Scaffold(
-      body: QappRenderer(
-        root: root,
-        onEvent: (_, _, _) {},
-        loadAsset: (_) async => null,
-      ),
-    ),
+  return qchatHarness(
+    QappRenderer(root: root, onEvent: (_, _, _) {}, loadAsset: (_) async => null),
   );
 }
 

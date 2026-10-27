@@ -1,18 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/network/client.dart';
-import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/features/chats/home_screen.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/profile/profile_screen.dart';
 import 'package:qchat/features/settings/settings_screen.dart';
 import 'package:qchat/features/contacts/friends_screen.dart';
+import 'test_app.dart';
 
 class PreviewClient extends QChatClient {
   final today = DateTime.now();
@@ -128,14 +127,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [clientProvider.overrideWithValue(client)],
-          child: MaterialApp(
+          child: qchatHarness(
+            RepaintBoundary(key: captureKey, child: screen),
             locale: const Locale('vi'),
-            supportedLocales: const [Locale('vi')],
-            localizationsDelegates: GlobalMaterialLocalizations.delegates,
-            theme: qchatTheme(false),
-            home: Material(
-              child: RepaintBoundary(key: captureKey, child: screen),
-            ),
           ),
         ),
       );

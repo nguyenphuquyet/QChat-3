@@ -1,30 +1,27 @@
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'dart:math' as math;
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
+
 import '../localization/strings.dart';
 import 'qchat_colors.dart';
 import 'qchat_glass.dart';
 import 'qchat_icons.dart';
 import 'qchat_shadows.dart';
+import 'qchat_theme.dart';
 import 'qchat_typography.dart';
 import 'overlays.dart';
+
 export 'overlays.dart';
 export 'qchat_colors.dart';
 export 'qchat_icons.dart';
+export 'qchat_theme.dart';
 
-Color surface(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark
-    ? const Color(0xff202020)
-    : Colors.white;
-Color ink(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark
-    ? const Color(0xffeeeeee)
-    : QChatColors.ink;
+Color surface(BuildContext context) => qchatSurface(context);
+Color ink(BuildContext context) => qchatInk(context);
 
 Color navigationSurface(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark
-    ? surface(context)
-    : const Color(0xfff7f7f7);
+    qchatNavigationSurface(context);
 
 class QChatPage extends StatelessWidget {
   const QChatPage({
@@ -53,11 +50,11 @@ class QChatPage extends StatelessWidget {
   @override
   Widget build(BuildContext c) {
     final media = MediaQuery.of(c);
-    final pageColor = background ?? Theme.of(c).scaffoldBackgroundColor;
+    final pageColor = background ?? qchatBackground(c);
     final topColor = statusBackground ?? pageColor;
     final bottomColor = navigationBackground ?? pageColor;
-    final topBrightness = ThemeData.estimateBrightnessForColor(topColor);
-    final bottomBrightness = ThemeData.estimateBrightnessForColor(bottomColor);
+    final topBrightness = qchatBrightnessOfColor(topColor);
+    final bottomBrightness = qchatBrightnessOfColor(bottomColor);
     final appBar = title == null
         ? null
         : QChatAppBar(
@@ -88,9 +85,9 @@ class QChatPage extends StatelessWidget {
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        systemNavigationBarColor: Colors.transparent,
-        systemNavigationBarDividerColor: Colors.transparent,
+        statusBarColor: QChatColors.transparent,
+        systemNavigationBarColor: QChatColors.transparent,
+        systemNavigationBarDividerColor: QChatColors.transparent,
         systemStatusBarContrastEnforced: false,
         systemNavigationBarContrastEnforced: false,
         statusBarBrightness: topBrightness,
@@ -197,7 +194,7 @@ class QChatIconButton extends StatelessWidget {
     this.size = 24,
   });
   final String icon, label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Color? color;
   final double size;
   @override
@@ -225,33 +222,57 @@ class QChatButton extends StatelessWidget {
     this.onTap,
     this.secondary = false,
     this.loading = false,
+    this.padding = const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
   });
   final String text;
   final VoidCallback? onTap;
   final bool secondary, loading;
+  final EdgeInsetsGeometry padding;
   @override
-  Widget build(BuildContext c) => TButton(
-    onPressed: loading ? null : onTap,
-    style: ButtonStyle(
-      backgroundColor: WidgetStatePropertyAll(
-        secondary ? surface(c) : QChatColors.green,
+  Widget build(BuildContext c) {
+    final enabled = onTap != null && !loading;
+    final background = secondary ? surface(c) : QChatColors.green;
+    final foreground = secondary ? QChatColors.green : QChatColors.white;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? onTap : null,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 120),
+          opacity: enabled || loading ? 1 : .45,
+          child: Container(
+            constraints: const BoxConstraints(minWidth: 90, minHeight: 44),
+            padding: padding,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(5),
+            ),
+            child: loading
+                ? SizedBox(
+                    height: 18,
+                    width: 18,
+                    child: _QChatSpinner(
+                      size: 18,
+                      color: secondary ? QChatColors.green : foreground,
+                    ),
+                  )
+                : Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: foreground,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+          ),
+        ),
       ),
-      foregroundColor: WidgetStatePropertyAll(
-        secondary ? QChatColors.green : Colors.white,
-      ),
-      shape: WidgetStatePropertyAll(
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      ),
-      minimumSize: const WidgetStatePropertyAll(Size(90, 44)),
-    ),
-    child: Stack(
-      alignment: Alignment.center,
-      children: [
-        Opacity(opacity: loading ? 0 : 1, child: Text(text)),
-        if (loading) const QChatLoading(),
-      ],
-    ),
-  );
+    );
+  }
 }
 
 class QChatTextInput extends StatelessWidget {
@@ -261,74 +282,225 @@ class QChatTextInput extends StatelessWidget {
     required this.hint,
     this.secret = false,
     this.lines = 1,
+    this.minLines,
+    this.maxLines,
+    this.maxLength,
+    this.autofocus = false,
+    this.enabled = true,
     this.onChanged,
+    this.onSubmitted,
+    this.keyboardType,
+    this.textInputAction,
   });
   final TextEditingController controller;
   final String hint;
-  final bool secret;
+  final bool secret, autofocus, enabled;
   final int lines;
-  final ValueChanged<String>? onChanged;
+  final int? minLines, maxLines, maxLength;
+  final ValueChanged<String>? onChanged, onSubmitted;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+
   @override
-  Widget build(BuildContext c) => TInput(
+  Widget build(BuildContext c) => CupertinoTextField(
     controller: controller,
-    hintText: hint,
+    placeholder: hint,
+    placeholderStyle: TextStyle(color: QChatColors.muted, fontSize: 16),
     obscureText: secret,
-    maxLines: lines,
-    minLines: lines == 1 ? null : 1,
+    maxLines: maxLines ?? lines,
+    minLines: minLines ?? (lines == 1 ? 1 : 1),
+    maxLength: maxLength,
+    autofocus: autofocus,
+    enabled: enabled,
     onChanged: onChanged,
+    onSubmitted: onSubmitted,
+    keyboardType: keyboardType,
+    textInputAction: textInputAction,
     cursorColor: QChatColors.green,
     style: TextStyle(color: ink(c), fontSize: 16),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: surface(c),
+      border: Border.all(color: qchatLine(c), width: .5),
+      borderRadius: BorderRadius.circular(5),
+    ),
   );
 }
 
-class QChatSearchBar extends StatelessWidget {
+class QChatSearchBar extends StatefulWidget {
   const QChatSearchBar({super.key, required this.controller, this.onChanged});
   final TextEditingController controller;
   final ValueChanged<String>? onChanged;
   @override
+  State<QChatSearchBar> createState() => _QChatSearchBarState();
+}
+
+class _QChatSearchBarState extends State<QChatSearchBar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_changed);
+  }
+
+  @override
+  void didUpdateWidget(covariant QChatSearchBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_changed);
+      widget.controller.addListener(_changed);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_changed);
+    super.dispose();
+  }
+
+  void _changed() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext c) => Padding(
     padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
-    child: Theme(
-      data: Theme.of(c).copyWith(
-        extensions: [
-          ...Theme.of(c).extensions.values.where((e) => e is! TInputThemeData),
-          (Theme.of(c).extension<TInputThemeData>() ?? const TInputThemeData())
-              .copyWith(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 7,
-                ),
-              ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          TInput(
-            controller: controller,
-            hintText: '',
-            onChanged: onChanged,
-            borderless: true,
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        CupertinoTextField(
+          controller: widget.controller,
+          onChanged: widget.onChanged,
+          padding: const EdgeInsets.fromLTRB(34, 8, 32, 8),
+          placeholder: '',
+          cursorColor: QChatColors.green,
+          style: TextStyle(color: ink(c), fontSize: 17),
+          decoration: BoxDecoration(
+            color: surface(c),
+            borderRadius: BorderRadius.circular(8),
           ),
-          if (controller.text.isEmpty)
-            IgnorePointer(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const QChatIcon('search', size: 20, color: Color(0xffb2b2b2)),
-                  const SizedBox(width: 6),
-                  Text(
-                    tr(c, 'search'),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      color: Color(0xffb2b2b2),
-                    ),
-                  ),
-                ],
+        ),
+        if (widget.controller.text.isEmpty)
+          Positioned(
+            left: 12,
+            child: IgnorePointer(
+              child: QChatIcon(
+                'search',
+                size: 18,
+                color: QChatColors.muted,
               ),
             ),
-        ],
-      ),
+          )
+        else
+          Positioned(
+            right: 8,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.controller.clear,
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: QChatIcon(
+                  'close',
+                  size: 16,
+                  color: QChatColors.muted,
+                ),
+              ),
+            ),
+          ),
+        if (widget.controller.text.isEmpty)
+          Positioned(
+            left: 34,
+            child: IgnorePointer(
+              child: Text(
+                tr(c, 'search'),
+                style: const TextStyle(fontSize: 17, color: Color(0xffb2b2b2)),
+              ),
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
+/// Search input used on detail screens. Keeps its own controller when the
+/// caller does not need to own one.
+class QChatSearchField extends StatefulWidget {
+  const QChatSearchField({
+    super.key,
+    this.initialValue = '',
+    this.controller,
+    required this.hintText,
+    this.autofocus = false,
+    this.onChanged,
+    this.onSubmitted,
+  });
+  final String initialValue, hintText;
+  final TextEditingController? controller;
+  final bool autofocus;
+  final ValueChanged<String>? onChanged, onSubmitted;
+  @override
+  State<QChatSearchField> createState() => _QChatSearchFieldState();
+}
+
+class _QChatSearchFieldState extends State<QChatSearchField> {
+  late final controller =
+      widget.controller ?? TextEditingController(text: widget.initialValue);
+
+  @override
+  void dispose() {
+    if (widget.controller == null) controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) => Padding(
+    padding: const EdgeInsets.fromLTRB(8, 8, 8, 10),
+    child: Stack(
+      alignment: Alignment.center,
+      children: [
+        CupertinoTextField(
+          controller: controller,
+          autofocus: widget.autofocus,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          padding: const EdgeInsets.fromLTRB(34, 8, 32, 8),
+          placeholder: widget.hintText,
+          placeholderStyle: const TextStyle(
+            fontSize: 15,
+            color: QChatColors.muted,
+          ),
+          cursorColor: QChatColors.green,
+          style: TextStyle(color: ink(c), fontSize: 15),
+          decoration: BoxDecoration(
+            color: surface(c),
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        const Positioned(
+          left: 12,
+          child: IgnorePointer(
+            child: QChatIcon('search', size: 18, color: QChatColors.muted),
+          ),
+        ),
+        if (controller.text.isNotEmpty)
+          Positioned(
+            right: 8,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                controller.clear();
+                widget.onChanged?.call('');
+              },
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: QChatIcon(
+                  'close',
+                  size: 16,
+                  color: QChatColors.muted,
+                ),
+              ),
+            ),
+          ),
+      ],
     ),
   );
 }
@@ -338,30 +510,34 @@ class QChatAvatar extends StatelessWidget {
   final String name;
   final double size;
   final String? url;
-  @override
-  Widget build(BuildContext c) => Theme(
-    data: Theme.of(c).copyWith(
-      extensions: [
-        ...Theme.of(c).extensions.values.where((e) => e is! TAvatarThemeData),
-        TAvatarThemeData(
-          dimension: size,
-          squareBorderRadius: 5,
-          backgroundColor: const Color(0xffd7eade),
-        ),
-      ],
-    ),
-    child: TAvatar(
-      shape: TAvatarShape.square,
-      image: url == null ? null : NetworkImage(url!),
-      child: _letter(),
-    ),
-  );
+
   Widget _letter() => Text(
     name.isEmpty ? 'Q' : name.characters.first.toUpperCase(),
     style: TextStyle(
       fontSize: size * .42,
       fontWeight: FontWeight.w500,
       color: const Color(0xff326b4c),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext c) => SizedBox.square(
+    dimension: size,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(5),
+      child: Container(
+        color: const Color(0xffd7eade),
+        alignment: Alignment.center,
+        child: url == null || url!.isEmpty
+            ? _letter()
+            : Image.network(
+                url!,
+                fit: BoxFit.cover,
+                width: size,
+                height: size,
+                errorBuilder: (_, _, _) => Center(child: _letter()),
+              ),
+      ),
     ),
   );
 }
@@ -385,7 +561,11 @@ class QChatUnreadBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: const TextStyle(color: Colors.white, fontSize: 11, height: 1.2),
+        style: const TextStyle(
+          color: QChatColors.white,
+          fontSize: 11,
+          height: 1.2,
+        ),
       ),
     );
   }
@@ -475,6 +655,109 @@ class QChatListTile extends StatelessWidget {
   );
 }
 
+/// Plain settings row used across detail pages.
+class QChatCell extends StatelessWidget {
+  const QChatCell({
+    super.key,
+    this.title,
+    this.subtitle,
+    this.note,
+    this.image,
+    this.trailing,
+    this.arrow = false,
+    this.onTap,
+  });
+  final Widget? title, subtitle, note, image, trailing;
+  final bool arrow;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext c) => Semantics(
+    button: onTap != null,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        color: surface(c),
+        padding: const EdgeInsets.only(left: 16),
+        child: Row(
+          children: [
+            if (image != null) ...[
+              SizedBox.square(dimension: 42, child: image),
+              const SizedBox(width: 14),
+            ],
+            Expanded(
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 52),
+                padding: const EdgeInsets.fromLTRB(0, 12, 16, 12),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: ink(c).withValues(alpha: .07),
+                      width: .5,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (title != null)
+                            DefaultTextStyle(
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: ink(c),
+                              ),
+                              child: title!,
+                            ),
+                          if (subtitle != null) ...[
+                            const SizedBox(height: 3),
+                            DefaultTextStyle(
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: QChatColors.muted,
+                              ),
+                              child: subtitle!,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    if (note != null) ...[
+                      const SizedBox(width: 8),
+                      DefaultTextStyle(
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: QChatColors.muted,
+                        ),
+                        child: note!,
+                      ),
+                    ],
+                    if (trailing != null) ...[
+                      const SizedBox(width: 8),
+                      trailing!,
+                    ] else if (arrow) ...[
+                      const SizedBox(width: 8),
+                      const QChatIcon(
+                        'chevron',
+                        size: 18,
+                        color: Color(0xffb8b8b8),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 class QChatConversationTile extends StatelessWidget {
   const QChatConversationTile({
     super.key,
@@ -546,7 +829,7 @@ class QChatConversationTile extends StatelessWidget {
                             time,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Theme.of(c).brightness == Brightness.dark
+                              color: qchatDark(c)
                                   ? const Color(0xff929895)
                                   : const Color(0xffb2b2b2),
                             ),
@@ -661,18 +944,19 @@ class QChatEmptyState extends StatelessWidget {
 }
 
 class QChatLoading extends StatelessWidget {
-  const QChatLoading({super.key, this.label});
+  const QChatLoading({
+    super.key,
+    this.label,
+    this.size = 20,
+    this.color = QChatColors.muted,
+  });
   final String? label;
+  final double size;
+  final Color color;
   @override
   Widget build(BuildContext c) => Center(
     child: label == null
-        ? const SizedBox.square(
-            dimension: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: QChatColors.muted,
-            ),
-          )
+        ? _QChatSpinner(size: size, color: color)
         : Container(
             width: 164,
             height: 160,
@@ -683,37 +967,139 @@ class QChatLoading extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const TLoading(size: 52, icon: TLoadingIcon.circle),
-                const SizedBox(height: 12),
-                Text(label!, style: const TextStyle(color: Colors.white, fontSize: 15)),
+                const _QChatSpinner(size: 36, color: QChatColors.white),
+                const SizedBox(height: 14),
+                Text(
+                  label!,
+                  style: const TextStyle(
+                    color: QChatColors.white,
+                    fontSize: 15,
+                  ),
+                ),
               ],
             ),
           ),
   );
 }
 
-/// Small inline loader: TDesign's bouncing dots in QChat green, so loading
-/// states stay in the app's own design language instead of the Material ring.
-class QChatDots extends StatelessWidget {
-  const QChatDots({super.key, this.size = 22});
-
+class _QChatSpinner extends StatefulWidget {
+  const _QChatSpinner({required this.size, required this.color});
   final double size;
+  final Color color;
+  @override
+  State<_QChatSpinner> createState() => _QChatSpinnerState();
+}
+
+class _QChatSpinnerState extends State<_QChatSpinner>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
 
   @override
-  Widget build(BuildContext c) => Theme(
-    data: Theme.of(c).copyWith(
-      extensions: [
-        ...Theme.of(c).extensions.values.where((e) => e is! TLoadingThemeData),
-        const TLoadingThemeData(iconColor: QChatColors.green),
-      ],
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: widget.size,
+    child: RotationTransition(
+      turns: _controller,
+      child: CustomPaint(painter: _SpinnerPainter(widget.color)),
     ),
-    child: TLoading(size: size, icon: TLoadingIcon.point),
   );
 }
 
+class _SpinnerPainter extends CustomPainter {
+  const _SpinnerPainter(this.color);
+  final Color color;
+  @override
+  void paint(Canvas canvas, Size size) {
+    final stroke = math.max(1.6, size.shortestSide * .11);
+    final rect = Offset.zero & size;
+    canvas.drawArc(
+      rect.deflate(stroke / 2),
+      -math.pi / 2,
+      math.pi * 1.35,
+      false,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = stroke
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SpinnerPainter old) => old.color != color;
+}
+
+/// Three bouncing dots used for inline loading states.
+class QChatDots extends StatefulWidget {
+  const QChatDots({super.key, this.size = 22});
+  final double size;
+  @override
+  State<QChatDots> createState() => _QChatDotsState();
+}
+
+class _QChatDotsState extends State<QChatDots>
+    with SingleTickerProviderStateMixin {
+  late final _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) {
+    final dot = widget.size * .19;
+    return SizedBox(
+      width: widget.size,
+      height: widget.size,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (_, _) {
+          final t = _controller.value * math.pi * 2;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              for (var i = 0; i < 3; i++) ...[
+                if (i > 0) SizedBox(width: dot * .7),
+                Transform.translate(
+                  offset: Offset(
+                    0,
+                    -math.sin(t - i * .8).clamp(0.0, 1.0) * dot * .75,
+                  ),
+                  child: Container(
+                    width: dot,
+                    height: dot,
+                    decoration: const BoxDecoration(
+                      color: QChatColors.green,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// Pull-to-refresh drawn with the app's own visuals: a round surface holding
-/// the TDesign dot loader slides out from under the header as the list is
-/// pulled down, so the Material/Google spinner never appears.
+/// the QChat dot loader slides out from under the header as the list is
+/// pulled down, so no platform spinner ever appears.
 ///
 /// The child must be a top-anchored scrollable; a short list should still use
 /// `AlwaysScrollableScrollPhysics` so the pull is reported.
@@ -909,7 +1295,7 @@ class QChatQuote extends StatelessWidget {
   final VoidCallback? onTap, onCancel;
   @override
   Widget build(BuildContext c) {
-    final dark = Theme.of(c).brightness == Brightness.dark;
+    final dark = qchatDark(c);
     final compact = onCancel != null;
     final content = Text.rich(
       TextSpan(
@@ -947,7 +1333,7 @@ class QChatQuote extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: dark
-              ? Colors.white.withValues(alpha: .09)
+              ? QChatColors.white.withValues(alpha: .09)
               : const Color(0xffe9e9e9),
           borderRadius: BorderRadius.circular(compact ? 8 : 6),
         ),
@@ -974,14 +1360,14 @@ class QChatQuote extends StatelessWidget {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: dark
-                          ? Colors.white.withValues(alpha: .35)
+                          ? QChatColors.white.withValues(alpha: .35)
                           : const Color(0xffb3b3b3),
                       shape: BoxShape.circle,
                     ),
                     child: const QChatIcon(
                       'close',
                       size: 11,
-                      color: Colors.white,
+                      color: QChatColors.white,
                     ),
                   ),
                 ),
@@ -1031,7 +1417,7 @@ class QChatChatBubble extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: bareMedia
-                  ? Colors.transparent
+                  ? QChatColors.transparent
                   : mine
                   ? QChatColors.bubble
                   : surface(c),
@@ -1109,6 +1495,318 @@ class QChatError extends StatelessWidget {
         Text(tr(c, 'networkError')),
         const SizedBox(height: 16),
         QChatButton(tr(c, 'retry'), onTap: retry),
+      ],
+    ),
+  );
+}
+
+/// A two-state switch drawn by QChat (no Material thumb or splash).
+class QChatSwitch extends StatelessWidget {
+  const QChatSwitch({
+    super.key,
+    required this.value,
+    this.onChanged,
+    this.activeColor = QChatColors.green,
+  });
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+  final Color activeColor;
+
+  @override
+  Widget build(BuildContext c) => Semantics(
+    toggled: value,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onChanged == null ? null : () => onChanged!(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOut,
+        width: 46,
+        height: 28,
+        padding: const EdgeInsets.all(2),
+        alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: value ? activeColor : qchatFill(c),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Container(
+          width: 24,
+          height: 24,
+          decoration: BoxDecoration(
+            color: QChatColors.white,
+            shape: BoxShape.circle,
+            boxShadow: QChatShadows.overlay,
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Track/thumb slider with the app's own visuals.
+class QChatSlider extends StatelessWidget {
+  const QChatSlider({
+    super.key,
+    required this.value,
+    required this.onChanged,
+    this.min = 0,
+    this.max = 1,
+    this.activeColor = QChatColors.green,
+    this.trackColor,
+    this.thumbColor = QChatColors.white,
+    this.onChangeStart,
+    this.onChangeEnd,
+  });
+  final double value, min, max;
+  final ValueChanged<double>? onChanged;
+  final ValueChanged<double>? onChangeStart, onChangeEnd;
+  final Color activeColor, thumbColor;
+  final Color? trackColor;
+
+  double get _span => max - min == 0 ? 1 : max - min;
+
+  @override
+  Widget build(BuildContext c) => LayoutBuilder(
+    builder: (context, constraints) {
+      final width = constraints.hasBoundedWidth
+          ? constraints.maxWidth
+          : 160.0;
+      final thumb = 14.0;
+      double fraction() => ((value - min) / _span).clamp(0.0, 1.0);
+
+      void update(Offset position) {
+        if (onChanged == null) return;
+        final usable = math.max(1.0, width - thumb);
+        onChanged!(
+          min + (position.dx - thumb / 2) / usable * _span,
+        );
+      }
+
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: onChanged == null ? null : (d) => update(d.localPosition),
+        onHorizontalDragStart: (d) {
+          onChangeStart?.call(value);
+          update(d.localPosition);
+        },
+        onHorizontalDragUpdate: (d) => update(d.localPosition),
+        onHorizontalDragEnd: (_) => onChangeEnd?.call(value),
+        child: SizedBox(
+          width: width,
+          height: 32,
+          child: CustomPaint(
+            painter: _SliderPainter(
+              fraction: fraction(),
+              activeColor: activeColor,
+              trackColor: trackColor ?? qchatFill(context),
+              thumbColor: thumbColor,
+              thumb: thumb,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _SliderPainter extends CustomPainter {
+  const _SliderPainter({
+    required this.fraction,
+    required this.activeColor,
+    required this.trackColor,
+    required this.thumbColor,
+    required this.thumb,
+  });
+  final double fraction, thumb;
+  final Color activeColor, trackColor, thumbColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cy = size.height / 2;
+    final left = thumb / 2;
+    final right = math.max(left, size.width - thumb / 2);
+    final x = left + (right - left) * fraction;
+    final track = Paint()
+      ..color = trackColor
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 4;
+    canvas.drawLine(Offset(left, cy), Offset(right, cy), track);
+    canvas.drawLine(
+      Offset(left, cy),
+      Offset(x, cy),
+      track..color = activeColor,
+    );
+    canvas.drawCircle(
+      Offset(x, cy),
+      thumb / 2,
+      Paint()..color = thumbColor,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_SliderPainter old) =>
+      old.fraction != fraction ||
+      old.activeColor != activeColor ||
+      old.trackColor != trackColor ||
+      old.thumbColor != thumbColor;
+}
+
+class QChatTabBar extends StatelessWidget {
+  const QChatTabBar({
+    super.key,
+    required this.labels,
+    required this.index,
+    required this.onChanged,
+  });
+  final List<String> labels;
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext c) => Row(
+    children: [
+      for (var i = 0; i < labels.length; i++)
+        Expanded(
+          child: Semantics(
+            selected: i == index,
+            button: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => onChanged(i),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      labels[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: i == index
+                            ? QChatColors.primary
+                            : QChatColors.muted,
+                        fontWeight: i == index
+                            ? FontWeight.w500
+                            : FontWeight.w400,
+                      ),
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    height: 2.5,
+                    width: 34,
+                    color: i == index
+                        ? QChatColors.primary
+                        : QChatColors.transparent,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
+class QChatSwipeAction {
+  const QChatSwipeAction({
+    required this.label,
+    required this.backgroundColor,
+    required this.onPressed,
+  });
+  final String label;
+  final Color backgroundColor;
+  final VoidCallback onPressed;
+}
+
+/// Reveals trailing actions on a horizontal drag, using plain transforms so
+/// there is no Material swipe cell or ripple.
+class QChatSwipeCell extends StatefulWidget {
+  const QChatSwipeCell({
+    super.key,
+    required this.child,
+    required this.actions,
+    this.actionWidth = 72,
+  });
+  final Widget child;
+  final List<QChatSwipeAction> actions;
+  final double actionWidth;
+
+  @override
+  State<QChatSwipeCell> createState() => _QChatSwipeCellState();
+}
+
+class _QChatSwipeCellState extends State<QChatSwipeCell> {
+  double _offset = 0;
+  bool _dragging = false;
+
+  double get _maxDrag => -widget.actionWidth * widget.actions.length;
+
+  void _close() {
+    if (_offset != 0) setState(() => _offset = 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => ClipRect(
+    child: Stack(
+      children: [
+        Positioned.fill(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              for (final action in widget.actions)
+                SizedBox(
+                  width: widget.actionWidth,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      _close();
+                      action.onPressed();
+                    },
+                    child: ColoredBox(
+                      color: action.backgroundColor,
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: Text(
+                            action.label,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: QChatColors.white,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        GestureDetector(
+          onHorizontalDragStart: (_) =>
+              setState(() => _dragging = true),
+          onHorizontalDragUpdate: (details) => setState(() {
+            _offset = (_offset + details.delta.dx)
+                .clamp(_maxDrag, 0.0)
+                .toDouble();
+          }),
+          onHorizontalDragEnd: (_) => setState(() {
+            _dragging = false;
+            _offset = _offset < _maxDrag / 2 ? _maxDrag : 0;
+          }),
+          child: AnimatedContainer(
+            duration: _dragging
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            transform: Matrix4.translationValues(_offset, 0, 0),
+            child: widget.child,
+          ),
+        ),
       ],
     ),
   );

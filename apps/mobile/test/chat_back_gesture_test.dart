@@ -1,16 +1,15 @@
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/design_system/components.dart';
-import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
 import 'package:qchat/main.dart';
 import 'chat_features_test.dart' show FakeClient;
+import 'test_app.dart';
 
 void main() {
   testWidgets('chat details follows edge swipe and refreshes after dismissal', (
@@ -24,7 +23,10 @@ void main() {
     final router = GoRouter(
       initialLocation: '/home',
       routes: [
-        qchatRoute(path: '/home', builder: (_, _) => const Scaffold()),
+        qchatRoute(
+          path: '/home',
+          builder: (_, _) => const ColoredBox(color: QChatColors.background),
+        ),
         qchatRoute(
           path: '/chat/chat',
           builder: (_, _) => const ChatScreen(id: 'chat'),
@@ -35,14 +37,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [clientProvider.overrideWithValue(client)],
-        child: MaterialApp.router(
-          builder: (_, child) =>
-              Material(type: MaterialType.transparency, child: child),
+        child: qchatRouterHarness(
           routerConfig: router,
-          theme: qchatTheme(false),
           locale: const Locale('vi'),
-          supportedLocales: const [Locale('vi')],
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
         ),
       ),
     );

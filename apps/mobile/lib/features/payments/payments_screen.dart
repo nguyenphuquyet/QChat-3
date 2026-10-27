@@ -1,5 +1,5 @@
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
@@ -116,7 +116,7 @@ class _HeroPanel extends StatelessWidget {
             Container(
               width: .5,
               height: 74,
-              color: Colors.white.withValues(alpha: .22),
+              color: QChatColors.white.withValues(alpha: .22),
             ),
             Expanded(
               child: _HeroAction(
@@ -141,7 +141,7 @@ class _Glow extends StatelessWidget {
     width: size,
     height: size,
     decoration: BoxDecoration(
-      color: Colors.white.withValues(alpha: .07),
+      color: QChatColors.white.withValues(alpha: .07),
       shape: BoxShape.circle,
     ),
   );
@@ -167,17 +167,17 @@ class _HeroAction extends StatelessWidget {
           width: 52,
           height: 52,
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: .16),
+            color: QChatColors.white.withValues(alpha: .16),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: .16)),
+            border: Border.all(color: QChatColors.white.withValues(alpha: .16)),
           ),
-          child: Center(child: QChatIcon(icon, color: Colors.white, size: 26)),
+          child: Center(child: QChatIcon(icon, color: QChatColors.white, size: 26)),
         ),
         const SizedBox(height: 12),
         Text(
           label,
           style: const TextStyle(
-            color: Colors.white,
+            color: QChatColors.white,
             fontSize: 16,
             fontWeight: FontWeight.w600,
             decoration: TextDecoration.none,
@@ -187,7 +187,7 @@ class _HeroAction extends StatelessWidget {
         Text(
           caption,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: .78),
+            color: QChatColors.white.withValues(alpha: .78),
             fontSize: 12,
             decoration: TextDecoration.none,
           ),

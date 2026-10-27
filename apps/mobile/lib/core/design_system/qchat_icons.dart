@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'dart:math' as math;
 import 'package:lucide_icons_flutter/lucide_icons.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart' show TIcons;
+import 'package:tdesign_flutter_icons/tdesign_flutter_icons.dart';
+
+export 'package:tdesign_flutter_icons/tdesign_flutter_icons.dart' show TIcons;
 
 /// Original line icons drawn locally, independent of Material and WeChat assets.
 class QChatIcon extends StatelessWidget {
@@ -90,6 +92,11 @@ class QChatIcon extends StatelessWidget {
       'shieldCheck' => LucideIcons.shieldCheck,
       'info' => LucideIcons.info,
       'chevronRight' => LucideIcons.chevronRight,
+      'pencil' => LucideIcons.pencil,
+      'check' => LucideIcons.check,
+      'clock' => LucideIcons.clock,
+      'undo' => LucideIcons.undo2,
+      'arrowLeft' => LucideIcons.arrowLeft,
       _ => null,
     };
     if (glyph != null) return Icon(glyph, size: size, color: color);

@@ -1,66 +1,94 @@
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/cupertino.dart';
+
 import 'qchat_colors.dart';
-import 'overlays.dart';
 
-ThemeData qchatTheme(bool dark) {
-  final defaultTheme = TThemeData.defaultData();
-  // Loại bỏ PingFang SC để dùng font hệ thống (SF Pro trên iOS, Roboto trên Android)
-  // giúp hiển thị đầy đủ dấu tiếng Việt (hỏi, ngã, nặng,...) mà không bị lỗi tách dấu / dấu phẩy
-  defaultTheme.fontFamilyMap.remove('fontFamily');
-  defaultTheme.fontFamilyMap.remove('fontFamilyMedium');
-  if (defaultTheme.dark != null) {
-    defaultTheme.dark!.fontFamilyMap.remove('fontFamily');
-    defaultTheme.dark!.fontFamilyMap.remove('fontFamilyMedium');
-  }
+/// App-wide light/dark switch. QChat draws every surface itself, so this is a
+/// plain inherited value instead of a Material [ThemeData] tree.
+class QChatTheme extends StatelessWidget {
+  const QChatTheme({super.key, required this.dark, required this.child});
 
-  return ThemeData(
-    brightness: dark ? Brightness.dark : Brightness.light,
-    scaffoldBackgroundColor: dark
-        ? const Color(0xff111111)
-        : QChatColors.background,
-    splashFactory: NoSplash.splashFactory,
-    highlightColor: Colors.transparent,
-    colorSchemeSeed: QChatColors.green,
-    extensions: [
-      defaultTheme,
-      const TSearchBarThemeData(height: 36),
-      TPopoverThemeData(
-        backgroundColor: const Color(0xff25282d),
-        borderRadius: BorderRadius.circular(20),
-        padding: const EdgeInsets.all(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: .20),
-            blurRadius: 24,
-            offset: const Offset(0, 8),
+  final bool dark;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final ink = dark ? QChatColors.darkInk : QChatColors.ink;
+    final background = dark
+        ? QChatColors.darkBackground
+        : QChatColors.background;
+    final surface = dark ? QChatColors.darkSurface : QChatColors.white;
+    final text = TextStyle(
+      color: ink,
+      fontSize: 16,
+      height: 1.35,
+      decoration: TextDecoration.none,
+    );
+    return _QChatThemeScope(
+      dark: dark,
+      child: CupertinoTheme(
+        data: CupertinoThemeData(
+          brightness: dark ? Brightness.dark : Brightness.light,
+          primaryColor: QChatColors.green,
+          primaryContrastingColor: QChatColors.white,
+          barBackgroundColor: surface,
+          scaffoldBackgroundColor: background,
+          textTheme: CupertinoTextThemeData(
+            textStyle: text,
+            navTitleTextStyle: text.copyWith(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            ),
+            navLargeTitleTextStyle: text.copyWith(
+              fontSize: 34,
+              fontWeight: FontWeight.w700,
+            ),
+            navActionTextStyle: text.copyWith(fontSize: 17),
           ),
-        ],
+        ),
+        child: DefaultTextStyle(style: text, child: child),
       ),
-      TDialogThemeData(
-        backgroundColor: dark ? const Color(0xff202020) : Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(qchatOverlayRadius),
-        ),
-        titleTextStyle: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
-          color: dark ? const Color(0xffeeeeee) : QChatColors.ink,
-        ),
-        contentTextStyle: TextStyle(
-          fontSize: 16,
-          color: dark ? const Color(0xffeeeeee) : QChatColors.ink,
-        ),
-      ),
-      TInputThemeData(
-        hintStyle: const TextStyle(fontSize: 16, color: Color(0xffb2b2b2)),
-        backgroundColor: dark ? const Color(0xff222222) : Colors.white,
-        borderColor: dark ? const Color(0xff333333) : QChatColors.line,
-        borderRadius: 5,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 12,
-        ),
-      ),
-    ],
-  );
+    );
+  }
 }
+
+class _QChatThemeScope extends InheritedWidget {
+  const _QChatThemeScope({required this.dark, required super.child});
+
+  final bool dark;
+
+  @override
+  bool updateShouldNotify(_QChatThemeScope oldWidget) =>
+      oldWidget.dark != dark;
+}
+
+/// Whether the app is currently rendering its dark palette.
+bool qchatDark(BuildContext context) {
+  final scope = context.dependOnInheritedWidgetOfExactType<_QChatThemeScope>();
+  if (scope != null) return scope.dark;
+  return MediaQuery.maybeOf(context)?.platformBrightness == Brightness.dark;
+}
+
+Color qchatBackground(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkBackground : QChatColors.background;
+
+Color qchatSurface(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkSurface : QChatColors.white;
+
+Color qchatFill(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkFill : const Color(0xfff2f2f2);
+
+Color qchatInk(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkInk : QChatColors.ink;
+
+Color qchatMuted(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkMuted : QChatColors.muted;
+
+Color qchatLine(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkLine : QChatColors.line;
+
+Color qchatNavigationSurface(BuildContext context) =>
+    qchatDark(context) ? qchatSurface(context) : const Color(0xfff7f7f7);
+
+/// Picks the readable icon set for a status/navigation bar of [color].
+Brightness qchatBrightnessOfColor(Color color) =>
+    color.computeLuminance() > .5 ? Brightness.light : Brightness.dark;

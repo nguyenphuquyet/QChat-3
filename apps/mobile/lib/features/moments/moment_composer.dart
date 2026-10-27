@@ -1,6 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
@@ -128,14 +128,13 @@ class _MomentComposerState extends ConsumerState<MomentComposer> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TInput(
+          QChatTextInput(
             controller: text,
+            hint: tr(c, 'writeMoment'),
             maxLength: 5000,
             maxLines: 8,
             minLines: 3,
             enabled: !busy,
-            hintText: tr(c, 'writeMoment'),
-            borderless: false,
           ),
           const SizedBox(height: 12),
           Wrap(

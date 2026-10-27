@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
+
 import '../localization/strings.dart';
 import 'components.dart';
 
@@ -9,14 +10,10 @@ const qchatDialogBarrier = Color(0x80000000);
 const qchatDialogDuration = Duration(milliseconds: 180);
 
 Color _dialogLine(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-    ? const Color(0xff333333)
-    : const Color(0xffe5e5e5);
+    qchatDark(c) ? const Color(0xff333333) : const Color(0xffe5e5e5);
 
 Color _dialogBody(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
-    ? const Color(0xffb4b4b4)
-    : const Color(0xff4c4c4c);
+    qchatDark(c) ? const Color(0xffb4b4b4) : const Color(0xff4c4c4c);
 
 /// One row of the footer of a [QChatDialog].
 ///
@@ -112,61 +109,60 @@ class QChatDialog extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + viewInsets.bottom),
         child: SizedBox(
           width: width,
-          child: Material(
-            color: surface(c),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(qchatDialogRadius),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: maxHeight),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (hasHeader)
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(
-                        24,
-                        30,
-                        24,
-                        content == null ? 30 : 4,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (title != null)
-                            Text(
-                              title!,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 19,
-                                height: 1.35,
-                                fontWeight: FontWeight.w600,
-                                color: ink(c),
-                              ),
-                            ),
-                          if (message != null)
-                            Padding(
-                              padding: EdgeInsets.only(
-                                top: title == null ? 0 : 10,
-                              ),
-                              child: Text(
-                                message!,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(qchatDialogRadius),
+            child: ColoredBox(
+              color: surface(c),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (hasHeader)
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          24,
+                          30,
+                          24,
+                          content == null ? 30 : 4,
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (title != null)
+                              Text(
+                                title!,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 15.5,
-                                  height: 1.45,
-                                  color: _dialogBody(c),
+                                  fontSize: 19,
+                                  height: 1.35,
+                                  fontWeight: FontWeight.w600,
+                                  color: ink(c),
                                 ),
                               ),
-                            ),
-                        ],
+                            if (message != null)
+                              Padding(
+                                padding: EdgeInsets.only(
+                                  top: title == null ? 0 : 10,
+                                ),
+                                child: Text(
+                                  message!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 15.5,
+                                    height: 1.45,
+                                    color: _dialogBody(c),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
-                  if (content != null) Flexible(child: content!),
-                  if (actions.isNotEmpty) _DialogFooter(actions: actions),
-                ],
+                    if (content != null) Flexible(child: content!),
+                    if (actions.isNotEmpty) _DialogFooter(actions: actions),
+                  ],
+                ),
               ),
             ),
           ),
@@ -233,7 +229,8 @@ class _DialogActionButton extends StatelessWidget {
         : ink(c);
     return Semantics(
       button: true,
-      child: InkWell(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () {
           action.onPressed?.call();
           if (action.closeOnPressed) Navigator.pop(c, action.result);
@@ -348,13 +345,13 @@ class _TextDialogState extends State<_TextDialog> {
         alignment: Alignment.topCenter,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-          child: TInput(
+          child: QChatTextInput(
             controller: controller,
+            hint: '',
             autofocus: true,
-            obscureText: widget.secret,
+            secret: widget.secret,
             maxLength: widget.maxLength,
             maxLines: widget.lines,
-            hintText: '',
           ),
         ),
       ),

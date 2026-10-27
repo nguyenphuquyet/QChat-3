@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/core/design_system/components.dart';
+import 'test_app.dart';
 
 void main() {
   testWidgets('single line bubbles align with avatars and longer text grows', (
@@ -9,20 +10,18 @@ void main() {
     for (final mine in [true, false]) {
       for (final text in ['ghg', 'đ', 'Xin chào\nDòng thứ hai']) {
         await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: QChatChatBubble(
-                mine: mine,
-                name: 'Quyết',
-                avatar: const SizedBox(
-                  key: Key('avatar'),
-                  width: 42,
-                  height: 42,
-                ),
-                bubbleWrapper: (bubble) =>
-                    SizedBox(key: const Key('bubble'), child: bubble),
-                child: Text(text),
+          qchatHarness(
+            QChatChatBubble(
+              mine: mine,
+              name: 'Quyết',
+              avatar: const SizedBox(
+                key: Key('avatar'),
+                width: 42,
+                height: 42,
               ),
+              bubbleWrapper: (bubble) =>
+                  SizedBox(key: const Key('bubble'), child: bubble),
+              child: Text(text),
             ),
           ),
         );
@@ -42,16 +41,14 @@ void main() {
     'conversation timestamp shares title row and preview uses full width',
     (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              width: 320,
-              child: QChatConversationTile(
-                name: 'Quyết',
-                preview: 'Tin nhắn gần nhất',
-                time: 'Hôm qua 14:42',
-                onTap: () {},
-              ),
+        qchatHarness(
+          SizedBox(
+            width: 320,
+            child: QChatConversationTile(
+              name: 'Quyết',
+              preview: 'Tin nhắn gần nhất',
+              time: 'Hôm qua 14:42',
+              onTap: () {},
             ),
           ),
         ),

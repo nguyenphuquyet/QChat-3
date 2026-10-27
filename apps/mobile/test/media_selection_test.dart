@@ -1,15 +1,14 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
-import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/core/media/media_picker_fallback.dart';
 import 'package:qchat/core/network/media_upload.dart';
+import 'test_app.dart';
 
 class PickerFiles extends FilePickerPlatform {
   List<String>? extensions;
@@ -48,24 +47,24 @@ void main() {
       addTearDown(() => FilePickerPlatform.instance = original);
       List<XFile>? result;
       await tester.pumpWidget(
-        MaterialApp(
-          locale: const Locale('vi'),
-          supportedLocales: const [Locale('vi')],
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          home: Builder(
-            builder: (c) => Scaffold(
-              body: TextButton(
-                onPressed: () async {
-                  result = await pickDeviceMedia(
-                    c,
-                    imagesOnly: true,
-                    maxAssets: 1,
-                  );
-                },
-                child: const Text('open'),
+        qchatHarness(
+          Builder(
+            builder: (c) => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                result = await pickDeviceMedia(
+                  c,
+                  imagesOnly: true,
+                  maxAssets: 1,
+                );
+              },
+              child: const ColoredBox(
+                color: QChatColors.background,
+                child: Center(child: Text('open')),
               ),
             ),
           ),
+          locale: const Locale('vi'),
         ),
       );
       await tester.tap(find.text('open'));
@@ -77,7 +76,9 @@ void main() {
       );
       expect(tester.getTopLeft(find.byType(LocalMediaPicker)).dx, 0);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Ảnh và video'));
+      await tester.tap(
+        find.widgetWithText(QChatButton, 'Ảnh và video'),
+      );
       await tester.pumpAndSettle();
       expect(picker.extensions, isNot(contains('mp4')));
       expect(result, isNull);
@@ -97,8 +98,9 @@ void main() {
         routes: [
           GoRoute(
             path: '/',
-            builder: (c, s) => Scaffold(
-              body: Column(
+            builder: (c, s) => ColoredBox(
+              color: QChatColors.background,
+              child: Column(
                 children: [
                   GestureDetector(
                     onTap: () => selected++,
@@ -114,13 +116,16 @@ void main() {
           ),
           GoRoute(
             path: '/user/:id',
-            builder: (_, _) => const Scaffold(body: Text('profile')),
+            builder: (_, _) => const ColoredBox(
+              color: QChatColors.background,
+              child: Center(child: Text('profile')),
+            ),
           ),
         ],
       );
       addTearDown(router.dispose);
       await tester.pumpWidget(
-        MaterialApp.router(routerConfig: router, theme: qchatTheme(false)),
+        qchatRouterHarness(routerConfig: router),
       );
       await tester.tap(find.byType(UserAvatar).first);
       await tester.pumpAndSettle();
@@ -136,19 +141,16 @@ void main() {
     'busy button keeps progress inside its own bounds without loading text',
     (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          theme: qchatTheme(false),
-          home: const Scaffold(
-            body: Center(child: QChatButton('Gửi', loading: true)),
-          ),
+        qchatHarness(
+          const Center(child: QChatButton('Gửi', loading: true)),
         ),
       );
       expect(find.text('Đang tải…'), findsNothing);
       final button = tester.getRect(find.byType(QChatButton));
-      final progress = tester.getRect(find.byType(CircularProgressIndicator));
+      final progress = tester.getRect(find.byType(RotationTransition));
       expect(button.contains(progress.topLeft), isTrue);
       expect(button.contains(progress.bottomRight), isTrue);
-      expect(progress.size, const Size(20, 20));
+      expect(progress.size, const Size(18, 18));
       await tester.pumpWidget(const SizedBox());
     },
   );

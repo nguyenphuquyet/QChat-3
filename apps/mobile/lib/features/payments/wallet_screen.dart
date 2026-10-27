@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/reference_widgets.dart';
@@ -298,12 +298,12 @@ class _TabBar extends StatelessWidget {
                   duration: const Duration(milliseconds: 160),
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
-                    color: history == tab ? surface(c) : Colors.transparent,
+                    color: history == tab ? surface(c) : QChatColors.transparent,
                     borderRadius: BorderRadius.circular(9),
                     boxShadow: history == tab
                         ? [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: .06),
+                              color: QChatColors.black.withValues(alpha: .06),
                               blurRadius: 6,
                               offset: const Offset(0, 2),
                             ),
@@ -366,7 +366,7 @@ class _BalanceCard extends StatelessWidget {
               'Số dư khả dụng',
               style: TextStyle(
                 fontSize: 13,
-                color: Colors.white.withValues(alpha: .85),
+                color: QChatColors.white.withValues(alpha: .85),
                 decoration: TextDecoration.none,
               ),
             ),
@@ -379,7 +379,7 @@ class _BalanceCard extends StatelessWidget {
                 child: QChatIcon(
                   hidden ? 'eyeOff' : 'eye',
                   size: 19,
-                  color: Colors.white.withValues(alpha: .85),
+                  color: QChatColors.white.withValues(alpha: .85),
                 ),
               ),
             ),
@@ -397,7 +397,7 @@ class _BalanceCard extends StatelessWidget {
                 height: 1.15,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -.5,
-                color: Colors.white,
+                color: QChatColors.white,
                 decoration: TextDecoration.none,
               ),
             ),
@@ -407,7 +407,7 @@ class _BalanceCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white.withValues(alpha: .85),
+                  color: QChatColors.white.withValues(alpha: .85),
                   decoration: TextDecoration.none,
                 ),
               ),
@@ -419,14 +419,14 @@ class _BalanceCard extends StatelessWidget {
             QChatIcon(
               'shieldCheck',
               size: 13,
-              color: Colors.white.withValues(alpha: .7),
+              color: QChatColors.white.withValues(alpha: .7),
             ),
             const SizedBox(width: 5),
             Text(
               'Ví QChat · Số dư nội bộ',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withValues(alpha: .7),
+                color: QChatColors.white.withValues(alpha: .7),
                 decoration: TextDecoration.none,
               ),
             ),

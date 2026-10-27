@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -43,7 +43,7 @@ const _appTints = [
 /// Tint used while a card is held down; the app avoids ripples, so the press
 /// is shown by darkening the surface instead.
 Color _pressedSurface(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
+    qchatDark(c)
     ? const Color(0xff262626)
     : const Color(0xfff2f2f2);
 
@@ -911,7 +911,7 @@ class _AppIcon extends StatelessWidget {
           fontSize: size * .4,
           height: 1,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: QChatColors.white,
         ),
       ),
     );

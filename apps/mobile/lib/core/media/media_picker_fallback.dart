@@ -1,10 +1,11 @@
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 import '../../features/chats/preview_video_web.dart'
     if (dart.library.io) '../../features/chats/preview_video_native.dart';
+import '../design_system/components.dart';
 import '../localization/strings.dart';
 
 Future<List<XFile>> pickDeviceMedia(
@@ -99,140 +100,217 @@ class _LocalMediaPickerState extends State<LocalMediaPicker> {
 
   Future<void> preview(int index, List<XFile> items) async {
     final controller = PageController(initialPage: index);
-    final route = MaterialPageRoute<void>(
-      builder: (c) => Theme(
-        data: ThemeData.dark(),
-        child: Scaffold(
-          appBar: AppBar(title: Text(tr(c, 'attachmentPreview'))),
-          backgroundColor: Colors.black,
-          body: PageView.builder(
+    await Navigator.of(context).push<void>(
+      PageRouteBuilder(
+        opaque: true,
+        pageBuilder: (c, _, _) => _PreviewPage(
+          controller: controller,
+          items: items,
+          title: tr(c, 'attachmentPreview'),
+        ),
+        transitionDuration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 240),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+      ),
+    );
+    controller.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) => QChatPage(
+    title: tr(c, 'chooseMedia'),
+    leading: QChatIconButton(
+      'close',
+      label: tr(c, 'close'),
+      onTap: () => Navigator.pop(c),
+    ),
+    trailing: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: busy ? null : browse,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Text(
+          tr(c, 'fromFiles'),
+          style: const TextStyle(fontSize: 15, color: QChatColors.green),
+        ),
+      ),
+    ),
+    bottom: Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Row(
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: selected.isEmpty
+                ? null
+                : () => preview(0, List.of(selected)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 12,
+              ),
+              child: Text(
+                tr(c, 'attachmentPreview'),
+                style: TextStyle(
+                  fontSize: 15,
+                  color: selected.isEmpty
+                      ? qchatMuted(c)
+                      : QChatColors.green,
+                ),
+              ),
+            ),
+          ),
+          const Spacer(),
+          QChatButton(
+            '${widget.confirmLabel ?? tr(c, 'select')} (${selected.length})',
+            loading: busy,
+            onTap: selected.isEmpty || busy
+                ? null
+                : () => Navigator.pop(c, List<XFile>.of(selected)),
+          ),
+        ],
+      ),
+    ),
+    child: Column(
+      children: [
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              error!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: QChatColors.danger,
+              ),
+            ),
+          ),
+        Expanded(
+          child: files.isEmpty
+              ? Center(
+                  child: QChatButton(
+                    tr(c, 'chooseMedia'),
+                    secondary: true,
+                    loading: busy,
+                    onTap: busy ? null : browse,
+                  ),
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.all(2),
+                  itemCount: files.length,
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        crossAxisSpacing: 2,
+                        mainAxisSpacing: 2,
+                      ),
+                  itemBuilder: (_, i) => GestureDetector(
+                    onTap: () => preview(i, files),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _LocalMedia(file: files[i]),
+                        Positioned(
+                          top: 3,
+                          right: 3,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => toggle(files[i]),
+                            child: _SelectionBadge(
+                              index: selected.indexOf(files[i]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _SelectionBadge extends StatelessWidget {
+  const _SelectionBadge({required this.index});
+  final int index;
+  @override
+  Widget build(BuildContext context) {
+    final selected = index >= 0;
+    return Container(
+      width: 26,
+      height: 26,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: selected ? QChatColors.green : const Color(0x66000000),
+        border: Border.all(color: QChatColors.white, width: 1.4),
+      ),
+      child: selected
+          ? Text(
+              '${index + 1}',
+              style: const TextStyle(
+                color: QChatColors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+class _PreviewPage extends StatelessWidget {
+  const _PreviewPage({
+    required this.controller,
+    required this.items,
+    required this.title,
+  });
+  final PageController controller;
+  final List<XFile> items;
+  final String title;
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: QChatColors.black,
+    child: Stack(
+      children: [
+        Positioned.fill(
+          child: PageView.builder(
             controller: controller,
             itemCount: items.length,
             itemBuilder: (_, i) => _LocalMedia(file: items[i], preview: true),
           ),
         ),
-      ),
-    );
-    await Navigator.of(context).push(route);
-    await route.completed;
-    controller.dispose();
-  }
-
-  @override
-  Widget build(BuildContext c) => Theme(
-    data: ThemeData.dark().copyWith(
-      scaffoldBackgroundColor: const Color(0xff191919),
-    ),
-    child: Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xff252525),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(c),
-        ),
-        centerTitle: true,
-        title: TextButton.icon(
-          onPressed: busy ? null : browse,
-          icon: const Icon(Icons.expand_more, color: Colors.white),
-          label: Text(
-            tr(c, 'fromFiles'),
-            style: const TextStyle(color: Colors.white),
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          if (error != null)
-            Padding(padding: const EdgeInsets.all(12), child: Text(error!)),
-          Expanded(
-            child: files.isEmpty
-                ? Center(
-                    child: TextButton.icon(
-                      onPressed: busy ? null : browse,
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: busy
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Text(tr(c, 'chooseMedia')),
-                    ),
-                  )
-                : GridView.builder(
-                    itemCount: files.length,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 4,
-                          crossAxisSpacing: 2,
-                          mainAxisSpacing: 2,
-                        ),
-                    itemBuilder: (_, i) => GestureDetector(
-                      onTap: () => preview(i, files),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          _LocalMedia(file: files[i]),
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: IconButton(
-                              onPressed: () => toggle(files[i]),
-                              icon: selected.contains(files[i])
-                                  ? CircleAvatar(
-                                      radius: 13,
-                                      backgroundColor: const Color(0xff07c160),
-                                      child: Text(
-                                        '${selected.indexOf(files[i]) + 1}',
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.radio_button_unchecked,
-                                      color: Colors.white,
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: ColoredBox(
-        color: const Color(0xff252525),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(
+            bottom: false,
             child: Row(
               children: [
-                TextButton(
-                  onPressed: selected.isEmpty
-                      ? null
-                      : () => preview(0, List.of(selected)),
-                  child: Text(tr(c, 'attachmentPreview')),
+                QChatIconButton(
+                  'close',
+                  label: tr(context, 'close'),
+                  color: QChatColors.white,
+                  onTap: () => Navigator.pop(context),
                 ),
-                const Spacer(),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xff07c160),
-                  ),
-                  onPressed: selected.isEmpty || busy
-                      ? null
-                      : () => Navigator.pop(c, List<XFile>.of(selected)),
+                Expanded(
                   child: Text(
-                    '${widget.confirmLabel ?? tr(c, 'select')} (${selected.length})',
+                    title,
+                    style: const TextStyle(
+                      color: QChatColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
         ),
-      ),
+      ],
     ),
   );
 }
@@ -281,7 +359,15 @@ class _LocalMediaState extends State<_LocalMedia> {
   Widget build(BuildContext c) {
     final player = video;
     if (player != null) {
-      if (failed) return const Center(child: Icon(Icons.videocam_off_outlined));
+      if (failed) {
+        return Center(
+          child: QChatIcon(
+            'videoCall',
+            color: widget.preview ? QChatColors.white70 : qchatMuted(c),
+            size: 32,
+          ),
+        );
+      }
       return ValueListenableBuilder<VideoPlayerValue>(
         valueListenable: player,
         builder: (_, value, _) => Stack(
@@ -295,14 +381,25 @@ class _LocalMediaState extends State<_LocalMedia> {
                 ),
               ),
             if (widget.preview)
-              IconButton(
-                icon: Icon(
-                  value.isPlaying ? Icons.pause_circle : Icons.play_circle,
-                  color: Colors.white,
-                  size: 48,
-                ),
-                onPressed: () =>
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () =>
                     value.isPlaying ? player.pause() : player.play(),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color(0x55000000),
+                  ),
+                  child: Center(
+                    child: QChatIcon(
+                      value.isPlaying ? 'pause' : 'play',
+                      color: QChatColors.white,
+                      size: 26,
+                    ),
+                  ),
+                ),
               ),
             if (value.isInitialized)
               Positioned(
@@ -311,7 +408,7 @@ class _LocalMediaState extends State<_LocalMedia> {
                 child: Text(
                   '${value.duration.inMinutes}:${value.duration.inSeconds.remainder(60).toString().padLeft(2, '0')}',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: QChatColors.white,
                     shadows: [Shadow(blurRadius: 3)],
                   ),
                 ),
@@ -324,12 +421,24 @@ class _LocalMediaState extends State<_LocalMedia> {
       future: bytes,
       builder: (_, snapshot) {
         if (!snapshot.hasData) {
-          return const Center(child: Icon(Icons.image_outlined));
+          return Center(
+            child: QChatIcon(
+              'image',
+              color: widget.preview ? QChatColors.white70 : qchatMuted(c),
+              size: 30,
+            ),
+          );
         }
         final image = Image.memory(
           snapshot.data!,
           fit: widget.preview ? BoxFit.contain : BoxFit.cover,
-          errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined),
+          errorBuilder: (_, _, _) => Center(
+            child: QChatIcon(
+              'file',
+              color: widget.preview ? QChatColors.white70 : qchatMuted(c),
+              size: 30,
+            ),
+          ),
         );
         return widget.preview
             ? InteractiveViewer(child: Center(child: image))

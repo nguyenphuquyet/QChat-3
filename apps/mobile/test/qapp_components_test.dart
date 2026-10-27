@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
+import 'test_app.dart';
 
 QappNode node(
   String id,
@@ -46,10 +48,8 @@ void expectEvent(
 }
 
 Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
-  return MaterialApp(
-    home: Scaffold(
-      body: QappRenderer(root: root, onEvent: onEvent, loadAsset: (_) async => null),
-    ),
+  return qchatHarness(
+    QappRenderer(root: root, onEvent: onEvent, loadAsset: (_) async => null),
   );
 }
 
@@ -220,7 +220,11 @@ void main() {
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
     expect(find.text('Inbox'), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.tap(
+      find.byWidgetPredicate(
+        (w) => w is QChatIcon && w.name == 'arrowLeft',
+      ),
+    );
     await tester.pump();
     expectEvent(events, 'n0', 'back', {'type': 'back'});
   });
@@ -233,6 +237,6 @@ void main() {
       children: [node('n0.0', 'Text')],
     );
     await tester.pumpWidget(host(root, (_, _, _) {}));
-    expect(find.byType(BottomSheet), findsNothing);
+    expect(find.byType(SingleChildScrollView), findsNothing);
   });
 }

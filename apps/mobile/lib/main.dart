@@ -2,13 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPage;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app/providers.dart';
 import 'core/network/connection_banner.dart';
-import 'core/design_system/qchat_theme.dart';
 import 'core/design_system/components.dart';
 import 'core/design_system/reference_widgets.dart';
 import 'features/auth/auth_screen.dart';
@@ -241,20 +240,30 @@ class _QChatAppState extends ConsumerState<QChatApp> {
   @override
   Widget build(BuildContext c) {
     final prefs = ref.watch(preferencesProvider);
-    return MaterialApp.router(
+    final dark = prefs.dark;
+    return WidgetsApp.router(
       title: 'QChat',
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => Material(
-        type: MaterialType.transparency,
+      color: dark ? QChatColors.darkBackground : QChatColors.background,
+      textStyle: TextStyle(
+        color: dark ? QChatColors.darkInk : QChatColors.ink,
+        fontSize: 16,
+        height: 1.35,
+        decoration: TextDecoration.none,
+      ),
+      builder: (context, child) => QChatTheme(
+        dark: dark,
         child: ConnectionBanner(
           client: ref.read(clientProvider),
           child: child ?? const SizedBox.shrink(),
         ),
       ),
-      theme: qchatTheme(prefs.dark),
       locale: Locale(prefs.locale),
       supportedLocales: const [Locale('en'), Locale('vi'), Locale('zh')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      localizationsDelegates: const [
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       routerConfig: router,
     );
   }

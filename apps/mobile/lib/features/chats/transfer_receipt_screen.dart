@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
-import '../../core/design_system/qchat_icons.dart';
+import 'package:flutter/widgets.dart';
+import '../../core/design_system/components.dart';
 import '../payments/payments_screen.dart';
 import 'money_message.dart';
 
@@ -70,9 +70,9 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
         )?.toLocal() ??
         DateTime.now();
     final refundedAt = MoneyMessageState.refundedAt(widget.message)?.toLocal();
-    return Scaffold(
-      backgroundColor: _background,
-      body: SafeArea(
+    return ColoredBox(
+      color: _background,
+      child: SafeArea(
         child: Column(
           children: [
             Align(
@@ -105,24 +105,24 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                               : _blue,
                           width: 2.4,
                         ),
-                        color: completed ? _green : Colors.transparent,
+                        color: completed ? _green : QChatColors.transparent,
                       ),
                       child: completed
-                          ? const Icon(
-                              Icons.check_rounded,
-                              color: Colors.white,
-                              size: 34,
+                          ? const QChatIcon(
+                              'check',
+                              color: QChatColors.white,
+                              size: 28,
                             )
                           : refunded
-                          ? const Icon(
-                              Icons.undo_rounded,
+                          ? const QChatIcon(
+                              'undo',
                               color: Color(0xffc9a063),
-                              size: 30,
+                              size: 26,
                             )
-                          : const Icon(
-                              Icons.access_time_rounded,
+                          : const QChatIcon(
+                              'clock',
                               color: _blue,
-                              size: 30,
+                              size: 26,
                             ),
                     ),
                     const SizedBox(height: 22),
@@ -207,20 +207,18 @@ class _TransferReceiptScreenState extends State<TransferReceiptScreen> {
                               color: _green,
                               borderRadius: BorderRadius.circular(4),
                             ),
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: accepting ? null : accept,
-                                child: Center(
-                                  child: Text(
-                                    accepting
-                                        ? 'Đang nhận…'
-                                        : 'Xác nhận đã nhận',
-                                    style: const TextStyle(
-                                      color: Color(0xffffffff),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: accepting ? null : accept,
+                              child: Center(
+                                child: Text(
+                                  accepting
+                                      ? 'Đang nhận…'
+                                      : 'Xác nhận đã nhận',
+                                  style: const TextStyle(
+                                    color: Color(0xffffffff),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),

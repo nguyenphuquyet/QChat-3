@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:video_player/video_player.dart';
 import '../../app/providers.dart';
@@ -45,9 +45,9 @@ class _MediaScreenState extends ConsumerState<MediaScreen> {
   @override
   Widget build(BuildContext c) => QChatPage(
     edgeToEdge: true,
-    background: Colors.black,
-    statusBackground: Colors.black,
-    navigationBackground: Colors.black,
+    background: QChatColors.black,
+    statusBackground: QChatColors.black,
+    navigationBackground: QChatColors.black,
     child: Stack(
       children: [
         Positioned.fill(
@@ -156,7 +156,7 @@ class _ViewerButton extends StatelessWidget {
           color: Color(0x59000000),
           shape: BoxShape.circle,
         ),
-        child: Center(child: QChatIcon(icon, color: Colors.white, size: 23)),
+        child: Center(child: QChatIcon(icon, color: QChatColors.white, size: 23)),
       ),
     ),
   );
@@ -180,7 +180,7 @@ class _PlainIconButton extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(6),
-        child: QChatIcon(icon, color: Colors.white, size: 26),
+        child: QChatIcon(icon, color: QChatColors.white, size: 26),
       ),
     ),
   );
@@ -208,7 +208,7 @@ class _ViewerMessage extends StatelessWidget {
           Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70, fontSize: 15),
+            style: const TextStyle(color: QChatColors.white70, fontSize: 15),
           ),
           const SizedBox(height: 18),
           GestureDetector(
@@ -216,7 +216,7 @@ class _ViewerMessage extends StatelessWidget {
             child: Text(
               tr(c, 'retry'),
               style: const TextStyle(
-                color: Colors.white,
+                color: QChatColors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
@@ -388,7 +388,7 @@ class _VideoMediaState extends State<VideoMedia> {
                               '${clock(value.position)} / '
                               '${clock(value.duration)}',
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: QChatColors.white,
                                 fontSize: 15,
                                 height: 1.2,
                               ),
@@ -407,7 +407,7 @@ class _VideoMediaState extends State<VideoMedia> {
                                       ? tr(c, 'playbackSpeed')
                                       : '${tr(c, 'playbackSpeed')} ${speed}x',
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: QChatColors.white,
                                     fontSize: 15,
                                     height: 1.2,
                                   ),
@@ -416,23 +416,14 @@ class _VideoMediaState extends State<VideoMedia> {
                             ),
                           ],
                         ),
-                        SliderTheme(
-                          data: SliderThemeData(
-                            trackHeight: 2,
-                            activeTrackColor: Colors.white,
-                            inactiveTrackColor: const Color(0x4dffffff),
-                            thumbColor: Colors.white,
-                            thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6,
-                            ),
-                            overlayShape: SliderComponentShape.noOverlay,
-                          ),
-                          child: Slider(
-                            value: played.toDouble(),
-                            max: total <= 0 ? 1 : total.toDouble(),
-                            onChanged: (v) => player.seekTo(
-                              Duration(milliseconds: v.round()),
-                            ),
+                        QChatSlider(
+                          value: played.toDouble(),
+                          max: total <= 0 ? 1 : total.toDouble(),
+                          activeColor: QChatColors.white,
+                          trackColor: const Color(0x4dffffff),
+                          thumbColor: QChatColors.white,
+                          onChanged: (v) => player.seekTo(
+                            Duration(milliseconds: v.round()),
                           ),
                         ),
                       ],

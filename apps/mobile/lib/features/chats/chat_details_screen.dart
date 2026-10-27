@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -100,7 +100,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                       decoration: BoxDecoration(
                         color: Color(int.parse('ff$value', radix: 16)),
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black12, width: 1),
+                        border: Border.all(color: QChatColors.black12, width: 1),
                       ),
                     ),
                   ),
@@ -198,7 +198,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                     shrinkWrap: true,
                     children: [
                       for (final f in available)
-                        TCell(
+                        QChatCell(
                           title: Text(f['friend']['nickname']),
                           image: UserAvatar(f['friend'], size: 42),
                           onTap: () =>
@@ -318,7 +318,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
       title: tr(c, 'chatDetails'),
       child: ListView(
         children: [
-          if (error != null) TCell(title: Text(error!), onTap: load),
+          if (error != null) QChatCell(title: Text(error!), arrow: true, onTap: load),
           if (conversation == null && error == null) const QChatLoading(),
           if (conversation != null) ...[
             if (conversation!['kind'] == 'GROUP') ...[
@@ -349,10 +349,10 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                                   width: 1.5,
                                 ),
                               ),
-                              child: const Icon(
-                                Icons.camera_alt,
+                              child: const QChatIcon(
+                                'camera',
                                 size: 12,
-                                color: Colors.white,
+                                color: QChatColors.white,
                               ),
                             ),
                           ),
@@ -387,13 +387,12 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                         ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.edit_outlined,
-                        size: 20,
-                        color: QChatColors.muted,
-                      ),
-                      onPressed: busy ? null : changeGroupName,
+                    QChatIconButton(
+                      'pencil',
+                      label: tr(c, 'changeGroupName'),
+                      onTap: busy ? null : changeGroupName,
+                      color: QChatColors.muted,
+                      size: 20,
                     ),
                   ],
                 ),
@@ -445,14 +444,14 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color:
-                                      Theme.of(c).brightness == Brightness.dark
+                                      qchatDark(c)
                                       ? const Color(0xff444444)
                                       : const Color(0xffdcdcdc),
                                   width: 1.2,
                                 ),
                               ),
                               child: const Center(
-                                child: TIcon(
+                                child: Icon(
                                   TIcons.add,
                                   color: QChatColors.muted,
                                   size: 26,
@@ -470,28 +469,28 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
             ),
             const SizedBox(height: 9),
             if (conversation!['kind'] == 'GROUP') ...[
-              TCell(
+              QChatCell(
                 title: Text(tr(c, 'groupMembers')),
                 note: Text('${members.length}'),
                 arrow: true,
                 onTap: showMembers,
               ),
               const SizedBox(height: 9),
-              TCell(
+              QChatCell(
                 title: Text(tr(c, 'groupName')),
                 note: Text(conversation?['title'] ?? ''),
                 arrow: true,
                 onTap: busy ? null : changeGroupName,
               ),
               const SizedBox(height: 9),
-              TCell(
+              QChatCell(
                 title: Text(tr(c, 'groupAvatar')),
                 arrow: true,
                 onTap: busy ? null : changeGroupAvatar,
               ),
               const SizedBox(height: 9),
             ],
-            TCell(
+            QChatCell(
               title: Text(tr(c, 'searchHistory')),
               arrow: true,
               onTap: () => Navigator.of(c).push(
@@ -501,12 +500,13 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
               ),
             ),
             const SizedBox(height: 9),
-            TCell(
+            QChatCell(
               title: Text(tr(c, 'pinChat')),
-              trailing: TSwitch(
+              trailing: QChatSwitch(
                 value: own?['pinned'] == true,
-                loading: busy,
-                onChanged: (value) => run(() async {
+                onChanged: busy
+                    ? null
+                    : (value) => run(() async {
                   await client.dio.patch(
                     '/conversations/${widget.id}/state',
                     data: {'pinned': value},
@@ -518,7 +518,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
               ),
             ),
             const SizedBox(height: 9),
-            TCell(
+            QChatCell(
               title: Text(tr(c, 'chatBackground')),
               subtitle: Text(
                 tr(
@@ -532,12 +532,12 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
               onTap: busy || !canChangeWallpaper ? null : () => run(background),
             ),
             const SizedBox(height: 9),
-            TCell(
+            QChatCell(
               title: Text(tr(c, 'clearHistory')),
               onTap: busy ? null : clearHistory,
             ),
             const SizedBox(height: 9),
-            TCell(
+            QChatCell(
               title: Text(tr(c, 'report')),
               arrow: true,
               onTap: busy ? null : report,
@@ -545,7 +545,7 @@ class _ChatDetailsScreenState extends ConsumerState<ChatDetailsScreen> {
             if (conversation!['kind'] == 'GROUP' &&
                 own?['role'] == 'OWNER') ...[
               const SizedBox(height: 9),
-              TCell(
+              QChatCell(
                 title: Text(
                   tr(c, 'dissolveGroup'),
                   style: const TextStyle(color: QChatColors.danger),
@@ -616,7 +616,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
     glassHeader: false,
     child: Column(
       children: [
-        TSearchBar(
+        QChatSearchField(
           initialValue: widget.query,
           hintText: tr(c, 'searchHistory'),
           autofocus: true,
@@ -630,7 +630,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
           child: ListView(
             children: [
               for (final row in rows)
-                TCell(
+                QChatCell(
                   image: UserAvatar(row['sender'] ?? {}, size: 42),
                   title: Text(
                     row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET'

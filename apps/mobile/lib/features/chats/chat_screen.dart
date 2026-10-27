@@ -7,7 +7,7 @@ import '../../core/design_system/dialogs.dart';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
@@ -841,7 +841,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return;
     }
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(
+      CupertinoPageRoute(
         builder: (_) => TransferReceiptScreen(
           message: message,
           mine: mine,
@@ -958,6 +958,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     ],
   );
 
+  Widget _selectionAction(
+    BuildContext c,
+    String label,
+    VoidCallback? onTap,
+  ) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: SizedBox(
+      height: 44,
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            color: onTap == null ? qchatMuted(c) : QChatColors.green,
+          ),
+        ),
+      ),
+    ),
+  );
+
   Future<void> forward(List<Map<String, dynamic>> rows) async {
     try {
       final client = ref.read(clientProvider);
@@ -973,7 +994,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               shrinkWrap: true,
               children: [
                 for (final chat in chats)
-                  TCell(
+                  QChatCell(
                     title: Text(
                       chat['kind'] == 'GROUP'
                           ? chat['title']
@@ -1318,7 +1339,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         ? QChatColors.green.withValues(
                                             alpha: .18,
                                           )
-                                        : Colors.transparent,
+                                        : QChatColors.transparent,
                                     child: Column(
                                       children: [
                                         if (showTime(i))
@@ -1335,18 +1356,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             ),
                                           ),
                                         if (selecting && m['pending'] != true)
-                                          TButton(
-                                            variant: TButtonVariant.text,
-                                            onPressed: () => setState(
+                                          GestureDetector(
+                                            onTap: () => setState(
                                               () => selected.contains(m['id'])
                                                   ? selected.remove(m['id'])
                                                   : selected.add(m['id']),
                                             ),
-                                            child: TIcon(
-                                              selected.contains(m['id'])
-                                                  ? TIcons.check_circle_filled
-                                                  : TIcons.circle,
-                                              color: QChatColors.green,
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Icon(
+                                                selected.contains(m['id'])
+                                                    ? TIcons.check_circle_filled
+                                                    : TIcons.circle,
+                                                color: QChatColors.green,
+                                              ),
                                             ),
                                           ),
                                         QChatChatBubble(
@@ -1384,11 +1407,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                         const SizedBox(
                                                           width: 16,
                                                           height: 16,
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                                strokeWidth:
-                                                                    1.5,
-                                                              ),
+                                                          child: QChatLoading(
+                                                            size: 14,
+                                                          ),
                                                         ),
                                                     ],
                                                   ),
@@ -1486,9 +1507,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               Row(
                                 children: [
                                   Expanded(
-                                    child: TButton(
-                                      variant: TButtonVariant.text,
-                                      onPressed: selected.isEmpty
+                                    child: _selectionAction(
+                                      c,
+                                      tr(c, 'forward'),
+                                      selected.isEmpty
                                           ? null
                                           : () => forward(
                                               messages
@@ -1499,13 +1521,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                   )
                                                   .toList(),
                                             ),
-                                      child: Text(tr(c, 'forward')),
                                     ),
                                   ),
                                   Expanded(
-                                    child: TButton(
-                                      variant: TButtonVariant.text,
-                                      onPressed: selected.isEmpty
+                                    child: _selectionAction(
+                                      c,
+                                      tr(c, 'delete'),
+                                      selected.isEmpty
                                           ? null
                                           : () => deleteMessages(
                                               messages
@@ -1516,17 +1538,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                   )
                                                   .toList(),
                                             ),
-                                      child: Text(tr(c, 'delete')),
                                     ),
                                   ),
                                   Expanded(
-                                    child: TButton(
-                                      variant: TButtonVariant.text,
-                                      onPressed: () => setState(() {
+                                    child: _selectionAction(
+                                      c,
+                                      tr(c, 'cancel'),
+                                      () => setState(() {
                                         selecting = false;
                                         selected.clear();
                                       }),
-                                      child: Text(tr(c, 'cancel')),
                                     ),
                                   ),
                                 ],

@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
@@ -15,9 +15,20 @@ Future<bool> previewAttachment(
   String mime,
 ) async =>
     await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => AttachmentPreview(file: file, bytes: bytes, mime: mime),
-        fullscreenDialog: true,
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) =>
+            AttachmentPreview(file: file, bytes: bytes, mime: mime),
+        transitionDuration: const Duration(milliseconds: 240),
+        reverseTransitionDuration: const Duration(milliseconds: 200),
+        transitionsBuilder: (_, animation, _, child) => SlideTransition(
+          position: Tween(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(
+            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+          ),
+          child: child,
+        ),
       ),
     ) ??
     false;

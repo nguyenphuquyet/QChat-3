@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
+import 'test_app.dart';
 
 QappNode node(
   String id,
@@ -30,15 +31,13 @@ QappNode text(String id, String value) => node(
 );
 
 Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
-  return MaterialApp(
-    home: MediaQuery(
+  return qchatHarness(
+    MediaQuery(
       data: const MediaQueryData(size: Size(375, 812)),
-      child: Scaffold(
-        body: QappRenderer(
-          root: root,
-          onEvent: onEvent,
-          loadAsset: (_) async => null,
-        ),
+      child: QappRenderer(
+        root: root,
+        onEvent: onEvent,
+        loadAsset: (_) async => null,
       ),
     ),
   );

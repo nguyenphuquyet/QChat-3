@@ -2,7 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -106,49 +107,49 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Theme(
-                  data: Theme.of(c).copyWith(
-                    extensions: [
-                      ...Theme.of(
-                        c,
-                      ).extensions.values.where((e) => e is! TInputThemeData),
-                      TInputThemeData(
-                        backgroundColor:
-                            Theme.of(c).brightness == Brightness.dark
-                            ? surface(c)
-                            : const Color(0xfff2f2f2),
-                        borderRadius: 6,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        hintStyle: const TextStyle(
-                          fontSize: 16,
-                          color: Color(0xffb2b2b2),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: qchatDark(c) ? surface(c) : const Color(0xfff2f2f2),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 12),
+                      const QChatIcon(
+                        'search',
+                        color: QChatColors.muted,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: CupertinoTextField(
+                          controller: search,
+                          placeholder: 'QChat ID',
+                          placeholderStyle: const TextStyle(
+                            fontSize: 16,
+                            color: Color(0xffb2b2b2),
+                          ),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: const BoxDecoration(
+                            color: QChatColors.transparent,
+                          ),
+                          cursorColor: QChatColors.green,
+                          style: TextStyle(fontSize: 16, color: ink(c)),
+                          onChanged: (value) {
+                            debounce?.cancel();
+                            if (value.trim().length >= 4) {
+                              debounce = Timer(
+                                const Duration(milliseconds: 400),
+                                find,
+                              );
+                            } else {
+                              setState(() => users = []);
+                            }
+                          },
                         ),
                       ),
+                      const SizedBox(width: 8),
                     ],
-                  ),
-                  child: TInput(
-                    controller: search,
-                    hintText: 'QChat ID',
-                    prefix: const QChatIcon(
-                      'search',
-                      color: QChatColors.muted,
-                      size: 20,
-                    ),
-                    borderless: true,
-                    onChanged: (value) {
-                      debounce?.cancel();
-                      if (value.trim().length >= 4) {
-                        debounce = Timer(
-                          const Duration(milliseconds: 400),
-                          find,
-                        );
-                      } else {
-                        setState(() => users = []);
-                      }
-                    },
                   ),
                 ),
               ),
@@ -234,7 +235,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                               QrImageView(
                                 data: 'qchat://user/${s.data['qchatId']}',
                                 size: 175,
-                                backgroundColor: Colors.white,
+                                backgroundColor: QChatColors.white,
                               ),
                               Text(
                                 'QChat ID: ${s.data['qchatId']}',

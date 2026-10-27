@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -137,11 +137,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     }
   }
 
-  Color body(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+  Color body(BuildContext c) => qchatDark(c)
       ? const Color(0xffb4b4b4)
       : const Color(0xff4c4c4c);
 
-  Color line(BuildContext c) => Theme.of(c).brightness == Brightness.dark
+  Color line(BuildContext c) => qchatDark(c)
       ? const Color(0xff2e2e2e)
       : const Color(0xffe8e8e8);
 
@@ -362,9 +362,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             ),
             if (friend) ...[
               const SizedBox(height: 9),
-              Material(
+              ColoredBox(
                 color: surface(c),
-                child: InkWell(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
                   onTap: () => context.push(
                     '/moments?authorId=${Uri.encodeQueryComponent(u['id'].toString())}',
                   ),
@@ -398,9 +399,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
                                               .startsWith('video/')
                                           ? const ColoredBox(
                                               color: Color(0xff333333),
-                                              child: Icon(
-                                                Icons.play_arrow,
-                                                color: Colors.white,
+                                              child: QChatIcon(
+                                                'play',
+                                                color: QChatColors.white,
+                                                size: 20,
                                               ),
                                             )
                                           : MediaImage(
@@ -444,7 +446,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
               child: Center(child: QChatDots()),
             ),
           if (error != null)
-            TCell(title: Text(error!), arrow: true, onTap: load),
+            QChatCell(title: Text(error!), arrow: true, onTap: load),
         ],
       ),
     );

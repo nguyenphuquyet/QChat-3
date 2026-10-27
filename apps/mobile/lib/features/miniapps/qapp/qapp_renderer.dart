@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/design_system/components.dart';
 import 'qapp_custom_paint.dart';
@@ -175,11 +175,13 @@ class _QappNodeView extends StatelessWidget {
         ? maxLines.round()
         : style.numberOfLines;
     if (node.props['selectable'] == true) {
-      return SelectableText(
-        content,
-        maxLines: lines,
-        style: textStyle,
-        textAlign: style.textAlign,
+      return SelectionContainer.disabled(
+        child: Text(
+          content,
+          maxLines: lines,
+          style: textStyle,
+          textAlign: style.textAlign,
+        ),
       );
     }
     return Text(
@@ -479,7 +481,7 @@ class _QappNodeView extends StatelessWidget {
                 ? () => onEvent(node.id, 'close', {'type': 'close'})
                 : null,
             child: ColoredBox(
-              color: Colors.black.withValues(alpha: .45),
+              color: QChatColors.black.withValues(alpha: .45),
             ),
           ),
         ),
@@ -499,7 +501,7 @@ class _QappNodeView extends StatelessWidget {
               onTap: node.hasEvent('close')
                   ? () => onEvent(node.id, 'close', {'type': 'close'})
                   : null,
-              child: const ColoredBox(color: Colors.transparent),
+              child: const ColoredBox(color: QChatColors.transparent),
             ),
           ),
           Center(child: _sheetColumn(context)),
@@ -521,7 +523,7 @@ class _QappNodeView extends StatelessWidget {
           height: height,
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: surface(context),
             borderRadius: const BorderRadius.vertical(
               top: Radius.circular(18),
             ),
@@ -546,7 +548,7 @@ class _QappNodeView extends StatelessWidget {
           margin: const EdgeInsets.symmetric(horizontal: 24),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
+            color: surface(context),
             borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
@@ -572,26 +574,28 @@ class _QappNodeView extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       if (cancelText.isNotEmpty)
-                        TextButton(
-                          onPressed: node.hasEvent('close')
+                        _textAction(
+                          context,
+                          cancelText,
+                          node.hasEvent('close')
                               ? () => onEvent(
                                   node.id,
                                   'close',
                                   {'type': 'close'},
                                 )
                               : null,
-                          child: Text(cancelText),
                         ),
                       if (confirmText.isNotEmpty)
-                        TextButton(
-                          onPressed: node.hasEvent('confirm')
+                        _textAction(
+                          context,
+                          confirmText,
+                          node.hasEvent('confirm')
                               ? () => onEvent(
                                   node.id,
                                   'confirm',
                                   {'type': 'confirm'},
                                 )
                               : null,
-                          child: Text(confirmText),
                         ),
                     ],
                   ),
@@ -622,7 +626,7 @@ class _QappNodeView extends StatelessWidget {
     final topInset = safeArea ? MediaQuery.of(context).padding.top : 0.0;
     return Container(
       padding: EdgeInsets.only(top: topInset),
-      color: node.style.backgroundColor ?? Theme.of(context).colorScheme.surface,
+      color: node.style.backgroundColor ?? surface(context),
       child: SizedBox(
         height: 52,
         child: Row(
@@ -630,10 +634,13 @@ class _QappNodeView extends StatelessWidget {
             SizedBox(
               width: 44,
               child: showBack && node.hasEvent('back')
-                  ? IconButton(
-                      icon: const Icon(Icons.arrow_back),
-                      onPressed: () =>
+                  ? GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () =>
                           onEvent(node.id, 'back', {'type': 'back'}),
+                      child: const Center(
+                        child: QChatIcon('arrowLeft', size: 22),
+                      ),
                     )
                   : null,
             ),
@@ -694,7 +701,7 @@ class _QappNodeView extends StatelessWidget {
     final safeArea = node.props['safeArea'] != false;
     final bottomInset = safeArea ? MediaQuery.of(context).padding.bottom : 0.0;
     return Container(
-      color: node.style.backgroundColor ?? Theme.of(context).colorScheme.surface,
+      color: node.style.backgroundColor ?? surface(context),
       padding: EdgeInsets.only(bottom: bottomInset),
       child: SizedBox(
         height: 56,
@@ -757,7 +764,7 @@ class _QappNodeView extends StatelessWidget {
                         badge,
                         style: const TextStyle(
                           fontSize: 9,
-                          color: Colors.white,
+                          color: QChatColors.white,
                         ),
                       ),
                     ),
@@ -875,12 +882,12 @@ class _QappNodeView extends StatelessWidget {
     );
     final (background, foreground) = switch (variant) {
       'secondary' => (
-        Theme.of(context).colorScheme.surfaceContainerHighest,
+        qchatFill(context),
         ink(context),
       ),
-      'text' => (Colors.transparent, QChatColors.green),
-      'danger' => (const Color(0xffe5484d), Colors.white),
-      _ => (QChatColors.green, Colors.white),
+      'text' => (QChatColors.transparent, QChatColors.green),
+      'danger' => (const Color(0xffe5484d), QChatColors.white),
+      _ => (QChatColors.green, QChatColors.white),
     };
     final buttonStyle = styleToTextStyle(
       context,
@@ -888,10 +895,7 @@ class _QappNodeView extends StatelessWidget {
       fallbackSize: 15,
     );
     final content = loading
-        ? SizedBox.square(
-            dimension: 18,
-            child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
-          )
+        ? QChatLoading(size: 18, color: foreground)
         : Row(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1040,7 +1044,7 @@ class _QappNodeView extends StatelessWidget {
       Container(
         width: width,
         height: height ?? 48,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: qchatFill(context),
         alignment: Alignment.center,
         child: const QChatIcon('image', size: 20, color: QChatColors.muted),
       );
@@ -1080,26 +1084,39 @@ class _QappNodeView extends StatelessWidget {
     return const SizedBox(height: 8);
   }
 
+  Widget _textAction(
+    BuildContext context,
+    String label,
+    VoidCallback? onTap,
+  ) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w500,
+          color: onTap == null ? qchatMuted(context) : QChatColors.green,
+        ),
+      ),
+    ),
+  );
+
   Widget _divider(BuildContext context) {
     final color = qappColor(node.props['color']) ?? node.style.color;
     final thickness = _number(node.props['thickness']) ?? 1;
-    return Divider(
+    return Container(
       height: thickness,
-      thickness: thickness,
-      color: color ?? Theme.of(context).dividerColor,
+      color: color ?? QChatColors.line,
     );
   }
 
   Widget _activityIndicator() {
     final size = _number(node.props['size']) ?? 20;
     final color = qappColor(node.props['color']);
-    return SizedBox.square(
-      dimension: size,
-      child: CircularProgressIndicator(
-        strokeWidth: 2.4,
-        color: color ?? QChatColors.green,
-      ),
-    );
+    return QChatLoading(size: size, color: color ?? QChatColors.green);
   }
 
   Widget _safeArea(BuildContext context) {
@@ -1497,10 +1514,7 @@ class _QappAssetImageState extends State<_QappAssetImage> {
             width: widget.width,
             height: widget.height ?? 48,
             child: const Center(
-              child: SizedBox.square(
-                dimension: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
+              child: QChatLoading(size: 14),
             ),
           );
         }
@@ -1578,59 +1592,61 @@ class _QappTextFieldState extends State<_QappTextField> {
       'url' => TextInputType.url,
       _ => TextInputType.text,
     };
-    return TextField(
-      controller: _controller,
-      focusNode: _focus,
-      enabled: editable,
-      obscureText: node.props['secureTextEntry'] == true,
-      maxLines: multiline ? null : 1,
-      minLines: multiline ? 3 : 1,
-      maxLength: limit,
-      keyboardType: multiline ? TextInputType.multiline : keyboard,
-      style: style.toTextStyle(fallbackColor: ink(context), fallbackSize: 15),
-      textAlign: style.textAlign ?? TextAlign.start,
-      decoration: InputDecoration(
-        hintText: node.props['placeholder']?.toString() ?? '',
-        hintStyle: const TextStyle(color: QChatColors.muted),
-        counterText: '',
-        isDense: true,
-        filled: style.backgroundColor != null,
-        fillColor: style.backgroundColor,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 11,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: style.borderRadius == BorderRadius.zero
-              ? BorderRadius.circular(8)
-              : style.borderRadius,
-          borderSide: BorderSide(
-            color: style.borderColor ?? const Color(0xffdcdcdc),
-            width: style.borderWidth > 0 ? style.borderWidth : 1,
-          ),
+    final radius = style.borderRadius == BorderRadius.zero
+        ? BorderRadius.circular(8)
+        : style.borderRadius;
+    return Container(
+      decoration: BoxDecoration(
+        color: style.backgroundColor ?? QChatColors.transparent,
+        borderRadius: radius,
+        border: Border.all(
+          color: style.borderColor ?? const Color(0xffdcdcdc),
+          width: style.borderWidth > 0 ? style.borderWidth : 1,
         ),
       ),
-      onChanged: (value) {
-        if (node.hasEvent('input')) {
-          widget.onEvent(node.id, 'input', value);
-        }
-        if (node.hasEvent('change')) {
-          widget.onEvent(node.id, 'change', {
-            'type': 'change',
-            'value': value,
-            'text': value,
-          });
-        }
-      },
-      onSubmitted: (value) {
-        if (node.hasEvent('submit')) {
-          widget.onEvent(node.id, 'submit', {
-            'type': 'submit',
-            'value': value,
-            'text': value,
-          });
-        }
-      },
+      child: CupertinoTextField(
+        controller: _controller,
+        focusNode: _focus,
+        enabled: editable,
+        obscureText: node.props['secureTextEntry'] == true,
+        maxLines: multiline ? null : 1,
+        minLines: multiline ? 3 : 1,
+        maxLength: limit,
+        keyboardType: multiline ? TextInputType.multiline : keyboard,
+        style: style.toTextStyle(
+          fallbackColor: ink(context),
+          fallbackSize: 15,
+        ),
+        textAlign: style.textAlign ?? TextAlign.start,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        placeholder: node.props['placeholder']?.toString() ?? '',
+        placeholderStyle: const TextStyle(
+          color: QChatColors.muted,
+          fontSize: 15,
+        ),
+        decoration: null,
+        onChanged: (value) {
+          if (node.hasEvent('input')) {
+            widget.onEvent(node.id, 'input', value);
+          }
+          if (node.hasEvent('change')) {
+            widget.onEvent(node.id, 'change', {
+              'type': 'change',
+              'value': value,
+              'text': value,
+            });
+          }
+        },
+        onSubmitted: (value) {
+          if (node.hasEvent('submit')) {
+            widget.onEvent(node.id, 'submit', {
+              'type': 'submit',
+              'value': value,
+              'text': value,
+            });
+          }
+        },
+      ),
     );
   }
 }
@@ -1680,7 +1696,7 @@ class _QappCheckboxState extends State<_QappCheckbox> {
             width: 20,
             height: 20,
             decoration: BoxDecoration(
-              color: _checked ? QChatColors.green : Colors.transparent,
+              color: _checked ? QChatColors.green : QChatColors.transparent,
               borderRadius: BorderRadius.circular(5),
               border: Border.all(
                 color: _checked ? QChatColors.green : const Color(0xffb8b8b8),
@@ -1688,7 +1704,11 @@ class _QappCheckboxState extends State<_QappCheckbox> {
               ),
             ),
             child: _checked
-                ? const Icon(Icons.check, size: 15, color: Colors.white)
+                ? const QChatIcon(
+                    'check',
+                    size: 13,
+                    color: QChatColors.white,
+                  )
                 : null,
           ),
           if (label.isNotEmpty)
@@ -1730,9 +1750,9 @@ class _QappSwitchState extends State<_QappSwitch> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    return Switch(
+    return QChatSwitch(
       value: _value,
-      activeTrackColor: QChatColors.green,
+      activeColor: QChatColors.green,
       onChanged: node.props['disabled'] == true
           ? null
           : (value) {
@@ -1787,28 +1807,31 @@ class _QappSliderState extends State<_QappSlider> {
     final step = node.props['step'];
     final lower = min is num ? min.toDouble() : 0.0;
     final upper = max is num ? max.toDouble() : 1.0;
-    final divisions = step is num && step > 0
-        ? ((upper - lower) / step).round().clamp(1, 1000).toInt()
-        : null;
     final value = _value.clamp(lower, upper).toDouble();
-    return Slider(
+    double snap(double next) {
+      if (step is! num || step <= 0) return next;
+      final stepped = (next / step).round() * step;
+      return stepped.clamp(lower, upper).toDouble();
+    }
+
+    return QChatSlider(
       value: value,
       min: lower,
       max: upper > lower ? upper : lower + 1,
-      divisions: divisions,
       activeColor: QChatColors.green,
-      onChanged: (next) => setState(() => _value = next),
+      onChanged: (next) => setState(() => _value = snap(next)),
       onChangeEnd: (next) {
+        final snapped = snap(next);
         if (node.hasEvent('change')) {
           widget.onEvent(node.id, 'change', {
             'type': 'change',
-            'value': next,
+            'value': snapped,
           });
         }
         if (node.hasEvent('valueChange')) {
           widget.onEvent(node.id, 'valueChange', {
             'type': 'valueChange',
-            'value': next,
+            'value': snapped,
           });
         }
       },

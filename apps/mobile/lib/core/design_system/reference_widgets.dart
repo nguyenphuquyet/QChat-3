@@ -1,4 +1,4 @@
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'components.dart';
 import '../localization/strings.dart';
@@ -45,7 +45,7 @@ class MenuRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Center(
-              child: QChatIcon(icon!, color: Colors.white, size: 27),
+              child: QChatIcon(icon!, color: QChatColors.white, size: 27),
             ),
           )
         : SizedBox(width: 26, child: QChatIcon(icon!, color: color, size: 23)),
@@ -102,7 +102,7 @@ Future<void> qchatTopMenu(
   context: context,
   barrierDismissible: true,
   barrierLabel: tr(context, 'cancel'),
-  barrierColor: Colors.transparent,
+  barrierColor: QChatColors.transparent,
   transitionDuration: const Duration(milliseconds: 120),
   pageBuilder: (c, _, _) => SafeArea(
     child: Align(
@@ -156,14 +156,14 @@ Future<void> qchatTopMenu(
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            QChatIcon(a.$1, color: Colors.white, size: 23),
+                            QChatIcon(a.$1, color: QChatColors.white, size: 23),
                             const SizedBox(width: 13),
                             Flexible(
                               child: Text(
                                 tr(c, a.$2),
                                 textAlign: TextAlign.center,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: QChatColors.white,
                                   fontSize: 16,
                                   decoration: TextDecoration.none,
                                 ),

@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/core/design_system/components.dart';
+import 'test_app.dart';
 
 void main() {
   testWidgets(
@@ -11,10 +12,10 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      for (final color in [Colors.white, Colors.black]) {
+      for (final color in [QChatColors.white, QChatColors.black]) {
         await tester.pumpWidget(
-          MaterialApp(
-            home: MediaQuery(
+          qchatHarness(
+            MediaQuery(
               data: const MediaQueryData(
                 size: Size(390, 844),
                 padding: EdgeInsets.only(top: 44, bottom: 34),
@@ -36,16 +37,19 @@ void main() {
         final region = tester.widget<AnnotatedRegion<SystemUiOverlayStyle>>(
           find.byType(AnnotatedRegion<SystemUiOverlayStyle>).last,
         );
-        expect(region.value.statusBarColor, Colors.transparent);
-        expect(region.value.systemNavigationBarColor, Colors.transparent);
+        expect(region.value.statusBarColor, QChatColors.transparent);
+        expect(
+          region.value.systemNavigationBarColor,
+          QChatColors.transparent,
+        );
         expect(region.value.systemNavigationBarContrastEnforced, false);
         expect(
           region.value.statusBarIconBrightness,
-          color == Colors.white ? Brightness.dark : Brightness.light,
+          color == QChatColors.white ? Brightness.dark : Brightness.light,
         );
         expect(
           region.value.statusBarBrightness,
-          color == Colors.white ? Brightness.light : Brightness.dark,
+          color == QChatColors.white ? Brightness.light : Brightness.dark,
         );
         expect(find.byType(Positioned), findsNothing);
         expect(tester.takeException(), isNull);
@@ -60,8 +64,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
+      qchatHarness(
+        MediaQuery(
           data: const MediaQueryData(
             size: Size(390, 844),
             padding: EdgeInsets.only(top: 44, bottom: 34),
@@ -99,8 +103,8 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
-      MaterialApp(
-        home: MediaQuery(
+      qchatHarness(
+        MediaQuery(
           data: const MediaQueryData(
             size: Size(390, 844),
             padding: EdgeInsets.only(top: 44, bottom: 34),

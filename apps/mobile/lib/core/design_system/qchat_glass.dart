@@ -1,5 +1,6 @@
 import 'dart:ui' show ImageFilter;
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
+
 import 'components.dart';
 
 /// A restrained glass surface; clip the filter to the bar, never the full page.

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
@@ -47,7 +47,7 @@ class _MoneyScreenState extends ConsumerState<MoneyScreen> {
             QrImageView(
               data: 'qchat://pay/${user['qchatId']}',
               size: 230,
-              backgroundColor: Colors.white,
+              backgroundColor: QChatColors.white,
               errorCorrectionLevel: QrErrorCorrectLevel.H,
             ),
             const SizedBox(height: 14),
@@ -255,7 +255,7 @@ class _QrCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 16.5,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
+                        color: QChatColors.white,
                         decoration: TextDecoration.none,
                       ),
                     ),
@@ -266,7 +266,7 @@ class _QrCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 12.5,
-                        color: Colors.white.withValues(alpha: .8),
+                        color: QChatColors.white.withValues(alpha: .8),
                         decoration: TextDecoration.none,
                       ),
                     ),
@@ -280,7 +280,7 @@ class _QrCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: .16),
+                  color: QChatColors.white.withValues(alpha: .16),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Row(
@@ -288,7 +288,7 @@ class _QrCard extends StatelessWidget {
                   children: [
                     const QChatIcon(
                       'shieldCheck',
-                      color: Colors.white,
+                      color: QChatColors.white,
                       size: 13,
                     ),
                     const SizedBox(width: 4),
@@ -297,7 +297,7 @@ class _QrCard extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11.5,
                         fontWeight: FontWeight.w500,
-                        color: Colors.white.withValues(alpha: .95),
+                        color: QChatColors.white.withValues(alpha: .95),
                         decoration: TextDecoration.none,
                       ),
                     ),
@@ -314,7 +314,7 @@ class _QrCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: QChatColors.white,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: QChatColors.green.withValues(alpha: .16),
@@ -323,7 +323,7 @@ class _QrCard extends StatelessWidget {
                 child: QrImageView(
                   data: 'qchat://pay/${user['qchatId']}',
                   size: 190,
-                  backgroundColor: Colors.white,
+                  backgroundColor: QChatColors.white,
                   errorCorrectionLevel: QrErrorCorrectLevel.H,
                 ),
               ),
@@ -406,7 +406,7 @@ class _NoticeCard extends StatelessWidget {
   const _NoticeCard();
   @override
   Widget build(BuildContext c) {
-    final dark = Theme.of(c).brightness == Brightness.dark;
+    final dark = qchatDark(c);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
