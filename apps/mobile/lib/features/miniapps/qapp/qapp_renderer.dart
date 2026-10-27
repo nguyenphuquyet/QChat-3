@@ -371,6 +371,11 @@ class _QappNodeView extends StatelessWidget {
     final scroller = SingleChildScrollView(
       scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
       padding: padding,
+      // Mini programs scroll like embedded content, not like a native page:
+      // the list stops dead at its last pixel on every platform. iOS would
+      // otherwise rubber-band past the end and spring back, which reads as the
+      // content jumping back down while the finger is still dragging.
+      physics: const ClampingScrollPhysics(),
       child: content,
     );
     final showsIndicator = node.props['showsScrollIndicator'] != false;
@@ -432,8 +437,10 @@ class _QappNodeView extends StatelessWidget {
         final unbounded = horizontal
             ? !constraints.hasBoundedWidth
             : !constraints.hasBoundedHeight;
+        // Same rule as `_scroll`: a mini program list clamps at its edges
+        // instead of bouncing, so the position never springs back on iOS.
         final physics = showsIndicator && !unbounded
-            ? null
+            ? const ClampingScrollPhysics()
             : const NeverScrollableScrollPhysics();
         if (node.type == 'GridView') {
           final columns = node.props['numColumns'];

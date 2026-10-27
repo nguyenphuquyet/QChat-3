@@ -269,6 +269,17 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (code != 'RUNTIME_UNAVAILABLE' && code != 'RUNTIME_TOO_OLD') ...[
+                const SizedBox(height: 6),
+                Text(
+                  code,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: QChatColors.muted,
+                  ),
+                ),
+              ],
               const SizedBox(height: 18),
               QChatButton(tr(context, 'miniAppsRetry'), onTap: _start),
             ],

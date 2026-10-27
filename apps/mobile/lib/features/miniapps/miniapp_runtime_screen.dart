@@ -27,6 +27,19 @@ import 'qapp/qapp_view.dart';
 
 const miniAppRuntimeVersion = '1.0.0';
 
+/// Failures the launch error view can explain in words. Anything else is a
+/// package, download or platform problem, so the view shows the raw code
+/// instead of pretending to know the reason: it is the only diagnostic a
+/// release build can give a support request.
+const _explainedFailures = {
+  'APP_SUSPENDED',
+  'VERSION_REVOKED',
+  'RUNTIME_TOO_OLD',
+  'UNSUPPORTED_FORMAT',
+  'NOT_PUBLISHED',
+  'UNAUTHORIZED',
+};
+
 class MiniAppRuntimeScreen extends ConsumerStatefulWidget {
   const MiniAppRuntimeScreen({super.key, required this.appId, this.preview});
 
@@ -180,13 +193,17 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     } on MiniAppException catch (error) {
       await _handleFailure(error, cache);
     } on MiniAppCacheException catch (error) {
+      debugPrint('[miniapps] install failed: ${error.code}');
       await _telemetry('download_failure', error.code);
       if (!mounted) return;
       setState(() {
         _error = MiniAppException(error.code, message: error.code);
         _loading = false;
       });
-    } catch (_) {
+    } catch (error, stack) {
+      // A download, disk or plugin failure outside the typed exceptions. Log
+      // it so the code shown in the error view can be traced.
+      debugPrint('[miniapps] launch failed: $error\n$stack');
       if (!mounted) return;
       setState(() {
         _error = const MiniAppException('SERVICE_ERROR');
@@ -227,6 +244,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
           : 'download_failure',
       error.code,
     );
+    debugPrint('[miniapps] launch failed: ${error.code}');
     if (!mounted) return;
     setState(() {
       _error = error;
@@ -720,6 +738,17 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
               Text(
                 tr(context, 'miniAppsUpdateAvailable'),
                 style: const TextStyle(fontSize: 12, color: QChatColors.muted),
+              ),
+            ],
+            if (!_explainedFailures.contains(error.code)) ...[
+              const SizedBox(height: 6),
+              Text(
+                error.code,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: QChatColors.muted,
+                ),
               ),
             ],
             const SizedBox(height: 18),
