@@ -18,6 +18,8 @@ Profile fields are on User. Membership and per-conversation user state share Con
 
 QChat uses original line icons, square avatars with 5px corners, thin separators, neutral headers, a four-tab navigation bar and green/white conversation bubbles. Every screen is drawn by the QChat design system in `apps/mobile/lib/core/design_system` on top of a plain `WidgetsApp.router`; there is no `MaterialApp`, no Material theme, and no Material or TDesign widget in the shipped app. Text fields use `CupertinoTextField`, and navigation uses custom routes, so no Google Material visual language reaches the user.
 
+This rule is enforced for contributors and coding agents by `AGENTS.md` and `apps/mobile/AGENTS.md`.
+
 ## Boundaries still requiring work
 
 See STATUS.md. This is a working source baseline under active implementation, not a production-ready or fully verified messaging product. Do not treat a successful compilation as evidence of push, call, deployment or end-to-end correctness.
