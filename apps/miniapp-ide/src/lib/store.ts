@@ -1105,22 +1105,18 @@ export const useStudio = create<StudioState>()(
       async saveManifest(manifest) {
         const project = get().project;
         if (!project) throw new Error(translate(get().settings.language, "store.openFirst"));
-        // Hosts are no longer declared: `network` reaches any HTTPS host. Drop
-        // the field from manifests written by older Studio versions.
-        const next = { ...manifest };
-        delete next.networkDomains;
         await api.writeText(
           joinPath(project.path, "manifest.json"),
-          `${JSON.stringify(next, null, 2)}\n`,
+          `${JSON.stringify(manifest, null, 2)}\n`,
         );
         set({
-          project: { ...project, manifest: next, name: next.name },
+          project: { ...project, manifest, name: manifest.name },
           tabs: get().tabs.map((tab) =>
             tab.name === "manifest.json"
               ? {
                   ...tab,
-                  content: `${JSON.stringify(next, null, 2)}\n`,
-                  saved: `${JSON.stringify(next, null, 2)}\n`,
+                  content: `${JSON.stringify(manifest, null, 2)}\n`,
+                  saved: `${JSON.stringify(manifest, null, 2)}\n`,
                 }
               : tab,
           ),

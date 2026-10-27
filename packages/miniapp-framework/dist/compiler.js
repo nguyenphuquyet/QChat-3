@@ -299,9 +299,6 @@ export async function compileProject(options) {
     const manifestBytes = Buffer.from(JSON.stringify(packaged, null, 2), "utf8");
     const permissionsBytes = Buffer.from(JSON.stringify({
         requestedPermissions: packaged.requestedPermissions,
-        // Legacy runtimes still expect the field; nothing reads it any more
-        // because a Mini App may call any HTTPS host.
-        networkDomains: [],
     }, null, 2), "utf8");
     const fileHashes = [
         { path: "app.js", sha256: appSha256, size: Buffer.byteLength(appJs) },

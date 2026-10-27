@@ -82,9 +82,6 @@ const qappMetadataSchema = z
 const qappPermissionsSchema = z
   .object({
     requestedPermissions: z.array(z.string()).max(32).default([]),
-    /// Accepted for packages built before the host allowlist was removed; it
-    /// is never read.
-    networkDomains: z.array(z.string()).max(10).optional(),
   })
   .strict();
 
