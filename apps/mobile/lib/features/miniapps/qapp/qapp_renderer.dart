@@ -1663,12 +1663,16 @@ class _QappCheckbox extends StatefulWidget {
 
 class _QappCheckboxState extends State<_QappCheckbox> {
   late bool _checked = widget.node.props['checked'] == true;
+  late bool _prop = _checked;
 
   @override
   void didUpdateWidget(_QappCheckbox oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final checked = widget.node.props['checked'] == true;
-    if (checked != _checked) _checked = checked;
+    final prop = widget.node.props['checked'] == true;
+    if (prop != _prop) {
+      _prop = prop;
+      _checked = prop;
+    }
   }
 
   @override
@@ -1739,12 +1743,18 @@ class _QappSwitch extends StatefulWidget {
 
 class _QappSwitchState extends State<_QappSwitch> {
   late bool _value = widget.node.props['value'] == true;
+  late bool _prop = _value;
 
   @override
   void didUpdateWidget(_QappSwitch oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final value = widget.node.props['value'] == true;
-    if (value != _value) _value = value;
+    final prop = widget.node.props['value'] == true;
+    // Only a changed prop wins over the local state; a re-render that repeats
+    // the old value must not undo what the user just tapped.
+    if (prop != _prop) {
+      _prop = prop;
+      _value = prop;
+    }
   }
 
   @override
@@ -1786,6 +1796,7 @@ class _QappSlider extends StatefulWidget {
 
 class _QappSliderState extends State<_QappSlider> {
   late double _value = _valueOf(widget.node);
+  late double _prop = _value;
 
   static double _valueOf(QappNode node) {
     final value = node.props['value'];
@@ -1795,8 +1806,15 @@ class _QappSliderState extends State<_QappSlider> {
   @override
   void didUpdateWidget(_QappSlider oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final value = _valueOf(widget.node);
-    if (value != _value) _value = value;
+    final prop = _valueOf(widget.node);
+    // Adopt the app's value only when the app actually sent a new one. A
+    // re-render that repeats the previous value (a timer, a scroll handler,
+    // any unrelated state) used to snap the thumb back while it was being
+    // dragged, which read as a violent jitter under the finger.
+    if (prop != _prop) {
+      _prop = prop;
+      _value = prop;
+    }
   }
 
   @override

@@ -1148,8 +1148,18 @@ class _QChatRefreshState extends State<QChatRefresh>
 
   bool _onScroll(ScrollNotification notification) {
     if (_refreshing) return false;
+    // Only the vertical scroll view wrapped by this widget may drive the pull.
+    // Notifications from a nested scrollable (a horizontal rail, a card carousel
+    // or an inner list) arrive with a depth greater than zero, and a horizontal
+    // drag must never move the indicator: doing so made the pill pop in and out
+    // while the user swiped a rail sideways.
+    if (notification.depth != 0) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
     if (notification is ScrollStartNotification) {
-      if (notification.dragDetails != null && _drag != 0) {
+      if (notification.dragDetails != null) {
+        // A fresh touch owns the indicator. Dropping the value stops any
+        // spring-back still running, so the pill follows the finger instead of
+        // fighting the animation.
         _drag = 0;
         _position.value = 0;
       }
