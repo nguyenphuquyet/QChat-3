@@ -199,6 +199,7 @@ class _QappNodeView extends StatelessWidget {
     final wrap =
         node.props['flexWrap'] == 'wrap' || node.style.flexWrap == 'wrap';
     final main = _mainAlignment(node);
+    final mainAxisSize = _mainAxisSize;
     final effectiveAxis = isRow ? Axis.horizontal : Axis.vertical;
     // A Column always lays its children out with an unbounded main axis, and a
     // vertical scroller does the same to its content. `stretch`, `spaceBetween`
@@ -255,6 +256,7 @@ class _QappNodeView extends StatelessWidget {
             ? Row(
                 mainAxisAlignment: effectiveMain,
                 crossAxisAlignment: cross,
+                mainAxisSize: mainAxisSize,
                 textDirection: reversed ? TextDirection.rtl : null,
                 spacing: mainGap,
                 children: children,
@@ -262,6 +264,7 @@ class _QappNodeView extends StatelessWidget {
             : Column(
                 mainAxisAlignment: effectiveMain,
                 crossAxisAlignment: cross,
+                mainAxisSize: mainAxisSize,
                 verticalDirection: reversed && !isRow
                     ? VerticalDirection.up
                     : VerticalDirection.down,
@@ -1331,10 +1334,23 @@ class _QappNodeView extends StatelessWidget {
     fallbackSize: fallbackSize,
   );
 
+  /// A flex box hugs its content unless it is told to grow, like React Native.
+  ///
+  /// Flutter's `Row` and `Column` default to `MainAxisSize.max`, which fills a
+  /// loose parent. A `View` without `flex` inside a centred `Stack` therefore
+  /// covered the whole stack and its children stuck to the top instead of
+  /// sitting in the middle — that is what put the "82%" label of a ring gauge
+  /// in its upper-left corner. A tight constraint (an `Expanded` from `flex: 1`,
+  /// a fixed `height`) still fills, so growing nodes keep the old behaviour.
+  MainAxisSize get _mainAxisSize {
+    final grow = node.style.flex ?? 0;
+    final flexGrow = node.style.flexGrow ?? 0;
+    return grow > 0 || flexGrow > 0 ? MainAxisSize.max : MainAxisSize.min;
+  }
+
   bool _isRow(QappNode value) =>
       value.style.flexDirection == 'row' ||
       value.style.flexDirection == 'row-reverse';
-
   bool _isReverse(QappNode value) =>
       value.style.flexDirection == 'row-reverse' ||
       value.style.flexDirection == 'column-reverse';

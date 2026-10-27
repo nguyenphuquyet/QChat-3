@@ -328,4 +328,46 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(tester.getTopLeft(find.byKey(const ValueKey('n0.0'))), Offset.zero);
   });
+
+  testWidgets('a stack centres a column child that has no flex', (
+    tester,
+  ) async {
+    setPhone(tester);
+    // A `View` without `flex` hugs its content in React Native. Flutter's
+    // Column defaults to MainAxisSize.max, so the label of a centred stack —
+    // the "82%" inside a ring gauge — was laid out at the top of the stack
+    // instead of its middle.
+    final root = node(
+      'n0',
+      'View',
+      children: [
+        node(
+          'n0.0',
+          'Stack',
+          props: {
+            'alignment': 'center',
+            'style': {'width': 96, 'height': 96},
+          },
+          children: [
+            node(
+              'n0.0.0',
+              'View',
+              props: {
+                'style': {'alignItems': 'center', 'gap': 1},
+              },
+              children: [text('n0.0.0.0', '82%')],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+
+    expect(tester.takeException(), isNull);
+    final stack = tester.getRect(find.byKey(const ValueKey('n0.0')));
+    final label = tester.getRect(find.text('82%'));
+    expect(label.center.dy, closeTo(stack.center.dy, 1));
+    expect(label.center.dx, closeTo(stack.center.dx, 1));
+  });
 }

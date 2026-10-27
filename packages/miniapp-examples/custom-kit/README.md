@@ -81,6 +81,10 @@ chấm đỏ, bật/tắt animation của sheet và toast, và mật độ danh 
 - **`Pressable` nằm trong một `Row` sẽ co lại bằng nội dung.** Nó chỉ giãn hết
   bề ngang khi được đặt trong một cột (như nút trong `Card`) hoặc khi chính nó
   có `flex`.
+- **Một `View`/`Row`/`Column` không có `flex` thì co theo nội dung.** Muốn nó
+  phủ hết một `Stack` (nền, lớp chắn chạm) thì cho nó `flex: 1`, hoặc bọc bằng
+  `Positioned` với đủ cạnh — nếu không, nó chỉ cao bằng nội dung và `Stack` sẽ
+  đặt nó theo `alignment`.
 - **Mọi thay đổi màu accent đi qua `theme.ts`.** `mix()` trộn hex ở phía TS để
   hero card luôn đủ tối cho chữ trắng, bất kể accent là mint, blue, violet hay
   amber.
