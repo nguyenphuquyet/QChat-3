@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -336,14 +337,46 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     }
   }
 
+  /// File that remembers which permissions this mini program was granted.
+  ///
+  /// A plain file, not `shared_preferences`: the prompt has to survive a
+  /// restart, and device preferences are the one store that can be missing (a
+  /// stale native plugin made exactly this write fail, so Android asked for
+  /// `storage` again on every single open). The file lives next to the app's own
+  /// storage, outside the directory the mini program can read.
+  File? _grantsFile() {
+    final root = _cacheRoot;
+    if (root == null) return null;
+    return File(p.join(root, 'grants', '${widget.appId}.json'));
+  }
+
   /// Permissions the user already granted to this mini program.
   ///
-  /// Device storage is an optimisation here, not a requirement: if the
-  /// `shared_preferences` plugin is missing or out of sync with the native
-  /// side (which happens with a stale Gradle build), the platform channel
-  /// throws a `MissingPluginException`/`NoSuchMethodError`. That must not stop
-  /// a mini program from opening — it only means nothing was granted yet.
+  /// Nothing here is allowed to stop a mini program from opening: a missing or
+  /// unreadable file only means that nothing was granted yet.
   Future<Set<String>> _grantedPermissions() async {
+    final file = _grantsFile();
+    if (file == null) return <String>{};
+    try {
+      if (await file.exists()) {
+        final raw = jsonDecode(await file.readAsString());
+        if (raw is List) {
+          return raw.map((value) => value.toString()).toSet();
+        }
+        return <String>{};
+      }
+    } catch (error) {
+      debugPrint('[miniapps] grants unreadable: $error');
+      return <String>{};
+    }
+    // First run after the move from preferences: import whatever older builds
+    // managed to save, then keep using the file from here on.
+    final legacy = await _legacyGrants();
+    if (legacy.isNotEmpty) await _saveGrants(legacy);
+    return legacy;
+  }
+
+  Future<Set<String>> _legacyGrants() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       return prefs
@@ -351,8 +384,22 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
               ?.toSet() ??
           <String>{};
     } catch (error) {
-      debugPrint('[miniapps] permissions unavailable: $error');
+      debugPrint('[miniapps] preferences unavailable: $error');
       return <String>{};
+    }
+  }
+
+  Future<void> _saveGrants(Set<String> granted) async {
+    final file = _grantsFile();
+    if (file == null) return;
+    try {
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode(granted.toList()..sort()),
+        flush: true,
+      );
+    } catch (error) {
+      debugPrint('[miniapps] grants not saved: $error');
     }
   }
 
@@ -426,18 +473,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       ],
     );
     if (allowed != true) return false;
-    try {
-      final granted = await _grantedPermissions();
-      granted.add(permission);
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(
-        'miniapp.permissions.${widget.appId}',
-        granted.toList()..sort(),
-      );
-    } catch (error) {
-      // The grant still applies for this session when device storage is broken.
-      debugPrint('[miniapps] permission not saved: $error');
-    }
+    final granted = await _grantedPermissions();
+    granted.add(permission);
+    await _saveGrants(granted);
     return true;
   }
 
