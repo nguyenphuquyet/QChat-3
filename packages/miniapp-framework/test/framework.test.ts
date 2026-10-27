@@ -81,13 +81,14 @@ test("manifest requires qapp format and rejects a declared appId", () => {
   );
 });
 
-test("compiler packs both examples with checksums and no appId", async () => {
+test("compiler packs every example with checksums and no appId", async () => {
   const directory = workspace();
   try {
     for (const [project, expectedText] of [
       ["hello-world", "Hello from TSX"],
       ["counter", "Counter"],
       ["shell", "Xin chào"],
+      ["custom-kit", "24h 18m"],
     ] as const) {
       const projectDir = path.join(examples, project);
       const outfile = path.join(directory, `${project}.japp`);

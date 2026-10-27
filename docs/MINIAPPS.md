@@ -25,7 +25,7 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
-| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo and demo-kit built through the real compiler |
+| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit and custom-kit built through the real compiler |
 | Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
@@ -410,18 +410,25 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 
 `qapp build` runs a TypeScript check, bundles the TSX with esbuild for the
 QuickJS target, embeds the runtime, hashes every file and writes
-`dist/<slug>-<version>.japp`. The `hello-world`, `counter`, `shell` and
-`demo-kit` examples in `packages/miniapp-examples` are built this way; they are
-not hardcoded screens. `shell` is the reference four-tab app: it owns a `NavBar`
-header and a `TabBar`, keeps a `TextField` and a `Switch` on the home tab,
-persists the switch through storage and renders a long `ListView` on the
-discover tab. `demo-kit` is the playground template: five tabs (overview, UI
-kit, form, host API, debug), a pushed `/detail/...` route, one button per host
+`dist/<slug>-<version>.japp`. The `hello-world`, `counter`, `shell`,
+`demo-kit` and `custom-kit` examples in `packages/miniapp-examples` are built
+this way; they are not hardcoded screens. `shell` is the reference four-tab app:
+it owns a `NavBar` header and a `TabBar`, keeps a `TextField` and a `Switch` on
+the home tab, persists the switch through storage and renders a long `ListView`
+on the discover tab. `demo-kit` is the playground template: five tabs (overview,
+UI kit, form, host API, debug), a pushed `/detail/...` route, one button per host
 method, a shared log store, timers, `console.log`, `Intl`, storage round-trips
-and every component and style key the contract allows. `env-demo` imports the
-whole environment and puts it on screen: `Intl` in both locales, `URL`,
-`TextEncoder`, `structuredClone`, an aborted `AbortController` signal and four
-timers a real host tick has to run.
+and every component and style key the contract allows. `custom-kit` is the
+opposite exercise: a dark "Aurora" app whose entire UI is hand-drawn from
+`View`, `Text`, `Pressable`, `ScrollView`, `Stack`, `Positioned`, `SafeArea` and
+`CustomPaint` — an owned header, an owned four-tab bar, a bottom sheet, an
+in-app toast, gradient cards, a ring gauge and a sparkline, plus 24 icons stored
+as path strings. It never uses `NavBar`, `TabBar`, `Button`, `Switch`,
+`Checkbox`, `Slider`, `Dialog` or `Icon`, so it shows what a Mini App can look
+like without the host design system. `env-demo` imports the whole environment
+and puts it on screen: `Intl` in both locales, `URL`, `TextEncoder`,
+`structuredClone`, an aborted `AbortController` signal and four timers a real
+host tick has to run.
 
 The framework is built with
 `corepack pnpm --filter @mna/qchat build`; the root `qapp` script runs that

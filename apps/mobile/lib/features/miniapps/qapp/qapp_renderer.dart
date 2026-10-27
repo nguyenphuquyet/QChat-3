@@ -46,6 +46,7 @@ class _QappNodeView extends StatelessWidget {
     required this.onEvent,
     required this.loadAsset,
     required this.insideFlex,
+    this.placedInStack = false,
   });
 
   final QappNode node;
@@ -53,12 +54,16 @@ class _QappNodeView extends StatelessWidget {
   final QappAssetLoader loadAsset;
   final bool insideFlex;
 
+  /// True when a `Stack` already positioned this node. Its `left`/`top` are
+  /// applied by `Positioned`, so the fallback translation must not run again.
+  final bool placedInStack;
+
   @override
   Widget build(BuildContext context) {
     final style = node.style;
     var child = _content(context);
     child = _decorate(context, child);
-    if (style.isAbsolute) {
+    if (style.isAbsolute && !placedInStack) {
       // Positioned only makes sense inside a Stack; standalone nodes simply
       // keep their declared offsets as a translation.
       if (style.left != null || style.top != null) {
@@ -823,6 +828,7 @@ class _QappNodeView extends StatelessWidget {
           onEvent: onEvent,
           loadAsset: loadAsset,
           insideFlex: false,
+          placedInStack: true,
         );
         children.add(
           Positioned(

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Custom Kit",
+  "description": "Aurora playground Mini App drawn by hand: owned header, owned tab bar, custom bottom sheet, in-app toast, gradient cards, ring and sparkline painters. No NavBar, TabBar, Button, Switch, Checkbox, Slider, Dialog or Icon.",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": ["toast", "storage"],
+  "source": "src/main.tsx"
+}
