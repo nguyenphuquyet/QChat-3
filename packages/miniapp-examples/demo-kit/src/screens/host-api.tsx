@@ -128,7 +128,7 @@ export function HostApiScreen() {
             <Icon name="shieldCheck" size={18} color={colors.brand} />
             <Text style={{ fontSize: 12, color: colors.ink, flex: 1 }}>
               toast · storage · user.profile · media.choose · share · qchat.api
-              · network (api.github.com)
+              · network (mọi host HTTPS)
             </Text>
           </Row>
         </Card>
