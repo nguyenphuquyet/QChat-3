@@ -424,7 +424,11 @@ void main() {
     await tester.pumpWidget(host(root, (_, _, _) {}));
     expect(find.text('QG'), findsOneWidget);
     final clip = tester.widget<ClipRRect>(find.byType(ClipRRect));
-    expect(clip.borderRadius, BorderRadius.circular(11.2));
+    final radius = clip.borderRadius as BorderRadius;
+    // `40 * 0.28` is not exactly 11.2 in binary floating point, so compare the
+    // radius with a tolerance instead of `BorderRadius.circular(11.2)`.
+    expect(radius.topLeft.x, closeTo(11.2, 0.001));
+    expect(radius.topRight.x, closeTo(11.2, 0.001));
     expect(
       find.byWidgetPredicate(
         (widget) => widget is SizedBox && widget.width == 40 && widget.height == 40,

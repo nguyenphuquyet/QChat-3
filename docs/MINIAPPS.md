@@ -647,9 +647,14 @@ reproducible from Git alone; back them up with the database.
   that an in-app `Link` asks the host router for its path, and that an external
   `Link` never does. The suite passes, `node_modules/typescript/bin/tsc
   --noEmit` is clean and `flutter analyze --no-pub` reports no issues. The new
-  Flutter widget cases in `qapp_components_test.dart` were analyzed but not run
-  on this machine, because the repository owner asked for no local
-  `flutter test`; `.github/workflows/flutter.yml` runs them.
+  Flutter widget cases in `qapp_components_test.dart` pass locally (20/20 in
+  that file). A full `flutter test` run has one pre-existing failure that this
+  work does not touch: `reference_ui_test.dart` compares goldens on Windows
+  only, and its committed PNGs predate the Material removal (`34af6e8`), so
+  they show the old search field. The same test also hits
+  `MissingPluginException` for the `record` plugin, which has no
+  implementation in a host test binary. CI runs on Linux, skips the golden
+  comparison and does not load that plugin, so both stay green there.
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,

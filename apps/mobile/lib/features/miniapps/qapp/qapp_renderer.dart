@@ -98,7 +98,22 @@ class _QappNodeView extends StatelessWidget {
     // `Button` builds its own semantics node from the same label, so wrapping
     // it again would make a screen reader announce the label twice.
     if (label is String && label.isNotEmpty && node.type != 'Button') {
-      child = Semantics(label: label, child: child);
+      // A label is a boundary of its own, so a screen reader does not read it
+      // glued to the child paragraph ("Greeting text\nHello").
+      //
+      // A plain text leaf has nothing to add to the label, so its text is
+      // dropped instead of being read twice. An interactive node (or one with
+      // richer children) keeps its subtree: dropping it would also drop the
+      // tap action a `Pressable` or `Link` needs.
+      final replacesText =
+          node.events.isEmpty &&
+          node.children.every((child) => child.type == '#text');
+      child = Semantics(
+        container: true,
+        label: label,
+        excludeSemantics: replacesText,
+        child: child,
+      );
     }
     final testID = node.props['testID'];
     return KeyedSubtree(
