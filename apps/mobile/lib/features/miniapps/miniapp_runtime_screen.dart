@@ -265,10 +265,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       _cacheRoot ?? p.dirname(p.dirname(p.dirname(cached.directory))),
       widget.appId,
     );
-    final prefs = await SharedPreferences.getInstance();
-    final granted =
-        prefs.getStringList('miniapp.permissions.${widget.appId}')?.toSet() ??
-        <String>{};
+    final granted = await _grantedPermissions();
     if (!mounted || _closed) return;
 
     final controller = QappViewController();
@@ -336,6 +333,26 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       );
     } catch (_) {
       // Analytics must never break the runtime.
+    }
+  }
+
+  /// Permissions the user already granted to this mini program.
+  ///
+  /// Device storage is an optimisation here, not a requirement: if the
+  /// `shared_preferences` plugin is missing or out of sync with the native
+  /// side (which happens with a stale Gradle build), the platform channel
+  /// throws a `MissingPluginException`/`NoSuchMethodError`. That must not stop
+  /// a mini program from opening — it only means nothing was granted yet.
+  Future<Set<String>> _grantedPermissions() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs
+              .getStringList('miniapp.permissions.${widget.appId}')
+              ?.toSet() ??
+          <String>{};
+    } catch (error) {
+      debugPrint('[miniapps] permissions unavailable: $error');
+      return <String>{};
     }
   }
 
@@ -410,17 +427,16 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     );
     if (allowed != true) return false;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final granted =
-          prefs.getStringList('miniapp.permissions.${widget.appId}')?.toSet() ??
-          <String>{};
+      final granted = await _grantedPermissions();
       granted.add(permission);
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(
         'miniapp.permissions.${widget.appId}',
         granted.toList()..sort(),
       );
-    } catch (_) {
-      // The grant still applies for this session.
+    } catch (error) {
+      // The grant still applies for this session when device storage is broken.
+      debugPrint('[miniapps] permission not saved: $error');
     }
     return true;
   }

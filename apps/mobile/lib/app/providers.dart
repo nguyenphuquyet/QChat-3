@@ -40,10 +40,15 @@ class Preferences extends Notifier<AppPreferences> {
     revision++;
     state = next;
     writes = writes.catchError((_) {}).then((_) async {
-      final saved = await SharedPreferences.getInstance();
-      await saved.setString('qchat.locale', next.locale);
-      await saved.setBool('qchat.dark', next.dark);
-      await saved.setBool('qchat.startMuted', next.startMuted);
+      try {
+        final saved = await SharedPreferences.getInstance();
+        await saved.setString('qchat.locale', next.locale);
+        await saved.setBool('qchat.dark', next.dark);
+        await saved.setBool('qchat.startMuted', next.startMuted);
+      } catch (_) {
+        // Preferences are a convenience: a broken plugin must not surface as an
+        // unhandled error. The in-memory state above already reflects the change.
+      }
     });
     return writes;
   }
