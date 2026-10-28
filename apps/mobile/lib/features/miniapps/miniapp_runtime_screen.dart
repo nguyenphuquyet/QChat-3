@@ -15,7 +15,6 @@ import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
-import '../../core/design_system/qchat_animations.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
 import 'miniapp_api.dart';
@@ -202,7 +201,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       });
     } catch (error, stack) {
       // `MiniAppException.from` turns a raw DioException into the code the
-      // server sent (NOT_PUBLISHED, VERSION_REVOKED, NETWORK_ERROR, …). Without
+      // server sent (NOT_PUBLISHED, VERSION_REVOKED, NETWORK_ERROR, â€¦). Without
       // it every API failure was reported as a generic SERVICE_ERROR, which hid
       // both the reason and the offline fallback to an installed version.
       debugPrint('[miniapps] launch failed: $error\n$stack');
@@ -599,31 +598,27 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) unawaited(_handleBack());
       },
-      // The mini program owns the whole screen; the host only floats a menu
-      // button and a close button in the top right corner.
+      // The mini program owns the whole screen; the host floats the standard
+      // transparent header over it, which is only the capsule in this case.
       child: QChatPage(
         edgeToEdge: true,
         child: Stack(
           children: [
             Positioned.fill(child: _body(context)),
             Positioned(
-              top: MediaQuery.paddingOf(context).top + 8,
-              right: 10,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _FloatButton(
-                    icon: 'more',
-                    label: tr(context, 'more'),
-                    onTap: () => _openMenu(context),
-                  ),
-                  const SizedBox(width: 8),
-                  _FloatButton(
-                    icon: 'close',
-                    label: tr(context, 'miniAppsClose'),
-                    onTap: _close,
-                  ),
-                ],
+              top: 0,
+              left: 0,
+              right: 0,
+              child: QChatHeader(
+                transparent: true,
+                reserveLeading: 0,
+                reserveTrailing: kQChatCapsuleWidth + 14,
+                trailing: QChatCapsule(
+                  menuLabel: tr(context, 'more'),
+                  closeLabel: tr(context, 'miniAppsClose'),
+                  onMenu: () => _openMenu(context),
+                  onClose: _close,
+                ),
               ),
             ),
           ],
@@ -824,9 +819,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     }
     final single = detail.replaceAll(RegExp(r'\s+'), ' ');
     final clipped = single.length > 160
-        ? '${single.substring(0, 160)}…'
+        ? '${single.substring(0, 160)}â€¦'
         : single;
-    return '${error.code} · $clipped';
+    return '${error.code} Â· $clipped';
   }
 }
 
@@ -976,55 +971,3 @@ int _compareVersion(String a, String b) {
   return 0;
 }
 
-/// Round translucent control floating over the mini program: a white glyph on
-/// a dark tint, tinted further while pressed (the app draws no ripples).
-class _FloatButton extends StatefulWidget {
-  const _FloatButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final String icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  State<_FloatButton> createState() => _FloatButtonState();
-}
-
-class _FloatButtonState extends State<_FloatButton> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed != value) setState(() => _pressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: widget.label,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: qchatDuration(context),
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _pressed ? const Color(0x9e000000) : const Color(0x5e000000),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: QChatColors.white.withValues(alpha: .16),
-            width: .5,
-          ),
-        ),
-        child: QChatIcon(widget.icon, size: 17, color: QChatColors.white),
-      ),
-    ),
-  );
-}

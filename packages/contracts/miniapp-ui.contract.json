@@ -404,7 +404,8 @@
         "onBack": "() => void",
         "showBack": "boolean",
         "safeArea": "boolean",
-        "reserveRight": "number"
+        "reserveRight": "number",
+        "transparent": "boolean"
       },
       "events": ["back", "press"]
     },

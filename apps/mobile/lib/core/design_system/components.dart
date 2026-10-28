@@ -14,6 +14,7 @@ import 'overlays.dart';
 
 export 'overlays.dart';
 export 'qchat_colors.dart';
+export 'qchat_header.dart';
 export 'qchat_icons.dart';
 export 'qchat_theme.dart';
 

@@ -207,9 +207,7 @@ void main() {
     expectEvent(events, 'n0', 'close', {'type': 'close'});
   });
 
-  testWidgets('NavBar reserves the host button area on the right', (
-    tester,
-  ) async {
+  testWidgets('NavBar reports back from its leading arrow', (tester) async {
     final events = <(String, String, Object?)>[];
     final root = node(
       'n0',
@@ -228,6 +226,56 @@ void main() {
     );
     await tester.pump();
     expectEvent(events, 'n0', 'back', {'type': 'back'});
+  });
+
+  testWidgets('NavBar centres its title on the header line', (tester) async {
+    final root = node(
+      'n0',
+      'NavBar',
+      props: {'title': 'Inbox', 'showBack': true, 'safeArea': false},
+      events: const ['back'],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final header = tester.getRect(find.byType(QChatHeader));
+    final title = tester.getCenter(find.text('Inbox'));
+    expect(title.dx, closeTo(header.center.dx, .01));
+    // The title sits on the 44 pt bar, not somewhere below it.
+    expect(title.dy, closeTo(header.top + kQChatHeaderHeight / 2, .01));
+  });
+
+  testWidgets('NavBar children become the rows under the title bar', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'NavBar',
+      props: {'title': 'Inbox', 'safeArea': false},
+      children: [node('n0.0', 'Text', props: {'testID': 'row'}, children: [
+        node('n0.0.0', '#text', props: {'text': 'Rows'}),
+      ])],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final header = tester.getRect(find.byType(QChatHeader));
+    final row = tester.getRect(find.text('Rows'));
+    expect(row.top, greaterThanOrEqualTo(header.top + kQChatHeaderHeight));
+    expect(header.height, greaterThan(kQChatHeaderHeight));
+  });
+
+  testWidgets('a transparent NavBar paints no surface', (tester) async {
+    final root = node(
+      'n0',
+      'NavBar',
+      props: {'title': 'Inbox', 'safeArea': false, 'transparent': true},
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(find.text('Inbox'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(QChatHeader),
+        matching: find.byType(DecoratedBox),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('a hidden BottomSheet renders nothing', (tester) async {

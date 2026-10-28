@@ -890,71 +890,54 @@ class _QappNodeView extends StatelessWidget {
     return _stretchColumn(_childWidgets(context));
   }
 
-  /// A header the Mini App owns. It reads the safe area itself and leaves the
-  /// right edge free for the menu and close buttons the host floats on top.
+  /// The header a Mini App owns, built from the QChat header standard so it
+  /// lines up with the capsule the host floats on the right.
+  ///
+  /// `children` are the header's lower rows (a search field, tabs, a banner…)
+  /// and sit under the title bar inside the same surface. `transparent` lets
+  /// the page artwork run under the header.
   Widget _navBar(BuildContext context) {
     final title = node.props['title']?.toString() ?? '';
     final subtitle = node.props['subtitle']?.toString() ?? '';
     final showBack = node.props['showBack'] == true;
-    final reserveRight = _number(node.props['reserveRight']) ?? 84;
     final safeArea = node.props['safeArea'] != false;
-    final topInset = safeArea ? MediaQuery.of(context).padding.top : 0.0;
-    return Container(
-      padding: EdgeInsets.only(top: topInset),
-      color: node.style.backgroundColor ?? surface(context),
-      child: SizedBox(
-        height: 52,
-        child: Row(
-          children: [
-            SizedBox(
+    final transparent = node.props['transparent'] == true;
+    final reserveRight =
+        (_number(node.props['reserveRight']) ?? kQChatCapsuleWidth + 14).clamp(
+          0.0,
+          240.0,
+        );
+    final children = _childWidgets(context);
+    final back = showBack && node.hasEvent('back')
+        ? GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => onEvent(node.id, 'back', {'type': 'back'}),
+            child: const SizedBox(
               width: 44,
-              child: showBack && node.hasEvent('back')
-                  ? GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () =>
-                          onEvent(node.id, 'back', {'type': 'back'}),
-                      child: const Center(
-                        child: QChatIcon('arrowLeft', size: 22),
-                      ),
-                    )
-                  : null,
+              height: kQChatHeaderHeight,
+              child: Center(child: QChatIcon('arrowLeft', size: 22)),
             ),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (title.isNotEmpty)
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: node.style
-                          .toTextStyle(
-                            fallbackColor: ink(context),
-                            fallbackSize: 17,
-                          )
-                          .copyWith(fontWeight: FontWeight.w600),
-                    ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: QChatColors.muted,
-                      ),
-                    ),
-                  ..._childWidgets(context),
-                ],
-              ),
+          )
+        : null;
+    return QChatHeader(
+      title: title.isEmpty ? null : title,
+      subtitle: subtitle.isEmpty ? null : subtitle,
+      titleStyle: node.style
+          .toTextStyle(fallbackColor: ink(context), fallbackSize: 17)
+          .copyWith(fontWeight: FontWeight.w600),
+      background: node.style.backgroundColor,
+      transparent: transparent,
+      safeArea: safeArea,
+      reserveLeading: 56,
+      reserveTrailing: reserveRight,
+      leading: back,
+      bottom: children.isEmpty
+          ? null
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: children,
             ),
-            SizedBox(width: reserveRight),
-          ],
-        ),
-      ),
     );
   }
 

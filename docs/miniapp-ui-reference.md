@@ -40,7 +40,7 @@ in sync.
 | `Modal` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `transparent`, `animationType` | `close` |
 | `BottomSheet` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `height` | `close` |
 | `Dialog` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `title`, `onClose`, `onConfirm`, `confirmText`, `cancelText` | `close`, `confirm` |
-| `NavBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight` | `back`, `press` |
+| `NavBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight`, `transparent` | `back`, `press` |
 | `TabBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `tabs`, `activeKey`, `activeIndex`, `onChange`, `safeArea` | `change` |
 
 ## Events

@@ -33,7 +33,7 @@ const SOURCE = `
 
     return (
       <View style={{ flex: 1 }}>
-        <NavBar title="Shell" />
+        <NavBar title="Shell" transparent />
         <ScrollView showsScrollIndicator={false}>
           <Switch value={enabled} onChange={(event) => setEnabled(event.value)} />
           <Checkbox
@@ -137,6 +137,11 @@ test("every dashed component and their events reach the tree", async () => {
       }
       const switchNode = findNode(harness.latest(), (node) => node.type === "Switch");
       assert.ok(switchNode);
+      // The header standard: `transparent` is a real prop, not a dropped one.
+      const navbarNode = findNode(harness.latest(), (node) => node.type === "NavBar");
+      assert.ok(navbarNode);
+      assert.equal(navbarNode!.props.title, "Shell");
+      assert.equal(navbarNode!.props.transparent, true);
       assert.deepEqual(switchNode!.events, ["change"]);
       assert.equal(
         textContent(harness.latest()).includes("off"),

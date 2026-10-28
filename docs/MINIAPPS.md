@@ -314,12 +314,40 @@ carry `{ type }`. `TextField.onInput` remains the low-level string hook.
 
 `Modal`, `BottomSheet` and `Dialog` are declarative: they render into the
 current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
-`TabBar` are prebuilt screens: `NavBar` reads the safe area itself and reserves
-the top-right corner the host floats its menu and close buttons over, and
-`TabBar` takes a tab list plus the active tab and reports `change` with
+`TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
+and `TabBar` takes a tab list plus the active tab and reports `change` with
 `{ index, key, value }`. `ListView`/`GridView` serialize only the first
 `initialCount` items (60 by default) and let Flutter build the rest as they
 scroll in, so one frame never has to carry an unbounded list.
+
+### Header standard
+
+Every screen in QChat uses one header: `QChatHeader`
+(`apps/mobile/lib/core/design_system/qchat_header.dart`).
+
+- The bar is `kQChatHeaderHeight` (44) tall under the status bar. The title is
+  centred on the screen, `leading` and `trailing` are centred vertically on the
+  same line, so a title, an icon and the capsule share one baseline no matter
+  which of them is present.
+- The title keeps a symmetric inset of `max(reserveLeading, reserveTrailing)`, so
+  it stays screen-centred even when the two controls have different widths.
+- `bottom` adds rows under the bar inside the same surface: a search field, tabs,
+  a banner, a picture, anything. The header grows downwards and scrolls with the
+  page instead of floating over it.
+- The surface is solid by default, glass with `blur`, or fully see-through with
+  `transparent`, which is what a mini program needs when its own artwork runs
+  under the top edge. `border` draws the hairline.
+
+The mini program control is `QChatCapsule`: one 87×32 pill with `•••` on the
+left, a hairline divider and `◎` on the right. The two halves are independent
+tap targets, each with its own semantics label; the pill is always centred on
+the header bar.
+
+`NavBar` is `QChatHeader` for Mini Apps: `title`, `subtitle`, `showBack`,
+`safeArea`, `reserveRight`, `transparent` and `children`. Its `children` are the
+lower rows, not title content, and `reserveRight` defaults to
+`kQChatCapsuleWidth + 14` (101) so the title never slides under the capsule the
+host floats on the right.
 
 ### JavaScript environment (QuickJS)
 
@@ -508,11 +536,12 @@ installers. See `apps/miniapp-ide/README.md` for detection order and details.
    decision. The runtime never receives a QChat access token.
 6. Handle back, close, background/resume events, favorites, recent apps and
    telemetry.
-7. Draw no host header: the mini app owns the whole screen and the host only
-   floats a menu button and a close button over its top right corner. Reload and
+7. Draw no host header: the mini app owns the whole screen. The host only
+   floats the transparent variant of the header standard, whose sole trailing
+   control is the `QChatCapsule` (menu and close) on the top right. Reload and
    favorite live in that menu. `getSystemInfo()` reports `safeAreaTop` and
    `safeAreaBottom` so packages can keep their own content clear of the status
-   bar, the navigation bar and the floating buttons.
+   bar, the navigation bar and the capsule.
 
 The renderer:
 
@@ -655,6 +684,15 @@ reproducible from Git alone; back them up with the database.
   `MissingPluginException` for the `record` plugin, which has no
   implementation in a host test binary. CI runs on Linux, skips the golden
   comparison and does not load that plugin, so both stay green there.
+- The header standard is covered by `apps/mobile/test/qchat_header_test.dart`
+  (capsule size, both halves tapping, one semantics button per half, the dot and
+  ring geometry, title centred on the capsule line, a `bottom` row starting at
+  44, and the solid/glass/transparent surfaces) and by three `NavBar` cases in
+  `qapp_components_test.dart` (centred title, children as lower rows, no surface
+  when `transparent`). `components.test.ts` asserts that `transparent` survives
+  the compiler and the runtime. `qapp_components_test.dart` passes 31/31, the
+  framework suite 46/46, `tsc --noEmit` and `flutter analyze --no-pub` are
+  clean.
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,

@@ -244,6 +244,11 @@ export interface NavBarProps extends BaseProps {
     showBack?: boolean;
     safeArea?: boolean;
     reserveRight?: number;
+    /**
+     * Draws no surface, so the page artwork runs under the header. The title and
+     * the host capsule keep their place.
+     */
+    transparent?: boolean;
 }
 export interface TabBarProps extends BaseProps {
     tabs?: readonly TabItem[];
