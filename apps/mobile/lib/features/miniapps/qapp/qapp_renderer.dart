@@ -506,6 +506,11 @@ class _QappNodeView extends StatelessWidget {
           return Wrap(
             direction: effectiveAxis,
             alignment: _wrapAlignment(effectiveMain),
+            // `alignContent` positions the runs themselves; it falls back to
+            // the start of the cross axis, which is what a plain `Wrap` does.
+            runAlignment: _wrapAlignment(
+              _justifyAlignment(node.style.alignContent),
+            ),
             crossAxisAlignment: _wrapCross(cross),
             spacing: mainGap,
             runSpacing: crossGap,
@@ -567,13 +572,31 @@ class _QappNodeView extends StatelessWidget {
     // `alignSelf` overrides the parent's cross-axis alignment for one child.
     final alignSelf = style.alignSelf;
     if (alignSelf != null && alignSelf != 'auto') {
-      final alignment = _selfAlignment(alignSelf, _isRow(node));
-      widget = Align(
-        alignment: alignment,
-        widthFactor: _isRow(node) ? 1 : null,
-        heightFactor: _isRow(node) ? null : 1,
-        child: widget,
-      );
+      final isRow = _isRow(node);
+      if (alignSelf == 'stretch') {
+        // React Native stretches the item across the parent's cross axis.
+        // Flutter can only do that against a bounded extent, and a Row inside a
+        // Column hands its children an unbounded height, so the stretch has to
+        // fall back to the item's own size there.
+        final item = widget;
+        widget = LayoutBuilder(
+          builder: (context, constraints) {
+            if (isRow) {
+              if (!constraints.hasBoundedHeight) return item;
+              return SizedBox(height: constraints.maxHeight, child: item);
+            }
+            if (!constraints.hasBoundedWidth) return item;
+            return SizedBox(width: constraints.maxWidth, child: item);
+          },
+        );
+      } else {
+        widget = Align(
+          alignment: _selfAlignment(alignSelf, isRow),
+          widthFactor: isRow ? 1 : null,
+          heightFactor: isRow ? null : 1,
+          child: widget,
+        );
+      }
     }
     final basis = style.flexBasis;
     if (basis != null && basis > 0) {
@@ -614,7 +637,8 @@ class _QappNodeView extends StatelessWidget {
     return switch (value) {
       'start' => isRow ? Alignment.topCenter : Alignment.centerLeft,
       'end' => isRow ? Alignment.bottomCenter : Alignment.centerRight,
-      'stretch' => Alignment.center,
+      // `stretch` never reaches here: it needs the parent's constraints, so
+      // `_buildChild` sizes the item itself.
       _ => Alignment.center,
     };
   }
@@ -755,29 +779,14 @@ class _QappNodeView extends StatelessWidget {
       ),
   ];
 
-  Widget _overlay(BuildContext context, Widget content) {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: node.hasEvent('close')
-                ? () => onEvent(node.id, 'close', {'type': 'close'})
-                : null,
-            child: ColoredBox(
-              color: QChatColors.black.withValues(alpha: .45),
-            ),
-          ),
-        ),
-        content,
-      ],
-    );
-  }
-
-  Widget _modal(BuildContext context) {
-    if (node.props['visible'] != true) return const SizedBox.shrink();
-    if (node.props['transparent'] == true) {
-      return Stack(
+  Widget _overlay(
+    BuildContext context,
+    Widget content, {
+    String animation = 'none',
+  }) {
+    return _QappOverlayTransition(
+      animation: animation,
+      child: Stack(
         children: [
           Positioned.fill(
             child: GestureDetector(
@@ -785,14 +794,44 @@ class _QappNodeView extends StatelessWidget {
               onTap: node.hasEvent('close')
                   ? () => onEvent(node.id, 'close', {'type': 'close'})
                   : null,
-              child: const ColoredBox(color: QChatColors.transparent),
+              child: ColoredBox(
+                color: QChatColors.black.withValues(alpha: .45),
+              ),
             ),
           ),
-          Center(child: _sheetColumn(context)),
+          content,
         ],
+      ),
+    );
+  }
+
+  Widget _modal(BuildContext context) {
+    if (node.props['visible'] != true) return const SizedBox.shrink();
+    final animation = node.props['animationType']?.toString() ?? 'none';
+    if (node.props['transparent'] == true) {
+      return _QappOverlayTransition(
+        animation: animation,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: node.hasEvent('close')
+                    ? () => onEvent(node.id, 'close', {'type': 'close'})
+                    : null,
+                child: const ColoredBox(color: QChatColors.transparent),
+              ),
+            ),
+            Center(child: _sheetColumn(context)),
+          ],
+        ),
       );
     }
-    return _overlay(context, Center(child: _sheetColumn(context)));
+    return _overlay(
+      context,
+      Center(child: _sheetColumn(context)),
+      animation: animation,
+    );
   }
 
   Widget _bottomSheet(BuildContext context) {
@@ -1646,7 +1685,11 @@ class _QappNodeView extends StatelessWidget {
       value.style.flexDirection == 'column-reverse';
 
   MainAxisAlignment _mainAlignment(QappNode value) {
-    return switch (value.style.justifyContent) {
+    return _justifyAlignment(value.style.justifyContent);
+  }
+
+  MainAxisAlignment _justifyAlignment(String? value) {
+    return switch (value) {
       'end' => MainAxisAlignment.end,
       'center' => MainAxisAlignment.center,
       'spaceBetween' => MainAxisAlignment.spaceBetween,
@@ -1934,6 +1977,56 @@ class _QappCopyToolbar extends StatelessWidget {
   }
 }
 
+/// Fades or slides an overlay in the first time it mounts.
+///
+/// The contract declares `Modal.animationType` (`none`, `fade`, `slide`) but the
+/// renderer used to ignore it, so an overlay appeared instantly whatever the
+/// app asked for. The animation only runs on mount, so a later rebuild of the
+/// same overlay (a keystroke, a scroll) does not replay it.
+class _QappOverlayTransition extends StatefulWidget {
+  const _QappOverlayTransition({required this.animation, required this.child});
+
+  final String animation;
+  final Widget child;
+
+  @override
+  State<_QappOverlayTransition> createState() => _QappOverlayTransitionState();
+}
+
+class _QappOverlayTransitionState extends State<_QappOverlayTransition> {
+  static const _duration = Duration(milliseconds: 180);
+
+  late bool _shown = widget.animation == 'none';
+
+  @override
+  void initState() {
+    super.initState();
+    if (_shown) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _shown = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.animation == 'none') return widget.child;
+    Widget child = AnimatedOpacity(
+      opacity: _shown ? 1 : 0,
+      duration: _duration,
+      child: widget.child,
+    );
+    if (widget.animation == 'slide') {
+      child = AnimatedSlide(
+        offset: _shown ? Offset.zero : const Offset(0, .06),
+        duration: _duration,
+        curve: Curves.easeOut,
+        child: child,
+      );
+    }
+    return child;
+  }
+}
+
 class _Pressable extends StatefulWidget {
   const _Pressable({
     super.key,
@@ -2070,10 +2163,22 @@ class _QappTextFieldState extends State<_QappTextField> {
   @override
   void initState() {
     super.initState();
+    _focus.addListener(_reportFocus);
     if (widget.node.props['autoFocus'] == true) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focus.requestFocus();
       });
+    }
+  }
+
+  /// The contract declares `focus`/`blur`, so a form can react to the field
+  /// being entered or left. They were never emitted before, which made
+  /// `onFocus`/`onBlur` a silent no-op.
+  void _reportFocus() {
+    final node = widget.node;
+    final event = _focus.hasFocus ? 'focus' : 'blur';
+    if (node.hasEvent(event)) {
+      widget.onEvent(node.id, event, {'type': event});
     }
   }
 
@@ -2088,6 +2193,7 @@ class _QappTextFieldState extends State<_QappTextField> {
 
   @override
   void dispose() {
+    _focus.removeListener(_reportFocus);
     _controller.dispose();
     _focus.dispose();
     super.dispose();

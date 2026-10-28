@@ -346,12 +346,14 @@ independent tap targets, each with its own semantics label; the pill is always
 centred on the header bar.
 
 `NavBar` is `QChatHeader` for Mini Apps: `title`, `subtitle`, `showBack`,
-`safeArea`, `reserveRight`, `transparent`, `blur` and `children`. Its `children`
-are the lower rows, not title content, so a search field, a tab strip or a banner
-grows the header downwards. `transparent` draws no surface at all; `blur` frosts
-what is behind the header; `transparent` wins when both are set. `reserveRight`
-defaults to `kQChatCapsuleWidth + 14` (101) so the title never slides under the
-capsule the host floats on the right.
+`safeArea`, `reserveRight`, `transparent`, `blur`, `border` and `children`. Its
+`children` are the lower rows, not title content, so a search field, a tab strip
+or a banner grows the header downwards. `transparent` draws no surface at all;
+`blur` frosts what is behind the header; `transparent` wins when both are set.
+`border` defaults to true for a solid or blurred surface, so a white header does
+not blend into the first white card under it; `border={false}` removes the
+hairline. `reserveRight` defaults to `kQChatCapsuleWidth + 14` (101) so the title
+never slides under the capsule the host floats on the right.
 
 ### JavaScript environment (QuickJS)
 
@@ -589,8 +591,8 @@ The renderer:
 7. Reload disposes the runtime and evaluates the bundle again. Back pops the
    internal route stack first and only then closes the mini app.
 
-The renderer implements flex layout (direction, wrap, grow, shrink, basis,
-`alignSelf`, per-axis gaps), spacing, colors, typography (align, decoration,
+The renderer implements flex layout (direction, wrap, grow, basis, `alignSelf`,
+`alignContent`, per-axis gaps), spacing, colors, typography (align, decoration,
 letter spacing, line count, style, bundled families), per-edge borders, corner
 radii, box shadows, gradients, opacity, `zIndex`, `overflow`, `min/max`,
 `aspectRatio`, absolute positioning, images, safe areas, scroll and lazy list
@@ -606,6 +608,32 @@ edge shares one colour. The
 validator keeps its 4000-node, depth-64 frame budget, and the host still checks
 the event name, the node id and every permission. Arbitrary Dart or HTML is
 never accepted from the package.
+
+### Layout rules
+
+These are the rules the renderer guarantees; each one is covered by a test in
+`apps/mobile/test/qapp_components_test.dart`.
+
+- A `Pressable` is a `View` with a tap handler. `flexDirection`,
+  `justifyContent`, `alignItems`, `gap` and `flex` apply to its children exactly
+  as they do on a `View`, so a cell stays a row and a label centres inside its
+  button. (It used to force a column, which stacked every row and pushed a `−`/`+`
+  glyph into a corner.)
+- An item of a wrapping flex (`flexWrap: "wrap"`) is sized by its own content, so
+  a chip keeps the width of its label instead of taking the whole row.
+- `alignSelf: "stretch"` fills the parent's cross axis whenever that axis is
+  bounded; on an unbounded axis the item keeps its own size.
+- `alignContent` positions the runs of a wrapping flex.
+- A `ScrollView` reports `onScroll` while the finger moves (one event per ~60 ms
+  or 24 px, whichever comes first) and always on settle, so a header that swaps
+  its surface with the offset tracks the page instead of jumping a second later.
+- `TextField` reports `focus` and `blur`; `Modal.animationType` (`none`, `fade`,
+  `slide`) runs once when the overlay mounts.
+- `elevation` maps to one soft shadow when no `boxShadow` is given.
+- `flexShrink` is accepted but not applied: Flutter never squeezes a child on its
+  own, so a row that does not fit overflows instead of compressing. Give the
+  flexible child `flex: 1` (and `numberOfLines` on its text) to share the space.
+
 
 ## Local development
 
@@ -702,14 +730,20 @@ reproducible from Git alone; back them up with the database.
   (capsule size, both halves tapping, one semantics button per half, the frosted
   translucent fill, the dot and ring geometry, title centred on the capsule
   line, a `bottom` row starting at 44, and the solid/glass/transparent surfaces)
-  and by four `NavBar` cases in `qapp_components_test.dart` (centred title,
-  children as lower rows, no surface when `transparent`, and the glass surface
-  when `blur`). `components.test.ts` asserts that both `transparent` and `blur`
-  survive the compiler and the runtime. `qapp_components_test.dart` passes 24/24,
-  `qchat_header_test.dart` 9/9, the framework suite 47/47 (including the
-  Vietnamese package-slug test), `tsc --noEmit` and `flutter analyze --no-pub`
-  are clean. The `cafe` example builds, validates and passes `qapp test`
-  (215 nodes, real cart → order → history flow checked with the harness).
+  and by the `NavBar` cases in `qapp_components_test.dart` (centred title,
+  children as lower rows, no surface when `transparent`, the glass surface when
+  `blur`, and the default hairline of a solid surface). `components.test.ts`
+  asserts that `transparent`, `blur` and `border` survive the compiler and the
+  runtime. The same file covers the layout rules above: a `Pressable` row keeps
+  its direction and `spaceBetween`, a glyph centres inside a fixed button, a
+  wrapping row keeps each chip at its content width, `alignSelf: stretch` fills
+  the cross axis, a `ScrollView` reports its offset mid-drag, `TextField`
+  reports focus/blur and a `Modal` honours `animationType`.
+  `qapp_components_test.dart` passes 32/32, `qchat_header_test.dart` 9/9, the
+  framework suite 47/47 (including the Vietnamese package-slug test),
+  `tsc --noEmit` and `flutter analyze --no-pub` are clean. The `cafe` example
+  builds, validates and passes `qapp test` (215 nodes, real cart → order →
+  history flow checked with the harness).
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,

@@ -494,6 +494,71 @@ void main() {
     expect(payload['y'], greaterThan(0));
   });
 
+  testWidgets('alignSelf stretch fills the cross axis of its parent', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {'width': 300, 'alignItems': 'start', 'gap': 4},
+      },
+      children: [
+        node('n0.0', 'Text', props: {'testID': 'label'}, children: [
+          node('n0.0.0', '#text', props: {'text': 'Hi'}),
+        ]),
+        node('n0.1', 'View', props: {
+          'testID': 'band',
+          'style': {'alignSelf': 'stretch', 'height': 10},
+        }),
+      ],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final page = tester.getRect(find.byType(QappRenderer));
+    final label = tester.getRect(find.byKey(const ValueKey('label')));
+    final band = tester.getRect(find.byKey(const ValueKey('band')));
+    expect(band.width, closeTo(page.width, .01));
+    expect(band.width, greaterThan(label.width));
+  });
+
+  testWidgets('a TextField reports focus and blur', (tester) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'TextField',
+      props: {'placeholder': 'Name'},
+      events: const ['focus', 'blur'],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    await tester.tap(find.byType(EditableText));
+    await tester.pump();
+    expectEvent(events, 'n0', 'focus', {'type': 'focus'});
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
+    expectEvent(events, 'n0', 'blur', {'type': 'blur'});
+  });
+
+  testWidgets('a Modal honours animationType', (tester) async {
+    QappNode modal(String animation) => node(
+      'n0',
+      'Modal',
+      props: {'visible': true, 'animationType': animation},
+      events: const ['close'],
+      children: [node('n0.0', 'Text', children: [
+        node('n0.0.0', '#text', props: {'text': 'Hello'}),
+      ])],
+    );
+    await tester.pumpWidget(host(modal('none'), (_, _, _) {}));
+    expect(find.byType(AnimatedOpacity), findsNothing);
+
+    await tester.pumpWidget(host(modal('slide'), (_, _, _) {}));
+    await tester.pumpAndSettle();
+    expect(find.byType(AnimatedSlide), findsOneWidget);
+    expect(tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity, 1);
+  });
+
   testWidgets('a hidden BottomSheet renders nothing', (tester) async {
     final root = node(
       'n0',

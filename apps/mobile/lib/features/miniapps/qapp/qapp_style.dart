@@ -47,6 +47,7 @@ class QappStyle {
     this.alignItems,
     this.justifyContent,
     this.alignSelf,
+    this.alignContent,
     this.position = 'relative',
     this.top,
     this.right,
@@ -111,6 +112,10 @@ class QappStyle {
   final String? alignItems;
   final String? justifyContent;
   final String? alignSelf;
+
+  /// Alignment of the runs of a wrapping flex (`Wrap.runAlignment`).
+  final String? alignContent;
+
   final String position;
   final double? top;
   final double? right;
@@ -305,6 +310,7 @@ class QappStyle {
       alignItems: enumText('alignItems'),
       justifyContent: enumText('justifyContent'),
       alignSelf: enumText('alignSelf'),
+      alignContent: enumText('alignContent'),
       position: enumText('position') ?? 'relative',
       top: number('top'),
       right: number('right'),
@@ -419,6 +425,19 @@ class QappStyle {
           color: Color(0x1f000000),
           blurRadius: 16,
           offset: Offset(0, 4),
+        ),
+      );
+    }
+    // `elevation` was parsed but never painted, so a card that asked for a
+    // raised surface stayed flat. It maps to one soft shadow, the way a 2 dp
+    // Material elevation reads, and never overrides an explicit `boxShadow`.
+    final elevation = _number(raw['elevation']);
+    if (result.isEmpty && elevation != null && elevation > 0) {
+      result.add(
+        BoxShadow(
+          color: const Color(0x1a000000),
+          blurRadius: elevation * 2,
+          offset: Offset(0, elevation),
         ),
       );
     }
