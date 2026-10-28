@@ -573,6 +573,7 @@ const NavBarProps_CONFORMANCE: Record<keyof NavBarProps, true> = {
   safeArea: true,
   reserveRight: true,
   transparent: true,
+  blur: true,
 };
 void NavBarProps_CONFORMANCE;
 

@@ -405,7 +405,8 @@
         "showBack": "boolean",
         "safeArea": "boolean",
         "reserveRight": "number",
-        "transparent": "boolean"
+        "transparent": "boolean",
+        "blur": "boolean"
       },
       "events": ["back", "press"]
     },

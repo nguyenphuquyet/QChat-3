@@ -72,6 +72,11 @@ export interface QappInspection {
         sha256: string;
     }>;
 }
+/**
+ * Turns a display name into a file-safe slug. Vietnamese names must keep their
+ * meaning: `Cà Phê Nhà` becomes `ca-phe-nha`, not `c-ph-nh`.
+ */
+export declare function slugName(name: string): string;
 export declare function validateQapp(bytes: Buffer, expected?: {
     version?: string;
 }): QappInspection;

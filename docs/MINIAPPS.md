@@ -25,7 +25,7 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
-| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit and custom-kit built through the real compiler |
+| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit and cafe built through the real compiler |
 | Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
@@ -346,10 +346,12 @@ independent tap targets, each with its own semantics label; the pill is always
 centred on the header bar.
 
 `NavBar` is `QChatHeader` for Mini Apps: `title`, `subtitle`, `showBack`,
-`safeArea`, `reserveRight`, `transparent` and `children`. Its `children` are the
-lower rows, not title content, and `reserveRight` defaults to
-`kQChatCapsuleWidth + 14` (101) so the title never slides under the capsule the
-host floats on the right.
+`safeArea`, `reserveRight`, `transparent`, `blur` and `children`. Its `children`
+are the lower rows, not title content, so a search field, a tab strip or a banner
+grows the header downwards. `transparent` draws no surface at all; `blur` frosts
+what is behind the header; `transparent` wins when both are set. `reserveRight`
+defaults to `kQChatCapsuleWidth + 14` (101) so the title never slides under the
+capsule the host floats on the right.
 
 ### JavaScript environment (QuickJS)
 
@@ -464,9 +466,18 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 
 `qapp build` runs a TypeScript check, bundles the TSX with esbuild for the
 QuickJS target, embeds the runtime, hashes every file and writes
-`dist/<slug>-<version>.japp`. The `hello-world`, `counter`, `shell`,
-`demo-kit` and `custom-kit` examples in `packages/miniapp-examples` are built
-this way; they are not hardcoded screens. `shell` is the reference four-tab app:
+`dist/<slug>-<version>.japp`. The slug is ASCII: Vietnamese names are
+transliterated (`Cà Phê Nhà` → `ca-phe-nha`). The `hello-world`, `counter`, `shell`,
+`demo-kit`, `custom-kit`, `env-demo` and `cafe` examples in
+`packages/miniapp-examples` are built this way; they are not hardcoded screens.
+`cafe` is the header showcase and the most complete product flow: four tabs
+(menu, orders, offers, account), two internal routes (`/drink/:id`, `/legal`),
+a transparent header over the hero that turns glass and then solid while
+scrolling, a second header with a search field and filter chips as lower rows,
+a cart sheet with a tip slider and a points checkbox, a confirm dialog, seeded
+order history with reorder/cancel, voucher claiming persisted through storage,
+`CustomPaint` sparkline, `Intl` money formatting and a `setInterval` countdown.
+`shell` is the reference four-tab app:
 it owns a `NavBar` header and a `TabBar`, keeps a `TextField` and a `Switch` on
 the home tab, persists the switch through storage and renders a long `ListView`
 on the discover tab. `demo-kit` is the playground template: five tabs (overview,
@@ -618,6 +629,7 @@ corepack pnpm qapp build --dir packages/miniapp-examples/counter
 corepack pnpm qapp build --dir packages/miniapp-examples/shell
 corepack pnpm qapp build --dir packages/miniapp-examples/demo-kit
 corepack pnpm qapp build --dir packages/miniapp-examples/env-demo
+corepack pnpm qapp build --dir packages/miniapp-examples/cafe
 
 # desktop Studio (requires Rust; browser-only UI: corepack pnpm dev)
 cd apps/miniapp-ide
@@ -690,12 +702,14 @@ reproducible from Git alone; back them up with the database.
   (capsule size, both halves tapping, one semantics button per half, the frosted
   translucent fill, the dot and ring geometry, title centred on the capsule
   line, a `bottom` row starting at 44, and the solid/glass/transparent surfaces)
-  and by three `NavBar` cases in
-  `qapp_components_test.dart` (centred title, children as lower rows, no surface
-  when `transparent`). `components.test.ts` asserts that `transparent` survives
-  the compiler and the runtime. `qapp_components_test.dart` passes 23/23,
-  `qchat_header_test.dart` 9/9, the framework suite 46/46, `tsc --noEmit` and
-  `flutter analyze --no-pub` are clean.
+  and by four `NavBar` cases in `qapp_components_test.dart` (centred title,
+  children as lower rows, no surface when `transparent`, and the glass surface
+  when `blur`). `components.test.ts` asserts that both `transparent` and `blur`
+  survive the compiler and the runtime. `qapp_components_test.dart` passes 24/24,
+  `qchat_header_test.dart` 9/9, the framework suite 47/47 (including the
+  Vietnamese package-slug test), `tsc --noEmit` and `flutter analyze --no-pub`
+  are clean. The `cafe` example builds, validates and passes `qapp test`
+  (215 nodes, real cart → order → history flow checked with the harness).
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,

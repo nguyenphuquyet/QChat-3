@@ -902,6 +902,7 @@ class _QappNodeView extends StatelessWidget {
     final showBack = node.props['showBack'] == true;
     final safeArea = node.props['safeArea'] != false;
     final transparent = node.props['transparent'] == true;
+    final blur = node.props['blur'] == true;
     final reserveRight =
         (_number(node.props['reserveRight']) ?? kQChatCapsuleWidth + 14).clamp(
           0.0,
@@ -927,6 +928,7 @@ class _QappNodeView extends StatelessWidget {
           .copyWith(fontWeight: FontWeight.w600),
       background: node.style.backgroundColor,
       transparent: transparent,
+      blur: blur,
       safeArea: safeArea,
       reserveLeading: 56,
       reserveTrailing: reserveRight,

@@ -33,7 +33,7 @@ const SOURCE = `
 
     return (
       <View style={{ flex: 1 }}>
-        <NavBar title="Shell" transparent />
+        <NavBar title="Shell" transparent blur />
         <ScrollView showsScrollIndicator={false}>
           <Switch value={enabled} onChange={(event) => setEnabled(event.value)} />
           <Checkbox
@@ -142,6 +142,7 @@ test("every dashed component and their events reach the tree", async () => {
       assert.ok(navbarNode);
       assert.equal(navbarNode!.props.title, "Shell");
       assert.equal(navbarNode!.props.transparent, true);
+      assert.equal(navbarNode!.props.blur, true);
       assert.deepEqual(switchNode!.events, ["change"]);
       assert.equal(
         textContent(harness.latest()).includes("off"),

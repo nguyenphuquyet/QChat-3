@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { compileProject, validateQapp } from "../src/compiler.js";
+import { compileProject, slugName, validateQapp } from "../src/compiler.js";
 import { normalizeManifest, ManifestError } from "../src/manifest.js";
 import { findNode, runQapp, textContent, walkTree } from "../src/tester.js";
 import { readZip, writeZip } from "../src/zip.js";
@@ -26,6 +26,13 @@ test("ZIP writer and reader round-trip UTF-8 entries", () => {
     entries.find((entry) => entry.name === "assets/tên.txt")?.bytes.toString(),
     "xin chào",
   );
+});
+
+test("package slugs transliterate Vietnamese names", () => {
+  assert.equal(slugName("Cà Phê Nhà"), "ca-phe-nha");
+  assert.equal(slugName("Đồ uống & Bánh"), "do-uong-banh");
+  assert.equal(slugName("Demo Kit"), "demo-kit");
+  assert.equal(slugName("***"), "miniapp");
 });
 
 test("ZIP reader rejects traversal, duplicates and unsupported methods", () => {

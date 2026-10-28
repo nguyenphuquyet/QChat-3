@@ -249,6 +249,8 @@ export interface NavBarProps extends BaseProps {
      * the host capsule keep their place.
      */
     transparent?: boolean;
+    /** Blurs what is behind the header instead of painting a solid surface. */
+    blur?: boolean;
 }
 export interface TabBarProps extends BaseProps {
     tabs?: readonly TabItem[];

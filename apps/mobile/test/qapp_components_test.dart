@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/core/design_system/components.dart';
+import 'package:qchat/core/design_system/qchat_glass.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
@@ -275,6 +276,23 @@ void main() {
         matching: find.byType(DecoratedBox),
       ),
       findsNothing,
+    );
+  });
+
+  testWidgets('a blurred NavBar uses the glass surface', (tester) async {
+    final root = node(
+      'n0',
+      'NavBar',
+      props: {'title': 'Inbox', 'safeArea': false, 'blur': true},
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    expect(find.text('Inbox'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(QChatHeader),
+        matching: find.byType(QChatGlass),
+      ),
+      findsOneWidget,
     );
   });
 

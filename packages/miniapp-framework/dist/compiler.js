@@ -366,8 +366,16 @@ export async function compileProject(options) {
         warnings,
     };
 }
-function slugName(name) {
+/**
+ * Turns a display name into a file-safe slug. Vietnamese names must keep their
+ * meaning: `Cà Phê Nhà` becomes `ca-phe-nha`, not `c-ph-nh`.
+ */
+export function slugName(name) {
     return (name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/đ/g, "d")
+        .replace(/Đ/g, "D")
         .toLowerCase()
         .replace(/[^a-z0-9._-]+/g, "-")
         .replace(/^-+|-+$/g, "") || "miniapp");
