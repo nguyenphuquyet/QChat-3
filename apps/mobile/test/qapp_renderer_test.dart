@@ -1,8 +1,7 @@
-import 'package:flutter/cupertino.dart'
-    show CupertinoSlider, CupertinoSwitch, CupertinoTextField;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
+import 'package:qchat/features/miniapps/qapp/qapp_tdesign.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
 import 'test_app.dart';
@@ -77,6 +76,9 @@ void main() {
     await tester.pumpWidget(
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
+    // The whole frame lives under the TDesign scope, so its controls can read
+    // the TDesign theme and localizations without touching the host theme.
+    expect(find.byType(QappTDesignScope), findsOneWidget);
     expect(find.text('Hello native'), findsOneWidget);
     await tester.tap(find.text('Tap me'));
     await tester.pump();
@@ -117,7 +119,7 @@ void main() {
     await tester.pumpWidget(
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
-    await tester.enterText(find.byType(CupertinoTextField), 'Ada');
+    await tester.enterText(find.byType(EditableText), 'Ada');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
     expectEvent(events, 'n0.0', 'input', 'Ada');
@@ -131,7 +133,7 @@ void main() {
     await tester.pumpAndSettle();
     expectEvent(events, 'n0.1', 'change', {'type': 'change', 'value': true});
 
-    await tester.tap(find.byType(CupertinoSwitch));
+    await tester.tap(find.byType(QappTSwitch));
     await tester.pumpAndSettle();
     expectEvent(events, 'n0.2', 'valueChange', {
       'type': 'valueChange',
@@ -188,9 +190,9 @@ void main() {
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
     expect(find.text('Scrolled'), findsOneWidget);
-    expect(find.byType(CupertinoSlider), findsOneWidget);
+    expect(find.byType(QappTSlider), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
-    await tester.tap(find.byType(CupertinoSlider), warnIfMissed: false);
+    await tester.tap(find.byType(QappTSlider), warnIfMissed: false);
     await tester.pump();
   });
 }

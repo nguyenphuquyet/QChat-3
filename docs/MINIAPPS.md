@@ -542,13 +542,13 @@ hero poster, blurred after the first screen, solid after the second; the movies
 tab stacks search, genre and status rows under the title. No image assets are
 shipped — posters are gradients plus a title initial — so the whole package is
 four files.
-`so-viec` is the light-theme task and habit planner and the Cupertino-control
-showcase: four tabs (today, plan, habits, me) and two internal routes
+`so-viec` is the light-theme task and habit planner and the control showcase:
+four tabs (today, plan, habits, me) and two internal routes
 (`/task/:id`, `/about`). It seeds 27 tasks around the device date (−1…+5 days)
 and four habits, then pages the today list four upcoming tasks at a time through
 `endReached`. The progress rings are `CustomPaint` polylines (the path language
 has no arcs), the quick-add sheet combines a `TextField`, priority chips and a
-`Slider`, and the screens exercise every Cupertino-backed control:
+`Slider`, and the screens exercise every TDesign-backed control:
 `Checkbox` rows, `Switch` settings, a weekly-goal `Slider`, `ActivityIndicator`
 during a fake sync, plus a `Dialog` behind long-press, habit reset and clear-all.
 Its `Page`-based layout, state store and `createStorage("so-viec")` snapshot make
@@ -683,6 +683,38 @@ validator keeps its 4000-node, depth-64 frame budget, and the host still checks
 the event name, the node id and every permission. Arbitrary Dart or HTML is
 never accepted from the package.
 
+### Controls: TDesign, motion: Cupertino
+
+The leaf controls in a Mini App frame are [TDesign](https://tdesign.tencent.com/flutter/)
+(`tdesign_flutter` 1.1.0), not the QChat design system: `Button`, `Tag`,
+`Badge`, `Checkbox`, `Switch`, `Slider`, `TextField`, `ActivityIndicator`,
+`Icon` and the horizontal `Divider`. The frame's TDesign theme is the stock
+light token set, so a Mini App gets TDesign's palette, sizing and interaction
+states; anything the app sets through `style.*` (colour, border, radius,
+padding, minimum height) still wins.
+
+The exception is deliberately one file wide:
+
+- `lib/features/miniapps/qapp/qapp_tdesign.dart` is the only file that imports
+  `tdesign_flutter` (or, transitively, Material). It holds the
+  `QappTDesignScope` (localizations, theme and a transparent ink surface) and
+  one thin wrapper per control. The rest of the renderer imports only
+  `flutter/cupertino.dart` and the QChat design system.
+- The chat UI, the app shell and every other screen stay Material-free.
+  `uses-material-design: false` stays in `apps/mobile/pubspec.yaml`; the pub
+  warning that `tdesign_flutter` asks for `true` does not mean the app bundles
+  Material — it does not.
+- Overlay *motion* stays Cupertino: page pushes slide with
+  `CupertinoPageRoute`/`CupertinoPageTransition`, and `Modal`, `BottomSheet`
+  and `Dialog` keep the iOS-style scrim fade, sheet slide and dialog scale.
+  `TabBar` (a `CupertinoTabBar`), `NavBar`, `Avatar` and the vertical `Divider`
+  also stay QChat/Cupertino because TDesign has no faithful equivalent.
+
+The pinning lives in `apps/mobile/test/qapp_tdesign_smoke_test.dart` (TDesign
+controls build inside the Material-free `WidgetsApp` host) and in the renderer
+tests (`Button`, `Tag`, `Badge`, `Slider`, `Switch` and `TextField` map to the
+TDesign wrappers).
+
 ### Layout rules
 
 These are the rules the renderer guarantees; each one is covered by a test in
@@ -707,10 +739,10 @@ These are the rules the renderer guarantees; each one is covered by a test in
   drag or a bounce past the edge stutter. The newest offset is delivered when
   the list stops, so the final state is exact.
 - `TextField` reports `focus` and `blur`. `Switch`, `Slider`, `Checkbox` and
-  `ActivityIndicator` are the Cupertino widgets (`CupertinoSwitch`,
-  `CupertinoSlider`, `CupertinoCheckbox`, `CupertinoActivityIndicator`), so
-  their motion, thumb and spinner are the platform's; the contract still owns
-  `value`, `min`/`max`/`step`, `disabled` and the colour. Overlays run the iOS
+  `ActivityIndicator` are the TDesign controls (`TSwitch`, `TSlider`,
+  `TCheckbox`, `TLoading`), so their motion, thumb and spinner are TDesign's;
+  the contract still owns `value`, `min`/`max`/`step`, `disabled` and the
+  colour. Overlays run the iOS
   spring (`CASpringAnimation`'s mass 1, stiffness 522.35, damping 45.71, about
   0.4 s) once when they mount: a `BottomSheet` rises from the bottom edge while
   the scrim fades on its own beat, a `Dialog` fades in while it scales down from

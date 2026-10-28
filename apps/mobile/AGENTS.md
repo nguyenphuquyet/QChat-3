@@ -1,8 +1,10 @@
 # QChat mobile — agent rules
 
 > **Tuyệt đối không dùng ngôn ngữ thiết kế Google Material trong app này.**
-> Never use Google's Material design language in this app. No exceptions, not even
-> temporarily, behind a flag, or only in tests.
+> Never use Google's Material design language in this app. The one scoped
+> exception is a Mini App frame, which draws its own controls with TDesign — see
+> [§7](#7-mini-app-frames-tdesign-exception). Nothing else may use Material, not
+> even temporarily, behind a flag, or only in tests.
 
 This file applies to everything under `apps/mobile/`. Read it before adding or
 changing any UI code. If you are about to import `package:flutter/material.dart`,
@@ -21,6 +23,9 @@ stop and use the QChat design system instead.
 5. Do not add a dependency that brings Material UI, for example `tdesign_flutter`,
    `wechat_assets_picker`, `google_fonts`, `material_design_icons_flutter`,
    `flex_color_scheme`, or any package whose widgets are Material-based.
+   `tdesign_flutter` is the only exception, and only for Mini App frames: it is
+   imported by exactly one file, `lib/features/miniapps/qapp/qapp_tdesign.dart`
+   (see §7).
 6. If a control you need does not exist, **add a `QChat*` widget to
    `lib/core/design_system/`** and draw it with primitives
    (`Container`, `DecoratedBox`, `CustomPaint`, `GestureDetector`,
@@ -57,8 +62,9 @@ Cupertino is allowed: `CupertinoTextField` for inputs, `CupertinoPageRoute` /
 `PageRouteBuilder` for navigation. Cupertino is Apple's language, not Google's.
 
 `tdesign_flutter_icons` is tolerated **only** as a glyph source inside
-`lib/core/design_system/qchat_icons.dart`. Do not import it anywhere else and do
-not use TDesign widgets.
+`lib/core/design_system/qchat_icons.dart`, plus the Mini App control file
+`lib/features/miniapps/qapp/qapp_tdesign.dart` (§7). Do not import it anywhere
+else, and do not use TDesign widgets outside a Mini App frame.
 
 ## 3. Design system reference
 
@@ -146,8 +152,10 @@ If the name is missing, add a case in `qchat_icons.dart` (Lucide/TIcons glyph or
 - Import `test_app.dart` and use `qchatHarness(child)` or
   `qchatRouterHarness(routerConfig: router)`.
 - Never use `MaterialApp`, `Scaffold`, `Material`, `Colors.*` or `Icons.*` in tests
-  either. The test tree must match the shipped tree.
-- Prefer finders by `QChat*` type, visible text, or `Key`.
+  either. The test tree must match the shipped tree. The only tests that may
+  name TDesign types are `qapp_tdesign_smoke_test.dart` and the Mini App
+  renderer tests, and only to prove the scoped exception of §7.
+- Prefer finders by `QChat*`/`QappT*` type, visible text, or `Key`.
 - If a golden image changes because the UI changed, regenerate it and commit the
   new PNG:
   `flutter test --update-goldens test/reference_ui_test.dart`.
@@ -169,8 +177,39 @@ Get-ChildItem apps\mobile\lib -Recurse -Filter *.dart |
   Select-String -Pattern 'package:flutter/material\.dart|MaterialApp|\bScaffold\(|\bColors\.|\bIcons\.|CircularProgressIndicator|InkWell|ThemeData|ColorScheme'
 ```
 
-The only acceptable matches are comments or documentation. If you find a real match,
-fix it before committing.
+The only acceptable matches are comments, documentation, and
+`lib/features/miniapps/qapp/qapp_tdesign.dart` (§7). If you find a real match
+anywhere else, fix it before committing.
+
+## 7. Mini App frames: TDesign exception
+
+A Mini App frame is the one place where a different design language is allowed,
+because the UI on screen belongs to the Mini App author, not to QChat. Its leaf
+controls — `Button`, `Tag`, `Badge`, `Checkbox`, `Switch`, `Slider`, `TextField`,
+`ActivityIndicator`, `Icon` and the horizontal `Divider` — are rendered with
+`tdesign_flutter` 1.1.0.
+
+The exception is deliberately one file wide:
+
+- `lib/features/miniapps/qapp/qapp_tdesign.dart` is the **only** file allowed to
+  import `tdesign_flutter` (which re-exports Material). It owns
+  `QappTDesignScope` — the TDesign theme, the Material localizations and a
+  transparent `Material` ink surface — plus a thin `QappT*` wrapper per control.
+- `qapp_renderer.dart` imports that file and nothing else from TDesign. It keeps
+  importing `flutter/cupertino.dart` and the QChat design system.
+- **Motion stays Cupertino.** `CupertinoPageRoute` pushes, plus the iOS scrim
+  fade, sheet slide and dialog scale of `Modal`, `BottomSheet` and `Dialog`.
+  `TabBar` (a `CupertinoTabBar`), `NavBar`, `Avatar` and the vertical `Divider`
+  stay on the QChat/Cupertino side: TDesign has no faithful equivalent.
+- `uses-material-design: false` stays. `flutter test` prints a pub warning that
+  `tdesign_flutter` asks for `true`; it is a warning, and the app still ships no
+  Material icon font or Roboto.
+- To add a control, add a `QappT*` wrapper in `qapp_tdesign.dart`. Never import
+  `tdesign_flutter` in another file, and never fall back to a `QChat*` widget
+  inside a Mini App frame.
+- Pin the exception with `test/qapp_tdesign_smoke_test.dart` (controls build in
+  the Material-free `WidgetsApp` host) and the renderer tests (the contract
+  components map to the wrappers).
 
 > Note for this machine: the repository owner may ask you not to run the full test
 > suite locally. Ask before running long builds or tests; `flutter analyze` is cheap.

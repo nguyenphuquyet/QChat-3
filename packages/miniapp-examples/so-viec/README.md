@@ -1,9 +1,9 @@
 # Sổ Việc — Mini App demo
 
 Một Mini App quản lý việc và thói quen hằng ngày, dùng để thử **toàn bộ bề mặt
-Cupertino** của runtime trên nền sáng: bốn tab, hai route nội bộ, vòng tiến độ
+điều khiển** của runtime trên nền sáng: bốn tab, hai route nội bộ, vòng tiến độ
 vẽ bằng `CustomPaint`, bottom sheet thêm việc, dialog xác nhận, công tắc và
-slider của iOS, cùng dữ liệu lưu qua `storage`.
+slider TDesign, cùng dữ liệu lưu qua `storage`.
 
 App cố tình phủ hết các dạng màn hình mà một app thật cần:
 
@@ -116,9 +116,9 @@ lại tuần, chọn ngày, đồng bộ và xoá dữ liệu.
 
 ## Những gì app này kiểm tra
 
-- **Điều khiển iOS**: `Checkbox`, `Switch`, `Slider` và `ActivityIndicator` đều
-  đi qua widget Cupertino của runtime; app chỉ đặt màu và kích thước bằng
-  `style`/props.
+- **Điều khiển TDesign**: `Button`, `Tag`, `Badge`, `Checkbox`, `Switch`,
+  `Slider`, `TextField`, `ActivityIndicator`, `Icon` và `Divider` ngang đều do
+  `tdesign_flutter` vẽ; app chỉ đặt màu và kích thước bằng `style`/props.
 - **TabBar thật**: bốn tab là `CupertinoTabBar`, badge nằm trên icon; app tự đặt
   nền và hairline trên qua `style.backgroundColor`,
   `style.borderTopWidth`/`borderTopColor`.

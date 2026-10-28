@@ -6,6 +6,7 @@ import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/qchat_glass.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
+import 'package:qchat/features/miniapps/qapp/qapp_tdesign.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_view.dart';
 import 'test_app.dart';
@@ -920,15 +921,9 @@ void main() {
 
     await tester.pumpWidget(host(badge({'dot': true}), (_, _, _) {}));
     expect(find.byType(Text), findsNothing);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Container &&
-            widget.decoration is BoxDecoration &&
-            (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
-      ),
-      findsOneWidget,
-    );
+    final dotBadge = tester.widget<QappTBadge>(find.byType(QappTBadge));
+    expect(dotBadge.dot, isTrue);
+    expect(dotBadge.label, isEmpty);
 
     await tester.pumpWidget(
       host(badge({'count': 5, 'visible': false}), (_, _, _) {}),
@@ -958,7 +953,7 @@ void main() {
     );
   });
 
-  testWidgets('Tag paints its tone from the design system', (tester) async {
+  testWidgets('Tag hands its tone and size to TDesign', (tester) async {
     final root = node(
       'n0',
       'View',
@@ -978,8 +973,12 @@ void main() {
       ],
     );
     await tester.pumpWidget(host(root, (_, _, _) {}));
-    expect(tester.widget<Text>(find.text('Hot')).style?.color, const Color(0xffe5484d));
-    expect(tester.widget<Text>(find.text('Done')).style?.color, QChatColors.green);
+    final tags = tester.widgetList<QappTTag>(find.byType(QappTTag)).toList();
+    expect(tags[0].tone, 'danger');
+    expect(tags[0].size, 'sm');
+    expect(tags[1].tone, 'success');
+    expect(find.text('Hot'), findsOneWidget);
+    expect(find.text('Done'), findsOneWidget);
   });
 
   testWidgets('Avatar falls back to initials and honours its shape', (
@@ -1019,9 +1018,7 @@ void main() {
     );
   });
 
-  testWidgets('Button supports the outline variant and every size', (
-    tester,
-  ) async {
+  testWidgets('Button hands its variant and size to TDesign', (tester) async {
     final events = <(String, String, Object?)>[];
     final root = node(
       'n0',
@@ -1033,13 +1030,11 @@ void main() {
     await tester.pumpWidget(
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
-    final container = tester.widget<Container>(
-      find.ancestor(of: find.text('Add'), matching: find.byType(Container)).first,
-    );
-    final decoration = container.decoration! as BoxDecoration;
-    expect(decoration.color, QChatColors.transparent);
-    expect(decoration.border, isNotNull);
-    expect(container.constraints, const BoxConstraints(minHeight: 32, minWidth: 64));
+    final button = tester.widget<QappTButton>(find.byType(QappTButton));
+    expect(button.label, 'Add');
+    expect(button.variant, 'outline');
+    expect(button.size, 'sm');
+    expect(button.minHeight, 32);
     await tester.tap(find.text('Add'));
     await tester.pump();
     expectEvent(events, 'n0', 'press', null);
@@ -1075,6 +1070,19 @@ void main() {
       ).first,
     );
     expect(padding.padding, const EdgeInsets.only(top: 8));
+  });
+
+  testWidgets('a horizontal Divider maps onto TDesign', (tester) async {
+    final root = node(
+      'n0',
+      'Divider',
+      props: {'color': '#ff0000', 'thickness': 2, 'inset': 12},
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final divider = tester.widget<QappTDivider>(find.byType(QappTDivider));
+    expect(divider.color, const Color(0xffff0000));
+    expect(divider.thickness, 2);
+    expect(divider.inset, 12);
   });
 
   testWidgets('Spacer clamps an invalid size instead of overflowing', (

@@ -9,6 +9,7 @@ import '../../../core/design_system/components.dart';
 import '../../../core/localization/strings.dart';
 import 'qapp_custom_paint.dart';
 import 'qapp_style.dart';
+import 'qapp_tdesign.dart';
 import 'qapp_tree.dart';
 
 typedef QappEventHandler =
@@ -44,11 +45,16 @@ class QappRenderer extends StatelessWidget {
   Widget build(BuildContext context) {
     final node = root;
     if (node == null) return const SizedBox.shrink();
-    return _QappNodeView(
-      node: node,
-      onEvent: onEvent,
-      loadAsset: loadAsset,
-      insideFlex: false,
+    // A Mini App draws its controls with TDesign; the host chat UI keeps the
+    // QChat design system. `QappTDesignScope` is that boundary: one theme, one
+    // set of localizations, and no TDesign symbol outside its file.
+    return QappTDesignScope(
+      child: _QappNodeView(
+        node: node,
+        onEvent: onEvent,
+        loadAsset: loadAsset,
+        insideFlex: false,
+      ),
     );
   }
 }
@@ -321,41 +327,8 @@ class _QappNodeView extends StatelessWidget {
     if (!dot && label.isEmpty) {
       return anchor ?? const SizedBox.shrink();
     }
-    final color = _toneColor(context, node.props['tone']?.toString());
-    final pill = dot
-        ? Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          )
-        : Container(
-            constraints: const BoxConstraints(minWidth: 18),
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(9),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              label,
-              maxLines: 1,
-              style: const TextStyle(
-                fontSize: 11,
-                height: 1.2,
-                fontWeight: FontWeight.w600,
-                color: QChatColors.white,
-              ),
-            ),
-          );
-    if (anchor == null) return pill;
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.center,
-      children: [
-        anchor,
-        Positioned(top: -6, right: -6, child: pill),
-      ],
-    );
+    // TDesign owns the pill, the dot and the anchored position above its child.
+    return QappTBadge(label: label, dot: dot, child: anchor);
   }
 
   /// `count` clamped to a sane range; anything past `max` is shown as `max+`.
@@ -367,35 +340,12 @@ class _QappNodeView extends StatelessWidget {
   }
 
   Widget _tag(BuildContext context) {
-    final tone = node.props['tone']?.toString() ?? 'neutral';
-    final size = node.props['size']?.toString() ?? 'md';
-    final (fontSize, horizontal, vertical) = switch (size) {
-      'sm' => (11.0, 6.0, 1.0),
-      'lg' => (14.0, 10.0, 4.0),
-      _ => (12.0, 8.0, 2.0),
-    };
-    final foreground = tone == 'neutral'
-        ? qchatInk(context)
-        : _toneColor(context, tone);
-    final background =
-        node.style.backgroundColor ??
-        (tone == 'neutral'
-            ? qchatFill(context)
-            : foreground.withValues(alpha: .14));
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        qappTextContent(node),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: node.style
-            .toTextStyle(fallbackColor: foreground, fallbackSize: fontSize)
-            .copyWith(fontWeight: node.style.fontWeight ?? FontWeight.w500),
-      ),
+    // The contract's five tones are TDesign's five tag presets, so the tag is
+    // drawn by TDesign and keeps its palette in both light and dark themes.
+    return QappTTag(
+      text: qappTextContent(node),
+      tone: node.props['tone']?.toString() ?? 'neutral',
+      size: node.props['size']?.toString() ?? 'md',
     );
   }
 
@@ -1268,77 +1218,42 @@ class _QappNodeView extends StatelessWidget {
     final loading = node.props['loading'] == true;
     final variant = node.props['variant']?.toString() ?? 'primary';
     final label = qappTextContent(node);
-    final radius = BorderRadius.circular(
-      node.style.borderRadius == BorderRadius.zero
-          ? 8
-          : node.style.borderRadius.topLeft.x,
-    );
-    final (minHeight, horizontal, vertical, fontSize, iconSize) =
-        switch (node.props['size']) {
-          'sm' => (32.0, 12.0, 5.0, 13.0, 14.0),
-          'lg' => (48.0, 22.0, 12.0, 16.0, 20.0),
-          _ => (40.0, 16.0, 9.0, 15.0, 17.0),
-        };
-    final (background, foreground, borderColor) = switch (variant) {
-      'secondary' => (qchatFill(context), ink(context), null),
-      'outline' => (QChatColors.transparent, QChatColors.green, QChatColors.green),
-      'text' => (QChatColors.transparent, QChatColors.green, null),
-      'danger' => (const Color(0xffe5484d), QChatColors.white, null),
-      _ => (QChatColors.green, QChatColors.white, null),
+    // The contract's size prop selects a TDesign size, and the height keeps the
+    // touch target the contract promised (32 / 40 / 48) instead of the compact
+    // metric TDesign gives a small button.
+    final minHeight = switch (node.props['size']) {
+      'sm' => 32.0,
+      'lg' => 48.0,
+      _ => 40.0,
     };
-    final buttonStyle = styleToTextStyle(
-      context,
-      fallbackColor: foreground,
-      fallbackSize: fontSize,
-    );
-    final content = loading
-        ? QChatLoading(size: iconSize, color: foreground)
-        : Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            spacing: 6,
-            children: [
-              if (node.props['icon'] is String)
-                QChatIcon(
-                  node.props['icon'] as String,
-                  size: iconSize,
-                  color: foreground,
-                ),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: buttonStyle,
-                ),
-              ),
-            ],
-          );
-    final border = node.style.borderWidth > 0
-        ? Border.all(
-            color: node.style.borderColor ?? background,
-            width: node.style.borderWidth,
-          )
-        : borderColor == null
-        ? null
-        : Border.all(color: borderColor);
-    final button = AnimatedOpacity(
-      duration: const Duration(milliseconds: 120),
-      opacity: disabled ? .45 : 1,
-      child: Container(
-        constraints: BoxConstraints(minHeight: minHeight, minWidth: 64),
-        padding: node.style.padding == EdgeInsets.zero
-            ? EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical)
-            : node.style.padding,
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: radius,
-          border: border,
-        ),
-        alignment: Alignment.center,
-        child: content,
-      ),
+    final foreground = node.style.color;
+    final tone = foreground ?? qappTButtonForeground(context, variant);
+    final buttonStyle = node.style.toTextStyle(fallbackColor: tone);
+    final button = QappTButton(
+      label: label,
+      variant: variant,
+      size: node.props['size'],
+      icon: node.props['icon'] is String
+          ? node.props['icon'] as String
+          : null,
+      loading: loading,
+      disabled: disabled,
+      onPressed: () => onEvent(node.id, 'press', null),
+      onLongPress: node.hasEvent('longPress')
+          ? () => onEvent(node.id, 'longPress', null)
+          : null,
+      // `style.*` still wins over the TDesign palette. Everything the app does
+      // not set is left to the theme, which is the point of using TDesign.
+      foreground: foreground,
+      background: node.style.backgroundColor,
+      borderColor: node.style.borderColor,
+      borderWidth: node.style.borderWidth,
+      radius: node.style.borderRadius == BorderRadius.zero
+          ? null
+          : node.style.borderRadius,
+      padding: node.style.padding == EdgeInsets.zero ? null : node.style.padding,
+      minHeight: minHeight,
+      textStyle: buttonStyle,
     );
     if (disabled) return button;
     final accessibleLabel = node.props['accessibleLabel'];
@@ -1347,14 +1262,7 @@ class _QappNodeView extends StatelessWidget {
       label: accessibleLabel is String && accessibleLabel.isNotEmpty
           ? accessibleLabel
           : label,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onEvent(node.id, 'press', null),
-        onLongPress: node.hasEvent('longPress')
-            ? () => onEvent(node.id, 'longPress', null)
-            : null,
-        child: button,
-      ),
+      child: button,
     );
   }
 
@@ -1464,10 +1372,13 @@ class _QappNodeView extends StatelessWidget {
   Widget _icon() {
     final size = _number(node.props['size']) ?? node.style.fontSize ?? 22;
     final color = qappColor(node.props['color']) ?? node.style.color;
-    return QChatIcon(
+    // TDesign's icon font, falling back to the QChat glyph set for a name
+    // TDesign does not have. Without an explicit colour the icon inherits the
+    // TDesign text colour instead of a hard-coded one, so dark frames work.
+    return QappTIcon(
       node.props['name']?.toString() ?? 'miniApps',
       size: size,
-      color: color ?? const Color(0xff191919),
+      color: color,
     );
   }
 
@@ -1542,18 +1453,21 @@ class _QappNodeView extends StatelessWidget {
         },
       );
     }
-    return Padding(
-      padding: EdgeInsets.only(left: inset),
-      child: Container(height: thickness, color: lineColor),
+    // `TDivider` takes the leading inset as a theme value, so the contract's
+    // `inset` becomes the indent of the rule itself.
+    return QappTDivider(
+      color: lineColor,
+      thickness: thickness,
+      inset: inset,
     );
   }
 
   Widget _activityIndicator() {
     final size = (_number(node.props['size']) ?? 20).clamp(4.0, 120.0);
-    final color = qappColor(node.props['color']) ?? QChatColors.green;
-    // The native iOS spinner: twelve ticks on Apple's own cadence, instead of a
+    final color = qappColor(node.props['color']) ?? node.style.color;
+    // TDesign's circular spinner; the frame's colour is a tint, not a second
     // hand-drawn arc.
-    return CupertinoActivityIndicator(radius: size / 2, color: color);
+    return QappTLoading(size: size, color: color);
   }
 
   Widget _safeArea(BuildContext context) {
@@ -1837,16 +1751,6 @@ class _QappNodeView extends StatelessWidget {
     'bottomRight' => Alignment.bottomRight,
     // React Native stacks align non-positioned children at the top left.
     _ => Alignment.topLeft,
-  };
-
-  /// Accent colour for a `Tag` or `Badge` tone. Neutral resolves through the
-  /// theme so it stays readable in dark mode.
-  Color _toneColor(BuildContext context, String? tone) => switch (tone) {
-    'success' => QChatColors.green,
-    'warning' => const Color(0xfff5a524),
-    'danger' => const Color(0xffe5484d),
-    'info' => const Color(0xff3b82f6),
-    _ => qchatMuted(context),
   };
 
   /// Remote images are allowed from any HTTPS host: a mini program does not
@@ -2385,27 +2289,24 @@ class _QappTextFieldState extends State<_QappTextField> {
           width: style.borderWidth > 0 ? style.borderWidth : 1,
         ),
       ),
-      child: CupertinoTextField(
+      // `borderless` keeps the frame above as the field's chrome, so the
+      // contract's `style.*` still owns the background, the border and the
+      // radius while the input itself is the TDesign one.
+      child: QappTInput(
         controller: _controller,
         focusNode: _focus,
+        hintText: node.props['placeholder']?.toString() ?? '',
+        multiline: multiline,
         enabled: editable,
-        obscureText: node.props['secureTextEntry'] == true,
-        maxLines: multiline ? null : 1,
-        minLines: multiline ? 3 : 1,
+        obscure: node.props['secureTextEntry'] == true,
         maxLength: limit,
-        keyboardType: multiline ? TextInputType.multiline : keyboard,
-        style: style.toTextStyle(
+        inputType: multiline ? TextInputType.multiline : keyboard,
+        textStyle: style.toTextStyle(
           fallbackColor: ink(context),
           fallbackSize: 15,
         ),
         textAlign: style.textAlign ?? TextAlign.start,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        placeholder: node.props['placeholder']?.toString() ?? '',
-        placeholderStyle: const TextStyle(
-          color: QChatColors.muted,
-          fontSize: 15,
-        ),
-        decoration: null,
+        borderless: true,
         onChanged: (value) {
           if (node.hasEvent('input')) {
             widget.onEvent(node.id, 'input', value);
@@ -2467,42 +2368,13 @@ class _QappCheckboxState extends State<_QappCheckbox> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    final label = node.props['label']?.toString() ?? '';
-    final disabled = node.props['disabled'] == true;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      spacing: 8,
-      children: [
-        // The native checkbox: Cupertino's rounded box, fill animation and
-        // checkmark. The contract still owns the colour and the disabled state.
-        CupertinoCheckbox(
-          value: _checked,
-          activeColor: QChatColors.green,
-          checkColor: QChatColors.white,
-          // The bar's box was 20 pt; the 48 pt accessibility target would
-          // stretch every row that holds a checkbox. The label is tappable too.
-          tapTargetSize: const Size.square(24),
-          onChanged: disabled
-              ? null
-              : (next) {
-                  if (next != null) _toggle(next);
-                },
-        ),
-        if (label.isNotEmpty)
-          Flexible(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: disabled ? null : () => _toggle(!_checked),
-              child: Text(
-                label,
-                style: node.style.toTextStyle(
-                  fallbackColor: ink(context),
-                  fallbackSize: 15,
-                ),
-              ),
-            ),
-          ),
-      ],
+    // The TDesign checkbox owns the box, the checkmark and the label slot; the
+    // contract still owns the value, the disabled state and the change event.
+    return QappTCheckbox(
+      value: _checked,
+      label: node.props['label']?.toString() ?? '',
+      disabled: node.props['disabled'] == true,
+      onChanged: _toggle,
     );
   }
 }
@@ -2536,26 +2408,24 @@ class _QappSwitchState extends State<_QappSwitch> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    return CupertinoSwitch(
+    return QappTSwitch(
       value: _value,
-      activeTrackColor: QChatColors.green,
-      onChanged: node.props['disabled'] == true
-          ? null
-          : (value) {
-              setState(() => _value = value);
-              if (node.hasEvent('change')) {
-                widget.onEvent(node.id, 'change', {
-                  'type': 'change',
-                  'value': value,
-                });
-              }
-              if (node.hasEvent('valueChange')) {
-                widget.onEvent(node.id, 'valueChange', {
-                  'type': 'valueChange',
-                  'value': value,
-                });
-              }
-            },
+      disabled: node.props['disabled'] == true,
+      onChanged: (value) {
+        setState(() => _value = value);
+        if (node.hasEvent('change')) {
+          widget.onEvent(node.id, 'change', {
+            'type': 'change',
+            'value': value,
+          });
+        }
+        if (node.hasEvent('valueChange')) {
+          widget.onEvent(node.id, 'valueChange', {
+            'type': 'valueChange',
+            'value': value,
+          });
+        }
+      },
     );
   }
 }
@@ -2609,14 +2479,18 @@ class _QappSliderState extends State<_QappSlider> {
       return stepped.clamp(lower, upper).toDouble();
     }
 
-    // `CupertinoSlider` draws the native track and thumb; the contract still
-    // owns the range, the step and the disabled state.
-    return CupertinoSlider(
+    // `TSlider` draws the TDesign track and thumb; the contract still owns the
+    // range, the step (expressed as divisions) and the disabled state.
+    final divisions = step is num && step > 0 && upper > lower
+        ? ((upper - lower) / step).round().clamp(1, 1000)
+        : null;
+    return QappTSlider(
       value: value,
       min: lower,
       max: upper > lower ? upper : lower + 1,
-      activeColor: QChatColors.green,
-      onChanged: disabled ? null : (next) => setState(() => _value = snap(next)),
+      divisions: divisions,
+      disabled: disabled,
+      onChanged: (next) => setState(() => _value = snap(next)),
       onChangeEnd: disabled
           ? null
           : (next) {
