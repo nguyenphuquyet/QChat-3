@@ -25,7 +25,7 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
-| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit and cafe built through the real compiler |
+| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit, cafe and rap-pho built through the real compiler |
 | Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
@@ -478,7 +478,7 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 QuickJS target, embeds the runtime, hashes every file and writes
 `dist/<slug>-<version>.japp`. The slug is ASCII: Vietnamese names are
 transliterated (`Cà Phê Nhà` → `ca-phe-nha`). The `hello-world`, `counter`, `shell`,
-`demo-kit`, `custom-kit`, `env-demo` and `cafe` examples in
+`demo-kit`, `custom-kit`, `env-demo`, `cafe` and `rap-pho` examples in
 `packages/miniapp-examples` are built this way; they are not hardcoded screens.
 `cafe` is the header showcase and the most complete product flow: four tabs
 (menu, orders, offers, account), two internal routes (`/drink/:id`, `/legal`),
@@ -487,6 +487,18 @@ scrolling, a second header with a search field and filter chips as lower rows,
 a cart sheet with a tip slider and a points checkbox, a confirm dialog, seeded
 order history with reorder/cancel, voucher claiming persisted through storage,
 `CustomPaint` sparkline, `Intl` money formatting and a `setInterval` countdown.
+`rap-pho` is the second complete product app and the dark-theme counterpart:
+a cinema ticket booking flow with four tabs (discover, movies, tickets, account)
+and three internal routes (`/movie/:id`, `/ticket/:code`, `/legal`). It keeps 30
+movies in memory but pages the `ListView` 12 at a time through `endReached`,
+draws a 72-seat `GridView` (8 rows × 9 columns, VIP rows E/F) with
+`initialCount={72}`, books through a payment sheet that requires the terms
+checkbox, and lands on a ticket page whose 21×21 QR code is three layered
+`CustomPaint` paths. Its header shows all three surfaces: transparent over the
+hero poster, blurred after the first screen, solid after the second; the movies
+tab stacks search, genre and status rows under the title. No image assets are
+shipped — posters are gradients plus a title initial — so the whole package is
+four files.
 `shell` is the reference four-tab app:
 it owns a `NavBar` header and a `TabBar`, keeps a `TextField` and a `Switch` on
 the home tab, persists the switch through storage and renders a long `ListView`
@@ -673,6 +685,7 @@ corepack pnpm qapp build --dir packages/miniapp-examples/shell
 corepack pnpm qapp build --dir packages/miniapp-examples/demo-kit
 corepack pnpm qapp build --dir packages/miniapp-examples/env-demo
 corepack pnpm qapp build --dir packages/miniapp-examples/cafe
+corepack pnpm qapp build --dir packages/miniapp-examples/rap-pho
 
 # desktop Studio (requires Rust; browser-only UI: corepack pnpm dev)
 cd apps/miniapp-ide
@@ -760,10 +773,13 @@ reproducible from Git alone; back them up with the database.
   window, after the first layout of a list shorter than its viewport, and again
   for the next window.
   `qapp_components_test.dart` passes 34/34, `qchat_header_test.dart` 9/9, the
-  framework suite 48/48 (including the Vietnamese package-slug test),
+  framework suite 49/49 (including the Vietnamese package-slug test),
   `tsc --noEmit` and `flutter analyze --no-pub` are clean. The `cafe` example
   builds, validates and passes `qapp test` (215 nodes, real cart → order →
-  history flow checked with the harness).
+  history flow checked with the harness). The `rap-pho` example builds,
+  validates and passes `qapp test` (357 nodes); its harness test pages the movie
+  list from 13 to 25 rows, opens a poster, picks a showtime and a free seat,
+  accepts the terms and asserts the new ticket `RP4790` on `/ticket/:code`.
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,
