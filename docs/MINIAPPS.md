@@ -25,7 +25,7 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
-| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit, cafe, rap-pho and so-viec built through the real compiler |
+| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit, cafe, rap-pho, so-viec and vi-nho built through the real compiler |
 | Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
@@ -520,7 +520,8 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 QuickJS target, embeds the runtime, hashes every file and writes
 `dist/<slug>-<version>.japp`. The slug is ASCII: Vietnamese names are
 transliterated (`Cà Phê Nhà` → `ca-phe-nha`). The `hello-world`, `counter`, `shell`,
-`demo-kit`, `custom-kit`, `env-demo`, `cafe`, `rap-pho` and `so-viec` examples
+`demo-kit`, `custom-kit`, `env-demo`, `cafe`, `rap-pho`, `so-viec` and `vi-nho`
+examples
 in `packages/miniapp-examples` are built this way; they are not hardcoded
 screens.
 `cafe` is the header showcase and the most complete product flow: four tabs
@@ -553,6 +554,21 @@ has no arcs), the quick-add sheet combines a `TextField`, priority chips and a
 during a fake sync, plus a `Dialog` behind long-press, habit reset and clear-all.
 Its `Page`-based layout, state store and `createStorage("so-viec")` snapshot make
 it the smallest complete reference that still touches every overlay and host API.
+`vi-nho` is the TDesign control showcase as a money manager: four tabs (overview,
+transactions, budgets, me) and three internal routes (`/giao-dich/:id`,
+`/bo-dieu-khien`, `/about`). It seeds 28 transactions around the device date and
+six category limits (comfortable, near the cap, over the cap), then filters by
+text and flow, pages six at a time through `endReached`, selects rows with
+TDesign `Checkbox` for a `Dialog`-confirmed bulk delete, and edits a transaction
+with a multiline `TextField`, an amount `Slider`, `Tag` pickers and two more
+`Checkbox`es. The two `BottomSheet`s (new transaction and group limit) use
+`Switch`, `Slider`, `Button loading` and a numeric `TextField`; the me tab adds
+host profile, a secure PIN field and a fake sync with `ActivityIndicator`. Its
+`/bo-dieu-khien` route is the explicit gallery: every
+contract control in every state (Button variants and sizes, all five Tag tones,
+Badge count/max/dot/hidden, Checkbox, Switch, Slider, single/multiline/secure
+TextFields, ActivityIndicator, Icon grid and Divider), which makes it the place
+to look when checking what the TDesign renderer draws.
 `shell` is the reference four-tab app:
 it owns a `NavBar` header and a `TabBar`, keeps a `TextField` and a `Switch` on
 the home tab, persists the switch through storage and renders a long `ListView`

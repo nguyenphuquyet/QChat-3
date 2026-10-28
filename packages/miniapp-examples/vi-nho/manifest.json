@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Ví Nhỏ",
+  "description": "Mini App quản lý chi tiêu: bốn tab, ngân sách tháng, hạn mức từng nhóm, tìm kiếm và xoá hàng loạt giao dịch, trang chi tiết sửa khoản chi, cùng một route bộ điều khiển TDesign đầy đủ.",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": ["toast", "storage", "user.profile", "share"],
+  "source": "src/main.tsx"
+}
