@@ -339,9 +339,11 @@ Every screen in QChat uses one header: `QChatHeader`
   under the top edge. `border` draws the hairline.
 
 The mini program control is `QChatCapsule`: one 87×32 pill with `•••` on the
-left, a hairline divider and `◎` on the right. The two halves are independent
-tap targets, each with its own semantics label; the pill is always centred on
-the header bar.
+left, a hairline divider and `◎` on the right. It is a frosted surface, not a
+solid white block: a translucent tint (white in light mode, dark grey in dark
+mode) over a 12 pt blur, so the page behind it shows through. The two halves are
+independent tap targets, each with its own semantics label; the pill is always
+centred on the header bar.
 
 `NavBar` is `QChatHeader` for Mini Apps: `title`, `subtitle`, `showBack`,
 `safeArea`, `reserveRight`, `transparent` and `children`. Its `children` are the
@@ -685,14 +687,15 @@ reproducible from Git alone; back them up with the database.
   implementation in a host test binary. CI runs on Linux, skips the golden
   comparison and does not load that plugin, so both stay green there.
 - The header standard is covered by `apps/mobile/test/qchat_header_test.dart`
-  (capsule size, both halves tapping, one semantics button per half, the dot and
-  ring geometry, title centred on the capsule line, a `bottom` row starting at
-  44, and the solid/glass/transparent surfaces) and by three `NavBar` cases in
+  (capsule size, both halves tapping, one semantics button per half, the frosted
+  translucent fill, the dot and ring geometry, title centred on the capsule
+  line, a `bottom` row starting at 44, and the solid/glass/transparent surfaces)
+  and by three `NavBar` cases in
   `qapp_components_test.dart` (centred title, children as lower rows, no surface
   when `transparent`). `components.test.ts` asserts that `transparent` survives
-  the compiler and the runtime. `qapp_components_test.dart` passes 31/31, the
-  framework suite 46/46, `tsc --noEmit` and `flutter analyze --no-pub` are
-  clean.
+  the compiler and the runtime. `qapp_components_test.dart` passes 23/23,
+  `qchat_header_test.dart` 9/9, the framework suite 46/46, `tsc --noEmit` and
+  `flutter analyze --no-pub` are clean.
 - The JavaScript environment runs in a real QuickJS engine in
   `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
   device executes, with only `__qchatNative` and the timer protocol injected,

@@ -56,6 +56,36 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets('the pill is a translucent frosted surface', (tester) async {
+      await tester.pumpWidget(
+        qchatHarness(
+          const Center(child: QChatCapsule(menuLabel: 'More', closeLabel: 'Close')),
+        ),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(QChatCapsule),
+          matching: find.byType(BackdropFilter),
+        ),
+        findsOneWidget,
+      );
+      final fill = tester
+          .widgetList<DecoratedBox>(
+            find.descendant(
+              of: find.byType(QChatCapsule),
+              matching: find.byType(DecoratedBox),
+            ),
+          )
+          .map((box) => box.decoration)
+          .whereType<BoxDecoration>()
+          .map((decoration) => decoration.color)
+          .whereType<Color>()
+          .firstWhere((color) => color.a < 1);
+      // The page behind the capsule has to show through it.
+      expect(fill.a, greaterThan(.3));
+      expect(fill.a, lessThan(1));
+    });
+
     testWidgets('the close half is a ring with a dot, the menu half has three', (
       tester,
     ) async {

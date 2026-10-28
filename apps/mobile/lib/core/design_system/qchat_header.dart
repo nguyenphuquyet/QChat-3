@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/widgets.dart';
 
@@ -192,11 +193,14 @@ const double kQChatCapsuleWidth = 87;
 /// Height of the capsule. A 44 pt header centres it with 6 pt above and below.
 const double kQChatCapsuleHeight = 32;
 
-/// The mini program control: one white pill with a menu on the left and a
+/// The mini program control: one frosted pill with a menu on the left and a
 /// close on the right, separated by a hairline.
 ///
-/// The two halves are independent buttons, so the pill is one visual object
-/// with two tap targets. It is always vertically centred on the header bar.
+/// The pill is not a solid block: it is a translucent tint over a blur of
+/// whatever sits behind it, so the page shows through the way it does in the
+/// reference screenshots. The two halves are independent buttons, so the pill
+/// is one visual object with two tap targets, always vertically centred on the
+/// header bar.
 class QChatCapsule extends StatelessWidget {
   const QChatCapsule({
     super.key,
@@ -220,7 +224,8 @@ class QChatCapsule extends StatelessWidget {
   /// Glyph colour. Defaults to the theme ink.
   final Color? color;
 
-  /// Pill colour. Defaults to the theme surface.
+  /// Pill tint. Defaults to a translucent theme surface (white in light mode,
+  /// dark grey in dark mode) over a blur of the content behind it.
   final Color? background;
 
   final double width;
@@ -230,7 +235,14 @@ class QChatCapsule extends StatelessWidget {
   Widget build(BuildContext context) {
     final dark = qchatDark(context);
     final glyph = color ?? (dark ? QChatColors.white : QChatColors.ink);
-    final pill = background ?? (dark ? const Color(0xff2a2a2a) : QChatColors.white);
+    final pill =
+        background ??
+        (dark
+            ? const Color(0xff2a2a2a).withValues(alpha: .62)
+            : QChatColors.white.withValues(alpha: .68));
+    final hairline = dark
+        ? QChatColors.white.withValues(alpha: .14)
+        : QChatColors.black.withValues(alpha: .06);
     final divider = dark
         ? QChatColors.white.withValues(alpha: .16)
         : QChatColors.black.withValues(alpha: .1);
@@ -238,19 +250,13 @@ class QChatCapsule extends StatelessWidget {
         ? QChatColors.white.withValues(alpha: .1)
         : QChatColors.black.withValues(alpha: .05);
     final radius = BorderRadius.circular(height / 2);
+    // The shadow and the blur live on different widgets: the blur has to be
+    // clipped to the pill, and clipping the shadow would cut it off.
     return Container(
       width: width,
       height: height,
-      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: pill,
         borderRadius: radius,
-        border: Border.all(
-          color: dark
-              ? QChatColors.white.withValues(alpha: .12)
-              : QChatColors.black.withValues(alpha: .08),
-          width: .5,
-        ),
         boxShadow: [
           BoxShadow(
             color: QChatColors.black.withValues(alpha: .08),
@@ -259,26 +265,39 @@ class QChatCapsule extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _CapsuleHalf(
-              label: menuLabel,
-              onTap: onMenu,
-              overlay: overlay,
-              child: _Dots(color: glyph),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: pill,
+              borderRadius: radius,
+              border: Border.all(color: hairline, width: .5),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _CapsuleHalf(
+                    label: menuLabel,
+                    onTap: onMenu,
+                    overlay: overlay,
+                    child: _Dots(color: glyph),
+                  ),
+                ),
+                Container(width: .5, height: height * .56, color: divider),
+                Expanded(
+                  child: _CapsuleHalf(
+                    label: closeLabel,
+                    onTap: onClose,
+                    overlay: overlay,
+                    child: _Ring(color: glyph),
+                  ),
+                ),
+              ],
             ),
           ),
-          Container(width: .5, height: height * .56, color: divider),
-          Expanded(
-            child: _CapsuleHalf(
-              label: closeLabel,
-              onTap: onClose,
-              overlay: overlay,
-              child: _Ring(color: glyph),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
