@@ -1022,6 +1022,14 @@ class _QappNodeView extends StatelessWidget {
     if (activeIndex < 0) activeIndex = 0;
     final safeArea = node.props['safeArea'] != false;
     final bottomInset = safeArea ? MediaQuery.of(context).padding.bottom : 0.0;
+    // The host shrinks the whole mini program when a field takes focus, so a tab
+    // bar that stayed mounted would be lifted off the bottom edge and float right
+    // above the keys. It steps aside instead, like a native tab bar, and the page
+    // gets the space to scroll its focused field into view.
+    if (node.props['hideOnKeyboard'] != false &&
+        MediaQuery.viewInsetsOf(context).bottom > 0) {
+      return const SizedBox.shrink();
+    }
     return Container(
       color: node.style.backgroundColor ?? surface(context),
       padding: EdgeInsets.only(bottom: bottomInset),

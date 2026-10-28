@@ -594,6 +594,7 @@ const TabBarProps_CONFORMANCE: Record<keyof TabBarProps, true> = {
   activeIndex: true,
   onChange: true,
   safeArea: true,
+  hideOnKeyboard: true,
 };
 void TabBarProps_CONFORMANCE;
 

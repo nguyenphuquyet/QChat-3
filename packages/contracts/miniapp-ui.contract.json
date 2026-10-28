@@ -421,7 +421,8 @@
         "activeKey": "string",
         "activeIndex": "number",
         "onChange": "(event: QappTabEvent) => void",
-        "safeArea": "boolean"
+        "safeArea": "boolean",
+        "hideOnKeyboard": "boolean"
       },
       "events": ["change"]
     }

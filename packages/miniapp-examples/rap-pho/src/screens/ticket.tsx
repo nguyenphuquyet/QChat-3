@@ -1,8 +1,10 @@
-import { share, showToast, useState } from "@mna/qchat";import {
+import { share, showToast, useState } from "@mna/qchat";
+import {
   CustomPaint,
   Dialog,
   Icon,
   NavBar,
+  Page,
   Positioned,
   Pressable,
   Row,
@@ -165,249 +167,17 @@ export function TicketScreen(props: { code: string; onBack: () => void }) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <Stack alignment="topLeft" style={{ flex: 1 }}>
-        <ScrollView
-          style={{ height: "100%" }}
-          showsScrollIndicator={false}
-        >
-          <View
-            testID="ticket-page"
-            style={{ padding: 16, gap: 16, paddingBottom: 40 }}
-          >
-            {ticket.status !== "upcoming" ? (
-              <Card
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 10,
-                  borderColor:
-                    ticket.status === "cancelled" ? "#5a2430" : colors.line,
-                  backgroundColor:
-                    ticket.status === "cancelled" ? "#241318" : colors.surface,
-                }}
-              >
-                <Icon
-                  name={ticket.status === "cancelled" ? "info" : "check"}
-                  size={18}
-                  color={
-                    ticket.status === "cancelled" ? colors.brand : colors.green
-                  }
-                />
-                <Text
-                  style={{ flex: 1, fontSize: 12, color: colors.ink }}
-                >
-                  {ticket.status === "cancelled"
-                    ? "Vé đã huỷ. Ghế đã được trả lại cho rạp."
-                    : "Vé đã được soát. Chúc bạn xem phim vui vẻ!"}
-                </Text>
-              </Card>
-            ) : null}
-
-            <View
-              style={{
-                borderRadius: radius.lg,
-                backgroundColor: colors.surface,
-                borderWidth: 1,
-                borderColor: colors.line,
-                overflow: "hidden",
-              }}
-            >
-              <View
-                style={{
-                  padding: 16,
-                  gap: 4,
-                  gradient: {
-                    type: "linear",
-                    angle: 135,
-                    stops: [
-                      { offset: 0, color: colors.brand },
-                      { offset: 1, color: colors.brandDark },
-                    ],
-                  },
-                }}
-              >
-                <Row style={{ justifyContent: "spaceBetween", gap: 8 }}>
-                  <Text
-                    style={{
-                      fontSize: 10,
-                      fontWeight: "600",
-                      letterSpacing: 1.4,
-                      color: "#ffd7dd",
-                    }}
-                  >
-                    VÉ ĐIỆN TỬ · RẠP PHỐ
-                  </Text>
-                  <Tag tone={statusTone(ticket.status)} size="sm">
-                    {statusText(ticket.status)}
-                  </Tag>
-                </Row>
-                <Text
-                  numberOfLines={2}
-                  style={{ fontSize: 21, fontWeight: "bold", color: colors.white }}
-                >
-                  {movie?.title ?? "Phim"}
-                </Text>
-                <Text style={{ fontSize: 12, color: "#ffe3e7" }}>
-                  {`${ticket.format} · ${ticket.hall} · ${shortDay(ticket.dateKey)} ${ticket.time}`}
-                </Text>
-              </View>
-
-              <View style={{ alignItems: "center", gap: 10, paddingTop: 20 }}>
-                <View
-                  style={{
-                    padding: 8,
-                    borderRadius: 14,
-                    backgroundColor: "#ffffff",
-                  }}
-                >
-                  <Stack style={{ width: QR_SIDE, height: QR_SIDE }}>
-                    <CustomPaint
-                      width={QR_SIDE}
-                      height={QR_SIDE}
-                      draw={draws.modules}
-                    />
-                    <CustomPaint
-                      width={QR_SIDE}
-                      height={QR_SIDE}
-                      draw={draws.holes}
-                    />
-                    <CustomPaint
-                      width={QR_SIDE}
-                      height={QR_SIDE}
-                      draw={draws.cores}
-                    />
-                  </Stack>
-                </View>
-                <Text
-                  style={{
-                    fontSize: 17,
-                    fontWeight: "bold",
-                    letterSpacing: 4,
-                    color: colors.ink,
-                  }}
-                >
-                  {ticket.code}
-                </Text>
-                <Text style={{ fontSize: 11, color: colors.muted }}>
-                  Đưa mã này cho nhân viên soát vé
-                </Text>
-              </View>
-
-              <Stack style={{ height: 22, marginTop: 16 }}>
-                <Row
-                  style={{
-                    height: 22,
-                    alignItems: "center",
-                    justifyContent: "spaceBetween",
-                    paddingHorizontal: 14,
-                  }}
-                >
-                  {Array.from({ length: 26 }).map((_, index) => (
-                    <View
-                      key={String(index)}
-                      style={{
-                        width: 5,
-                        height: 1,
-                        backgroundColor: colors.line,
-                      }}
-                    />
-                  ))}
-                </Row>
-                <Positioned left={-9} top={2}>
-                  <View
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 9,
-                      backgroundColor: colors.bg,
-                    }}
-                  />
-                </Positioned>
-                <Positioned right={-9} top={2}>
-                  <View
-                    style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 9,
-                      backgroundColor: colors.bg,
-                    }}
-                  />
-                </Positioned>
-              </Stack>
-
-              <View style={{ padding: 16, paddingTop: 0, gap: 9 }}>
-                <Label>Thông tin suất chiếu</Label>
-                <InfoRow
-                  label="Ngày"
-                  value={`${shortDay(ticket.dateKey)} · ${ticket.time}`}
-                />
-                <InfoRow
-                  label="Phòng"
-                  value={`${ticket.hall} · ${ticket.format}`}
-                />
-                <InfoRow label="Ghế" value={ticket.seats.join(", ")} />
-                <InfoRow
-                  label="Combo"
-                  value={ticket.combo ? "Bắp + nước" : "Không"}
-                />
-                <InfoRow label="Thanh toán" value={ticket.payment} />
-                <InfoRow label="Tổng" value={money(ticket.total)} />
-              </View>
-            </View>
-
-            <Row style={{ gap: 10 }}>
-              <ActionButton
-                icon="share"
-                label="Chia sẻ vé"
-                onPress={() => void doShare()}
-              />
-              <ActionButton
-                icon="clock"
-                label="Nhắc lịch"
-                onPress={() =>
-                  void showToast("Sẽ nhắc bạn trước suất chiếu 2 giờ", {
-                    icon: "success",
-                  })
-                }
-              />
-            </Row>
-
-            {canCancel ? (
-              <Pressable
-                onPress={() => setConfirm(true)}
-                accessibleLabel="Huỷ vé"
-                style={{
-                  alignItems: "center",
-                  paddingVertical: 12,
-                  borderRadius: radius.md,
-                  borderWidth: 1,
-                  borderColor: "#3a2430",
-                  backgroundColor: "#1c1116",
-                }}
-              >
-                <Text
-                  style={{ fontSize: 13, fontWeight: "600", color: colors.brand }}
-                >
-                  Huỷ vé này
-                </Text>
-              </Pressable>
-            ) : null}
-
-            <Text
-              style={{
-                fontSize: 11,
-                lineHeight: 17,
-                color: colors.muted,
-                textAlign: "center",
-              }}
-            >
-              Vé đã mua có thể huỷ trước suất chiếu 2 giờ và hoàn về ví trong 24
-              giờ. Ghế VIP không áp dụng hoàn tiền mặt.
-            </Text>
-          </View>
-        </ScrollView>
-
+    <Page
+      style={{ backgroundColor: colors.bg }}
+      header={
+        <NavBar
+          title="Vé điện tử"
+          showBack
+          onBack={props.onBack}
+          style={{ backgroundColor: colors.bg, color: colors.ink }}
+        />
+      }
+      overlays={
         <Dialog
           visible={confirm}
           title="Huỷ vé này?"
@@ -424,14 +194,245 @@ export function TicketScreen(props: { code: string; onBack: () => void }) {
             {`${movie?.title ?? "Phim"} · ${shortDay(ticket.dateKey)} ${ticket.time} · Ghế ${ticket.seats.join(", ")}. Ghế sẽ được trả lại cho rạp ngay lập tức.`}
           </Text>
         </Dialog>
+      }
+    >
+      <ScrollView showsScrollIndicator={false}>
+        <View
+          testID="ticket-page"
+          style={{ padding: 16, gap: 16, paddingBottom: 40 }}
+        >
+          {ticket.status !== "upcoming" ? (
+            <Card
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                borderColor:
+                  ticket.status === "cancelled" ? "#5a2430" : colors.line,
+                backgroundColor:
+                  ticket.status === "cancelled" ? "#241318" : colors.surface,
+              }}
+            >
+              <Icon
+                name={ticket.status === "cancelled" ? "info" : "check"}
+                size={18}
+                color={
+                  ticket.status === "cancelled" ? colors.brand : colors.green
+                }
+              />
+              <Text
+                style={{ flex: 1, fontSize: 12, color: colors.ink }}
+              >
+                {ticket.status === "cancelled"
+                  ? "Vé đã huỷ. Ghế đã được trả lại cho rạp."
+                  : "Vé đã được soát. Chúc bạn xem phim vui vẻ!"}
+              </Text>
+            </Card>
+          ) : null}
 
-        <NavBar
-          title="Vé điện tử"
-          showBack
-          onBack={props.onBack}
-          style={{ backgroundColor: colors.bg, color: colors.ink }}
-        />
-      </Stack>
-    </View>
+          <View
+            style={{
+              borderRadius: radius.lg,
+              backgroundColor: colors.surface,
+              borderWidth: 1,
+              borderColor: colors.line,
+              overflow: "hidden",
+            }}
+          >
+            <View
+              style={{
+                padding: 16,
+                gap: 4,
+                gradient: {
+                  type: "linear",
+                  angle: 135,
+                  stops: [
+                    { offset: 0, color: colors.brand },
+                    { offset: 1, color: colors.brandDark },
+                  ],
+                },
+              }}
+            >
+              <Row style={{ justifyContent: "spaceBetween", gap: 8 }}>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    fontWeight: "600",
+                    letterSpacing: 1.4,
+                    color: "#ffd7dd",
+                  }}
+                >
+                  VÉ ĐIỆN TỬ · RẠP PHỐ
+                </Text>
+                <Tag tone={statusTone(ticket.status)} size="sm">
+                  {statusText(ticket.status)}
+                </Tag>
+              </Row>
+              <Text
+                numberOfLines={2}
+                style={{ fontSize: 21, fontWeight: "bold", color: colors.white }}
+              >
+                {movie?.title ?? "Phim"}
+              </Text>
+              <Text style={{ fontSize: 12, color: "#ffe3e7" }}>
+                {`${ticket.format} · ${ticket.hall} · ${shortDay(ticket.dateKey)} ${ticket.time}`}
+              </Text>
+            </View>
+
+            <View style={{ alignItems: "center", gap: 10, paddingTop: 20 }}>
+              <View
+                style={{
+                  padding: 8,
+                  borderRadius: 14,
+                  backgroundColor: "#ffffff",
+                }}
+              >
+                <Stack style={{ width: QR_SIDE, height: QR_SIDE }}>
+                  <CustomPaint
+                    width={QR_SIDE}
+                    height={QR_SIDE}
+                    draw={draws.modules}
+                  />
+                  <CustomPaint
+                    width={QR_SIDE}
+                    height={QR_SIDE}
+                    draw={draws.holes}
+                  />
+                  <CustomPaint
+                    width={QR_SIDE}
+                    height={QR_SIDE}
+                    draw={draws.cores}
+                  />
+                </Stack>
+              </View>
+              <Text
+                style={{
+                  fontSize: 17,
+                  fontWeight: "bold",
+                  letterSpacing: 4,
+                  color: colors.ink,
+                }}
+              >
+                {ticket.code}
+              </Text>
+              <Text style={{ fontSize: 11, color: colors.muted }}>
+                Đưa mã này cho nhân viên soát vé
+              </Text>
+            </View>
+
+            <Stack style={{ height: 22, marginTop: 16 }}>
+              <Row
+                style={{
+                  height: 22,
+                  alignItems: "center",
+                  justifyContent: "spaceBetween",
+                  paddingHorizontal: 14,
+                }}
+              >
+                {Array.from({ length: 26 }).map((_, index) => (
+                  <View
+                    key={String(index)}
+                    style={{
+                      width: 5,
+                      height: 1,
+                      backgroundColor: colors.line,
+                    }}
+                  />
+                ))}
+              </Row>
+              <Positioned left={-9} top={2}>
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    backgroundColor: colors.bg,
+                  }}
+                />
+              </Positioned>
+              <Positioned right={-9} top={2}>
+                <View
+                  style={{
+                    width: 18,
+                    height: 18,
+                    borderRadius: 9,
+                    backgroundColor: colors.bg,
+                  }}
+                />
+              </Positioned>
+            </Stack>
+
+            <View style={{ padding: 16, paddingTop: 0, gap: 9 }}>
+              <Label>Thông tin suất chiếu</Label>
+              <InfoRow
+                label="Ngày"
+                value={`${shortDay(ticket.dateKey)} · ${ticket.time}`}
+              />
+              <InfoRow
+                label="Phòng"
+                value={`${ticket.hall} · ${ticket.format}`}
+              />
+              <InfoRow label="Ghế" value={ticket.seats.join(", ")} />
+              <InfoRow
+                label="Combo"
+                value={ticket.combo ? "Bắp + nước" : "Không"}
+              />
+              <InfoRow label="Thanh toán" value={ticket.payment} />
+              <InfoRow label="Tổng" value={money(ticket.total)} />
+            </View>
+          </View>
+
+          <Row style={{ gap: 10 }}>
+            <ActionButton
+              icon="share"
+              label="Chia sẻ vé"
+              onPress={() => void doShare()}
+            />
+            <ActionButton
+              icon="clock"
+              label="Nhắc lịch"
+              onPress={() =>
+                void showToast("Sẽ nhắc bạn trước suất chiếu 2 giờ", {
+                  icon: "success",
+                })
+              }
+            />
+          </Row>
+
+          {canCancel ? (
+            <Pressable
+              onPress={() => setConfirm(true)}
+              accessibleLabel="Huỷ vé"
+              style={{
+                alignItems: "center",
+                paddingVertical: 12,
+                borderRadius: radius.md,
+                borderWidth: 1,
+                borderColor: "#3a2430",
+                backgroundColor: "#1c1116",
+              }}
+            >
+              <Text
+                style={{ fontSize: 13, fontWeight: "600", color: colors.brand }}
+              >
+                Huỷ vé này
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <Text
+            style={{
+              fontSize: 11,
+              lineHeight: 17,
+              color: colors.muted,
+              textAlign: "center",
+            }}
+          >
+            Vé đã mua có thể huỷ trước suất chiếu 2 giờ và hoàn về ví trong 24
+            giờ. Ghế VIP không áp dụng hoàn tiền mặt.
+          </Text>
+        </View>
+      </ScrollView>
+    </Page>
   );
 }

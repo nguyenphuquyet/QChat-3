@@ -1,7 +1,7 @@
 import "@mna/qchat/env/auto";
 
 import { start, useLifecycle, useState } from "@mna/qchat";
-import { NavBar, TabBar, View } from "@mna/qchat/ui";
+import { NavBar, Page, TabBar } from "@mna/qchat/ui";
 import type { TabItem } from "@mna/qchat/ui";
 import { pushLog, useLogs } from "./store.js";
 import { colors } from "./theme.js";
@@ -97,35 +97,41 @@ function App() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.bg }}>
-      <NavBar
-        title={tab.title}
-        subtitle={tab.subtitle}
-        style={{
-          backgroundColor: colors.surface,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.line,
-        }}
-      />
+    <Page
+      style={{ backgroundColor: colors.bg }}
+      header={
+        <NavBar
+          title={tab.title}
+          subtitle={tab.subtitle}
+          style={{
+            backgroundColor: colors.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: colors.line,
+          }}
+        />
+      }
+      footer={
+        <TabBar
+          tabs={tabs}
+          activeIndex={index}
+          onChange={(event) => {
+            setIndex(event.index);
+            pushLog("tab", `chuyển sang ${TABS[event.index]?.key ?? event.key}`);
+          }}
+          style={{
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: colors.line,
+          }}
+        />
+      }
+    >
       {tab.key === "overview" ? <OverviewScreen /> : null}
       {tab.key === "ui" ? <UiKitScreen /> : null}
       {tab.key === "form" ? <FormScreen /> : null}
       {tab.key === "host" ? <HostApiScreen /> : null}
       {tab.key === "debug" ? <DebugScreen /> : null}
-      <TabBar
-        tabs={tabs}
-        activeIndex={index}
-        onChange={(event) => {
-          setIndex(event.index);
-          pushLog("tab", `chuyển sang ${TABS[event.index]?.key ?? event.key}`);
-        }}
-        style={{
-          backgroundColor: colors.surface,
-          borderTopWidth: 1,
-          borderTopColor: colors.line,
-        }}
-      />
-    </View>
+    </Page>
   );
 }
 

@@ -271,7 +271,7 @@ Components: `View`, `Row`, `Column`, `Text`, `RichText`, `Link`, `Button`,
 `Pressable`, `Image`, `Avatar`, `Icon`, `TextField`, `Checkbox`, `Switch`,
 `Slider`, `ScrollView`, `ListView`, `GridView`, `Stack`, `Positioned`, `Spacer`,
 `Divider`, `Badge`, `Tag`, `ActivityIndicator`, `SafeArea`, `AnimatedView`,
-`CustomPaint`, `Modal`, `BottomSheet`, `Dialog`, `NavBar` and `TabBar`.
+`CustomPaint`, `Modal`, `BottomSheet`, `Dialog`, `NavBar`, `TabBar` and `Page`.
 
 `Text` renders a paragraph: `numberOfLines` truncates with an ellipsis and
 `selectable` turns on native selection with a QChat copy bubble. `RichText` takes
@@ -317,7 +317,39 @@ hook.
 current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
 `TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
 and `TabBar` takes a tab list plus the active tab and reports `change` with
-`{ index, key, value }`.
+`{ index, key, value }`. `TabBar.hideOnKeyboard` defaults to true: the host
+shrinks the whole mini program when a field takes focus, so a bar that stayed
+mounted would float in the middle of the screen right above the keys.
+
+### The screen frame: `Page`
+
+```tsx
+<Page
+  header={<NavBar title="Vé điện tử" showBack onBack={back} />}
+  footer={<TabBar tabs={tabs} activeIndex={index} onChange={…} />}
+  overlays={<Dialog visible={confirm} … />}
+>
+  <ScrollView>…</ScrollView>
+</Page>
+```
+
+`Page` is the frame every page should use: the header is a sibling above the
+body, the footer a sibling below it, and the body gets exactly the space they
+leave. It cannot be written the wrong way round — a `NavBar` painted inside a
+`Stack` over a `height: "100%"` scroller looks correct until the page scrolls
+and the first card slides under the header, because the body starts at y = 0.
+
+The body is pinned inside the stack, so it fills the page whether it is a
+`ScrollView`, a `ListView` or a plain `View`. Overlays are painted over the
+whole page, header included, which is what a dialog barrier needs. A page with
+no header or footer is just the body across the full screen.
+
+A page that wants its own artwork under the top edge (a poster hero, a
+transparent header that turns solid on scroll) still builds the `Stack` by hand:
+`<Stack style={{ flex: 1 }}><ScrollView style={{ height: "100%" }} … />
+<NavBar transparent … /></Stack>`, and gives the content enough top padding to
+clear the header. `rap-pho`'s movie and discover screens are that shape; its
+ticket screen and `demo-kit`'s tab shell use `Page`.
 
 `ListView`/`GridView` load themselves. A frame carries only a window of items —
 `initialCount` (60 by default) — plus the total count, so a thousand rows never
@@ -647,6 +679,11 @@ These are the rules the renderer guarantees; each one is covered by a test in
 - A `ScrollView` reports `onScroll` while the finger moves (one event per ~60 ms
   or 24 px, whichever comes first) and always on settle, so a header that swaps
   its surface with the offset tracks the page instead of jumping a second later.
+  While the list is moving, a scroll frame is only handed to JavaScript when no
+  render is already waiting: a render frame is painted at rest anyway, and
+  running a whole render on the UI thread for every scroll frame is what made a
+  drag or a bounce past the edge stutter. The newest offset is delivered when
+  the list stops, so the final state is exact.
 - `TextField` reports `focus` and `blur`; `Modal.animationType` (`none`, `fade`,
   `slide`) runs once when the overlay mounts.
 - A `ListView`/`GridView` reports `endReached` once per window: within 240 px of
@@ -659,7 +696,11 @@ These are the rules the renderer guarantees; each one is covered by a test in
   flexible child `flex: 1` (and `numberOfLines` on its text) to share the space.
 - The app view shrinks by the keyboard inset while the keyboard is open, so a
   `TextField` near the bottom is scrolled into view instead of staying under the
-  keys.
+  keys. The inset is a `Padding` that is always there, even at zero: swapping it
+  for the bare child remounted the whole mini program the moment the keyboard
+  appeared, so every field lost its focus node and needed several taps before it
+  stayed open. A `TabBar` steps aside while the keys are up
+  (`hideOnKeyboard`, on by default) instead of floating above them.
 
 
 ## Local development
@@ -772,9 +813,14 @@ reproducible from Git alone; back them up with the database.
   `qapp_components_test.dart` checks the host reports `endReached` once per
   window, after the first layout of a list shorter than its viewport, and again
   for the next window.
-  `qapp_components_test.dart` passes 34/34, `qchat_header_test.dart` 9/9, the
-  framework suite 49/49 (including the Vietnamese package-slug test),
-  `tsc --noEmit` and `flutter analyze --no-pub` are clean. The `cafe` example
+  `qapp_components_test.dart` passes 36/36, `qchat_header_test.dart` 9/9, the
+  framework suite 51/51 (including the Vietnamese package-slug test and the new
+  `page.test.ts`), `tsc --noEmit` and `flutter analyze --no-pub` are clean. The
+  three UI bugs reported after `rap-pho` have a regression test each: the keyboard
+  inset keeps the focused field mounted (element identity, focus retained), a
+  `TabBar` steps aside for the keyboard and can opt out, and a page body sits
+  between the header and the footer instead of starting under the header.
+  The `cafe` example
   builds, validates and passes `qapp test` (215 nodes, real cart → order →
   history flow checked with the harness). The `rap-pho` example builds,
   validates and passes `qapp test` (357 nodes); its harness test pages the movie

@@ -41,7 +41,7 @@ in sync.
 | `BottomSheet` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `onClose`, `height` | `close` |
 | `Dialog` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `visible`, `title`, `onClose`, `onConfirm`, `confirmText`, `cancelText` | `close`, `confirm` |
 | `NavBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `title`, `subtitle`, `onBack`, `showBack`, `safeArea`, `reserveRight`, `transparent`, `blur`, `border` | `back`, `press` |
-| `TabBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `tabs`, `activeKey`, `activeIndex`, `onChange`, `safeArea` | `change` |
+| `TabBar` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `tabs`, `activeKey`, `activeIndex`, `onChange`, `safeArea`, `hideOnKeyboard` | `change` |
 
 ## Events
 

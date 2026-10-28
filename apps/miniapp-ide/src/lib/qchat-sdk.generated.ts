@@ -193,7 +193,7 @@ declare module "@mna/qchat/ui" {
   export const BottomSheet: Component<{ key?: string | number; ref?: QappRef; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; visible?: boolean; onClose?: () => void; height?: number }>;
   export const Dialog: Component<{ key?: string | number; ref?: QappRef; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; visible?: boolean; title?: string; onClose?: () => void; onConfirm?: () => void; confirmText?: string; cancelText?: string }>;
   export const NavBar: Component<{ key?: string | number; ref?: QappRef; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; title?: string; subtitle?: string; onBack?: () => void; showBack?: boolean; safeArea?: boolean; reserveRight?: number; transparent?: boolean; blur?: boolean; border?: boolean }>;
-  export const TabBar: Component<{ key?: string | number; ref?: QappRef; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; tabs?: TabItem[]; activeKey?: string; activeIndex?: number; onChange?: (event: QappTabEvent) => void; safeArea?: boolean }>;
+  export const TabBar: Component<{ key?: string | number; ref?: QappRef; style?: Style; children?: VNodeChild; testID?: string; accessibleLabel?: string; pointerEvents?: "auto" | "none"; tabs?: TabItem[]; activeKey?: string; activeIndex?: number; onChange?: (event: QappTabEvent) => void; safeArea?: boolean; hideOnKeyboard?: boolean }>;
 }
 
 declare module "@mna/qchat/navigation" {

@@ -194,6 +194,36 @@ export function NavBar(props) {
 export function TabBar(props) {
     return view("TabBar", props);
 }
+export function Page(props) {
+    const { header, footer, overlays, children, style, ...rest } = props;
+    return view("View", {
+        ...rest,
+        style: { flex: 1, ...(style ?? {}) },
+        children: [
+            header,
+            view("Stack", {
+                alignment: "topLeft",
+                style: { flex: 1 },
+                children: [
+                    // The body is pinned to the stack instead of being laid out from its
+                    // own content, so it fills the page even when it is a plain `View`.
+                    view("Positioned", {
+                        style: {
+                            position: "absolute",
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            left: 0,
+                        },
+                        children,
+                    }),
+                    overlays,
+                ],
+            }),
+            footer,
+        ],
+    });
+}
 /**
  * Custom drawing uses a deliberately small, declarative path language rather
  * than arbitrary Dart code: `M x y L x y Q cx cy x y C ... Z` plus optional

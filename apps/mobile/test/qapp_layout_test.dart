@@ -370,4 +370,91 @@ void main() {
     expect(label.center.dy, closeTo(stack.center.dy, 1));
     expect(label.center.dx, closeTo(stack.center.dx, 1));
   });
+
+  testWidgets('a page body sits between the header and the footer', (
+    tester,
+  ) async {
+    setPhone(tester);
+    // The shape `Page` builds in the framework: a header, the body pinned inside
+    // a stack, then the footer. Content used to start at y = 0 under a solid
+    // header, which hid the first card of the page.
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {'flex': 1},
+      },
+      children: [
+        node(
+          'n0.0',
+          'NavBar',
+          props: {'title': 'Vé điện tử', 'showBack': true},
+        ),
+        node(
+          'n0.1',
+          'Stack',
+          props: {
+            'alignment': 'topLeft',
+            'style': {'flex': 1},
+          },
+          children: [
+            node(
+              'n0.1.0',
+              'Positioned',
+              props: {
+                'style': {
+                  'position': 'absolute',
+                  'top': 0,
+                  'right': 0,
+                  'bottom': 0,
+                  'left': 0,
+                },
+              },
+              children: [
+                node(
+                  'n0.1.0.0',
+                  'ScrollView',
+                  children: [
+                    node(
+                      'n0.1.0.0.0',
+                      'View',
+                      props: {
+                        'style': {'padding': 16},
+                      },
+                      children: [text('n0.1.0.0.0.0', 'Body')],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        node(
+          'n0.2',
+          'TabBar',
+          props: {
+            'activeIndex': 0,
+            'tabs': [
+              {'key': 'home', 'label': 'Home', 'icon': 'home'},
+            ],
+          },
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+
+    expect(tester.takeException(), isNull);
+    final header = tester.getRect(find.byKey(const ValueKey('n0.0')));
+    final body = tester.getRect(find.byType(SingleChildScrollView));
+    final footer = tester.getRect(find.byKey(const ValueKey('n0.2')));
+    expect(body.top, closeTo(header.bottom, .01));
+    expect(body.bottom, closeTo(footer.top, .01));
+    expect(footer.bottom, closeTo(812, .01));
+    expect(
+      tester.getTopLeft(find.text('Body')).dy,
+      greaterThanOrEqualTo(header.bottom),
+      reason: 'the first card must not slide under the header',
+    );
+  });
 }

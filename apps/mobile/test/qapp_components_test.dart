@@ -6,6 +6,7 @@ import 'package:qchat/core/design_system/qchat_glass.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
+import 'package:qchat/features/miniapps/qapp/qapp_view.dart';
 import 'test_app.dart';
 
 QappNode node(
@@ -52,6 +53,26 @@ void expectEvent(
 Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
   return qchatHarness(
     QappRenderer(root: root, onEvent: onEvent, loadAsset: (_) async => null),
+  );
+}
+
+/// A host whose viewport has a keyboard open by `inset` logical pixels, wrapped
+/// in the same keyboard inset the real `QappView` uses.
+Widget keyboardHost(QappNode root, double inset) {
+  return qchatHarness(
+    MediaQuery(
+      data: MediaQueryData(
+        size: const Size(375, 812),
+        viewInsets: EdgeInsets.only(bottom: inset),
+      ),
+      child: QappKeyboardInset(
+        child: QappRenderer(
+          root: root,
+          onEvent: (_, _, _) {},
+          loadAsset: (_) async => null,
+        ),
+      ),
+    ),
   );
 }
 
@@ -174,6 +195,35 @@ void main() {
       'key': 'jobs',
       'value': {'index': 1, 'key': 'jobs', 'value': 'jobs'},
     });
+  });
+
+  testWidgets('a TabBar steps aside for the keyboard', (tester) async {
+    QappNode bar({bool? hideOnKeyboard}) => node(
+      'n0',
+      'TabBar',
+      props: {
+        'activeIndex': 0,
+        'hideOnKeyboard': ?hideOnKeyboard,
+        'tabs': [
+          {'key': 'home', 'label': 'Home', 'icon': 'home'},
+          {'key': 'jobs', 'label': 'Jobs', 'icon': 'briefcase'},
+        ],
+      },
+    );
+    // The host shrinks the whole mini program when a field takes focus, so a tab
+    // bar that stayed mounted would float right above the keys.
+    await tester.pumpWidget(keyboardHost(bar(), 0));
+    expect(find.text('Home'), findsOneWidget);
+    await tester.pumpWidget(keyboardHost(bar(), 320));
+    await tester.pump();
+    expect(find.text('Home'), findsNothing);
+    await tester.pumpWidget(keyboardHost(bar(), 0));
+    await tester.pump();
+    expect(find.text('Home'), findsOneWidget);
+    // A page that really wants the bar to stay can opt out.
+    await tester.pumpWidget(keyboardHost(bar(hideOnKeyboard: false), 320));
+    await tester.pump();
+    expect(find.text('Home'), findsOneWidget);
   });
 
   testWidgets('shows and dismisses a Dialog', (tester) async {
@@ -608,6 +658,33 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();
     await tester.pump();
     expectEvent(events, 'n0', 'blur', {'type': 'blur'});
+  });
+
+  testWidgets('the keyboard inset keeps the focused field mounted', (
+    tester,
+  ) async {
+    final root = node('n0', 'TextField', props: {'placeholder': 'Name'});
+    await tester.pumpWidget(keyboardHost(root, 0));
+    final renderer = tester.element(find.byType(QappRenderer));
+    await tester.tap(find.byType(EditableText));
+    await tester.pump();
+    final focus = tester
+        .widget<EditableText>(find.byType(EditableText))
+        .focusNode;
+    expect(focus.hasFocus, isTrue);
+
+    await tester.pumpWidget(keyboardHost(root, 320));
+    await tester.pump();
+
+    // Swapping the bare child for a `Padding` in the same slot remounted the
+    // whole mini program, so the field lost its focus node the moment the
+    // keyboard appeared and needed several taps before it stayed open.
+    expect(
+      tester.element(find.byType(QappRenderer)),
+      same(renderer),
+      reason: 'opening the keyboard must not remount the mini program',
+    );
+    expect(focus.hasFocus, isTrue, reason: 'one tap has to be enough');
   });
 
   testWidgets('a Modal honours animationType', (tester) async {

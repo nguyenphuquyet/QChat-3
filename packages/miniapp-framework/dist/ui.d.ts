@@ -268,6 +268,44 @@ export interface TabBarProps extends BaseProps {
     activeIndex?: number;
     onChange?: (event: QappTabEvent) => void;
     safeArea?: boolean;
+    /**
+     * Steps aside while the keyboard is open. On by default: the host shrinks the
+     * whole mini program when a field takes focus, so a tab bar that stayed
+     * mounted would float in the middle of the screen right above the keys.
+     */
+    hideOnKeyboard?: boolean;
+}
+/**
+ * The screen frame every page should use: header above the body, footer below
+ * it, overlays on top of everything.
+ *
+ * A mini program draws the whole screen itself, so the body has to be given the
+ * space the header leaves. A `NavBar` painted inside a `Stack` over a
+ * `height: "100%"` scroller looks right until the first card starts at y = 0 and
+ * slides under the header. `Page` is the layout that cannot make that mistake:
+ *
+ * ```tsx
+ * <Page
+ *   header={<NavBar title="Vé" showBack onBack={back} />}
+ *   footer={<TabBar tabs={tabs} activeIndex={index} onChange={…} />}
+ *   overlays={<Dialog visible={open} … />}
+ * >
+ *   <ScrollView>…</ScrollView>
+ * </Page>
+ * ```
+ *
+ * The body always fills the space between the header and the footer, whatever it
+ * is: a scroller, a `ListView`, or a `View` with `flex: 1`. Overlays are painted
+ * over the whole page, header included, which is what a dialog barrier needs.
+ */
+export interface PageProps extends BaseProps {
+    children?: VNodeChild;
+    /** Rows drawn above the body, usually one `NavBar`. */
+    header?: VNodeChild;
+    /** Rows drawn below the body, usually one `TabBar`. */
+    footer?: VNodeChild;
+    /** `Dialog`, `Modal`, `BottomSheet` or a toast, painted over the whole page. */
+    overlays?: VNodeChild;
 }
 export declare function View(props: ViewProps): VNode;
 export declare function Row(props: ViewProps): VNode;
@@ -313,6 +351,7 @@ export declare function BottomSheet(props: BottomSheetProps): VNode;
 export declare function Dialog(props: DialogProps): VNode;
 export declare function NavBar(props: NavBarProps): VNode;
 export declare function TabBar(props: TabBarProps): VNode;
+export declare function Page(props: PageProps): VNode;
 /**
  * Custom drawing uses a deliberately small, declarative path language rather
  * than arbitrary Dart code: `M x y L x y Q cx cy x y C ... Z` plus optional

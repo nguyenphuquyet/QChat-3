@@ -111,7 +111,9 @@ node packages/miniapp-framework/dist/cli.js inspect  packages/miniapp-examples/r
   preview không có router vẫn xem được trang.
 - **Host API**: `getUserInfo`, `share`, `showToast` — mọi lời gọi đều có `catch`.
 - **Thành phần**: `ListView`, `GridView`, `BottomSheet`, `Dialog`, `Checkbox`,
-  `Switch`, `Tag`, `Avatar`, `Icon`, `CustomPaint`, `Divider`, `TabBar`.
+  `Switch`, `Tag`, `Avatar`, `Icon`, `CustomPaint`, `Divider`, `TabBar`, `Page`.
+- **Khung trang**: trang Vé điện tử dùng `Page` (`header` + `body` + `overlays`),
+  nên thẻ vé luôn bắt đầu dưới header thay vì chui xuống dưới nó.
 - **Định dạng**: `Intl.NumberFormat("vi-VN")` cho tiền, `Date` cho ngày và giờ,
   không có `setInterval` nào bị bỏ quên.
 
@@ -128,3 +130,6 @@ node packages/miniapp-framework/dist/cli.js inspect  packages/miniapp-examples/r
 5. Trong `Stack`, con cần đặt theo cạnh nên dùng `Positioned`; style
    `position: "absolute"` cũng được runtime hiểu, nhưng `Positioned` rõ nghĩa
    hơn khi đọc code.
+6. Mỗi trang dùng `Page` (`header` / `footer` / `overlays`) để nội dung luôn nằm
+   dưới header. Chỉ tự dựng `Stack` khi cố ý cho ảnh chạy dưới header trong suốt,
+   và khi đó phải tự chừa `paddingTop` cho nội dung.

@@ -63,6 +63,32 @@ class QappViewController {
   bool back() => _state?._back() ?? false;
 }
 
+/// Shrinks a mini program by the height of the keyboard.
+///
+/// A mini app owns the whole screen and draws no `Scaffold`, so nothing else
+/// resizes its viewport when a field takes focus: a `TextField` near the bottom
+/// stayed hidden under the keys. Resizing the view is what makes Flutter scroll
+/// the focused field into view.
+///
+/// The `Padding` is always there, even at zero inset. Returning the bare child
+/// instead swapped a `Padding` for a `QappRenderer` in the same slot, which
+/// remounted the whole mini program: every `TextField` lost its `FocusNode` the
+/// moment the keyboard appeared, the keyboard closed again, and the user needed
+/// several taps before a field stayed focused.
+class QappKeyboardInset extends StatelessWidget {
+  const QappKeyboardInset({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: child,
+    );
+  }
+}
+
 class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   final QappBackend _backend = createQappBackend();
   final Map<String, Future<Uint8List?>> _assetCache = {};
@@ -75,6 +101,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   bool _dragging = false;
   bool _scrolling = false;
   DateTime? _pointerUpAt;
+  String? _heldScrollNodeId;
+  Map<String, dynamic>? _heldScrollPayload;
   String? _failureCode;
   String? _failureMessage;
   int _generation = 0;
@@ -131,6 +159,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _firstFrameSent = false;
     _routes.clear();
     _pendingRender = null;
+    _heldScrollNodeId = null;
+    _heldScrollPayload = null;
     _dragging = false;
     _scrolling = false;
     _pointerUpAt = null;
@@ -263,7 +293,10 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   /// Safety net for a scroll that stops without reporting its end, for example
   /// when a new tree replaces the list while it is moving.
   void _armScrollWatchdog() {
-    _scrollWatchdog?.cancel();
+    // Re-arming on every notification would create and drop a timer on every
+    // frame of a bounce; the safety net only has to outlive the gap between two
+    // scroll frames, so a live timer is left alone.
+    if (_scrollWatchdog?.isActive ?? false) return;
     _scrollWatchdog = Timer(
       const Duration(milliseconds: 1500),
       _scrollWatchdogFired,
@@ -293,6 +326,10 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   }
 
   void _flushPendingRender() {
+    // The newest scroll offset that was skipped while a frame waited goes first:
+    // the render it produces supersedes the held frame, so both land in one
+    // build instead of two.
+    _flushHeldScroll();
     final pending = _pendingRender;
     if (pending == null || !mounted) return;
     if (SchedulerBinding.instance.schedulerPhase ==
@@ -316,19 +353,27 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   }
 
   void _dispatch(String nodeId, String event, Object? payload) {
+    // A scroll frame that reaches JavaScript runs a whole render on the UI
+    // thread, and the tree it produces is held until the list stops anyway. Once
+    // one render is waiting, another scroll frame can only add work: the newest
+    // offset is kept and handed over when the list comes to rest, so a drag or a
+    // bounce past the edge runs one render instead of sixteen a second.
+    if (event == 'scroll' && _scrolling && _pendingRender != null) {
+      _heldScrollNodeId = nodeId;
+      _heldScrollPayload = payload is Map<String, dynamic> ? payload : null;
+      return;
+    }
     _runtime?.dispatch(nodeId, event, payload);
   }
 
-  /// Keeps the focused field above the keyboard.
-  ///
-  /// A mini app owns the whole screen and draws no `Scaffold`, so nothing else
-  /// resizes its viewport when the keyboard opens: a `TextField` near the bottom
-  /// stayed hidden under the keys. Shrinking the view is what makes Flutter
-  /// scroll the focused field into view.
-  Widget _keyboardAvoider(BuildContext context, Widget child) {
-    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    if (keyboard <= 0) return child;
-    return Padding(padding: EdgeInsets.only(bottom: keyboard), child: child);
+  /// Sends the newest scroll offset that was skipped while a render was waiting.
+  void _flushHeldScroll() {
+    final nodeId = _heldScrollNodeId;
+    final payload = _heldScrollPayload;
+    _heldScrollNodeId = null;
+    _heldScrollPayload = null;
+    if (nodeId == null) return;
+    _runtime?.dispatch(nodeId, 'scroll', payload);
   }
 
   void _sendLifecycle(String event, Object? payload) {
@@ -390,9 +435,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
           onPointerCancel: (_) => _releaseDrag(),
           child: NotificationListener<ScrollNotification>(
             onNotification: _onScrollNotification,
-            child: _keyboardAvoider(
-              context,
-              QappRenderer(
+            child: QappKeyboardInset(
+              child: QappRenderer(
                 root: tree.root,
                 onEvent: _dispatch,
                 loadAsset: _loadAsset,
