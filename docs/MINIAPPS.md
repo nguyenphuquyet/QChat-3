@@ -319,7 +319,10 @@ current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
 and `TabBar` takes a tab list plus the active tab and reports `change` with
 `{ index, key, value }`. `TabBar.hideOnKeyboard` defaults to true: the host
 shrinks the whole mini program when a field takes focus, so a bar that stayed
-mounted would float in the middle of the screen right above the keys.
+mounted would float in the middle of the screen right above the keys. The bar
+comes back the moment the keyboard starts to retract, so it slides down with the
+keys instead of popping in after they are gone (a 160 ms fade keeps the reveal
+from flashing).
 
 ### The screen frame: `Page`
 
@@ -700,7 +703,8 @@ These are the rules the renderer guarantees; each one is covered by a test in
   for the bare child remounted the whole mini program the moment the keyboard
   appeared, so every field lost its focus node and needed several taps before it
   stayed open. A `TabBar` steps aside while the keys are up
-  (`hideOnKeyboard`, on by default) instead of floating above them.
+  (`hideOnKeyboard`, on by default) instead of floating above them, and returns
+  as soon as the inset starts shrinking so it rides down with the keyboard.
 
 
 ## Local development

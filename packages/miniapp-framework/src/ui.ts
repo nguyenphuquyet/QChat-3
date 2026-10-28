@@ -302,7 +302,9 @@ export interface TabBarProps extends BaseProps {
   /**
    * Steps aside while the keyboard is open. On by default: the host shrinks the
    * whole mini program when a field takes focus, so a tab bar that stayed
-   * mounted would float in the middle of the screen right above the keys.
+   * mounted would float in the middle of the screen right above the keys. The
+   * bar comes back as soon as the keyboard starts to retract, so it slides down
+   * with the keys instead of popping in once they are gone.
    */
   hideOnKeyboard?: boolean;
 }

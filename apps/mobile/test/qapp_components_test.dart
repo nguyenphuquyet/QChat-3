@@ -197,7 +197,9 @@ void main() {
     });
   });
 
-  testWidgets('a TabBar steps aside for the keyboard', (tester) async {
+  testWidgets('a TabBar steps aside for the keyboard and returns as it closes', (
+    tester,
+  ) async {
     QappNode bar({bool? hideOnKeyboard}) => node(
       'n0',
       'TabBar',
@@ -217,8 +219,16 @@ void main() {
     await tester.pumpWidget(keyboardHost(bar(), 320));
     await tester.pump();
     expect(find.text('Home'), findsNothing);
-    await tester.pumpWidget(keyboardHost(bar(), 0));
+    // Dismissing the keyboard: the inset shrinks frame by frame, and the bar has
+    // to come back as the keys retract, not once they are already gone.
+    await tester.pumpWidget(keyboardHost(bar(), 200));
     await tester.pump();
+    expect(find.text('Home'), findsOneWidget);
+    await tester.pumpWidget(keyboardHost(bar(), 60));
+    await tester.pump();
+    expect(find.text('Home'), findsOneWidget);
+    await tester.pumpWidget(keyboardHost(bar(), 0));
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('Home'), findsOneWidget);
     // A page that really wants the bar to stay can opt out.
     await tester.pumpWidget(keyboardHost(bar(hideOnKeyboard: false), 320));

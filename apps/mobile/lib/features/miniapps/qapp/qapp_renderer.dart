@@ -1022,14 +1022,21 @@ class _QappNodeView extends StatelessWidget {
     if (activeIndex < 0) activeIndex = 0;
     final safeArea = node.props['safeArea'] != false;
     final bottomInset = safeArea ? MediaQuery.of(context).padding.bottom : 0.0;
+    Widget bar() => _tabBarSurface(context, tabs, activeIndex, bottomInset);
     // The host shrinks the whole mini program when a field takes focus, so a tab
     // bar that stayed mounted would be lifted off the bottom edge and float right
     // above the keys. It steps aside instead, like a native tab bar, and the page
     // gets the space to scroll its focused field into view.
-    if (node.props['hideOnKeyboard'] != false &&
-        MediaQuery.viewInsetsOf(context).bottom > 0) {
-      return const SizedBox.shrink();
-    }
+    if (node.props['hideOnKeyboard'] == false) return bar();
+    return _QappKeyboardFooter(builder: (_) => bar());
+  }
+
+  Widget _tabBarSurface(
+    BuildContext context,
+    List<Map> tabs,
+    int activeIndex,
+    double bottomInset,
+  ) {
     return Container(
       color: node.style.backgroundColor ?? surface(context),
       padding: EdgeInsets.only(bottom: bottomInset),
@@ -1995,6 +2002,55 @@ class _QappCopyToolbar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Keeps a footer (the `TabBar`) out of the keyboard's way while it is open and
+/// brings it back the moment the keyboard starts to close.
+///
+/// `MediaQuery.viewInsetsOf` keeps reporting the keyboard while it animates out
+/// and only drops to zero once it is fully gone, so testing `inset > 0` made the
+/// bar pop in a beat after the keys had left the screen. Comparing against the
+/// previous inset tells us which way the keyboard is moving, so the bar reappears
+/// on the first frame the inset shrinks and rides down with the keys. The short
+/// fade keeps that reveal from popping.
+class _QappKeyboardFooter extends StatefulWidget {
+  const _QappKeyboardFooter({required this.builder});
+
+  final WidgetBuilder builder;
+
+  @override
+  State<_QappKeyboardFooter> createState() => _QappKeyboardFooterState();
+}
+
+class _QappKeyboardFooterState extends State<_QappKeyboardFooter> {
+  double? _lastInset;
+  bool _steppedAside = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    final previous = _lastInset;
+    _lastInset = inset;
+    // Opening, or already open: stay out of the way. A closing keyboard counts as
+    // closing on every frame, because the inset keeps shrinking until it is 0.
+    final closing = previous != null && inset < previous;
+    if (inset > 0 && !closing) {
+      _steppedAside = true;
+      return const SizedBox.shrink();
+    }
+    final bar = widget.builder(context);
+    // A page that simply opens has nothing to fade: only the bar that comes back
+    // from under the keyboard eases in.
+    if (!_steppedAside) return bar;
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOut,
+      builder: (context, value, child) =>
+          Opacity(opacity: value, child: child),
+      child: bar,
     );
   }
 }
