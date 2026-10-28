@@ -78,9 +78,11 @@ export function ScrollView(props) {
 /** Items materialized in the first frame before Flutter builds lazily. */
 const DEFAULT_INITIAL_COUNT = 60;
 /**
- * `ListView` and `GridView` keep their own node types so the Flutter host can
- * build the items lazily: only `initialCount` items are serialized into the
- * frame, and the remaining rows are created as they scroll into view.
+ * `ListView` and `GridView` keep their own node types so the Flutter host only
+ * lays out the rows it can see. The frame carries the first `initialCount`
+ * items (60 by default) and the total count; Flutter builds those rows lazily
+ * as they scroll in. Items past `initialCount` are not serialized, so a longer
+ * list has to raise `initialCount` or page its own data.
  */
 export function ListView(props) {
     const { data = [], renderItem, empty, initialCount, ...rest } = props;

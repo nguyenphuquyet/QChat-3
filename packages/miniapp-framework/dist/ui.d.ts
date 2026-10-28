@@ -284,9 +284,11 @@ export declare function Switch(props: SwitchProps): VNode;
 export declare function Slider(props: SliderProps): VNode;
 export declare function ScrollView(props: ScrollViewProps): VNode;
 /**
- * `ListView` and `GridView` keep their own node types so the Flutter host can
- * build the items lazily: only `initialCount` items are serialized into the
- * frame, and the remaining rows are created as they scroll into view.
+ * `ListView` and `GridView` keep their own node types so the Flutter host only
+ * lays out the rows it can see. The frame carries the first `initialCount`
+ * items (60 by default) and the total count; Flutter builds those rows lazily
+ * as they scroll in. Items past `initialCount` are not serialized, so a longer
+ * list has to raise `initialCount` or page its own data.
  */
 export declare function ListView<T>(props: ListViewProps<T>): VNode;
 export declare function GridView<T>(props: GridViewProps<T>): VNode;

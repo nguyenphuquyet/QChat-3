@@ -319,6 +319,18 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _runtime?.dispatch(nodeId, event, payload);
   }
 
+  /// Keeps the focused field above the keyboard.
+  ///
+  /// A mini app owns the whole screen and draws no `Scaffold`, so nothing else
+  /// resizes its viewport when the keyboard opens: a `TextField` near the bottom
+  /// stayed hidden under the keys. Shrinking the view is what makes Flutter
+  /// scroll the focused field into view.
+  Widget _keyboardAvoider(BuildContext context, Widget child) {
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    if (keyboard <= 0) return child;
+    return Padding(padding: EdgeInsets.only(bottom: keyboard), child: child);
+  }
+
   void _sendLifecycle(String event, Object? payload) {
     _runtime?.lifecycle(event, payload);
   }
@@ -378,10 +390,13 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
           onPointerCancel: (_) => _releaseDrag(),
           child: NotificationListener<ScrollNotification>(
             onNotification: _onScrollNotification,
-            child: QappRenderer(
-              root: tree.root,
-              onEvent: _dispatch,
-              loadAsset: _loadAsset,
+            child: _keyboardAvoider(
+              context,
+              QappRenderer(
+                root: tree.root,
+                onEvent: _dispatch,
+                loadAsset: _loadAsset,
+              ),
             ),
           ),
         ),

@@ -317,8 +317,9 @@ current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
 `TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
 and `TabBar` takes a tab list plus the active tab and reports `change` with
 `{ index, key, value }`. `ListView`/`GridView` serialize only the first
-`initialCount` items (60 by default) and let Flutter build the rest as they
-scroll in, so one frame never has to carry an unbounded list.
+`initialCount` items (60 by default) and hand the total count to Flutter, which
+builds those rows lazily as they scroll in. Items past `initialCount` are never
+sent, so a longer list raises `initialCount` or pages its own data.
 
 ### Header standard
 
@@ -633,6 +634,9 @@ These are the rules the renderer guarantees; each one is covered by a test in
 - `flexShrink` is accepted but not applied: Flutter never squeezes a child on its
   own, so a row that does not fit overflows instead of compressing. Give the
   flexible child `flex: 1` (and `numberOfLines` on its text) to share the space.
+- The app view shrinks by the keyboard inset while the keyboard is open, so a
+  `TextField` near the bottom is scrolled into view instead of staying under the
+  keys.
 
 
 ## Local development
