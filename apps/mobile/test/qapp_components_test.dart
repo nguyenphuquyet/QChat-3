@@ -197,43 +197,73 @@ void main() {
     });
   });
 
-  testWidgets('a TabBar steps aside for the keyboard and returns as it closes', (
+  testWidgets('a TabBar stays pinned to the bottom edge under the keyboard', (
     tester,
   ) async {
-    QappNode bar({bool? hideOnKeyboard}) => node(
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    QappNode page({bool? hideOnKeyboard}) => node(
       'n0',
-      'TabBar',
+      'View',
       props: {
-        'activeIndex': 0,
-        'hideOnKeyboard': ?hideOnKeyboard,
-        'tabs': [
-          {'key': 'home', 'label': 'Home', 'icon': 'home'},
-          {'key': 'jobs', 'label': 'Jobs', 'icon': 'briefcase'},
-        ],
+        'style': {'flex': 1, 'flexDirection': 'column'},
       },
+      children: [
+        node(
+          'n1',
+          'View',
+          props: {
+            'testID': 'body',
+            'style': {'flex': 1},
+          },
+        ),
+        node(
+          'n2',
+          'TabBar',
+          props: {
+            'activeIndex': 0,
+            'hideOnKeyboard': ?hideOnKeyboard,
+            'tabs': [
+              {'key': 'home', 'label': 'Home', 'icon': 'home'},
+              {'key': 'jobs', 'label': 'Jobs', 'icon': 'briefcase'},
+            ],
+          },
+        ),
+      ],
     );
-    // The host shrinks the whole mini program when a field takes focus, so a tab
-    // bar that stayed mounted would float right above the keys.
-    await tester.pumpWidget(keyboardHost(bar(), 0));
-    expect(find.text('Home'), findsOneWidget);
-    await tester.pumpWidget(keyboardHost(bar(), 320));
-    await tester.pump();
-    expect(find.text('Home'), findsNothing);
-    // Dismissing the keyboard: the inset shrinks frame by frame, and the bar has
-    // to come back as the keys retract, not once they are already gone.
-    await tester.pumpWidget(keyboardHost(bar(), 200));
-    await tester.pump();
-    expect(find.text('Home'), findsOneWidget);
-    await tester.pumpWidget(keyboardHost(bar(), 60));
-    await tester.pump();
-    expect(find.text('Home'), findsOneWidget);
-    await tester.pumpWidget(keyboardHost(bar(), 0));
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('Home'), findsOneWidget);
-    // A page that really wants the bar to stay can opt out.
-    await tester.pumpWidget(keyboardHost(bar(hideOnKeyboard: false), 320));
+
+    double bodyHeight() =>
+        tester.getSize(find.byKey(const ValueKey('body'))).height;
+    double labelY() => tester.getCenter(find.text('Home')).dy;
+
+    // The host shrinks the whole mini program when a field takes focus. The bar
+    // must not be lifted with it: it stays glued to the bottom edge of the
+    // screen, gives its height back to the page, and the keys cover it.
+    await tester.pumpWidget(keyboardHost(page(), 0));
+    final restY = labelY();
+    expect(restY, greaterThan(812 - 56));
+    expect(restY, lessThan(812));
+    expect(bodyHeight(), 812 - 56);
+
+    await tester.pumpWidget(keyboardHost(page(), 320));
     await tester.pump();
     expect(find.text('Home'), findsOneWidget);
+    expect(labelY(), closeTo(restY, .5));
+    expect(bodyHeight(), 812 - 320);
+
+    // Halfway down the keyboard is still over the bar, and the bar has not moved.
+    await tester.pumpWidget(keyboardHost(page(), 20));
+    await tester.pump();
+    expect(labelY(), closeTo(restY, .5));
+    expect(bodyHeight(), 812 - 56);
+
+    // A page that really wants the bar to stay above the keys can opt out.
+    await tester.pumpWidget(keyboardHost(page(hideOnKeyboard: false), 320));
+    await tester.pump();
+    expect(find.text('Home'), findsOneWidget);
+    expect(labelY(), closeTo(restY - 320, .5));
   });
 
   testWidgets('shows and dismisses a Dialog', (tester) async {

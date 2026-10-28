@@ -108,7 +108,10 @@ node packages/miniapp-framework/dist/cli.js inspect  packages/miniapp-examples/r
 - **Sheet và dialog**: `BottomSheet` thanh toán (không lồng scroller), `Dialog`
   xác nhận huỷ vé, `Checkbox` điều khoản, `Switch` tuỳ chọn.
 - **Route nội bộ**: `navigateTo`/`navigateBack` của host, cộng nhánh dự phòng để
-  preview không có router vẫn xem được trang.
+  preview không có router vẫn xem được trang. App giữ một bản sao ngăn xếp route
+  (`routes` trong `main.tsx`) và cập nhật nó cùng lúc với lời gọi host, nên khung
+  hình host nhận được đã là màn hình đúng — đó là khung hình được trượt vào theo
+  hiệu ứng Cupertino, không phải một cú cắt rồi mới nhảy.
 - **Host API**: `getUserInfo`, `share`, `showToast` — mọi lời gọi đều có `catch`.
 - **Thành phần**: `ListView`, `GridView`, `BottomSheet`, `Dialog`, `Checkbox`,
   `Switch`, `Tag`, `Avatar`, `Icon`, `CustomPaint`, `Divider`, `TabBar`, `Page`.

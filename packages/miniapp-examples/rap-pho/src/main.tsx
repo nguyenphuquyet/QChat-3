@@ -1,6 +1,6 @@
 import "@mna/qchat/env/auto";
 
-import { navigateTo, start, useEffect, useLifecycle, useState } from "@mna/qchat";
+import { navigateBack, navigateTo, start, useEffect, useLifecycle, useState } from "@mna/qchat";
 import { TabBar, View } from "@mna/qchat/ui";
 import type { TabItem } from "@mna/qchat/ui";
 import { hydrate, ticketStats, useTickets } from "./store.js";
@@ -22,7 +22,8 @@ const TABS = [
 
 function App() {
   const [index, setIndex] = useState(0);
-  const [route, setRoute] = useState<string | null>(null);
+  const [routes, setRoutes] = useState<string[]>([]);
+  const route = routes.length > 0 ? routes[routes.length - 1] : null;
   const tickets = useTickets();
   const stats = ticketStats(tickets);
 
@@ -31,50 +32,50 @@ function App() {
   }, []);
 
   // The host owns the route stack. It reports every push and pop, and the app
-  // only decides which screen that path means.
+  // only decides which screen that path means. The local stack mirrors the host
+  // so the screen for a lifecycle event is already the one on screen: the frame
+  // it renders is what the host slides in, instead of a blank swap followed by
+  // a second render that jumps.
   useLifecycle((event, payload) => {
-    if (event === "navigate") {
-      const data = (payload ?? {}) as { path?: string | null };
-      setRoute(typeof data.path === "string" ? data.path : null);
-      return;
-    }
-    if (event === "back") {
-      const data = (payload ?? {}) as { path?: string | null };
-      setRoute(
-        typeof data.path === "string" && data.path.length > 0
-          ? data.path
-          : null,
-      );
-    }
+    if (event !== "navigate" && event !== "back") return;
+    const data = (payload ?? {}) as { path?: string | null };
+    const path =
+      typeof data.path === "string" && data.path.length > 0 ? data.path : null;
+    setRoutes((current) => {
+      if (path == null) return current.length === 0 ? current : [];
+      if (current[current.length - 1] === path) return current;
+      if (current[current.length - 2] === path) return current.slice(0, -1);
+      return [...current, path];
+    });
   });
 
-  const openMovie = (id: string) => {
-    setRoute(`/movie/${id}`);
-    void navigateTo(`/movie/${id}`).catch(() => {
+  // The host call goes first: it marks the route change before the frame the
+  // app renders for it reaches the host, which is what turns the swap into a
+  // Cupertino slide instead of an instant cut.
+  const push = (path: string) => {
+    void navigateTo(path).catch(() => {
       // A preview host without a router still shows the page.
     });
+    setRoutes((current) => [...current, path]);
   };
 
-  const openTicket = (code: string) => {
-    setRoute(`/ticket/${code}`);
-    void navigateTo(`/ticket/${code}`).catch(() => {
+  const back = () => {
+    void navigateBack().catch(() => {
       // Same fallback as above.
     });
+    setRoutes((current) => current.slice(0, -1));
   };
 
-  const openLegal = () => {
-    setRoute("/legal");
-    void navigateTo("/legal").catch(() => {
-      // Same fallback as above.
-    });
-  };
+  const openMovie = (id: string) => push(`/movie/${id}`);
+  const openTicket = (code: string) => push(`/ticket/${code}`);
+  const openLegal = () => push("/legal");
 
   if (route && route.startsWith("/movie/")) {
     const id = route.slice("/movie/".length);
     return (
       <MovieScreen
         movieId={id}
-        onBack={() => setRoute(null)}
+        onBack={back}
         onBooked={(code) => {
           setIndex(2);
           openTicket(code);
@@ -85,11 +86,11 @@ function App() {
 
   if (route && route.startsWith("/ticket/")) {
     const code = route.slice("/ticket/".length);
-    return <TicketScreen code={code} onBack={() => setRoute(null)} />;
+    return <TicketScreen code={code} onBack={back} />;
   }
 
   if (route === "/legal") {
-    return <LegalScreen onBack={() => setRoute(null)} />;
+    return <LegalScreen onBack={back} />;
   }
 
   const tabs: TabItem[] = TABS.map((entry) => ({
@@ -127,7 +128,7 @@ function App() {
         activeIndex={index}
         onChange={(event) => {
           setIndex(event.index);
-          setRoute(null);
+          setRoutes((current) => (current.length === 0 ? current : []));
         }}
         style={{
           backgroundColor: colors.surface,

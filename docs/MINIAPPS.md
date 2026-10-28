@@ -318,11 +318,11 @@ current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
 `TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
 and `TabBar` takes a tab list plus the active tab and reports `change` with
 `{ index, key, value }`. `TabBar.hideOnKeyboard` defaults to true: the host
-shrinks the whole mini program when a field takes focus, so a bar that stayed
-mounted would float in the middle of the screen right above the keys. The bar
-comes back the moment the keyboard starts to retract, so it slides down with the
-keys instead of popping in after they are gone (a 160 ms fade keeps the reveal
-from flashing).
+shrinks the whole mini program when a field takes focus, so a bar left in the
+flow would be lifted off the bottom edge and float right above the keys. Pinned
+instead, the bar keeps painting at the bottom edge of the screen, hands its
+height back to the page while the keys are up, and is uncovered again as the
+keyboard retracts. Nothing pops in late and no content jumps.
 
 ### The screen frame: `Page`
 
@@ -702,9 +702,18 @@ These are the rules the renderer guarantees; each one is covered by a test in
   keys. The inset is a `Padding` that is always there, even at zero: swapping it
   for the bare child remounted the whole mini program the moment the keyboard
   appeared, so every field lost its focus node and needed several taps before it
-  stayed open. A `TabBar` steps aside while the keys are up
-  (`hideOnKeyboard`, on by default) instead of floating above them, and returns
-  as soon as the inset starts shrinking so it rides down with the keyboard.
+  stayed open. A `TabBar` is pinned to the bottom edge while the keys are up
+  (`hideOnKeyboard`, on by default) instead of floating above them: it keeps
+  painting at the physical bottom and only the height it reserves shrinks, so
+  the keyboard slides over it and uncovers it again on the way out.
+- A push or a pop inside a mini program runs the platform's Cupertino page
+  transition (400 ms): the new screen slides in from the right with a shadow
+  while the screen under it drifts a third of the way left, and the same motion
+  plays backwards on the way out. The host keeps a snapshot of the screen it is
+  covering, so the app never has to animate the swap itself; a screen that only
+  repaints (a keystroke, a list loading) never animates. Navigation must go
+  through `navigateTo`/`navigateBack`, which is what marks the frame as a route
+  change.
 
 
 ## Local development

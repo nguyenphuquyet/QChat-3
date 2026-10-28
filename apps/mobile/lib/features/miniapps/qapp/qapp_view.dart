@@ -9,6 +9,7 @@ import '../../../core/localization/strings.dart';
 import 'qapp_backend.dart';
 import 'qapp_js_types.dart';
 import 'qapp_renderer.dart';
+import 'qapp_screen_transition.dart';
 import 'qapp_tree.dart';
 
 /// Host side of the Mini App JavaScript sandbox.
@@ -89,7 +90,8 @@ class QappKeyboardInset extends StatelessWidget {
   }
 }
 
-class _QappViewState extends State<QappView> with WidgetsBindingObserver {
+class _QappViewState extends State<QappView>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final QappBackend _backend = createQappBackend();
   final Map<String, Future<Uint8List?>> _assetCache = {};
   final List<String> _routes = [];
@@ -108,9 +110,28 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
   int _generation = 0;
   bool _firstFrameSent = false;
 
+  /// Drives the Cupertino push/pop between two screens of the same app.
+  late final AnimationController _nav;
+
+  /// Screen the current navigation covers (push) or reveals (pop).
+  QappTree? _outgoing;
+
+  /// Direction of the transition on screen: `1` push, `-1` pop, `0` at rest.
+  int _navDirection = 0;
+
+  /// Direction the host asked for, waiting for the frame the app renders for
+  /// the new route. A navigation that never renders must not animate an
+  /// unrelated frame later, so the intent also expires.
+  int? _navIntent;
+  Timer? _navIntentTimer;
+
   @override
   void initState() {
     super.initState();
+    _nav = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    )..addStatusListener(_onNavStatus);
     WidgetsBinding.instance.addObserver(this);
     widget.controller?._attach(this);
     scheduleMicrotask(_start);
@@ -145,6 +166,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _generation += 1;
     _scrollWatchdog?.cancel();
+    _navIntentTimer?.cancel();
+    _nav.dispose();
     _pendingRender = null;
     _runtime?.dispose();
     _runtime = null;
@@ -165,9 +188,14 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     _scrolling = false;
     _pointerUpAt = null;
     _scrollWatchdog?.cancel();
+    _navIntentTimer?.cancel();
+    _navIntent = null;
+    _navDirection = 0;
+    _nav.value = 0;
     if (mounted) {
       setState(() {
         _tree = null;
+        _outgoing = null;
         _failureCode = null;
         _failureMessage = null;
       });
@@ -197,7 +225,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     // animation: that is the single hitch that was still felt while scrolling.
     // Keep the newest frame and paint it once the list comes to rest; a frame a
     // tap produced is never held, so the tab bar always answers.
-    if (_shouldHoldFrame()) {
+    if (_navIntent == null && _shouldHoldFrame()) {
       _pendingRender = payload;
       return;
     }
@@ -222,17 +250,65 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
       );
       return;
     }
+    // The frame a navigation produces is the only one that may animate: the
+    // screen it replaces becomes the outgoing snapshot, and the new screen slides
+    // in over it. Every other frame (a keystroke, a list loading) only repaints.
+    final intent = _navIntent;
+    _navIntent = null;
+    _navIntentTimer?.cancel();
+    final current = _tree;
+    final animate = intent != null && intent != 0 && current != null;
     setState(() {
+      if (animate) {
+        _outgoing = current;
+        _navDirection = intent;
+      }
       _tree = tree;
       _failureCode = null;
       _failureMessage = null;
     });
+    if (animate) {
+      if (intent > 0) {
+        _nav.value = 0;
+        _nav.forward();
+      } else {
+        _nav.value = 1;
+        _nav.reverse();
+      }
+    }
     if (!_firstFrameSent) {
       _firstFrameSent = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onFirstFrame?.call();
       });
     }
+  }
+
+  /// Marks the next painted frame as a push (`1`) or a pop (`-1`).
+  void _intendNavigation(int direction) {
+    _navIntent = direction;
+    _navIntentTimer?.cancel();
+    _navIntentTimer = Timer(const Duration(milliseconds: 600), () {
+      _navIntent = null;
+    });
+  }
+
+  /// Drops the outgoing screen once the transition has played out.
+  ///
+  /// A push finishes at `1` and a pop at `0`; the opposite end belongs to the
+  /// other direction, so the guard keeps a controller reset from clearing the
+  /// snapshot the new transition just installed.
+  void _onNavStatus(AnimationStatus status) {
+    final finished = switch (status) {
+      AnimationStatus.completed => _navDirection > 0,
+      AnimationStatus.dismissed => _navDirection < 0,
+      _ => false,
+    };
+    if (!mounted || !finished || _outgoing == null) return;
+    setState(() {
+      _outgoing = null;
+      _navDirection = 0;
+    });
   }
 
   /// Decides when a render frame may be painted while the content is moving.
@@ -384,6 +460,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     final runtime = _runtime;
     if (runtime == null) return false;
     _routes.add(path);
+    _intendNavigation(1);
     runtime.lifecycle('navigate', {'path': path, 'depth': _routes.length});
     return true;
   }
@@ -392,6 +469,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
     final runtime = _runtime;
     if (runtime == null || _routes.isEmpty) return false;
     _routes.removeLast();
+    _intendNavigation(-1);
     runtime.lifecycle('back', {
       'path': _routes.isEmpty ? null : _routes.last,
       'depth': _routes.length,
@@ -424,6 +502,7 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
         child: const QChatLoading(size: 22),
       );
     }
+    final outgoing = _outgoing;
     return ColoredBox(
       color: qchatBackground(context),
       child: SizedBox.expand(
@@ -436,10 +515,21 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
           child: NotificationListener<ScrollNotification>(
             onNotification: _onScrollNotification,
             child: QappKeyboardInset(
-              child: QappRenderer(
-                root: tree.root,
-                onEvent: _dispatch,
-                loadAsset: _loadAsset,
+              child: QappScreenTransition(
+                animation: _nav,
+                direction: _navDirection,
+                live: QappRenderer(
+                  root: tree.root,
+                  onEvent: _dispatch,
+                  loadAsset: _loadAsset,
+                ),
+                outgoing: outgoing == null
+                    ? null
+                    : QappRenderer(
+                        root: outgoing.root,
+                        onEvent: _ignoreEvent,
+                        loadAsset: _loadAsset,
+                      ),
               ),
             ),
           ),
@@ -447,6 +537,8 @@ class _QappViewState extends State<QappView> with WidgetsBindingObserver {
       ),
     );
   }
+
+  void _ignoreEvent(String nodeId, String event, Object? payload) {}
 
   Widget _errorView(BuildContext context, String code) {
     final message = switch (code) {

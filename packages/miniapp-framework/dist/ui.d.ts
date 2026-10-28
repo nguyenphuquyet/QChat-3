@@ -269,11 +269,12 @@ export interface TabBarProps extends BaseProps {
     onChange?: (event: QappTabEvent) => void;
     safeArea?: boolean;
     /**
-     * Steps aside while the keyboard is open. On by default: the host shrinks the
-     * whole mini program when a field takes focus, so a tab bar that stayed
-     * mounted would float in the middle of the screen right above the keys. The
-     * bar comes back as soon as the keyboard starts to retract, so it slides down
-     * with the keys instead of popping in once they are gone.
+     * Keeps the bar glued to the bottom edge of the screen while the keyboard is
+     * up. On by default: the host shrinks the whole mini program when a field
+     * takes focus, so a bar left in the flow would be lifted off the bottom edge
+     * and float right above the keys. Pinned instead, it gives its height back to
+     * the page and the keys cover it, then uncover it as they retract. Turn it off
+     * for a page that wants the bar to ride above the keyboard.
      */
     hideOnKeyboard?: boolean;
 }
