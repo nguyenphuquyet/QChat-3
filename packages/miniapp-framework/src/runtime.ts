@@ -139,6 +139,28 @@ let currentInstance: Instance | null = null;
 let cursor = 0;
 let visited = new Set<string>();
 let revision = 0;
+/**
+ * Trail of the components being rendered, from the root down to the component
+ * that owns the node currently being built.
+ *
+ * Node ids are positional (`n0.1.0`), so two screens can use the same id for
+ * two different widgets. This trail is what tells them apart: it is the same
+ * every time a screen renders and different for every other screen, so the host
+ * can keep per-screen widget state (the offset of a `ScrollView`) while still
+ * restoring it when the user comes back to that screen.
+ */
+let componentChain = "";
+const componentIds = new WeakMap<Component<any>, number>();
+let nextComponentId = 1;
+
+function componentId(component: Component<any>): number {
+  const known = componentIds.get(component);
+  if (known != null) return known;
+  const assigned = nextComponentId;
+  nextComponentId += 1;
+  componentIds.set(component, assigned);
+  return assigned;
+}
 let lastTree: SerializedTree | null = null;
 let rendering = false;
 let batching = 0;
@@ -366,6 +388,8 @@ interface HostNode {
   props: Record<string, unknown>;
   events: Array<{ name: EventName; handler: (payload?: unknown) => void }>;
   children: HostNode[];
+  /** Component trail at the moment the node was created; see `componentChain`. */
+  owner?: string;
 }
 
 function slotName(element: VNode, index: number): string {
@@ -401,6 +425,7 @@ function renderChildren(value: VNodeChild, ownerKey: string): HostNode[] {
         props: { text: String(item) },
         events: [],
         children: [],
+        owner: componentChain,
       });
       index++;
       continue;
@@ -444,7 +469,13 @@ function renderElement(
   }
   if (typeof type !== "string") return [];
   assertKnownType(type);
-  const node: HostNode = { type, props: {}, events: [], children: [] };
+  const node: HostNode = {
+    type,
+    props: {},
+    events: [],
+    children: [],
+    owner: componentChain,
+  };
   // Several props can map to one event (`onChange` and `onCheckedChange` both
   // fire `change`), so the wire event list never repeats a name.
   const byEvent = new Map<EventName, (payload?: unknown) => void>();
@@ -481,8 +512,12 @@ function renderComponent(
   visited.add(key);
   const previousInstance = currentInstance;
   const previousCursor = cursor;
+  const previousChain = componentChain;
   currentInstance = instance;
   cursor = 0;
+  componentChain = previousChain
+    ? `${previousChain}.${componentId(component)}`
+    : String(componentId(component));
   let output: VNodeChild = null;
   try {
     output = component(props);
@@ -500,7 +535,13 @@ function renderComponent(
   instance.slots.length = cursor;
   currentInstance = previousInstance;
   cursor = previousCursor;
-  return renderChildren(output, key);
+  // The chain stays pushed while the component's own output is turned into
+  // host nodes, so every node they contain records the screen it belongs to.
+  try {
+    return renderChildren(output, key);
+  } finally {
+    componentChain = previousChain;
+  }
 }
 
 function serialize(node: HostNode, id: string): RenderNode {
@@ -547,6 +588,11 @@ function renderNow(): void {
       "",
       "root",
     );
+    // The screen is the component trail that produced the frame's root node, so
+    // a tab or a route keeps its own widget state while ids stay positional
+    // inside it. An app whose screens share one wrapper component still frames
+    // every screen as the same trail and behaves as before.
+    const screen = hostRoots[0]?.owner ?? "";
     const root: RenderNode | null =
       hostRoots.length === 0
         ? null
@@ -557,7 +603,13 @@ function renderNow(): void {
               "n0",
             );
     revision += 1;
-    const tree: SerializedTree = { v: PROTOCOL_VERSION, appId, root, revision };
+    const tree: SerializedTree = {
+      v: PROTOCOL_VERSION,
+      appId,
+      screen,
+      root,
+      revision,
+    };
     lastTree = tree;
     // Unmount instances that were not touched by this pass.
     for (const [key, instance] of instances) {

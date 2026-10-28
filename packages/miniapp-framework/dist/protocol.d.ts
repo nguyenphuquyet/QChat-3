@@ -176,6 +176,14 @@ export interface RenderNode {
 export interface RenderTree {
     v: typeof PROTOCOL_VERSION;
     appId: string;
+    /**
+     * Which screen this frame belongs to: the trail of components that produced
+     * its root node. Node ids are positional, so two screens can name different
+     * widgets with the same id; the host uses this to keep per-screen widget state
+     * (a scroll offset, a field's text) apart and to restore it when the screen
+     * comes back. Empty when the runtime cannot tell.
+     */
+    screen: string;
     root: RenderNode | null;
     revision: number;
 }
@@ -215,6 +223,8 @@ export interface HostBridge {
 export interface SerializedTree {
     v: number;
     appId: string;
+    /** Screen identity; see `RenderTree.screen`. */
+    screen: string;
     root: RenderNode | null;
     revision: number;
 }

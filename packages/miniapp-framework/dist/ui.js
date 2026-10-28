@@ -200,13 +200,15 @@ export function Page(props) {
         ...rest,
         style: { flex: 1, ...(style ?? {}) },
         children: [
-            header,
             view("Stack", {
                 alignment: "topLeft",
                 style: { flex: 1 },
                 children: [
-                    // The body is pinned to the stack instead of being laid out from its
-                    // own content, so it fills the page even when it is a plain `View`.
+                    // The page column is pinned so it fills the frame even though the
+                    // overlays are laid out beside it. Overlays are siblings of the whole
+                    // column — header and footer included — not of the body: a dialog
+                    // barrier that stopped at the body left the header and the TabBar
+                    // bright and tappable behind the scrim.
                     view("Positioned", {
                         style: {
                             position: "absolute",
@@ -215,12 +217,38 @@ export function Page(props) {
                             bottom: 0,
                             left: 0,
                         },
-                        children,
+                        children: [
+                            view("View", {
+                                style: { flex: 1 },
+                                children: [
+                                    header,
+                                    view("Stack", {
+                                        alignment: "topLeft",
+                                        style: { flex: 1 },
+                                        children: [
+                                            // The body is pinned to the stack instead of being laid
+                                            // out from its own content, so it fills the page even
+                                            // when it is a plain `View`.
+                                            view("Positioned", {
+                                                style: {
+                                                    position: "absolute",
+                                                    top: 0,
+                                                    right: 0,
+                                                    bottom: 0,
+                                                    left: 0,
+                                                },
+                                                children,
+                                            }),
+                                        ],
+                                    }),
+                                    footer,
+                                ],
+                            }),
+                        ],
                     }),
                     overlays,
                 ],
             }),
-            footer,
         ],
     });
 }

@@ -78,6 +78,20 @@ function styleOf(node: RenderNode | undefined): Record<string, unknown> {
   return (node?.props.style ?? {}) as Record<string, unknown>;
 }
 
+/** Finds a node inside one subtree, unlike `findNode`, which walks a frame. */
+function within(
+  node: RenderNode | undefined,
+  predicate: (node: RenderNode) => boolean,
+): RenderNode | null {
+  if (!node) return null;
+  if (predicate(node)) return node;
+  for (const child of node.children ?? []) {
+    const found = within(child, predicate);
+    if (found) return found;
+  }
+  return null;
+}
+
 test("a Page puts the body between the header and the footer", async () => {
   const { result, directory } = await build();
   try {
@@ -89,15 +103,31 @@ test("a Page puts the body between the header and the footer", async () => {
       assert.equal(page!.type, "View");
       assert.equal(styleOf(page).flex, 1);
 
+      // One stack holds the page column and, above it, the overlays.
       assert.deepEqual(
         page!.children?.map((child) => child.type),
+        ["Stack"],
+      );
+      const stack = page!.children![0];
+      assert.equal(styleOf(stack).flex, 1);
+
+      const pinned = stack.children![0];
+      assert.equal(pinned.type, "Positioned");
+      assert.equal(styleOf(pinned).position, "absolute");
+      assert.equal(styleOf(pinned).top, 0);
+      assert.equal(styleOf(pinned).bottom, 0);
+
+      const column = pinned.children![0];
+      assert.equal(column.type, "View");
+      assert.deepEqual(
+        column.children?.map((child) => child.type),
         ["NavBar", "Stack", "TabBar"],
         "header, body stack, footer — in that order",
       );
 
-      const stack = page!.children![1];
-      assert.equal(styleOf(stack).flex, 1);
-      const body = stack.children?.[0];
+      const bodyStack = column.children![1];
+      assert.equal(styleOf(bodyStack).flex, 1);
+      const body = bodyStack.children?.[0];
       assert.equal(body?.type, "Positioned");
       assert.equal(styleOf(body).position, "absolute");
       assert.equal(styleOf(body).top, 0);
@@ -109,8 +139,86 @@ test("a Page puts the body between the header and the footer", async () => {
       );
 
       // The keyboard rule travels to the renderer with the node.
-      const footer = page!.children![2];
+      const footer = column.children![2];
       assert.equal(footer.props.hideOnKeyboard, false);
+    } finally {
+      harness.dispose();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("a Page paints its overlays above the header and the footer", async () => {
+  const { result, directory } = await build(`
+    import { start, useState } from "@mna/qchat";
+    import { Dialog, NavBar, Page, ScrollView, TabBar, Text } from "@mna/qchat/ui";
+
+    function App() {
+      const [open] = useState(true);
+      return (
+        <Page
+          testID="page"
+          header={<NavBar title="Tôi" />}
+          footer={
+            <TabBar
+              activeIndex={0}
+              tabs={[
+                { key: "a", label: "A", icon: "home" },
+                { key: "b", label: "B", icon: "user" },
+              ]}
+            />
+          }
+          overlays={
+            <Dialog visible={open} testID="confirm" title="Đặt lại?" confirmText="Xoá">
+              <Text>Nội dung</Text>
+            </Dialog>
+          }
+        >
+          <ScrollView testID="body">
+            <Text>Body</Text>
+          </ScrollView>
+        </Page>
+      );
+    }
+
+    start(App);
+  `);
+  try {
+    const harness = runQapp(result.bytes);
+    try {
+      const page = findNode(
+        harness.latest(),
+        (node) => node.props.testID === "page",
+      );
+      const stack = page!.children![0];
+      assert.equal(stack.type, "Stack");
+
+      const pinned = stack.children![0];
+      const dialog = stack.children![1];
+      assert.equal(
+        pinned.type,
+        "Positioned",
+        "the header, body and footer live inside the pinned column",
+      );
+      assert.equal(
+        dialog?.props.testID,
+        "confirm",
+        "the overlay is a sibling of the whole column, not of the body",
+      );
+      assert.ok(
+        within(pinned, (node) => node.type === "NavBar"),
+        "the header is inside the column the overlay covers",
+      );
+      assert.ok(
+        within(pinned, (node) => node.type === "TabBar"),
+        "the footer is inside the column the overlay covers",
+      );
+      assert.equal(
+        within(pinned, (node) => node.type === "Dialog"),
+        null,
+        "the dialog does not paint inside the body stack",
+      );
     } finally {
       harness.dispose();
     }
@@ -147,7 +255,7 @@ test("a Page without a footer still gives the body the whole page", async () => 
       assert.deepEqual(
         page!.children?.map((child) => child.type),
         ["Stack"],
-        "no header and no footer leaves one full-size stack",
+        "the page fills the frame with one stack",
       );
       assert.equal(page!.children?.[0]?.children?.[0]?.type, "Positioned");
     } finally {

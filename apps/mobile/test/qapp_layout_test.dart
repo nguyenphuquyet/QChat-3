@@ -375,9 +375,12 @@ void main() {
     tester,
   ) async {
     setPhone(tester);
-    // The shape `Page` builds in the framework: a header, the body pinned inside
-    // a stack, then the footer. Content used to start at y = 0 under a solid
-    // header, which hid the first card of the page.
+    // The shape `Page` builds in the framework: one stack holds the page column
+    // (header, body pinned inside its own stack, footer) and the overlays above
+    // the whole column. Content used to start at y = 0 under a solid header,
+    // which hid the first card of the page, and an overlay used to stop at the
+    // body, leaving the header and the TabBar bright behind its scrim.
+    final events = <(String, String, Object?)>[];
     final root = node(
       'n0',
       'View',
@@ -387,11 +390,6 @@ void main() {
       children: [
         node(
           'n0.0',
-          'NavBar',
-          props: {'title': 'Vé điện tử', 'showBack': true},
-        ),
-        node(
-          'n0.1',
           'Stack',
           props: {
             'alignment': 'topLeft',
@@ -399,7 +397,7 @@ void main() {
           },
           children: [
             node(
-              'n0.1.0',
+              'n0.0.0',
               'Positioned',
               props: {
                 'style': {
@@ -412,42 +410,97 @@ void main() {
               },
               children: [
                 node(
-                  'n0.1.0.0',
-                  'ScrollView',
+                  'n0.0.0.0',
+                  'View',
+                  props: {
+                    'style': {'flex': 1},
+                  },
                   children: [
                     node(
-                      'n0.1.0.0.0',
-                      'View',
+                      'n0.0.0.0.0',
+                      'NavBar',
+                      props: {'title': 'Vé điện tử', 'showBack': true},
+                    ),
+                    node(
+                      'n0.0.0.0.1',
+                      'Stack',
                       props: {
-                        'style': {'padding': 16},
+                        'alignment': 'topLeft',
+                        'style': {'flex': 1},
                       },
-                      children: [text('n0.1.0.0.0.0', 'Body')],
+                      children: [
+                        node(
+                          'n0.0.0.0.1.0',
+                          'Positioned',
+                          props: {
+                            'style': {
+                              'position': 'absolute',
+                              'top': 0,
+                              'right': 0,
+                              'bottom': 0,
+                              'left': 0,
+                            },
+                          },
+                          children: [
+                            node(
+                              'n0.0.0.0.1.0.0',
+                              'ScrollView',
+                              children: [
+                                node(
+                                  'n0.0.0.0.1.0.0.0',
+                                  'View',
+                                  props: {
+                                    'style': {'padding': 16},
+                                  },
+                                  children: [
+                                    text('n0.0.0.0.1.0.0.0.0', 'Body'),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    node(
+                      'n0.0.0.0.2',
+                      'TabBar',
+                      props: {
+                        'activeIndex': 0,
+                        'tabs': [
+                          {'key': 'home', 'label': 'Home', 'icon': 'home'},
+                        ],
+                      },
                     ),
                   ],
                 ),
               ],
             ),
+            node(
+              'n0.0.1',
+              'Dialog',
+              props: {
+                'visible': true,
+                'title': 'Xoá khoản này?',
+                'confirmText': 'Xoá',
+                'cancelText': 'Giữ lại',
+              },
+              events: const ['close', 'confirm'],
+              children: [text('n0.0.1.0', 'Không thể hoàn tác.')],
+            ),
           ],
-        ),
-        node(
-          'n0.2',
-          'TabBar',
-          props: {
-            'activeIndex': 0,
-            'tabs': [
-              {'key': 'home', 'label': 'Home', 'icon': 'home'},
-            ],
-          },
         ),
       ],
     );
 
-    await tester.pumpWidget(host(root, (_, _, _) {}));
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
 
     expect(tester.takeException(), isNull);
-    final header = tester.getRect(find.byKey(const ValueKey('n0.0')));
+    final header = tester.getRect(find.byKey(const ValueKey('n0.0.0.0.0')));
     final body = tester.getRect(find.byType(SingleChildScrollView));
-    final footer = tester.getRect(find.byKey(const ValueKey('n0.2')));
+    final footer = tester.getRect(find.byKey(const ValueKey('n0.0.0.0.2')));
     expect(body.top, closeTo(header.bottom, .01));
     expect(body.bottom, closeTo(footer.top, .01));
     expect(footer.bottom, closeTo(812, .01));
@@ -455,6 +508,21 @@ void main() {
       tester.getTopLeft(find.text('Body')).dy,
       greaterThanOrEqualTo(header.bottom),
       reason: 'the first card must not slide under the header',
+    );
+
+    // The dialog barrier covers the header and the TabBar, not just the body.
+    final barrier = find.byWidgetPredicate(
+      (widget) =>
+          widget is ColoredBox && widget.color.a > 0 && widget.color.a < 1,
+    );
+    expect(tester.getRect(barrier.first), const Rect.fromLTWH(0, 0, 375, 812));
+
+    await tester.tapAt(const Offset(10, 780));
+    await tester.pump();
+    expect(
+      events.where((entry) => entry.$1 == 'n0.0.1' && entry.$2 == 'close'),
+      isNotEmpty,
+      reason: 'a tap on the TabBar reaches the barrier, not the bar',
     );
   });
 }

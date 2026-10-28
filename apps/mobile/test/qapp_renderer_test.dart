@@ -39,9 +39,18 @@ void expectEvent(
   expect(matches.last.$3, payload);
 }
 
-Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
+Widget host(
+  QappNode root,
+  void Function(String, String, Object?) onEvent, {
+  String screen = '',
+}) {
   return qchatHarness(
-    QappRenderer(root: root, onEvent: onEvent, loadAsset: (_) async => null),
+    QappRenderer(
+      root: root,
+      screen: screen,
+      onEvent: onEvent,
+      loadAsset: (_) async => null,
+    ),
   );
 }
 
@@ -194,5 +203,95 @@ void main() {
     expect(find.byType(CustomPaint), findsWidgets);
     await tester.tap(find.byType(QappTSlider), warnIfMissed: false);
     await tester.pump();
+  });
+
+  testWidgets('each screen keeps its own scroll offset', (tester) async {
+    // Node ids only encode a position, so the body of every tab arrives as the
+    // same `n0.0` scroll view. The offset belongs to the screen, not to the
+    // position: scrolling one tab must not move the next one, and coming back
+    // must land where the user left it.
+    Widget frame(String screen, String label) => host(
+      node(
+        'n0',
+        'View',
+        props: {
+          'style': {'flexDirection': 'column'},
+        },
+        children: [
+          node(
+            'n0.0',
+            'ScrollView',
+            props: {
+              'vertical': true,
+              'showsScrollIndicator': false,
+              'style': {'flex': 1},
+            },
+            children: [
+              node(
+                'n0.0.0',
+                'View',
+                props: {
+                  'style': {'flexDirection': 'column'},
+                },
+                children: [
+                  for (var index = 0; index < 40; index++)
+                    node(
+                      'n0.0.0.$index',
+                      'View',
+                      props: {
+                        'style': {'height': 40},
+                      },
+                      children: [
+                        node(
+                          'n0.0.0.$index.0',
+                          'Text',
+                          children: [
+                            node(
+                              'n0.0.0.$index.0.0',
+                              '#text',
+                              props: {'text': '$label $index'},
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      (_, _, _) {},
+      screen: screen,
+    );
+
+    double offset() =>
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels;
+
+    await tester.pumpWidget(frame('2.7.4', 'Tổng quan'));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -400),
+    );
+    await tester.pumpAndSettle();
+    final overview = offset();
+    expect(overview, greaterThan(300));
+
+    // Another tab is another screen: it starts at its own top.
+    await tester.pumpWidget(frame('2.8.4', 'Giao dịch'));
+    await tester.pumpAndSettle();
+    expect(offset(), 0, reason: 'a new screen must not inherit an offset');
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -120),
+    );
+    await tester.pumpAndSettle();
+    expect(offset(), greaterThan(80));
+
+    // Back to the first tab: the offset it had comes back with it.
+    await tester.pumpWidget(frame('2.7.4', 'Tổng quan'));
+    await tester.pumpAndSettle();
+    expect(offset(), closeTo(overview, 0.01));
   });
 }

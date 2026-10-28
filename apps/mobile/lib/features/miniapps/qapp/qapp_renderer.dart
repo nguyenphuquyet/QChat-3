@@ -35,11 +35,23 @@ class QappRenderer extends StatelessWidget {
     required this.root,
     required this.onEvent,
     required this.loadAsset,
+    this.screen = '',
   });
 
   final QappNode? root;
   final QappEventHandler onEvent;
   final QappAssetLoader loadAsset;
+
+  /// Which screen of the mini program this frame belongs to.
+  ///
+  /// Node ids only encode a position, so switching a tab or pushing a route can
+  /// hand the renderer the same ids for a completely different widget. Without
+  /// this the Flutter element at that position is reused, and state leaks across
+  /// screens: scrolling "Tôi" left "Tổng quan" at the same offset, and coming
+  /// back through a screen whose body is another widget type rebuilt the
+  /// scroller at the top. The runtime sends the component trail that produced
+  /// the frame, which is stable for one screen and different for every other.
+  final String screen;
 
   @override
   Widget build(BuildContext context) {
@@ -48,15 +60,41 @@ class QappRenderer extends StatelessWidget {
     // A Mini App draws its controls with TDesign; the host chat UI keeps the
     // QChat design system. `QappTDesignScope` is that boundary: one theme, one
     // set of localizations, and no TDesign symbol outside its file.
-    return QappTDesignScope(
-      child: _QappNodeView(
-        node: node,
-        onEvent: onEvent,
-        loadAsset: loadAsset,
-        insideFlex: false,
+    return KeyedSubtree(
+      // Same screen, same key: the tree is updated in place. Another screen, a
+      // new key: nothing of the screen the user left survives into it.
+      key: ValueKey('qapp-frame:$screen'),
+      child: QappTDesignScope(
+        child: _QappScreenScope(
+          screen: screen,
+          child: _QappNodeView(
+            node: node,
+            onEvent: onEvent,
+            loadAsset: loadAsset,
+            insideFlex: false,
+          ),
+        ),
       ),
     );
   }
+}
+
+/// Screen identity, read by the scroll views so their stored offset belongs to
+/// one screen instead of to a position in the tree.
+class _QappScreenScope extends InheritedWidget {
+  const _QappScreenScope({required this.screen, required super.child});
+
+  final String screen;
+
+  static String of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_QappScreenScope>()
+          ?.screen ??
+      '';
+
+  @override
+  bool updateShouldNotify(_QappScreenScope oldWidget) =>
+      oldWidget.screen != screen;
 }
 
 class _QappNodeView extends StatelessWidget {
@@ -647,6 +685,7 @@ class _QappNodeView extends StatelessWidget {
     // Platform physics, plus `_QappScrollPhysics` so a list that is being
     // dragged never gets corrected under the finger.
     final scroller = SingleChildScrollView(
+      key: _scrollStorageKey(context),
       scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
       padding: padding,
       physics: const _QappScrollPhysics(),
@@ -683,6 +722,17 @@ class _QappNodeView extends StatelessWidget {
     );
   }
 
+  /// The `PageStorageKey` that gives one scroller its own offset per screen.
+  ///
+  /// A screen switch replaces the widget, so its `Scrollable` starts at zero
+  /// again. With a `PageStorageKey`, Flutter writes the offset when the scroll
+  /// ends and reads it back when a scroller with the same key mounts, which is
+  /// what makes a tab look the way the user left it. Node ids only encode a
+  /// position, so the screen is part of the key: without it, a tab would restore
+  /// the offset another tab had left behind.
+  PageStorageKey<String> _scrollStorageKey(BuildContext context) =>
+      PageStorageKey<String>('${_QappScreenScope.of(context)}/${node.id}');
+
   /// `ListView`/`GridView` keep their own node type so the whole list is not
   /// built at once: the frame carries a window of items, Flutter lays those
   /// rows out lazily, and `_QappEndReached` asks the app for the next window
@@ -711,6 +761,7 @@ class _QappNodeView extends StatelessWidget {
           final columns = node.props['numColumns'];
           final count = columns is num ? columns.round().clamp(1, 12) : 2;
           list = GridView.count(
+            key: _scrollStorageKey(context),
             crossAxisCount: count,
             shrinkWrap: unbounded,
             padding: padding,
@@ -722,6 +773,7 @@ class _QappNodeView extends StatelessWidget {
           );
         } else {
           list = ListView(
+            key: _scrollStorageKey(context),
             scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
             shrinkWrap: unbounded,
             padding: padding,
@@ -814,6 +866,9 @@ class _QappNodeView extends StatelessWidget {
   Widget _bottomSheet(BuildContext context) {
     if (node.props['visible'] != true) return const SizedBox.shrink();
     final height = _number(node.props['height']);
+    // An overlay is laid over the whole frame now, so the sheet reaches the
+    // physical bottom edge and the home indicator must not sit on its last row.
+    final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
     return _overlay(
       context,
       Align(
@@ -821,7 +876,7 @@ class _QappNodeView extends StatelessWidget {
         child: Container(
           width: double.infinity,
           height: height,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, 16 + bottomInset),
           decoration: BoxDecoration(
             color: surface(context),
             borderRadius: const BorderRadius.vertical(

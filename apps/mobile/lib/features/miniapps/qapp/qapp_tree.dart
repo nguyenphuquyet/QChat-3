@@ -28,6 +28,7 @@ class QappTree {
     required this.root,
     required this.revision,
     required this.nodeCount,
+    this.screen = '',
   });
 
   final int version;
@@ -36,6 +37,19 @@ class QappTree {
   final int revision;
   final int nodeCount;
 
+  /// Which screen the frame belongs to.
+  ///
+  /// Node ids are positional (`n0.1.0`), so the same id can name a different
+  /// widget in another screen. The runtime sends the component trail that
+  /// produced the frame's root node, which is stable while the screen stays
+  /// mounted and different for every other screen. The renderer uses it to keep
+  /// per-screen widget state apart — a `ScrollView` in one tab must not inherit
+  /// the offset of another, and the offset must come back when the user returns.
+  ///
+  /// Empty when the runtime is too old to send one; every frame then behaves as
+  /// one screen, which is the previous behaviour.
+  final String screen;
+
   factory QappTree.fromJson(Map<String, dynamic> json) {
     final budget = _TreeBudget();
     final rootValue = json['root'];
@@ -43,6 +57,7 @@ class QappTree {
     return QappTree(
       version: json['v'] is num ? (json['v'] as num).round() : 1,
       appId: json['appId']?.toString() ?? '',
+      screen: json['screen']?.toString() ?? '',
       root: root,
       revision: json['revision'] is num ? (json['revision'] as num).round() : 0,
       nodeCount: budget.nodes,

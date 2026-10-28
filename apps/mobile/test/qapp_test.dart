@@ -148,6 +148,7 @@ void main() {
       final tree = QappTree.fromJson({
         'v': 1,
         'appId': _appId,
+        'screen': '1.2.3',
         'revision': 3,
         'root': {
           'id': 'n0',
@@ -187,6 +188,7 @@ void main() {
       });
       expect(tree.revision, 3);
       expect(tree.nodeCount, 5);
+      expect(tree.screen, '1.2.3');
       expect(tree.root!.type, 'View');
       expect(tree.root!.children.first.type, 'Text');
       expect(qappTextContent(tree.root!.children.first), 'Hello TSX');

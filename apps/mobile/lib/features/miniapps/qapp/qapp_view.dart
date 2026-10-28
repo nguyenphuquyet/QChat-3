@@ -520,6 +520,7 @@ class _QappViewState extends State<QappView>
                 direction: _navDirection,
                 live: QappRenderer(
                   root: tree.root,
+                  screen: tree.screen,
                   onEvent: _dispatch,
                   loadAsset: _loadAsset,
                 ),
@@ -527,6 +528,7 @@ class _QappViewState extends State<QappView>
                     ? null
                     : QappRenderer(
                         root: outgoing.root,
+                        screen: outgoing.screen,
                         onEvent: _ignoreEvent,
                         loadAsset: _loadAsset,
                       ),

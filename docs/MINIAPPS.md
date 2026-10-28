@@ -350,9 +350,11 @@ leave. It cannot be written the wrong way round — a `NavBar` painted inside a
 and the first card slides under the header, because the body starts at y = 0.
 
 The body is pinned inside the stack, so it fills the page whether it is a
-`ScrollView`, a `ListView` or a plain `View`. Overlays are painted over the
-whole page, header included, which is what a dialog barrier needs. A page with
-no header or footer is just the body across the full screen.
+`ScrollView`, a `ListView` or a plain `View`. Overlays are siblings of the whole
+column, so they paint over the header and the footer too, not just over the
+body: a dialog or a sheet scrim covers the `NavBar` and the `TabBar` and takes
+their taps. A page with no header or footer is just the body across the full
+screen.
 
 A page that wants its own artwork under the top edge (a poster hero, a
 transparent header that turns solid on scroll) still builds the `Stack` by hand:
@@ -667,12 +669,16 @@ The renderer:
    JavaScript on the UI thread in the middle of the animation; the pending delay
    resumes when the list comes to rest.
 4. The app renders a serialized virtual tree
-   (`{ v, appId, revision, root }`). Dart validates node ids, component types,
-   event names, style keys and enum values, tree depth and node count, then maps
-   it to real Flutter widgets. No HTML is loaded and no WebView is created. The
-   JSON frame is parsed and applied at paint time, and while the content is
-   moving the newest frame is kept and painted once the list stops: a render that
-   landed mid-gesture would otherwise rebuild the tree under the animation.
+   (`{ v, appId, screen, revision, root }`). Dart validates node ids, component
+   types, event names, style keys and enum values, tree depth and node count,
+   then maps it to real Flutter widgets. No HTML is loaded and no WebView is
+   created. The JSON frame is parsed and applied at paint time, and while the
+   content is moving the newest frame is kept and painted once the list stops: a
+   render that landed mid-gesture would otherwise rebuild the tree under the
+   animation. Node ids only encode a position, so `screen` names the component
+   trail that produced the frame: two screens may put different widgets at the
+   same ids, and the host keeps per-screen state — a tab's scroll offset, a
+   field's text — apart by that name and restores it when the screen returns.
 5. Press, input, change, submit and scroll events are sent back to JavaScript.
    A state update re-renders the tree synchronously and sends a new revision.
 6. The first successful frame reveals the app; a JavaScript error or invalid
@@ -688,7 +694,10 @@ radii, box shadows, gradients, opacity, `zIndex`, `overflow`, `min/max`,
 `aspectRatio`, absolute positioning, images, safe areas, scroll and lazy list
 and grid views, stacks with positioned children, `Modal`/`BottomSheet`/
 `Dialog`, `NavBar`/`TabBar`, simple animations and a declarative `CustomPaint`
-path language. A style object is validated against the contract: an unknown key
+path language. A scroll view remembers its offset per screen: the `screen` of
+the frame and the node id form a `PageStorageKey`, so switching a tab and coming
+back lands where the user left it while the next tab starts at its own top. A
+style object is validated against the contract: an unknown key
 or an unsupported enum value rejects the frame instead of being ignored. Two
 rendering rules follow from Flutter itself: an edge the app never gave a width
 paints nothing (a `BorderSide.none`, not a hairline), and a per-edge border is
