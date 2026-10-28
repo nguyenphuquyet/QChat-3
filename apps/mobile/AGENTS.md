@@ -201,6 +201,12 @@ The exception is deliberately one file wide:
   fade, sheet slide and dialog scale of `Modal`, `BottomSheet` and `Dialog`.
   `TabBar` (a `CupertinoTabBar`), `NavBar`, `Avatar` and the vertical `Divider`
   stay on the QChat/Cupertino side: TDesign has no faithful equivalent.
+- **Typography is the host's, not TDesign's.** `QappTDesignScope` re-points
+  TDesign's `fontFamily` / `fontFamilyMedium` tokens at the family Flutter's
+  `Typography` resolved for the platform (SF, Roboto, Segoe UI), because QChat
+  ships no fonts and TDesign's stock `PingFang SC` → `Microsoft YaHei` chain
+  detaches Vietnamese marks from their letters (`Đặt lại` renders as `Đaṭ lại`).
+  Never bundle a font, and never restore TDesign's stock family.
 - `uses-material-design: false` stays. `flutter test` prints a pub warning that
   `tdesign_flutter` asks for `true`; it is a warning, and the app still ships no
   Material icon font or Roboto.

@@ -25,7 +25,53 @@ class QappTDesignScope extends StatelessWidget {
   /// One immutable theme for every frame. `TThemeData.defaultData()` is the
   /// stock TDesign palette (brand `#0052D9`), which is what "TDesign UI" means;
   /// a Mini App still overrides individual colours through `style.*`.
-  static final ThemeData _theme = TThemeBuilder.light(TThemeData.defaultData());
+  ///
+  /// The stock *typeface* is replaced: see [_systemTypeface].
+  static final ThemeData _theme = _systemTypeface(
+    TThemeBuilder.light(TThemeData.defaultData()),
+  );
+
+  /// Gives the frame the same typeface as the rest of QChat.
+  ///
+  /// QChat ships no fonts on purpose (`uses-material-design: false`), so every
+  /// surface speaks with the platform face: SF on Apple, Roboto on Android,
+  /// Segoe UI on Windows. TDesign's tokens disagree: they name `PingFang SC`
+  /// and then the CJK faces `Microsoft YaHei` / `Arial Regular` as fallbacks.
+  /// None of those is the Latin face QChat draws with, and their Vietnamese
+  /// marks are placed without the OpenType anchors a Latin face uses. On the
+  /// "Vùng nguy hiểm" card the heading and body stayed correct while its
+  /// button read `Đaṭ lại dư˜liệu mâũ` — every mark one cell to the right of
+  /// its letter — because that label is the only text there drawn through a
+  /// TDesign token.
+  ///
+  /// So the tokens are re-pointed at the family Flutter's own `Typography`
+  /// already resolved for this platform (and its fallbacks), which is exactly
+  /// the font the rest of the app draws with. A Mini App still owns its
+  /// colours, spacing and `style.fontFamily`; only the language default —
+  /// which the host app declares — is the host's.
+  static ThemeData _systemTypeface(ThemeData material) {
+    final token = material.extension<TThemeData>();
+    final body = material.textTheme.bodyMedium;
+    final family = body?.fontFamily;
+    if (token == null || family == null) return material;
+    final face = FontFamily(
+      fontFamily: family,
+      fallback: body?.fontFamilyFallback,
+    );
+    return material.copyWith(
+      extensions: [
+        for (final extension in material.extensions.values)
+          extension is TThemeData
+              ? extension.copyWith(
+                  fontFamilyMap: {
+                    'fontFamily': face,
+                    'fontFamilyMedium': face,
+                  },
+                )
+              : extension,
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

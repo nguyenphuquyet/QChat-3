@@ -65,6 +65,33 @@ void main() {
     expect(typed, isEmpty);
   });
 
+  testWidgets('TDesign controls inherit the host typeface', (tester) async {
+    // QChat ships no fonts, so the platform face is the product decision and
+    // the frame must not swap it for TDesign's `PingFang SC` / `Microsoft
+    // YaHei` chain: those are CJK faces and they render Vietnamese marks
+    // detached from their letters (`Đặt` came out as `Đaṭ`).
+    late ThemeData frame;
+    await tester.pumpWidget(
+      qchatHarness(
+        QappTDesignScope(
+          child: Builder(
+            builder: (context) {
+              frame = Theme.of(context);
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      ),
+    );
+
+    final body = frame.textTheme.bodyMedium!;
+    final token = frame.extension<TThemeData>()!.fontFamily!;
+    expect(token.fontFamily, body.fontFamily);
+    expect(token.fallback, body.fontFamilyFallback);
+    expect(token.fontFamily, isNot('PingFang SC'));
+    expect(token.fallback, isNot(contains('Microsoft YaHei')));
+  });
+
   test('every contract icon resolves or falls back', () {
     // Names TDesign knows are drawn from its font; unknown names fall back to
     // the QChat glyphs instead of throwing.
