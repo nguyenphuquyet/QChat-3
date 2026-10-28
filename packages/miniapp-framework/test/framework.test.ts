@@ -97,6 +97,7 @@ test("compiler packs every example with checksums and no appId", async () => {
       ["shell", "Xin chào"],
       ["custom-kit", "24h 18m"],
       ["rap-pho", "Rạp Phố"],
+      ["so-viec", "Thói quen hôm nay"],
     ] as const) {
       const projectDir = path.join(examples, project);
       const outfile = path.join(directory, `${project}.japp`);

@@ -25,7 +25,7 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
-| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit, cafe and rap-pho built through the real compiler |
+| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit, cafe, rap-pho and so-viec built through the real compiler |
 | Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
@@ -520,8 +520,9 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 QuickJS target, embeds the runtime, hashes every file and writes
 `dist/<slug>-<version>.japp`. The slug is ASCII: Vietnamese names are
 transliterated (`Cà Phê Nhà` → `ca-phe-nha`). The `hello-world`, `counter`, `shell`,
-`demo-kit`, `custom-kit`, `env-demo`, `cafe` and `rap-pho` examples in
-`packages/miniapp-examples` are built this way; they are not hardcoded screens.
+`demo-kit`, `custom-kit`, `env-demo`, `cafe`, `rap-pho` and `so-viec` examples
+in `packages/miniapp-examples` are built this way; they are not hardcoded
+screens.
 `cafe` is the header showcase and the most complete product flow: four tabs
 (menu, orders, offers, account), two internal routes (`/drink/:id`, `/legal`),
 a transparent header over the hero that turns glass and then solid while
@@ -541,6 +542,17 @@ hero poster, blurred after the first screen, solid after the second; the movies
 tab stacks search, genre and status rows under the title. No image assets are
 shipped — posters are gradients plus a title initial — so the whole package is
 four files.
+`so-viec` is the light-theme task and habit planner and the Cupertino-control
+showcase: four tabs (today, plan, habits, me) and two internal routes
+(`/task/:id`, `/about`). It seeds 27 tasks around the device date (−1…+5 days)
+and four habits, then pages the today list four upcoming tasks at a time through
+`endReached`. The progress rings are `CustomPaint` polylines (the path language
+has no arcs), the quick-add sheet combines a `TextField`, priority chips and a
+`Slider`, and the screens exercise every Cupertino-backed control:
+`Checkbox` rows, `Switch` settings, a weekly-goal `Slider`, `ActivityIndicator`
+during a fake sync, plus a `Dialog` behind long-press, habit reset and clear-all.
+Its `Page`-based layout, state store and `createStorage("so-viec")` snapshot make
+it the smallest complete reference that still touches every overlay and host API.
 `shell` is the reference four-tab app:
 it owns a `NavBar` header and a `TabBar`, keeps a `TextField` and a `Switch` on
 the home tab, persists the switch through storage and renders a long `ListView`
