@@ -983,59 +983,25 @@ class QChatLoading extends StatelessWidget {
   );
 }
 
-class _QChatSpinner extends StatefulWidget {
+/// The iOS spinner: twelve ticks on Apple's cadence.
+///
+/// It replaced a hand-drawn rotating arc, so every loading state in the app
+/// (a page, a button, the overlay with a label) now moves like the platform.
+class _QChatSpinner extends StatelessWidget {
   const _QChatSpinner({required this.size, required this.color});
   final double size;
   final Color color;
-  @override
-  State<_QChatSpinner> createState() => _QChatSpinnerState();
-}
-
-class _QChatSpinnerState extends State<_QChatSpinner>
-    with SingleTickerProviderStateMixin {
-  late final _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat();
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) => SizedBox.square(
-    dimension: widget.size,
-    child: RotationTransition(
-      turns: _controller,
-      child: CustomPaint(painter: _SpinnerPainter(widget.color)),
+    dimension: size,
+    child: Center(
+      child: CupertinoActivityIndicator(
+        radius: (size / 2).clamp(4.0, 60.0),
+        color: color,
+      ),
     ),
   );
-}
-
-class _SpinnerPainter extends CustomPainter {
-  const _SpinnerPainter(this.color);
-  final Color color;
-  @override
-  void paint(Canvas canvas, Size size) {
-    final stroke = math.max(1.6, size.shortestSide * .11);
-    final rect = Offset.zero & size;
-    canvas.drawArc(
-      rect.deflate(stroke / 2),
-      -math.pi / 2,
-      math.pi * 1.35,
-      false,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = stroke
-        ..strokeCap = StrokeCap.round,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SpinnerPainter old) => old.color != color;
 }
 
 /// Three bouncing dots used for inline loading states.

@@ -1,7 +1,7 @@
-import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:flutter/cupertino.dart'
+    show CupertinoSlider, CupertinoSwitch, CupertinoTextField;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
@@ -131,7 +131,7 @@ void main() {
     await tester.pumpAndSettle();
     expectEvent(events, 'n0.1', 'change', {'type': 'change', 'value': true});
 
-    await tester.tap(find.byType(QChatSwitch));
+    await tester.tap(find.byType(CupertinoSwitch));
     await tester.pumpAndSettle();
     expectEvent(events, 'n0.2', 'valueChange', {
       'type': 'valueChange',
@@ -188,9 +188,9 @@ void main() {
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
     expect(find.text('Scrolled'), findsOneWidget);
-    expect(find.byType(QChatSlider), findsOneWidget);
+    expect(find.byType(CupertinoSlider), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
-    await tester.tap(find.byType(QChatSlider));
+    await tester.tap(find.byType(CupertinoSlider), warnIfMissed: false);
     await tester.pump();
   });
 }

@@ -102,6 +102,10 @@ node packages/miniapp-framework/dist/cli.js inspect  packages/miniapp-examples/r
   `style.color`, `children` làm các hàng dưới (tìm kiếm + chip).
 - **Capsule của host**: app không vẽ nút đóng; host float capsule ở góc phải,
   `reserveRight` mặc định giữ tiêu đề không chui xuống dưới capsule.
+- **TabBar của iOS**: thanh tab là `CupertinoTabBar` (icon 25 pt, nhãn 10 pt, tab
+  đang chọn tô màu, hairline trên, nền mờ khi cần) nên nó giữ đúng nhịp chạm của
+  hệ thống; badge vé được gắn vào icon. App vẫn tự đặt nền, hairline và màu tab
+  đang chọn qua `style`, và thanh tab ghim ở đáy màn hình khi bàn phím mở.
 - **Load-more**: `ListView` cửa sổ + `onEndReached`, app tự phân trang.
 - **Lưới lớn**: `GridView` 72 ghế với `initialCount={72}`, ô ghế đổi màu theo
   trạng thái trống / đang chọn / đã bán / VIP.

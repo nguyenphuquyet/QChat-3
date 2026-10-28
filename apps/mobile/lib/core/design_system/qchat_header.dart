@@ -341,6 +341,8 @@ class _CapsuleHalfState extends State<_CapsuleHalf> {
         onTapCancel: interactive ? () => _setPressed(false) : null,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
+          // The same 120 ms fade `CupertinoButton` uses for its highlight.
+          curve: Curves.easeOutCubic,
           color: _pressed ? widget.overlay : QChatColors.transparent,
           alignment: Alignment.center,
           child: widget.child,

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoTabBar;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -197,6 +198,41 @@ void main() {
     });
   });
 
+  testWidgets('a TabBar is the Cupertino bar with the contract styles', (
+    tester,
+  ) async {
+    final root = node(
+      'n0',
+      'TabBar',
+      props: {
+        'activeIndex': 1,
+        'style': {
+          'backgroundColor': '#101010',
+          'borderTopWidth': 1,
+          'borderTopColor': '#ff0000',
+          'color': '#00ff00',
+          'height': 64,
+        },
+        'tabs': [
+          {'key': 'home', 'label': 'Home', 'icon': 'home'},
+          {'key': 'tickets', 'label': 'Tickets', 'icon': 'ticket', 'badge': '3'},
+        ],
+      },
+      events: const ['change'],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final bar = tester.widget<CupertinoTabBar>(find.byType(CupertinoTabBar));
+    expect(bar.currentIndex, 1);
+    expect(bar.height, 64);
+    expect(bar.backgroundColor, const Color(0xff101010));
+    expect(bar.activeColor, const Color(0xff00ff00));
+    expect(bar.border?.top.width, 1);
+    expect(bar.border?.top.color, const Color(0xffff0000));
+    // A badge has no slot on `CupertinoTabBar`, so it rides on the icon.
+    expect(find.text('3'), findsOneWidget);
+    expect(tester.getSize(find.byType(CupertinoTabBar)).height, 64);
+  });
+
   testWidgets('a TabBar stays pinned to the bottom edge under the keyboard', (
     tester,
   ) async {
@@ -243,9 +279,9 @@ void main() {
     // screen, gives its height back to the page, and the keys cover it.
     await tester.pumpWidget(keyboardHost(page(), 0));
     final restY = labelY();
-    expect(restY, greaterThan(812 - 56));
+    expect(restY, greaterThan(812 - 50));
     expect(restY, lessThan(812));
-    expect(bodyHeight(), 812 - 56);
+    expect(bodyHeight(), 812 - 50);
 
     await tester.pumpWidget(keyboardHost(page(), 320));
     await tester.pump();
@@ -257,7 +293,7 @@ void main() {
     await tester.pumpWidget(keyboardHost(page(), 20));
     await tester.pump();
     expect(labelY(), closeTo(restY, .5));
-    expect(bodyHeight(), 812 - 56);
+    expect(bodyHeight(), 812 - 50);
 
     // A page that really wants the bar to stay above the keys can opt out.
     await tester.pumpWidget(keyboardHost(page(hideOnKeyboard: false), 320));
@@ -738,12 +774,29 @@ void main() {
       ])],
     );
     await tester.pumpWidget(host(modal('none'), (_, _, _) {}));
-    expect(find.byType(AnimatedOpacity), findsNothing);
+    expect(find.byType(FractionalTranslation), findsNothing);
 
     await tester.pumpWidget(host(modal('slide'), (_, _, _) {}));
+    // The Cupertino modal popup: the sheet starts one full height below the
+    // screen and a critically damped spring brings it home.
+    expect(
+      tester
+          .widget<FractionalTranslation>(find.byType(FractionalTranslation))
+          .translation,
+      const Offset(0, 1),
+    );
     await tester.pumpAndSettle();
-    expect(find.byType(AnimatedSlide), findsOneWidget);
-    expect(tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).opacity, 1);
+    expect(
+      tester
+          .widget<FractionalTranslation>(find.byType(FractionalTranslation))
+          .translation
+          .dy,
+      closeTo(0, .001),
+    );
+    expect(
+      tester.widget<FadeTransition>(find.byType(FadeTransition).first).opacity.value,
+      1,
+    );
   });
 
   testWidgets('a hidden BottomSheet renders nothing', (tester) async {

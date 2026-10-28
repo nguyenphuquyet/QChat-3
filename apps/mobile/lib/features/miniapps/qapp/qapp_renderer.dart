@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/design_system/components.dart';
@@ -14,8 +15,15 @@ typedef QappEventHandler =
     void Function(String nodeId, String event, Object? payload);
 typedef QappAssetLoader = Future<Uint8List?> Function(String path);
 
-/// Height of a `TabBar` row, above the bottom safe area.
-const double _kTabBarHeight = 56;
+/// Height of a `TabBar` row, above the bottom safe area. Apple's `UITabBar` is
+/// 49 pt tall; `CupertinoTabBar` defaults to 50, and the bar grows by the home
+/// indicator inset on its own.
+const double _kTabBarHeight = 50;
+
+/// Size of a tab icon. `CupertinoTabBar` defaults to 30, but the labels of a
+/// mini app are short and the bar is 50 pt tall, so 25 keeps the two rows
+/// inside the bar instead of overflowing it.
+const double _kTabBarIconSize = 25;
 
 /// Turns a validated virtual tree produced by the TSX runtime into real
 /// Flutter widgets. Every node type is mapped to a widget the app already
@@ -801,24 +809,25 @@ class _QappNodeView extends StatelessWidget {
     Widget content, {
     String animation = 'none',
   }) {
+    final barrier = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: node.hasEvent('close')
+          ? () => onEvent(node.id, 'close', {'type': 'close'})
+          : null,
+      child: ColoredBox(color: QChatColors.black.withValues(alpha: .45)),
+    );
+    if (animation == 'none') {
+      return Stack(
+        children: [Positioned.fill(child: barrier), content],
+      );
+    }
+    // The scrim and the sheet move on their own beats: iOS fades the scrim in
+    // while the sheet slides up over it, so the barrier cannot ride along with
+    // the slide.
     return _QappOverlayTransition(
       animation: animation,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: node.hasEvent('close')
-                  ? () => onEvent(node.id, 'close', {'type': 'close'})
-                  : null,
-              child: ColoredBox(
-                color: QChatColors.black.withValues(alpha: .45),
-              ),
-            ),
-          ),
-          content,
-        ],
-      ),
+      barrier: barrier,
+      child: content,
     );
   }
 
@@ -826,22 +835,23 @@ class _QappNodeView extends StatelessWidget {
     if (node.props['visible'] != true) return const SizedBox.shrink();
     final animation = node.props['animationType']?.toString() ?? 'none';
     if (node.props['transparent'] == true) {
+      final barrier = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: node.hasEvent('close')
+            ? () => onEvent(node.id, 'close', {'type': 'close'})
+            : null,
+        child: const ColoredBox(color: QChatColors.transparent),
+      );
+      final content = Center(child: _sheetColumn(context));
+      if (animation == 'none') {
+        return Stack(
+          children: [Positioned.fill(child: barrier), content],
+        );
+      }
       return _QappOverlayTransition(
         animation: animation,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: node.hasEvent('close')
-                    ? () => onEvent(node.id, 'close', {'type': 'close'})
-                    : null,
-                child: const ColoredBox(color: QChatColors.transparent),
-              ),
-            ),
-            Center(child: _sheetColumn(context)),
-          ],
-        ),
+        barrier: barrier,
+        child: content,
       );
     }
     return _overlay(
@@ -871,6 +881,8 @@ class _QappNodeView extends StatelessWidget {
           child: SingleChildScrollView(child: _sheetColumn(context)),
         ),
       ),
+      // A sheet comes up from the bottom edge, like `showCupertinoModalPopup`.
+      animation: 'slide',
     );
   }
 
@@ -944,6 +956,9 @@ class _QappNodeView extends StatelessWidget {
           ),
         ),
       ),
+      // A dialog fades in while it scales down from 1.3, like
+      // `CupertinoDialogRoute`.
+      animation: 'dialog',
     );
   }
 
@@ -974,9 +989,12 @@ class _QappNodeView extends StatelessWidget {
         );
     final children = _childWidgets(context);
     final back = showBack && node.hasEvent('back')
-        ? GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => onEvent(node.id, 'back', {'type': 'back'}),
+        // A `CupertinoButton` gives the header's back arrow the platform's
+        // press fade (120 ms out, 180 ms back) instead of a dead glyph.
+        ? CupertinoButton(
+            padding: EdgeInsets.zero,
+            minimumSize: Size.zero,
+            onPressed: () => onEvent(node.id, 'back', {'type': 'back'}),
             child: const SizedBox(
               width: 44,
               height: kQChatHeaderHeight,
@@ -1023,9 +1041,14 @@ class _QappNodeView extends StatelessWidget {
       if (found >= 0) activeIndex = found;
     }
     if (activeIndex < 0) activeIndex = 0;
+    final height = node.style.height ?? _kTabBarHeight;
     final safeArea = node.props['safeArea'] != false;
-    final bottomInset = safeArea ? MediaQuery.of(context).padding.bottom : 0.0;
-    final bar = _tabBarSurface(context, tabs, activeIndex, bottomInset);
+    // `CupertinoTabBar` adds the home indicator inset itself, so the height it
+    // paints is the row plus `viewPadding.bottom`. `viewPadding` rather than
+    // `padding`: it keeps reporting the indicator while the keyboard is up,
+    // which is exactly the space the bar must still paint.
+    final systemInset = safeArea ? MediaQuery.viewPaddingOf(context).bottom : 0.0;
+    final bar = _tabBarSurface(context, tabs, activeIndex, height, safeArea);
     if (node.props['hideOnKeyboard'] == false) return bar;
     // The host shrinks the whole mini program when a field takes focus, so a bar
     // left in the flow would be lifted off the bottom edge and float right above
@@ -1034,110 +1057,131 @@ class _QappNodeView extends StatelessWidget {
     // the keyboard, so the keys slide over it and uncover it again as they
     // retract. There is no hide/show beat to get wrong and nothing jumps.
     final inset = MediaQuery.viewInsetsOf(context).bottom;
-    final height = _kTabBarHeight + bottomInset;
+    final painted = height + systemInset;
     return SizedBox(
-      height: height > inset ? height - inset : 0,
+      height: painted > inset ? painted - inset : 0,
       child: OverflowBox(
-        minHeight: height,
-        maxHeight: height,
+        minHeight: painted,
+        maxHeight: painted,
         alignment: Alignment.bottomCenter,
         child: Transform.translate(offset: Offset(0, inset), child: bar),
       ),
     );
   }
 
+  /// The bar itself, drawn by `CupertinoTabBar`.
+  ///
+  /// The contract still owns the look: `style.backgroundColor` is the bar
+  /// surface, `style.borderTopWidth`/`borderTopColor` are its hairline,
+  /// `style.color` is the selected tint and `style.height` the row height.
+  /// Everything the app does not override (icon and label metrics, the native
+  /// blur behind a translucent surface, the tab semantics) comes from Cupertino.
   Widget _tabBarSurface(
     BuildContext context,
     List<Map> tabs,
     int activeIndex,
-    double bottomInset,
+    double height,
+    bool safeArea,
   ) {
-    return Container(
-      color: node.style.backgroundColor ?? surface(context),
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: SizedBox(
-        height: _kTabBarHeight,
-        child: Row(
-          children: [
-            for (var index = 0; index < tabs.length; index++)
-              Expanded(
-                child: _tabButton(
-                  context,
-                  tabs[index],
-                  index,
-                  index == activeIndex,
-                ),
-              ),
-          ],
+    final active = node.style.color ?? QChatColors.green;
+    final inactive = QChatColors.muted;
+    final items = <BottomNavigationBarItem>[
+      for (final tab in tabs)
+        BottomNavigationBarItem(
+          icon: _tabIcon(tab, inactive),
+          activeIcon: _tabIcon(tab, active),
+          label: tab['label']?.toString() ?? '',
         ),
+    ];
+    // `CupertinoTabBar` asserts at least two tabs (Apple's HIG), while the
+    // contract only says "a list". Pad the degenerate one-tab case with an empty
+    // slot instead of letting an assert take the whole app down.
+    while (items.length < 2) {
+      items.add(
+        const BottomNavigationBarItem(
+          icon: SizedBox.square(dimension: _kTabBarIconSize),
+          label: '',
+        ),
+      );
+    }
+    final topWidth = node.style.borderTopWidth;
+    final bar = CupertinoTabBar(
+      items: items,
+      currentIndex: activeIndex < items.length ? activeIndex : 0,
+      height: height,
+      iconSize: _kTabBarIconSize,
+      activeColor: active,
+      inactiveColor: inactive,
+      backgroundColor: node.style.backgroundColor ?? surface(context),
+      border: Border(
+        top: topWidth == 0
+            ? BorderSide.none
+            : BorderSide(
+                color: node.style.borderTopColor ?? qchatLine(context),
+                // 0 is Cupertino's "one physical pixel" hairline.
+                width: topWidth ?? 0,
+              ),
       ),
+      onTap: node.hasEvent('change')
+          ? (index) {
+              if (index >= tabs.length) return;
+              final key = tabs[index]['key']?.toString() ?? '';
+              onEvent(node.id, 'change', {
+                'type': 'change',
+                'index': index,
+                'key': key,
+                'value': {'index': index, 'key': key, 'value': key},
+              });
+            }
+          : null,
+    );
+    if (safeArea) return bar;
+    // The app has already placed the bar inside its own safe area, so the
+    // indicator inset must not be added a second time.
+    return MediaQuery.removePadding(
+      context: context,
+      removeBottom: true,
+      child: bar,
     );
   }
 
-  Widget _tabButton(
-    BuildContext context,
-    Map tab,
-    int index,
-    bool active,
-  ) {
-    final key = tab['key']?.toString() ?? '';
-    final label = tab['label']?.toString() ?? '';
-    final icon = tab['icon']?.toString();
-    final badge = tab['badge']?.toString();
-    final color = active ? QChatColors.green : QChatColors.muted;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: node.hasEvent('change')
-          ? () => onEvent(node.id, 'change', {
-              'type': 'change',
-              'index': index,
-              'key': key,
-              'value': {'index': index, 'key': key, 'value': key},
-            })
-          : null,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          if (icon != null && icon.isNotEmpty)
-            Stack(
-              children: [
-                QChatIcon(icon, size: 22, color: color),
-                if (badge != null && badge.isNotEmpty)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xffe5484d),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        badge,
-                        style: const TextStyle(
-                          fontSize: 9,
-                          color: QChatColors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            )
-          else
-            const SizedBox.square(dimension: 22),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-              color: color,
+  /// A tab icon, with the contract's badge wrapped into it.
+  ///
+  /// `CupertinoTabBar` has no badge slot, so the pill rides on top of the glyph
+  /// and the whole stack is what the bar centres above the label.
+  Widget _tabIcon(Map tab, Color color) {
+    final name = tab['icon']?.toString() ?? '';
+    final glyph = name.isEmpty
+        ? const SizedBox.square(dimension: _kTabBarIconSize)
+        : QChatIcon(name, size: _kTabBarIconSize, color: color);
+    final badge = tab['badge']?.toString() ?? '';
+    if (badge.isEmpty) return glyph;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        glyph,
+        Positioned(
+          right: -6,
+          top: -4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            constraints: const BoxConstraints(minWidth: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xffe5484d),
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              badge,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 9,
+                height: 1.4,
+                color: QChatColors.white,
+              ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -1505,9 +1549,11 @@ class _QappNodeView extends StatelessWidget {
   }
 
   Widget _activityIndicator() {
-    final size = _number(node.props['size']) ?? 20;
-    final color = qappColor(node.props['color']);
-    return QChatLoading(size: size, color: color ?? QChatColors.green);
+    final size = (_number(node.props['size']) ?? 20).clamp(4.0, 120.0);
+    final color = qappColor(node.props['color']) ?? QChatColors.green;
+    // The native iOS spinner: twelve ticks on Apple's own cadence, instead of a
+    // hand-drawn arc.
+    return CupertinoActivityIndicator(radius: size / 2, color: color);
   }
 
   Widget _safeArea(BuildContext context) {
@@ -1586,11 +1632,17 @@ class _QappNodeView extends StatelessWidget {
     final border = style.boxBorder();
     final shadows = style.boxShadows;
     final hasRadius = style.borderRadius != BorderRadius.zero;
+    // `TabBar` is drawn by `CupertinoTabBar`, which paints its own surface and
+    // hairline and adds the home indicator inset itself. A second background
+    // here would sit outside the pinned bar and a fixed height would fight the
+    // height the bar reserves for the keyboard.
+    final isTabBar = node.type == 'TabBar';
     final hasDecoration =
-        style.backgroundColor != null ||
-        style.gradient != null ||
-        border != null ||
-        shadows.isNotEmpty;
+        !isTabBar &&
+        (style.backgroundColor != null ||
+            style.gradient != null ||
+            border != null ||
+            shadows.isNotEmpty);
     var content = child;
     if (hasDecoration) {
       final padding = style.padding == EdgeInsets.zero ? null : style.padding;
@@ -1640,7 +1692,7 @@ class _QappNodeView extends StatelessWidget {
           ? ClipRRect(borderRadius: style.borderRadius, child: content)
           : ClipRect(child: content);
     }
-    content = _constrain(context, content);
+    if (!isTabBar) content = _constrain(context, content);
     if (style.margin != EdgeInsets.zero) {
       content = Padding(padding: style.margin, child: content);
     }
@@ -2021,53 +2073,113 @@ class _QappCopyToolbar extends StatelessWidget {
   }
 }
 
-/// Fades or slides an overlay in the first time it mounts.
+/// Animates an overlay in the first time it mounts, with the iOS transition.
 ///
-/// The contract declares `Modal.animationType` (`none`, `fade`, `slide`) but the
-/// renderer used to ignore it, so an overlay appeared instantly whatever the
-/// app asked for. The animation only runs on mount, so a later rebuild of the
-/// same overlay (a keystroke, a scroll) does not replay it.
+/// The contract declares `Modal.animationType` (`none`, `fade`, `slide`) and the
+/// renderer maps it onto the motion `CupertinoModalPopupRoute` and
+/// `CupertinoDialogRoute` use: a critically damped spring (`CASpringAnimation`'s
+/// mass 1, stiffness 522.35, damping 45.71 — roughly 0.4 s), a sheet that rises
+/// from the bottom edge, a dialog that fades in while it scales down from 1.3,
+/// and a scrim that fades on its own beat instead of riding the sheet. The
+/// animation only runs on mount, so a later rebuild of the same overlay (a
+/// keystroke, a scroll) does not replay it.
 class _QappOverlayTransition extends StatefulWidget {
-  const _QappOverlayTransition({required this.animation, required this.child});
+  const _QappOverlayTransition({
+    required this.animation,
+    required this.child,
+    this.barrier,
+  });
 
+  /// `none`, `fade`, `slide`, or `dialog` (a fade plus the native scale).
   final String animation;
   final Widget child;
+  final Widget? barrier;
 
   @override
   State<_QappOverlayTransition> createState() => _QappOverlayTransitionState();
 }
 
-class _QappOverlayTransitionState extends State<_QappOverlayTransition> {
-  static const _duration = Duration(milliseconds: 180);
+class _QappOverlayTransitionState extends State<_QappOverlayTransition>
+    with SingleTickerProviderStateMixin {
+  /// The spring Xcode reports for `CASpringAnimation`: critically damped, the
+  /// same one iOS runs behind an action sheet or an alert.
+  static final _spring = SpringDescription(
+    mass: 1,
+    stiffness: 522.35,
+    damping: 45.7099552,
+  );
+  static const _tolerance = Tolerance(velocity: .03);
 
-  late bool _shown = widget.animation == 'none';
+  AnimationController? _controller;
 
   @override
   void initState() {
     super.initState();
-    if (_shown) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _shown = true);
-    });
+    if (widget.animation == 'none') return;
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 404),
+    );
+    _controller = controller;
+    controller.animateWith(
+      SpringSimulation(
+        _spring,
+        0,
+        1,
+        0,
+        snapToEnd: true,
+        tolerance: _tolerance,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (widget.animation == 'none') return widget.child;
-    Widget child = AnimatedOpacity(
-      opacity: _shown ? 1 : 0,
-      duration: _duration,
-      child: widget.child,
-    );
-    if (widget.animation == 'slide') {
-      child = AnimatedSlide(
-        offset: _shown ? Offset.zero : const Offset(0, .06),
-        duration: _duration,
-        curve: Curves.easeOut,
-        child: child,
+    final controller = _controller;
+    final barrier = widget.barrier;
+    if (controller == null) {
+      if (barrier == null) return widget.child;
+      return Stack(
+        children: [Positioned.fill(child: barrier), widget.child],
       );
     }
-    return child;
+    Widget content = widget.child;
+    switch (widget.animation) {
+      case 'slide':
+        content = AnimatedBuilder(
+          animation: controller,
+          child: content,
+          builder: (context, child) => FractionalTranslation(
+            translation: Offset(0, 1 - controller.value),
+            child: child,
+          ),
+        );
+      case 'dialog':
+        content = FadeTransition(
+          opacity: controller,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 1.3, end: 1).animate(controller),
+            child: content,
+          ),
+        );
+      default:
+        content = FadeTransition(opacity: controller, child: content);
+    }
+    if (barrier == null) return content;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: FadeTransition(opacity: controller, child: barrier),
+        ),
+        content,
+      ],
+    );
   }
 }
 
@@ -2102,8 +2214,11 @@ class _PressableState extends State<_Pressable> {
 
   @override
   Widget build(BuildContext context) {
+    // Cupertino's press fade: 120 ms out, a cubic ease. `CupertinoButton` uses
+    // the same beat for its own highlight.
     final child = AnimatedOpacity(
-      duration: const Duration(milliseconds: 90),
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
       opacity: _pressed ? .6 : 1,
       child: widget.child,
     );
@@ -2341,48 +2456,43 @@ class _QappCheckboxState extends State<_QappCheckbox> {
     }
   }
 
+  void _toggle(bool next) {
+    setState(() => _checked = next);
+    widget.onEvent(widget.node.id, 'change', {
+      'type': 'change',
+      'value': next,
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
     final label = node.props['label']?.toString() ?? '';
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: node.props['disabled'] == true
-          ? null
-          : () {
-              final next = !_checked;
-              setState(() => _checked = next);
-              widget.onEvent(node.id, 'change', {
-                'type': 'change',
-                'value': next,
-              });
-            },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 8,
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: _checked ? QChatColors.green : QChatColors.transparent,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: _checked ? QChatColors.green : const Color(0xffb8b8b8),
-                width: 1.5,
-              ),
-            ),
-            child: _checked
-                ? const QChatIcon(
-                    'check',
-                    size: 13,
-                    color: QChatColors.white,
-                  )
-                : null,
-          ),
-          if (label.isNotEmpty)
-            Flexible(
+    final disabled = node.props['disabled'] == true;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 8,
+      children: [
+        // The native checkbox: Cupertino's rounded box, fill animation and
+        // checkmark. The contract still owns the colour and the disabled state.
+        CupertinoCheckbox(
+          value: _checked,
+          activeColor: QChatColors.green,
+          checkColor: QChatColors.white,
+          // The bar's box was 20 pt; the 48 pt accessibility target would
+          // stretch every row that holds a checkbox. The label is tappable too.
+          tapTargetSize: const Size.square(24),
+          onChanged: disabled
+              ? null
+              : (next) {
+                  if (next != null) _toggle(next);
+                },
+        ),
+        if (label.isNotEmpty)
+          Flexible(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: disabled ? null : () => _toggle(!_checked),
               child: Text(
                 label,
                 style: node.style.toTextStyle(
@@ -2391,8 +2501,8 @@ class _QappCheckboxState extends State<_QappCheckbox> {
                 ),
               ),
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -2426,9 +2536,9 @@ class _QappSwitchState extends State<_QappSwitch> {
   @override
   Widget build(BuildContext context) {
     final node = widget.node;
-    return QChatSwitch(
+    return CupertinoSwitch(
       value: _value,
-      activeColor: QChatColors.green,
+      activeTrackColor: QChatColors.green,
       onChanged: node.props['disabled'] == true
           ? null
           : (value) {
@@ -2492,33 +2602,38 @@ class _QappSliderState extends State<_QappSlider> {
     final lower = min is num ? min.toDouble() : 0.0;
     final upper = max is num ? max.toDouble() : 1.0;
     final value = _value.clamp(lower, upper).toDouble();
+    final disabled = node.props['disabled'] == true;
     double snap(double next) {
       if (step is! num || step <= 0) return next;
       final stepped = (next / step).round() * step;
       return stepped.clamp(lower, upper).toDouble();
     }
 
-    return QChatSlider(
+    // `CupertinoSlider` draws the native track and thumb; the contract still
+    // owns the range, the step and the disabled state.
+    return CupertinoSlider(
       value: value,
       min: lower,
       max: upper > lower ? upper : lower + 1,
       activeColor: QChatColors.green,
-      onChanged: (next) => setState(() => _value = snap(next)),
-      onChangeEnd: (next) {
-        final snapped = snap(next);
-        if (node.hasEvent('change')) {
-          widget.onEvent(node.id, 'change', {
-            'type': 'change',
-            'value': snapped,
-          });
-        }
-        if (node.hasEvent('valueChange')) {
-          widget.onEvent(node.id, 'valueChange', {
-            'type': 'valueChange',
-            'value': snapped,
-          });
-        }
-      },
+      onChanged: disabled ? null : (next) => setState(() => _value = snap(next)),
+      onChangeEnd: disabled
+          ? null
+          : (next) {
+              final snapped = snap(next);
+              if (node.hasEvent('change')) {
+                widget.onEvent(node.id, 'change', {
+                  'type': 'change',
+                  'value': snapped,
+                });
+              }
+              if (node.hasEvent('valueChange')) {
+                widget.onEvent(node.id, 'valueChange', {
+                  'type': 'valueChange',
+                  'value': snapped,
+                });
+              }
+            },
     );
   }
 }

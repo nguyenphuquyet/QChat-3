@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -147,10 +148,12 @@ void main() {
       );
       expect(find.text('Đang tải…'), findsNothing);
       final button = tester.getRect(find.byType(QChatButton));
-      final progress = tester.getRect(find.byType(RotationTransition));
+      // The busy state is the native iOS spinner, inside the button's bounds.
+      final progress = tester.getRect(find.byType(CupertinoActivityIndicator));
       expect(button.contains(progress.topLeft), isTrue);
       expect(button.contains(progress.bottomRight), isTrue);
-      expect(progress.size, const Size(18, 18));
+      expect(progress.size.width, lessThanOrEqualTo(18));
+      expect(progress.size.height, lessThanOrEqualTo(18));
       await tester.pumpWidget(const SizedBox());
     },
   );

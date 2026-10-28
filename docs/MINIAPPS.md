@@ -317,12 +317,19 @@ hook.
 current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
 `TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
 and `TabBar` takes a tab list plus the active tab and reports `change` with
-`{ index, key, value }`. `TabBar.hideOnKeyboard` defaults to true: the host
-shrinks the whole mini program when a field takes focus, so a bar left in the
-flow would be lifted off the bottom edge and float right above the keys. Pinned
-instead, the bar keeps painting at the bottom edge of the screen, hands its
-height back to the page while the keys are up, and is uncovered again as the
-keyboard retracts. Nothing pops in late and no content jumps.
+`{ index, key, value }`. The bar itself is a `CupertinoTabBar`, so the icon and
+label metrics, the tab semantics and the blur behind a translucent surface are
+the platform's; the contract still owns the look — `style.backgroundColor` is
+the surface, `style.borderTopWidth`/`borderTopColor` the hairline, `style.color`
+the selected tint and `style.height` the row height (50 by default, plus the
+home indicator inset the bar adds itself). A tab `badge` is wrapped into the
+item's icon, because `CupertinoTabBar` has no badge slot.
+`TabBar.hideOnKeyboard` defaults to true: the host shrinks the whole mini
+program when a field takes focus, so a bar left in the flow would be lifted off
+the bottom edge and float right above the keys. Pinned instead, the bar keeps
+painting at the bottom edge of the screen, hands its height back to the page
+while the keys are up, and is uncovered again as the keyboard retracts. Nothing
+pops in late and no content jumps.
 
 ### The screen frame: `Page`
 
@@ -687,8 +694,16 @@ These are the rules the renderer guarantees; each one is covered by a test in
   running a whole render on the UI thread for every scroll frame is what made a
   drag or a bounce past the edge stutter. The newest offset is delivered when
   the list stops, so the final state is exact.
-- `TextField` reports `focus` and `blur`; `Modal.animationType` (`none`, `fade`,
-  `slide`) runs once when the overlay mounts.
+- `TextField` reports `focus` and `blur`. `Switch`, `Slider`, `Checkbox` and
+  `ActivityIndicator` are the Cupertino widgets (`CupertinoSwitch`,
+  `CupertinoSlider`, `CupertinoCheckbox`, `CupertinoActivityIndicator`), so
+  their motion, thumb and spinner are the platform's; the contract still owns
+  `value`, `min`/`max`/`step`, `disabled` and the colour. Overlays run the iOS
+  spring (`CASpringAnimation`'s mass 1, stiffness 522.35, damping 45.71, about
+  0.4 s) once when they mount: a `BottomSheet` rises from the bottom edge while
+  the scrim fades on its own beat, a `Dialog` fades in while it scales down from
+  1.3 (like `CupertinoDialogRoute`), and `Modal.animationType` (`none`, `fade`,
+  `slide`) picks the same two motions for a generic overlay.
 - A `ListView`/`GridView` reports `endReached` once per window: within 240 px of
   the end, or right after the first layout when the content is shorter than the
   viewport. The latch is released when the window grows or when the user scrolls
