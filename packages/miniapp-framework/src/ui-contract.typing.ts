@@ -574,6 +574,7 @@ const NavBarProps_CONFORMANCE: Record<keyof NavBarProps, true> = {
   reserveRight: true,
   transparent: true,
   blur: true,
+  border: true,
 };
 void NavBarProps_CONFORMANCE;
 

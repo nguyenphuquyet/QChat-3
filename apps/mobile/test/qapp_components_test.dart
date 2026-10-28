@@ -296,6 +296,204 @@ void main() {
     );
   });
 
+  testWidgets('a solid NavBar draws a hairline under its surface', (
+    tester,
+  ) async {
+    final solid = node(
+      'n0',
+      'NavBar',
+      props: {'title': 'Inbox', 'safeArea': false},
+    );
+    await tester.pumpWidget(host(solid, (_, _, _) {}));
+    final surface = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(QChatHeader),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    final border = (surface.decoration as BoxDecoration).border;
+    expect(border, isA<Border>());
+    expect((border! as Border).bottom.width, greaterThan(0));
+    expect((border).top.width, 0);
+
+    final plain = node(
+      'n0',
+      'NavBar',
+      props: {'title': 'Inbox', 'safeArea': false, 'border': false},
+    );
+    await tester.pumpWidget(host(plain, (_, _, _) {}));
+    final bare = tester.widget<DecoratedBox>(
+      find
+          .descendant(
+            of: find.byType(QChatHeader),
+            matching: find.byType(DecoratedBox),
+          )
+          .first,
+    );
+    expect((bare.decoration as BoxDecoration).border, isNull);
+  });
+
+  testWidgets('a Pressable keeps the flex direction and alignment of a View', (
+    tester,
+  ) async {
+    // A cell: a row with a leading label and a trailing chevron, vertically
+    // centred. It used to collapse into a column, which is what pushed every
+    // row on the account screen into a vertical stack.
+    final root = node(
+      'n0',
+      'Pressable',
+      props: {
+        'style': {
+          'flexDirection': 'row',
+          'alignItems': 'center',
+          'justifyContent': 'spaceBetween',
+          'padding': 12,
+          'width': 300,
+        },
+      },
+      events: const ['press'],
+      children: [
+        node('n0.0', 'Text', children: [
+          node('n0.0.0', '#text', props: {'text': 'Share'}),
+        ]),
+        node('n0.1', 'Text', children: [
+          node('n0.1.0', '#text', props: {'text': '>'}),
+        ]),
+      ],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final page = tester.getRect(find.byType(QappRenderer));
+    final left = tester.getRect(find.text('Share'));
+    final right = tester.getRect(find.text('>'));
+    expect(left.center.dy, closeTo(right.center.dy, .01));
+    expect(left.left, lessThan(right.left));
+    // `justifyContent: "spaceBetween"` pushes the chevron to the trailing
+    // padding, which only happens when the row still knows it is a row.
+    expect(right.right, closeTo(page.right - 12, .01));
+  });
+
+  testWidgets('a Pressable centres a glyph inside a fixed box', (tester) async {
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {
+          'width': 100,
+          'height': 100,
+          'alignItems': 'center',
+          'justifyContent': 'center',
+        },
+      },
+      children: [
+        node(
+          'n0.0',
+          'Pressable',
+          props: {
+            'style': {
+              'width': 28,
+              'height': 28,
+              'alignItems': 'center',
+              'justifyContent': 'center',
+            },
+          },
+          events: const ['press'],
+          children: [
+            node('n0.0.0', 'Text', children: [
+              node('n0.0.0.0', '#text', props: {'text': '−'}),
+            ]),
+          ],
+        ),
+      ],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final page = tester.getRect(find.byType(QappRenderer));
+    final glyph = tester.getCenter(find.text('−'));
+    expect(glyph.dx, closeTo(page.center.dx, .5));
+    expect(glyph.dy, closeTo(page.center.dy, .5));
+  });
+
+  testWidgets('a Pressable inside a wrapping row keeps its content width', (
+    tester,
+  ) async {
+    // The category chips: three pills on one line, each as wide as its label.
+    // Stretching every chip to the row width stacked them into a column and
+    // made the header three times taller than the design.
+    QappNode chip(String id, String label) => node(
+      id,
+      'Pressable',
+      props: {
+        'style': {
+          'paddingHorizontal': 13,
+          'paddingVertical': 7,
+          'borderRadius': 16,
+        },
+      },
+      events: const ['press'],
+      children: [
+        node('$id.0', 'Text', children: [
+          node('$id.0.0', '#text', props: {'text': label}),
+        ]),
+      ],
+    );
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {'width': 360, 'flexDirection': 'row', 'flexWrap': 'wrap'},
+      },
+      children: [chip('n0.0', 'All'), chip('n0.1', 'Coffee')],
+    );
+    await tester.pumpWidget(host(root, (_, _, _) {}));
+    final all = tester.getRect(find.text('All'));
+    final coffee = tester.getRect(find.text('Coffee'));
+    expect(all.center.dy, closeTo(coffee.center.dy, .01));
+    expect(coffee.left, greaterThan(all.right));
+    expect(all.left, lessThan(60));
+  });
+
+  testWidgets('a ScrollView reports its offset while the finger is moving', (
+    tester,
+  ) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'ScrollView',
+      props: {
+        'style': {'width': 360, 'height': 300},
+        'showsScrollIndicator': false,
+      },
+      events: const ['scroll'],
+      children: [
+        for (var index = 0; index < 20; index++)
+          node('n0.$index', 'View', props: {
+            'style': {'height': 60},
+          }),
+      ],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.byType(SingleChildScrollView)),
+    );
+    await gesture.moveBy(const Offset(0, -80));
+    await tester.pump();
+    // The header surface follows the offset, so the offset has to arrive
+    // during the drag and not only when the list settles.
+    expect(
+      events.where((entry) => entry.$2 == 'scroll'),
+      isNotEmpty,
+      reason: 'no scroll event arrived mid-drag',
+    );
+    await gesture.up();
+    await tester.pumpAndSettle();
+    final last = events.lastWhere((entry) => entry.$2 == 'scroll');
+    final payload = last.$3! as Map<String, Object?>;
+    expect(payload['y'], greaterThan(0));
+  });
+
   testWidgets('a hidden BottomSheet renders nothing', (tester) async {
     final root = node(
       'n0',

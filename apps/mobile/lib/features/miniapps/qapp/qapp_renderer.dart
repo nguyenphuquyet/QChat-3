@@ -48,6 +48,7 @@ class _QappNodeView extends StatelessWidget {
     required this.onEvent,
     required this.loadAsset,
     required this.insideFlex,
+    this.insideWrap = false,
     this.placedInStack = false,
   });
 
@@ -55,6 +56,11 @@ class _QappNodeView extends StatelessWidget {
   final QappEventHandler onEvent;
   final QappAssetLoader loadAsset;
   final bool insideFlex;
+
+  /// True when this node is an item of a wrapping flex. Such an item is sized
+  /// by its own content, so its children must not be stretched across a width
+  /// the item has not earned yet.
+  final bool insideWrap;
 
   /// True when a `Stack` already positioned this node. Its `left`/`top` are
   /// applied by `Positioned`, so the fallback translation must not run again.
@@ -466,6 +472,14 @@ class _QappNodeView extends StatelessWidget {
             ? MainAxisAlignment.start
             : main;
         var cross = _crossAlignment(node);
+        // A wrapping flex sizes its items to their own content, the way React
+        // Native does: a chip in a `flexWrap: "wrap"` row keeps the width of
+        // its label instead of taking the whole row. Flutter hands a `Wrap`
+        // child a loose width, and `stretch` against a loose width would make
+        // every chip full width and stack the row into a column.
+        if (insideWrap && cross == CrossAxisAlignment.stretch) {
+          cross = CrossAxisAlignment.start;
+        }
         // React Native stretches children across the cross axis by default.
         // Flutter cannot stretch against an infinite constraint (a Row inside
         // a Column, a Column inside a vertical scroller), so fall back to
@@ -481,6 +495,7 @@ class _QappNodeView extends StatelessWidget {
               context,
               parentIsFlex: true,
               allowFlex: mainBounded,
+              insideWrap: wrap,
             ),
         ];
         final mainGap = node.style.mainGapFor(isRow);
@@ -529,12 +544,14 @@ class _QappNodeView extends StatelessWidget {
     BuildContext context, {
     required bool parentIsFlex,
     bool allowFlex = true,
+    bool insideWrap = false,
   }) {
     Widget widget = _QappNodeView(
       node: child,
       onEvent: onEvent,
       loadAsset: loadAsset,
       insideFlex: parentIsFlex && allowFlex,
+      insideWrap: insideWrap,
     );
     if (!parentIsFlex) return widget;
     final style = child.style;
@@ -651,23 +668,11 @@ class _QappNodeView extends StatelessWidget {
       child: content,
     );
     final showsIndicator = node.props['showsScrollIndicator'] != false;
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification.depth == 0 &&
-            notification is ScrollEndNotification &&
-            node.hasEvent('scroll')) {
-          final position = notification.metrics;
-          final x = horizontal ? position.pixels : 0.0;
-          final y = horizontal ? 0.0 : position.pixels;
-          onEvent(node.id, 'scroll', {
-            'type': 'scroll',
-            'x': x,
-            'y': y,
-            'value': {'x': x, 'y': y},
-          });
-        }
-        return false;
-      },
+    return _QappScrollEvents(
+      nodeId: node.id,
+      horizontal: horizontal,
+      enabled: node.hasEvent('scroll'),
+      onEvent: onEvent,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // A scroller nested in a scroller (or in a Column) with the same
@@ -903,6 +908,9 @@ class _QappNodeView extends StatelessWidget {
     final safeArea = node.props['safeArea'] != false;
     final transparent = node.props['transparent'] == true;
     final blur = node.props['blur'] == true;
+    // A solid surface needs a hairline, otherwise it blends into the first
+    // card of a white page and the content looks cut off mid-sentence.
+    final border = node.props['border'] != false;
     final reserveRight =
         (_number(node.props['reserveRight']) ?? kQChatCapsuleWidth + 14).clamp(
           0.0,
@@ -929,6 +937,7 @@ class _QappNodeView extends StatelessWidget {
       background: node.style.backgroundColor,
       transparent: transparent,
       blur: blur,
+      border: border && !transparent,
       safeArea: safeArea,
       reserveLeading: 56,
       reserveTrailing: reserveRight,
@@ -1230,15 +1239,14 @@ class _QappNodeView extends StatelessWidget {
       hasLongPress: node.hasEvent('longPress'),
       onPress: () => onEvent(node.id, 'press', null),
       onLongPress: () => onEvent(node.id, 'longPress', null),
-      child: _stretchColumn([
-        for (final child in node.children)
-          _QappNodeView(
-            node: child,
-            onEvent: onEvent,
-            loadAsset: loadAsset,
-            insideFlex: false,
-          ),
-      ]),
+      // A `Pressable` is a `View` with a tap handler, so it has to lay its
+      // children out with the same flex rules. Forcing a column here turned
+      // every horizontal row (a cell, a drink row, a size button) into a
+      // vertical stack, and left `justifyContent`/`alignItems` unread, which
+      // is why a `−`/`+` glyph sat in a corner instead of the middle.
+      child: node.children.isEmpty
+          ? const SizedBox.shrink()
+          : _flex(context),
     );
   }
 
@@ -2363,6 +2371,75 @@ class _QappSliderState extends State<_QappSlider> {
       },
     );
   }
+}
+
+/// Reports a `ScrollView`'s offset to the mini program while the finger moves.
+///
+/// Waiting for `ScrollEndNotification` alone made the header surface stale for
+/// the whole drag: the page only learned its offset once the list settled, so
+/// a transparent header jumped to solid a second late and flickered back and
+/// forth around the threshold. Updates are throttled by time and distance, so
+/// a fast flick does not rebuild the tree on every frame, and the final offset
+/// is always sent so the state is exact when the finger lifts.
+class _QappScrollEvents extends StatefulWidget {
+  const _QappScrollEvents({
+    required this.nodeId,
+    required this.horizontal,
+    required this.enabled,
+    required this.onEvent,
+    required this.child,
+  });
+
+  final String nodeId;
+  final bool horizontal;
+  final bool enabled;
+  final QappEventHandler onEvent;
+  final Widget child;
+
+  @override
+  State<_QappScrollEvents> createState() => _QappScrollEventsState();
+}
+
+class _QappScrollEventsState extends State<_QappScrollEvents> {
+  static const _minInterval = Duration(milliseconds: 60);
+  static const _minDelta = 24.0;
+
+  double? _sentPixels;
+  DateTime? _sentAt;
+
+  bool _handle(ScrollNotification notification) {
+    if (!widget.enabled || notification.depth != 0) return false;
+    final settled = notification is ScrollEndNotification;
+    if (!settled && notification is! ScrollUpdateNotification) return false;
+    final pixels = notification.metrics.pixels;
+    final now = DateTime.now();
+    final last = _sentPixels;
+    final lastAt = _sentAt;
+    final due =
+        settled ||
+        last == null ||
+        lastAt == null ||
+        now.difference(lastAt) >= _minInterval ||
+        (pixels - last).abs() >= _minDelta;
+    if (!due) return false;
+    _sentPixels = pixels;
+    _sentAt = now;
+    final x = widget.horizontal ? pixels : 0.0;
+    final y = widget.horizontal ? 0.0 : pixels;
+    widget.onEvent(widget.nodeId, 'scroll', {
+      'type': 'scroll',
+      'x': x,
+      'y': y,
+      'value': {'x': x, 'y': y},
+    });
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) => NotificationListener<ScrollNotification>(
+    onNotification: _handle,
+    child: widget.child,
+  );
 }
 
 /// Mini program scroll physics: the list stays exactly where the finger put it.

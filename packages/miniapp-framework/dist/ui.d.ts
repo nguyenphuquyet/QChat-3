@@ -251,6 +251,12 @@ export interface NavBarProps extends BaseProps {
     transparent?: boolean;
     /** Blurs what is behind the header instead of painting a solid surface. */
     blur?: boolean;
+    /**
+     * Hairline under the header. On by default for a solid or blurred surface, so
+     * a white header does not blend into the white card below it. Ignored when
+     * `transparent` is set.
+     */
+    border?: boolean;
 }
 export interface TabBarProps extends BaseProps {
     tabs?: readonly TabItem[];
