@@ -1,4 +1,4 @@
-import { h, type VNode, type VNodeChild } from "./runtime.js";
+import { h, useState, type VNode, type VNodeChild } from "./runtime.js";
 import { navigateTo } from "./navigation.js";
 import type {
   BaseProps,
@@ -197,6 +197,8 @@ export interface ListViewProps<T = unknown> extends BaseProps {
   initialCount?: number;
   renderItem?: (item: T, index: number) => VNodeChild;
   keyExtractor?: (item: T, index: number) => string;
+  /** Called when the list is scrolled near its end; the framework then reveals more items. */
+  onEndReached?: () => void;
 }
 export interface GridViewProps<T = unknown> extends BaseProps {
   data?: readonly T[];
@@ -204,6 +206,8 @@ export interface GridViewProps<T = unknown> extends BaseProps {
   empty?: VNodeChild;
   initialCount?: number;
   renderItem?: (item: T, index: number) => VNodeChild;
+  /** Called when the grid is scrolled near its end; the framework then reveals more items. */
+  onEndReached?: () => void;
 }
 export interface StackProps extends BaseProps {
   children?: VNodeChild;
@@ -391,19 +395,48 @@ export function ScrollView(props: ScrollViewProps): VNode {
   return view("ScrollView", props as Record<string, unknown>);
 }
 
-/** Items materialized in the first frame before Flutter builds lazily. */
+/**
+ * Items materialized in the first frame, and the number revealed by each
+ * `endReached`.
+ */
 const DEFAULT_INITIAL_COUNT = 60;
 
+/** The window size: `initialCount` when given, 60 by default. */
+function windowStep(initialCount: number | undefined): number {
+  if (initialCount == null || !Number.isFinite(initialCount)) {
+    return DEFAULT_INITIAL_COUNT;
+  }
+  return Math.max(1, Math.floor(initialCount));
+}
+
 /**
- * `ListView` and `GridView` keep their own node types so the Flutter host only
- * lays out the rows it can see. The frame carries the first `initialCount`
- * items (60 by default) and the total count; Flutter builds those rows lazily
- * as they scroll in. Items past `initialCount` are not serialized, so a longer
- * list has to raise `initialCount` or page its own data.
+ * A windowed list.
+ *
+ * The frame carries a window of items, not the whole array: Flutter builds
+ * those rows lazily, and when the user scrolls near the end the host reports
+ * `endReached`, the window grows by one step and the frame is resent. A long
+ * list therefore stays small on the wire while every item stays reachable, and
+ * the app can page its own data from `onEndReached` at the same time.
+ *
+ * The state lives in a component of its own so two lists never share a window
+ * and a list keeps its window across unrelated re-renders.
  */
 export function ListView<T>(props: ListViewProps<T>): VNode {
-  const { data = [], renderItem, empty, initialCount, ...rest } = props;
-  const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
+  return h(ListWindow, props as Record<string, unknown>);
+}
+
+function ListWindow(props: ListViewProps<unknown>): VNode {
+  const {
+    data = [],
+    renderItem,
+    empty,
+    initialCount,
+    onEndReached,
+    ...rest
+  } = props;
+  const step = windowStep(initialCount);
+  const [visibleCount, setVisibleCount] = useState(step);
+  const limit = Math.max(step, visibleCount);
   const children =
     data.length === 0
       ? (empty ?? null)
@@ -414,14 +447,31 @@ export function ListView<T>(props: ListViewProps<T>): VNode {
     ...rest,
     horizontal: props.horizontal === true,
     totalCount: data.length,
+    onEndReached: () => {
+      setVisibleCount((previous) => previous + step);
+      onEndReached?.();
+    },
     children,
   } as Record<string, unknown>);
 }
 
 export function GridView<T>(props: GridViewProps<T>): VNode {
-  const { data = [], renderItem, empty, numColumns = 2, initialCount, ...rest } =
-    props;
-  const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
+  return h(GridWindow, props as Record<string, unknown>);
+}
+
+function GridWindow(props: GridViewProps<unknown>): VNode {
+  const {
+    data = [],
+    renderItem,
+    empty,
+    numColumns = 2,
+    initialCount,
+    onEndReached,
+    ...rest
+  } = props;
+  const step = windowStep(initialCount);
+  const [visibleCount, setVisibleCount] = useState(step);
+  const limit = Math.max(step, visibleCount);
   const children =
     data.length === 0
       ? (empty ?? null)
@@ -432,6 +482,10 @@ export function GridView<T>(props: GridViewProps<T>): VNode {
     ...rest,
     numColumns,
     totalCount: data.length,
+    onEndReached: () => {
+      setVisibleCount((previous) => previous + step);
+      onEndReached?.();
+    },
     children,
   } as Record<string, unknown>);
 }

@@ -28,8 +28,8 @@ export const COMPONENT_EVENTS = Object.freeze({
     "Switch": ["change", "valueChange"],
     "Slider": ["change", "valueChange"],
     "ScrollView": ["scroll"],
-    "ListView": [],
-    "GridView": [],
+    "ListView": ["endReached"],
+    "GridView": ["endReached"],
     "Stack": [],
     "Positioned": [],
     "Spacer": [],
@@ -44,7 +44,7 @@ export const COMPONENT_EVENTS = Object.freeze({
     "NavBar": ["back", "press"],
     "TabBar": ["change"],
 });
-export const EVENT_NAMES = ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select", "close", "confirm", "back"];
+export const EVENT_NAMES = ["press", "longPress", "change", "input", "submit", "valueChange", "scroll", "refresh", "focus", "blur", "select", "close", "confirm", "back", "endReached"];
 export const PROP_EVENT_MAP = Object.freeze({
     "onPress": "press",
     "onClose": "close",
@@ -62,6 +62,7 @@ export const PROP_EVENT_MAP = Object.freeze({
     "onFocus": "focus",
     "onBlur": "blur",
     "onSelect": "select",
+    "onEndReached": "endReached",
 });
 export const STYLE_KEYS = ["width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "padding", "paddingHorizontal", "paddingVertical", "paddingTop", "paddingRight", "paddingBottom", "paddingLeft", "margin", "marginHorizontal", "marginVertical", "marginTop", "marginRight", "marginBottom", "marginLeft", "gap", "rowGap", "columnGap", "flex", "flexGrow", "flexShrink", "flexBasis", "flexDirection", "flexWrap", "alignItems", "justifyContent", "alignSelf", "alignContent", "position", "top", "right", "bottom", "left", "zIndex", "overflow", "aspectRatio", "backgroundColor", "color", "opacity", "borderRadius", "borderTopLeftRadius", "borderTopRightRadius", "borderBottomLeftRadius", "borderBottomRightRadius", "borderWidth", "borderColor", "borderTopWidth", "borderTopColor", "borderRightWidth", "borderRightColor", "borderBottomWidth", "borderBottomColor", "borderLeftWidth", "borderLeftColor", "fontSize", "fontWeight", "fontStyle", "fontFamily", "lineHeight", "letterSpacing", "textAlign", "textDecoration", "textTransform", "numberOfLines", "shadow", "boxShadow", "elevation", "gradient", "rotate", "scale", "translateX", "translateY"];
 export const STYLE_ENUM_VALUES = Object.freeze({

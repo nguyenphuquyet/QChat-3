@@ -221,3 +221,73 @@ test("ListView only serializes the first window of a long list", async () => {
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("a ListView grows its window on endReached and calls the app back", async () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "qchat-loadmore-"));
+  try {
+    writeFileSync(
+      path.join(directory, "manifest.json"),
+      JSON.stringify({
+        schemaVersion: 2,
+        format: "qapp",
+        name: "Load More",
+        version: "1.0.0",
+        entry: "app.js",
+        sdkVersion: "1.0.0",
+        minRuntimeVersion: "1.0.0",
+        requestedPermissions: [],
+        source: "src/main.tsx",
+      }),
+    );
+    mkdirSync(path.join(directory, "src"), { recursive: true });
+    writeFileSync(
+      path.join(directory, "src", "main.tsx"),
+      `
+        import { start, useState } from "@mna/qchat";
+        import { ListView, Text, View } from "@mna/qchat/ui";
+
+        const data = Array.from({ length: 100 }, (_item, index) => index);
+
+        function App() {
+          const [hits, setHits] = useState(0);
+          return (
+            <View>
+              <Text testID="hits">{String(hits)}</Text>
+              <ListView
+                data={data}
+                initialCount={10}
+                renderItem={(item) => <Text>{String(item)}</Text>}
+                onEndReached={() => setHits((previous) => previous + 1)}
+              />
+            </View>
+          );
+        }
+
+        start(App);
+      `,
+    );
+    const result = await compileProject({
+      projectDir: directory,
+      outfile: path.join(directory, "dist", "app.japp"),
+      typecheck: false,
+    });
+    const harness = runQapp(result.bytes);
+    try {
+      const list = () =>
+        findNode(harness.latest(), (node) => node.type === "ListView");
+      assert.equal(list()!.children?.length, 10);
+      // The host reports `endReached`; the framework widens the window by one
+      // step and still tells the app, which may page its own data.
+      harness.dispatch(list()!.id, "endReached", { type: "endReached" });
+      assert.equal(list()!.children?.length, 20, "the window grows by initialCount");
+      assert.match(textContent(harness.latest()), /^1/);
+      harness.dispatch(list()!.id, "endReached", { type: "endReached" });
+      assert.equal(list()!.children?.length, 30);
+      assert.match(textContent(harness.latest()), /^2/);
+    } finally {
+      harness.dispose();
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

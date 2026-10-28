@@ -309,17 +309,24 @@ called unconditionally.
 Events always arrive as one object so a handler can be written once:
 `{ type, value, ... }`. `change`, `valueChange`, `submit` and `scroll` follow
 this shape (`QappToggleEvent`, `QappNumberEvent`, `QappTextEvent`,
-`QappScrollEvent`), and `press`, `longPress`, `close`, `confirm` and `back`
-carry `{ type }`. `TextField.onInput` remains the low-level string hook.
+`QappScrollEvent`), and `press`, `longPress`, `close`, `confirm`, `back` and
+`endReached` carry `{ type }`. `TextField.onInput` remains the low-level string
+hook.
 
 `Modal`, `BottomSheet` and `Dialog` are declarative: they render into the
 current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
 `TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
 and `TabBar` takes a tab list plus the active tab and reports `change` with
-`{ index, key, value }`. `ListView`/`GridView` serialize only the first
-`initialCount` items (60 by default) and hand the total count to Flutter, which
-builds those rows lazily as they scroll in. Items past `initialCount` are never
-sent, so a longer list raises `initialCount` or pages its own data.
+`{ index, key, value }`.
+
+`ListView`/`GridView` load themselves. A frame carries only a window of items —
+`initialCount` (60 by default) — plus the total count, so a thousand rows never
+travel in one frame. When the user scrolls near the end the host reports
+`endReached`; the framework reveals the next window of the same size and calls
+`onEndReached` as well, so an app that pages its own data can load more at the
+same time. A list nested inside another scroller cannot scroll on its own and
+therefore never reports `endReached`: give it a bounded height, or use a
+`ScrollView` with plain children.
 
 ### Header standard
 
@@ -630,6 +637,10 @@ These are the rules the renderer guarantees; each one is covered by a test in
   its surface with the offset tracks the page instead of jumping a second later.
 - `TextField` reports `focus` and `blur`; `Modal.animationType` (`none`, `fade`,
   `slide`) runs once when the overlay mounts.
+- A `ListView`/`GridView` reports `endReached` once per window: within 240 px of
+  the end, or right after the first layout when the content is shorter than the
+  viewport. The latch is released when the window grows or when the user scrolls
+  back up, so a list that cannot grow never repeats the event.
 - `elevation` maps to one soft shadow when no `boxShadow` is given.
 - `flexShrink` is accepted but not applied: Flutter never squeezes a child on its
   own, so a row that does not fit overflows instead of compressing. Give the
@@ -742,9 +753,14 @@ reproducible from Git alone; back them up with the database.
   its direction and `spaceBetween`, a glyph centres inside a fixed button, a
   wrapping row keeps each chip at its content width, `alignSelf: stretch` fills
   the cross axis, a `ScrollView` reports its offset mid-drag, `TextField`
-  reports focus/blur and a `Modal` honours `animationType`.
-  `qapp_components_test.dart` passes 32/32, `qchat_header_test.dart` 9/9, the
-  framework suite 47/47 (including the Vietnamese package-slug test),
+  reports focus/blur and a `Modal` honours `animationType`. The windowed lists
+  are covered on both sides: `components.test.ts` grows a `ListView` window on
+  `endReached` and checks the app callback still runs, and
+  `qapp_components_test.dart` checks the host reports `endReached` once per
+  window, after the first layout of a list shorter than its viewport, and again
+  for the next window.
+  `qapp_components_test.dart` passes 34/34, `qchat_header_test.dart` 9/9, the
+  framework suite 48/48 (including the Vietnamese package-slug test),
   `tsc --noEmit` and `flutter analyze --no-pub` are clean. The `cafe` example
   builds, validates and passes `qapp test` (215 nodes, real cart → order →
   history flow checked with the harness).

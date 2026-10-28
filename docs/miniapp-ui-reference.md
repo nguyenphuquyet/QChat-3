@@ -27,8 +27,8 @@ in sync.
 | `Switch` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
 | `Slider` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `value`, `min`, `max`, `step`, `onChange`, `onValueChange`, `disabled` | `change`, `valueChange` |
 | `ScrollView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `horizontal`, `vertical`, `showsScrollIndicator`, `onScroll`, `grid`, `numColumns` | `scroll` |
-| `ListView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `horizontal`, `empty`, `initialCount`, `renderItem`, `keyExtractor` | — |
-| `GridView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `numColumns`, `empty`, `initialCount`, `renderItem` | — |
+| `ListView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `horizontal`, `empty`, `initialCount`, `onEndReached`, `renderItem`, `keyExtractor` | `endReached` |
+| `GridView` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `data`, `numColumns`, `empty`, `initialCount`, `onEndReached`, `renderItem` | `endReached` |
 | `Stack` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `alignment` | — |
 | `Positioned` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `children`, `top`, `right`, `bottom`, `left` | — |
 | `Spacer` | `key`, `ref`, `style`, `children`, `testID`, `accessibleLabel`, `pointerEvents`, `size` | — |
@@ -45,7 +45,7 @@ in sync.
 
 ## Events
 
-`press`, `longPress`, `change`, `input`, `submit`, `valueChange`, `scroll`, `refresh`, `focus`, `blur`, `select`, `close`, `confirm`, `back`
+`press`, `longPress`, `change`, `input`, `submit`, `valueChange`, `scroll`, `refresh`, `focus`, `blur`, `select`, `close`, `confirm`, `back`, `endReached`
 
 | Prop | Event |
 | --- | --- |
@@ -65,6 +65,7 @@ in sync.
 | `onFocus` | `focus` |
 | `onBlur` | `blur` |
 | `onSelect` | `select` |
+| `onEndReached` | `endReached` |
 
 ## Style keys
 

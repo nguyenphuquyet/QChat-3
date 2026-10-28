@@ -723,8 +723,9 @@ class _QappNodeView extends StatelessWidget {
   }
 
   /// `ListView`/`GridView` keep their own node type so the whole list is not
-  /// built at once: the frame carries the first window of items and Flutter
-  /// lays the rest out only as they scroll into view.
+  /// built at once: the frame carries a window of items, Flutter lays those
+  /// rows out lazily, and `_QappEndReached` asks the app for the next window
+  /// when the user reaches the end.
   Widget _lazyList(BuildContext context) {
     final horizontal = node.props['horizontal'] == true;
     final showsIndicator = node.props['showsScrollIndicator'] != false;
@@ -744,10 +745,11 @@ class _QappNodeView extends StatelessWidget {
         final physics = showsIndicator && !unbounded
             ? const _QappScrollPhysics()
             : const NeverScrollableScrollPhysics();
+        final Widget list;
         if (node.type == 'GridView') {
           final columns = node.props['numColumns'];
           final count = columns is num ? columns.round().clamp(1, 12) : 2;
-          return GridView.count(
+          list = GridView.count(
             crossAxisCount: count,
             shrinkWrap: unbounded,
             padding: padding,
@@ -757,13 +759,25 @@ class _QappNodeView extends StatelessWidget {
             physics: physics,
             children: children,
           );
+        } else {
+          list = ListView(
+            scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
+            shrinkWrap: unbounded,
+            padding: padding,
+            physics: physics,
+            children: children,
+          );
         }
-        return ListView(
-          scrollDirection: horizontal ? Axis.horizontal : Axis.vertical,
-          shrinkWrap: unbounded,
-          padding: padding,
-          physics: physics,
-          children: children,
+        // A windowed list only holds part of the data, so the host tells the
+        // app when the user reaches the end and the next window is sent. A list
+        // nested in another scroller cannot scroll on its own, so there is
+        // nothing to report there.
+        return _QappEndReached(
+          nodeId: node.id,
+          itemCount: node.children.length,
+          enabled: !unbounded && node.hasEvent('endReached'),
+          onEvent: onEvent,
+          child: list,
         );
       },
     );
@@ -2546,6 +2560,94 @@ class _QappScrollEventsState extends State<_QappScrollEvents> {
     onNotification: _handle,
     child: widget.child,
   );
+}
+
+/// Reports `endReached` when a windowed list is scrolled near its end.
+///
+/// A `ListView`/`GridView` frame only carries a window of items, so the host
+/// has to ask for the next one: the framework widens the window and the app's
+/// own `onEndReached` runs with it. The event fires once per window: the latch
+/// is released when the window grows (a new frame arrived) or when the user
+/// scrolls back up, so a list that never grows cannot spam the app, and a list
+/// that does grow reports the next window only after the user has scrolled
+/// away from the end again.
+class _QappEndReached extends StatefulWidget {
+  const _QappEndReached({
+    required this.nodeId,
+    required this.itemCount,
+    required this.enabled,
+    required this.onEvent,
+    required this.child,
+  });
+
+  final String nodeId;
+  final int itemCount;
+  final bool enabled;
+  final QappEventHandler onEvent;
+  final Widget child;
+
+  @override
+  State<_QappEndReached> createState() => _QappEndReachedState();
+}
+
+class _QappEndReachedState extends State<_QappEndReached> {
+  /// How close to the end counts as "reached": enough slack that the next
+  /// window is already there before the user hits the bottom.
+  static const _threshold = 240.0;
+
+  bool _latched = false;
+
+  @override
+  void didUpdateWidget(_QappEndReached oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A new window means the list can ask for another one later.
+    if (widget.nodeId != oldWidget.nodeId ||
+        widget.itemCount > oldWidget.itemCount) {
+      _latched = false;
+    }
+  }
+
+  void _check(ScrollMetrics metrics, {bool rearm = true}) {
+    if (!widget.enabled) return;
+    if (metrics.maxScrollExtent - metrics.pixels > _threshold) {
+      // Scrolled away from the end: arm the next report. A metrics
+      // notification carries the values from layout time, so it may be stale
+      // by the time the next frame runs; only a real scroll may re-arm.
+      if (rearm) _latched = false;
+      return;
+    }
+    if (_latched) return;
+    _latched = true;
+    widget.onEvent(widget.nodeId, 'endReached', {'type': 'endReached'});
+  }
+
+  bool _onScroll(ScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    _check(notification.metrics);
+    return false;
+  }
+
+  bool _onMetrics(ScrollMetricsNotification notification) {
+    if (notification.depth != 0) return false;
+    // Metrics are reported during layout, and reporting the event would
+    // rebuild the tree in the middle of one, so it waits for the next frame.
+    final metrics = notification.metrics;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _check(metrics, rearm: false);
+    });
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      NotificationListener<ScrollMetricsNotification>(
+        onNotification: _onMetrics,
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _onScroll,
+          child: widget.child,
+        ),
+      );
 }
 
 /// Mini program scroll physics: the list stays exactly where the finger put it.

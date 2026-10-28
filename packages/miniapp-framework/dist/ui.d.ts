@@ -166,6 +166,8 @@ export interface ListViewProps<T = unknown> extends BaseProps {
     initialCount?: number;
     renderItem?: (item: T, index: number) => VNodeChild;
     keyExtractor?: (item: T, index: number) => string;
+    /** Called when the list is scrolled near its end; the framework then reveals more items. */
+    onEndReached?: () => void;
 }
 export interface GridViewProps<T = unknown> extends BaseProps {
     data?: readonly T[];
@@ -173,6 +175,8 @@ export interface GridViewProps<T = unknown> extends BaseProps {
     empty?: VNodeChild;
     initialCount?: number;
     renderItem?: (item: T, index: number) => VNodeChild;
+    /** Called when the grid is scrolled near its end; the framework then reveals more items. */
+    onEndReached?: () => void;
 }
 export interface StackProps extends BaseProps {
     children?: VNodeChild;
@@ -284,11 +288,16 @@ export declare function Switch(props: SwitchProps): VNode;
 export declare function Slider(props: SliderProps): VNode;
 export declare function ScrollView(props: ScrollViewProps): VNode;
 /**
- * `ListView` and `GridView` keep their own node types so the Flutter host only
- * lays out the rows it can see. The frame carries the first `initialCount`
- * items (60 by default) and the total count; Flutter builds those rows lazily
- * as they scroll in. Items past `initialCount` are not serialized, so a longer
- * list has to raise `initialCount` or page its own data.
+ * A windowed list.
+ *
+ * The frame carries a window of items, not the whole array: Flutter builds
+ * those rows lazily, and when the user scrolls near the end the host reports
+ * `endReached`, the window grows by one step and the frame is resent. A long
+ * list therefore stays small on the wire while every item stays reachable, and
+ * the app can page its own data from `onEndReached` at the same time.
+ *
+ * The state lives in a component of its own so two lists never share a window
+ * and a list keeps its window across unrelated re-renders.
  */
 export declare function ListView<T>(props: ListViewProps<T>): VNode;
 export declare function GridView<T>(props: GridViewProps<T>): VNode;

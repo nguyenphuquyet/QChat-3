@@ -61,6 +61,7 @@ const Set<String> qappEventNames = <String>{
   'close',
   'confirm',
   'back',
+  'endReached',
 };
 
 /// Events each component may declare (diagnostics only).
@@ -83,8 +84,8 @@ const Map<String, List<String>> qappComponentEvents = <String, List<String>>{
   'Switch': <String>['change', 'valueChange'],
   'Slider': <String>['change', 'valueChange'],
   'ScrollView': <String>['scroll'],
-  'ListView': <String>[],
-  'GridView': <String>[],
+  'ListView': <String>['endReached'],
+  'GridView': <String>['endReached'],
   'Stack': <String>[],
   'Positioned': <String>[],
   'Spacer': <String>[],

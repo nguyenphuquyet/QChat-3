@@ -1,4 +1,4 @@
-import { h } from "./runtime.js";
+import { h, useState } from "./runtime.js";
 import { navigateTo } from "./navigation.js";
 const view = (type, props) => h(type, props);
 export function View(props) {
@@ -75,18 +75,38 @@ export function Slider(props) {
 export function ScrollView(props) {
     return view("ScrollView", props);
 }
-/** Items materialized in the first frame before Flutter builds lazily. */
-const DEFAULT_INITIAL_COUNT = 60;
 /**
- * `ListView` and `GridView` keep their own node types so the Flutter host only
- * lays out the rows it can see. The frame carries the first `initialCount`
- * items (60 by default) and the total count; Flutter builds those rows lazily
- * as they scroll in. Items past `initialCount` are not serialized, so a longer
- * list has to raise `initialCount` or page its own data.
+ * Items materialized in the first frame, and the number revealed by each
+ * `endReached`.
+ */
+const DEFAULT_INITIAL_COUNT = 60;
+/** The window size: `initialCount` when given, 60 by default. */
+function windowStep(initialCount) {
+    if (initialCount == null || !Number.isFinite(initialCount)) {
+        return DEFAULT_INITIAL_COUNT;
+    }
+    return Math.max(1, Math.floor(initialCount));
+}
+/**
+ * A windowed list.
+ *
+ * The frame carries a window of items, not the whole array: Flutter builds
+ * those rows lazily, and when the user scrolls near the end the host reports
+ * `endReached`, the window grows by one step and the frame is resent. A long
+ * list therefore stays small on the wire while every item stays reachable, and
+ * the app can page its own data from `onEndReached` at the same time.
+ *
+ * The state lives in a component of its own so two lists never share a window
+ * and a list keeps its window across unrelated re-renders.
  */
 export function ListView(props) {
-    const { data = [], renderItem, empty, initialCount, ...rest } = props;
-    const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
+    return h(ListWindow, props);
+}
+function ListWindow(props) {
+    const { data = [], renderItem, empty, initialCount, onEndReached, ...rest } = props;
+    const step = windowStep(initialCount);
+    const [visibleCount, setVisibleCount] = useState(step);
+    const limit = Math.max(step, visibleCount);
     const children = data.length === 0
         ? (empty ?? null)
         : data
@@ -96,12 +116,21 @@ export function ListView(props) {
         ...rest,
         horizontal: props.horizontal === true,
         totalCount: data.length,
+        onEndReached: () => {
+            setVisibleCount((previous) => previous + step);
+            onEndReached?.();
+        },
         children,
     });
 }
 export function GridView(props) {
-    const { data = [], renderItem, empty, numColumns = 2, initialCount, ...rest } = props;
-    const limit = Math.max(0, initialCount ?? DEFAULT_INITIAL_COUNT);
+    return h(GridWindow, props);
+}
+function GridWindow(props) {
+    const { data = [], renderItem, empty, numColumns = 2, initialCount, onEndReached, ...rest } = props;
+    const step = windowStep(initialCount);
+    const [visibleCount, setVisibleCount] = useState(step);
+    const limit = Math.max(step, visibleCount);
     const children = data.length === 0
         ? (empty ?? null)
         : data
@@ -111,6 +140,10 @@ export function GridView(props) {
         ...rest,
         numColumns,
         totalCount: data.length,
+        onEndReached: () => {
+            setVisibleCount((previous) => previous + step);
+            onEndReached?.();
+        },
         children,
     });
 }

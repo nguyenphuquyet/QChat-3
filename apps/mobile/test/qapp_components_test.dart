@@ -494,6 +494,76 @@ void main() {
     expect(payload['y'], greaterThan(0));
   });
 
+  testWidgets('a ListView reports endReached once per window', (tester) async {
+    final events = <(String, String, Object?)>[];
+    QappNode list(int count) => node(
+      'n0',
+      'ListView',
+      props: {'totalCount': 100},
+      events: const ['endReached'],
+      children: [
+        for (var index = 0; index < count; index++)
+          node('n0.$index', 'View', props: {
+            'style': {'height': 60},
+          }),
+      ],
+    );
+    await tester.pumpWidget(
+      host(list(100), (id, event, payload) => events.add((id, event, payload))),
+    );
+    var position = tester
+        .state<ScrollableState>(find.byType(Scrollable))
+        .position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    expectEvent(events, 'n0', 'endReached', {'type': 'endReached'});
+    int reports() => events.where((entry) => entry.$2 == 'endReached').length;
+    expect(reports(), 1);
+    await tester.pump();
+    expect(reports(), 1, reason: 'a latched list does not report the same window');
+    // Scrolling away from the end arms the next report.
+    position.jumpTo(0);
+    await tester.pump();
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    expect(reports(), 2);
+    // A new, longer window (the app sent more items) is reported again once the
+    // user reaches its end.
+    await tester.pumpWidget(
+      host(list(200), (id, event, payload) => events.add((id, event, payload))),
+    );
+    position = tester.state<ScrollableState>(find.byType(Scrollable)).position;
+    position.jumpTo(position.maxScrollExtent);
+    await tester.pump();
+    expect(reports(), 3);
+  });
+
+  testWidgets('a short ListView reports endReached after its first layout', (
+    tester,
+  ) async {
+    final events = <(String, String, Object?)>[];
+    final root = node(
+      'n0',
+      'ListView',
+      props: {'totalCount': 40},
+      events: const ['endReached'],
+      children: [
+        for (var index = 0; index < 3; index++)
+          node('n0.$index', 'View', props: {
+            'style': {'height': 60},
+          }),
+      ],
+    );
+    await tester.pumpWidget(
+      host(root, (id, event, payload) => events.add((id, event, payload))),
+    );
+    // The content is shorter than the viewport, so no scroll will ever reach
+    // the end: the first layout has to report it, or the list would stay at
+    // three items forever.
+    await tester.pump();
+    expectEvent(events, 'n0', 'endReached', {'type': 'endReached'});
+  });
+
   testWidgets('alignSelf stretch fills the cross axis of its parent', (
     tester,
   ) async {
