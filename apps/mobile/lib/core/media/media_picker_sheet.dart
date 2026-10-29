@@ -12,9 +12,10 @@ import '../design_system/components.dart';
 import '../localization/strings.dart';
 import 'media_library.dart';
 
-const double _kBarHeight = 52;
-const double _kBottomBarHeight = 58;
+const double _kBarHeight = 56;
+const double _kBottomBarHeight = 64;
 const double _kGridGap = 2;
+const double _kBadgeSize = 26;
 const int _kPageSize = 100;
 
 /// The page the app shows every time the user sends a photo or a video.
@@ -67,6 +68,7 @@ class MediaPickerSheet extends StatefulWidget {
 class _MediaPickerSheetState extends State<MediaPickerSheet> {
   final _scroll = ScrollController();
   final _thumbs = <String, Future<Uint8List?>>{};
+  final _covers = <String, Future<Uint8List?>>{};
   final _assets = <MediaAsset>[];
   final _selected = <MediaAsset>[];
 
@@ -174,6 +176,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
       _assets.clear();
       _selected.clear();
       _thumbs.clear();
+      _covers.clear();
       _albums = const [];
       _album = null;
       _page = 0;
@@ -213,6 +216,15 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
   Future<Uint8List?> _thumb(MediaAsset asset) => _thumbs.putIfAbsent(
     asset.id,
     () => widget.library.thumbnail(asset, size: 320),
+  );
+
+  Future<Uint8List?> _cover(MediaAlbum album) => _covers.putIfAbsent(
+    album.id,
+    () async {
+      final page = await widget.library.assets(album, page: 0, size: 1);
+      if (page.isEmpty) return null;
+      return widget.library.thumbnail(page.first, size: 120);
+    },
   );
 
   Future<void> _submit() async {
@@ -275,9 +287,17 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
           library: widget.library,
           assets: List.of(items),
           index: index,
+          selection: _selected,
+          maxAssets: widget.maxAssets,
+          confirmLabel: widget.confirmLabel,
+          onSubmit: _submit,
+          onSelectionChanged: () {
+            if (mounted) setState(() {});
+          },
         ),
       ),
     );
+    if (mounted) setState(() {});
   }
 
   @override
@@ -304,7 +324,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
   }
 
   Widget _bar(BuildContext c) => ColoredBox(
-    color: qchatSurface(c),
+    color: qchatBackground(c),
     child: SafeArea(
       bottom: false,
       child: SizedBox(
@@ -312,12 +332,16 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
         child: Stack(
           children: [
             Positioned(
-              left: 2,
-              top: 2,
-              child: QChatIconButton(
-                'close',
-                label: tr(c, 'close'),
-                onTap: () => Navigator.of(c).pop(),
+              left: 4,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: QChatIconButton(
+                  'close',
+                  label: tr(c, 'close'),
+                  size: 26,
+                  onTap: () => Navigator.of(c).pop(),
+                ),
               ),
             ),
             Center(child: _albumPill(c)),
@@ -328,38 +352,53 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
   );
 
   Widget _albumPill(BuildContext c) {
-    final name = _album?.name ?? '';
+    final name = _album?.name ?? tr(c, 'recentMedia');
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _albums.length < 2
           ? null
           : () => setState(() => _albumsOpen = !_albumsOpen),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 7, 10, 7),
+        height: 44,
+        padding: const EdgeInsets.only(left: 18, right: 6),
         decoration: BoxDecoration(
           color: qchatFill(c),
-          borderRadius: BorderRadius.circular(17),
+          borderRadius: BorderRadius.circular(22),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 190),
+              constraints: const BoxConstraints(maxWidth: 168),
               child: Text(
-                name.isEmpty ? tr(c, 'recentMedia') : name,
+                name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w500,
                   color: ink(c),
                 ),
               ),
             ),
-            const SizedBox(width: 4),
-            RotatedBox(
-              quarterTurns: 1,
-              child: QChatIcon('chevron', size: 18, color: ink(c)),
+            const SizedBox(width: 8),
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: qchatDark(c)
+                    ? const Color(0xff3d3d3d)
+                    : const Color(0xffe3e3e3),
+              ),
+              child: AnimatedRotation(
+                turns: _albumsOpen ? .5 : 0,
+                duration: const Duration(milliseconds: 180),
+                child: RotatedBox(
+                  quarterTurns: 1,
+                  child: QChatIcon('chevron', size: 18, color: ink(c)),
+                ),
+              ),
             ),
           ],
         ),
@@ -398,6 +437,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
           asset: asset,
           thumb: _thumb(asset),
           order: _selected.indexOf(asset),
+          count: _selected.length,
           onTap: () => _toggle(asset),
           onPreview: () => _preview(_assets, index),
         );
@@ -438,75 +478,34 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
   );
 
   Widget _albumPanel(BuildContext c) {
-    final top = MediaQuery.paddingOf(c).top + _kBarHeight + 4;
+    final top = MediaQuery.paddingOf(c).top + _kBarHeight;
     return Positioned.fill(
-      child: ColoredBox(
-        color: QChatColors.black38,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => _albumsOpen = false),
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Padding(
-              padding: EdgeInsets.only(top: top),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _albumsOpen = false),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: EdgeInsets.only(top: top),
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {},
               child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 36),
+                width: double.infinity,
                 constraints: BoxConstraints(
-                  maxWidth: 320,
-                  maxHeight: MediaQuery.sizeOf(c).height * .6,
+                  maxHeight: MediaQuery.sizeOf(c).height * .62,
                 ),
-                decoration: BoxDecoration(
-                  color: qchatSurface(c),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: ListView.builder(
+                color: qchatBackground(c),
+                child: ListView.separated(
                   shrinkWrap: true,
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: EdgeInsets.zero,
                   itemCount: _albums.length,
-                  itemBuilder: (_, index) {
-                    final album = _albums[index];
-                    final current = album.id == _album?.id;
-                    return GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        setState(() => _albumsOpen = false);
-                        unawaited(_selectAlbum(album));
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 13,
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                album.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 15, color: ink(c)),
-                              ),
-                            ),
-                            Text(
-                              '${album.count}',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: qchatMuted(c),
-                              ),
-                            ),
-                            if (current) ...[
-                              const SizedBox(width: 8),
-                              const QChatIcon(
-                                'check',
-                                size: 18,
-                                color: QChatColors.green,
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+                  separatorBuilder: (_, _) => Container(
+                    height: 0.5,
+                    color: qchatLine(c),
+                  ),
+                  itemBuilder: (_, index) =>
+                      _albumRow(c, _albums[index]),
                 ),
               ),
             ),
@@ -516,72 +515,141 @@ class _MediaPickerSheetState extends State<MediaPickerSheet> {
     );
   }
 
-  Widget _bottomBar(BuildContext c) {
+  Widget _albumRow(BuildContext c, MediaAlbum album) {
+    final current = album.id == _album?.id;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        setState(() => _albumsOpen = false);
+        unawaited(_selectAlbum(album));
+      },
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 52,
+              height: 52,
+              child: ColoredBox(
+                color: qchatFill(c),
+                child: FutureBuilder<Uint8List?>(
+                  future: _cover(album),
+                  builder: (_, snapshot) {
+                    final bytes = snapshot.data;
+                    if (bytes == null) return const SizedBox.shrink();
+                    return Image.memory(bytes, fit: BoxFit.cover);
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                '${album.name}(${album.count})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 17, color: ink(c)),
+              ),
+            ),
+            if (current)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: QChatIcon(
+                  'check',
+                  size: 22,
+                  color: QChatColors.green,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomBar(BuildContext c) => ColoredBox(
+    color: qchatBackground(c),
+    child: SafeArea(
+      top: false,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (_access == MediaAccess.limited) _limitedBanner(c),
+          SizedBox(
+            height: _kBottomBarHeight,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _previewLabel(c),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: _sendButton(c),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  Widget _limitedBanner(BuildContext c) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: _widen,
+    child: Container(
+      height: 44,
+      color: qchatFill(c),
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              tr(c, 'limitedBanner'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 14, color: ink(c)),
+            ),
+          ),
+          Text(
+            tr(c, 'widenAccess'),
+            style: const TextStyle(fontSize: 14, color: QChatColors.green),
+          ),
+          const QChatIcon('chevron', size: 16, color: QChatColors.green),
+        ],
+      ),
+    ),
+  );
+
+  Widget _previewLabel(BuildContext c) {
     final empty = _selected.isEmpty;
-    final base = widget.confirmLabel ?? tr(c, 'send');
-    return ColoredBox(
-      color: qchatSurface(c),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: empty ? null : () => _preview(_selected, 0),
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom),
-        child: SizedBox(
-          height: _kBottomBarHeight,
-          child: Row(
-            children: [
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: empty ? null : () => _preview(_selected, 0),
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 14, right: 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        tr(c, 'preview'),
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: empty ? qchatMuted(c) : ink(c),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      _PreviewRing(
-                        thumb: empty ? null : _thumb(_selected.first),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: _access == MediaAccess.limited
-                      ? GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _widen,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            child: Text(
-                              tr(c, 'allPhotos'),
-                              style: TextStyle(fontSize: 15, color: ink(c)),
-                            ),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(left: 8, right: 12),
-                child: QChatButton(
-                  empty ? base : '$base(${_selected.length})',
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 9,
-                  ),
-                  loading: _sending,
-                  onTap: empty || _sending ? null : _submit,
-                ),
-              ),
-            ],
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Text(
+          empty ? tr(c, 'preview') : '${tr(c, 'preview')} (${_selected.length})',
+          style: TextStyle(
+            fontSize: 16,
+            color: empty ? qchatMuted(c) : ink(c),
           ),
         ),
       ),
+    );
+  }
+
+  Widget _sendButton(BuildContext c) {
+    final count = _selected.length;
+    final base = widget.confirmLabel ?? tr(c, 'send');
+    return _SendButton(
+      label: count > 0 ? '$base ($count)' : base,
+      enabled: count > 0,
+      loading: _sending,
+      onTap: _submit,
     );
   }
 }
@@ -592,6 +660,7 @@ class _AssetTile extends StatelessWidget {
     required this.asset,
     required this.thumb,
     required this.order,
+    required this.count,
     required this.onTap,
     required this.onPreview,
   });
@@ -601,6 +670,9 @@ class _AssetTile extends StatelessWidget {
 
   /// The 0-based position in the selection, or -1 when the asset is not picked.
   final int order;
+
+  /// How many assets are picked in total, so a single pick shows a check.
+  final int count;
   final VoidCallback onTap;
   final VoidCallback onPreview;
 
@@ -627,91 +699,136 @@ class _AssetTile extends StatelessWidget {
             },
           ),
         ),
-        if (asset.isVideo)
-          Positioned(
-            left: 5,
-            bottom: 4,
-            child: Row(
-              children: [
-                const QChatIcon(
-                  'play',
-                  size: 12,
-                  color: QChatColors.white,
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  formatMediaDuration(asset.duration),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: QChatColors.white,
-                    shadows: [Shadow(blurRadius: 3, color: Color(0x99000000))],
-                  ),
-                ),
-              ],
+        if (asset.isVideo) ...[
+          Center(
+            child: Container(
+              width: 44,
+              height: 44,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: QChatColors.black38,
+                border: Border.all(color: QChatColors.white, width: 1.5),
+              ),
+              child: const QChatIcon(
+                'play',
+                size: 20,
+                color: QChatColors.white,
+              ),
             ),
           ),
-        Positioned(top: 4, right: 4, child: _SelectionBadge(order: order)),
+          Positioned(
+            right: 5,
+            bottom: 5,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: QChatColors.black38,
+                borderRadius: BorderRadius.circular(3),
+              ),
+              child: Text(
+                formatMediaDuration(asset.duration),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: QChatColors.white,
+                ),
+              ),
+            ),
+          ),
+        ],
+        Positioned(
+          top: 4,
+          right: 4,
+          child: _SelectionBadge(order: order, count: count),
+        ),
       ],
     ),
   );
 }
 
 class _SelectionBadge extends StatelessWidget {
-  const _SelectionBadge({required this.order});
+  const _SelectionBadge({required this.order, required this.count});
 
   final int order;
+  final int count;
 
   @override
   Widget build(BuildContext c) {
     final selected = order >= 0;
+    // One pick is unambiguous, so it shows a tick; a set shows the order the
+    // user tapped, so the send button's count has a visible cause.
+    final single = selected && count <= 1;
     return Container(
-      width: 24,
-      height: 24,
+      width: _kBadgeSize,
+      height: _kBadgeSize,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: selected ? QChatColors.green : QChatColors.black38,
-        border: Border.all(color: QChatColors.white, width: 1.5),
+        color: selected ? QChatColors.green : QChatColors.transparent,
+        border: Border.all(color: QChatColors.white, width: 2),
       ),
-      child: selected
-          ? Text(
+      child: !selected
+          ? null
+          : single
+          ? const QChatIcon('check', size: 15, color: QChatColors.white)
+          : Text(
               '${order + 1}',
               style: const TextStyle(
                 color: QChatColors.white,
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
-            )
-          : null,
+            ),
     );
   }
 }
 
-class _PreviewRing extends StatelessWidget {
-  const _PreviewRing({this.thumb});
+class _SendButton extends StatelessWidget {
+  const _SendButton({
+    super.key,
+    required this.label,
+    required this.enabled,
+    required this.loading,
+    required this.onTap,
+  });
 
-  final Future<Uint8List?>? thumb;
+  final String label;
+  final bool enabled;
+  final bool loading;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext c) => Container(
-    width: 34,
-    height: 34,
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      shape: BoxShape.circle,
-      color: qchatFill(c),
-      border: Border.all(color: qchatLine(c)),
+  Widget build(BuildContext c) => Semantics(
+    button: true,
+    enabled: enabled,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled && !loading ? onTap : null,
+      child: Container(
+        height: 44,
+        constraints: const BoxConstraints(minWidth: 92),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: enabled
+              ? QChatColors.green
+              : qchatDark(c)
+              ? const Color(0xff2b2b2b)
+              : const Color(0xfff2f2f2),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: loading
+            ? const QChatLoading(size: 18, color: QChatColors.white)
+            : Text(
+                label,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: enabled ? QChatColors.white : qchatMuted(c),
+                ),
+              ),
+      ),
     ),
-    child: thumb == null
-        ? null
-        : FutureBuilder<Uint8List?>(
-            future: thumb,
-            builder: (_, snapshot) {
-              final bytes = snapshot.data;
-              if (bytes == null) return const SizedBox.shrink();
-              return Image.memory(bytes, fit: BoxFit.cover);
-            },
-          ),
   );
 }
 
@@ -719,12 +836,24 @@ class _MediaPreviewPage extends StatefulWidget {
   const _MediaPreviewPage({
     required this.library,
     required this.assets,
-    this.index = 0,
+    required this.index,
+    required this.selection,
+    required this.maxAssets,
+    required this.onSubmit,
+    required this.onSelectionChanged,
+    this.confirmLabel,
   });
 
   final MediaLibrary library;
   final List<MediaAsset> assets;
   final int index;
+
+  /// The sheet's live selection, so a tick here is the same tick there.
+  final List<MediaAsset> selection;
+  final int maxAssets;
+  final String? confirmLabel;
+  final Future<void> Function() onSubmit;
+  final VoidCallback onSelectionChanged;
 
   @override
   State<_MediaPreviewPage> createState() => _MediaPreviewPageState();
@@ -740,46 +869,193 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
     super.dispose();
   }
 
+  void _toggleCurrent() {
+    final asset = widget.assets[_index];
+    final index = widget.selection.indexOf(asset);
+    if (index >= 0) {
+      widget.selection.removeAt(index);
+    } else {
+      if (widget.selection.length >= widget.maxAssets) {
+        showQChatToast(
+          context,
+          '${tr(context, 'selectionLimit')} ${widget.maxAssets}',
+        );
+        return;
+      }
+      widget.selection.add(asset);
+    }
+    widget.onSelectionChanged();
+    setState(() {});
+  }
+
+  Future<void> _send() async {
+    Navigator.of(context).pop();
+    await widget.onSubmit();
+  }
+
   @override
   Widget build(BuildContext c) => ColoredBox(
     color: QChatColors.black,
-    child: Stack(
+    child: Column(
       children: [
-        Positioned.fill(
+        _topBar(c),
+        Expanded(
           child: PageView.builder(
             controller: _controller,
             onPageChanged: (value) => setState(() => _index = value),
             itemCount: widget.assets.length,
-            itemBuilder: (_, index) =>
-                _PreviewAsset(library: widget.library, asset: widget.assets[index]),
+            itemBuilder: (_, index) => _PreviewAsset(
+              library: widget.library,
+              asset: widget.assets[index],
+            ),
           ),
         ),
-        SafeArea(
-          bottom: false,
-          child: Row(
-            children: [
-              QChatIconButton(
-                'close',
-                label: tr(c, 'close'),
-                color: QChatColors.white,
-                onTap: () => Navigator.of(c).pop(),
-              ),
-              const Spacer(),
-              if (widget.assets.length > 1)
-                Padding(
-                  padding: const EdgeInsets.only(right: 18),
-                  child: Text(
-                    '${_index + 1}/${widget.assets.length}',
-                    style: const TextStyle(
-                      color: QChatColors.white,
-                      fontSize: 15,
+        _bottomBar(c),
+      ],
+    ),
+  );
+
+  Widget _topBar(BuildContext c) => ColoredBox(
+    color: QChatColors.black,
+    child: SafeArea(
+      bottom: false,
+      child: SizedBox(
+        height: _kBarHeight,
+        child: Stack(
+          children: [
+            Positioned(
+              left: 4,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(c).pop(),
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: RotatedBox(
+                      quarterTurns: 2,
+                      child: const QChatIcon(
+                        'chevron',
+                        size: 26,
+                        color: QChatColors.white,
+                      ),
                     ),
                   ),
                 ),
+              ),
+            ),
+            Center(
+              child: Text(
+                '${_index + 1}/${widget.assets.length}',
+                style: const TextStyle(
+                  fontSize: 17,
+                  color: QChatColors.white,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 16,
+              top: 0,
+              bottom: 0,
+              child: Center(child: _checkButton()),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
+  Widget _checkButton() {
+    final selected = widget.selection.contains(widget.assets[_index]);
+    return GestureDetector(
+      key: const ValueKey('previewToggle'),
+      behavior: HitTestBehavior.opaque,
+      onTap: _toggleCurrent,
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: selected ? QChatColors.green : QChatColors.transparent,
+          border: Border.all(color: QChatColors.white, width: 2),
+        ),
+        child: selected
+            ? const QChatIcon('check', size: 18, color: QChatColors.white)
+            : null,
+      ),
+    );
+  }
+
+  Widget _bottomBar(BuildContext c) {
+    final count = widget.selection.length;
+    final base = widget.confirmLabel ?? tr(c, 'send');
+    return ColoredBox(
+      color: QChatColors.black,
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: _kBottomBarHeight,
+          child: Row(
+            children: [
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: _CurrentThumb(
+                      library: widget.library,
+                      asset: widget.assets[_index],
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: _SendButton(
+                      key: const ValueKey('previewSend'),
+                      label: count > 0 ? '$base ($count)' : base,
+                      enabled: count > 0,
+                      loading: false,
+                      onTap: _send,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      ],
+      ),
+    );
+  }
+}
+
+class _CurrentThumb extends StatelessWidget {
+  const _CurrentThumb({required this.library, required this.asset});
+
+  final MediaLibrary library;
+  final MediaAsset asset;
+
+  @override
+  Widget build(BuildContext c) => Container(
+    width: 48,
+    height: 48,
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: QChatColors.darkFill,
+      border: Border.all(color: QChatColors.green, width: 2),
+    ),
+    child: FutureBuilder<Uint8List?>(
+      future: library.thumbnail(asset, size: 120),
+      builder: (_, snapshot) {
+        final bytes = snapshot.data;
+        if (bytes == null) return const SizedBox.shrink();
+        return Image.memory(bytes, fit: BoxFit.cover);
+      },
     ),
   );
 }

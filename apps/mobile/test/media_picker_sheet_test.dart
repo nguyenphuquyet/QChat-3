@@ -124,17 +124,24 @@ void main() {
 
     expect(find.byKey(const ValueKey('a1')), findsOneWidget);
     expect(find.text('Recent'), findsOneWidget);
+    // Nothing picked: the send button has no count and the preview is muted.
+    expect(find.text('Send'), findsOneWidget);
+    expect(find.text('Preview'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('a1')));
     await tester.pump();
-    expect(find.text('1'), findsOneWidget);
+    // A single pick is a tick, not the number 1.
+    expect(find.text('Send (1)'), findsOneWidget);
+    expect(find.text('Preview (1)'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('a3')));
     await tester.pump();
     // The second pick takes number 2, in the order the user tapped.
+    expect(find.text('1'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
-    expect(find.text('Gửi(2)'), findsNothing);
-    expect(find.text('Send(2)'), findsOneWidget);
+    expect(find.text('Send (2)'), findsOneWidget);
+    expect(find.text('Gửi (2)'), findsNothing);
   });
 
   testWidgets('sends the picked assets as files', (tester) async {
@@ -142,7 +149,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('a2')));
     await tester.pump();
-    await tester.tap(find.text('Send(1)'));
+    await tester.tap(find.text('Send (1)'));
     await tester.pumpAndSettle();
 
     expect(_Host.result, hasLength(1));
@@ -159,8 +166,8 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('a2')));
     await tester.pump();
 
-    expect(find.text('Send(1)'), findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Send (1)'), findsOneWidget);
+    expect(find.text('1'), findsNothing);
     expect(find.text('2'), findsNothing);
   });
 
@@ -173,7 +180,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('a4')));
     await tester.pump();
 
-    expect(find.text('Send(2)'), findsOneWidget);
+    expect(find.text('Send (2)'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
     expect(find.text('3'), findsNothing);
@@ -191,11 +198,12 @@ void main() {
     expect(find.text('Files'), findsOneWidget);
   });
 
-  testWidgets('widens a limited library from the bottom bar', (tester) async {
+  testWidgets('widens a limited library from the banner', (tester) async {
     final library = await _open(tester, access: MediaAccess.limited);
 
-    expect(find.text('All photos'), findsOneWidget);
-    await tester.tap(find.text('All photos'));
+    expect(find.text('You let QChat see only some photos.'), findsOneWidget);
+    expect(find.text('Change'), findsOneWidget);
+    await tester.tap(find.text('Change'));
     await tester.pumpAndSettle();
 
     expect(library.widened, 1);
@@ -213,12 +221,34 @@ void main() {
 
     await tester.tap(find.text('Recent'));
     await tester.pumpAndSettle();
-    expect(find.text('Camera'), findsOneWidget);
+    // Rows name the album and its size, and only the current one is ticked.
+    expect(find.text('Recent(4)'), findsOneWidget);
+    expect(find.text('Camera(1)'), findsOneWidget);
 
-    await tester.tap(find.text('Camera'));
+    await tester.tap(find.text('Camera(1)'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('c1')), findsOneWidget);
     expect(find.byKey(const ValueKey('a1')), findsNothing);
+    expect(find.text('Camera'), findsOneWidget);
+  });
+
+  testWidgets('previews an item and ticks it from the preview page', (
+    tester,
+  ) async {
+    await _open(tester);
+
+    await tester.longPress(find.byKey(const ValueKey('a2')));
+    await tester.pumpAndSettle();
+    expect(find.text('2/4'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('previewToggle')));
+    await tester.pump();
+    expect(find.text('Send (1)'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('previewSend')));
+    await tester.pumpAndSettle();
+    expect(_Host.result, hasLength(1));
+    expect(_Host.result!.single.path, endsWith('a2.jpg'));
   });
 
   test('formats a clip length as m:ss', () {
