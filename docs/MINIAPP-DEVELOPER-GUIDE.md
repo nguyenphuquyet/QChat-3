@@ -1041,6 +1041,9 @@ Tên không có trong cả hai bảng → ô trống. Đừng dùng tên ngoài 
 - Nhãn lấy từ text con (ghép chuỗi).
 - `style.color`, `backgroundColor`, `borderColor`, `borderWidth`,
   `borderRadius`, `padding` ghi đè TDesign.
+- Nền, viền và bo góc do chính nút vẽ, và `padding` của bạn chỉ được dùng một
+  lần. Không đặt `borderRadius` thì nút bo **6pt**, nên chỉ đặt
+  `backgroundColor` vẫn ra nút bo góc chứ không ra hình chữ nhật.
 - `disabled` không gắn semantics bấm; `loading` hiện spinner TDesign.
 
 ---
@@ -1113,6 +1116,10 @@ Hành vi quan trọng:
   thêm nền hay lề 16 nào nữa, nên không bao giờ thấy hai lớp thiết kế lồng nhau.
   Không khai báo gì thì host vẽ ô nền xám 48pt, bo 8, lề ngang 12 để ô vẫn ra
   dáng ô nhập.
+- Ô **một dòng** giữ chiều cao tự nhiên của một dòng chữ rồi mới được căn giữa
+  trong hộp bạn khai, nên đặt cả `height` lẫn `padding` cũng không ép chữ lên
+  trên. Lề ngang 12 mặc định chỉ áp khi bạn không đặt `padding`: có padding thì
+  host dùng đúng padding đó.
 - Chữ trong ô (và trong `Button`) luôn được căn giữa theo chiều dọc của hộp.
   `lineHeight` là chiều cao **dòng**, không phải chiều cao hộp: đặt
   `lineHeight` lớn hơn `fontSize` là hợp lệ, host tự cân lại để nét chữ nằm

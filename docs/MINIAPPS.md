@@ -719,6 +719,16 @@ light token set, so a Mini App gets TDesign's palette, sizing and interaction
 states; anything the app sets through `style.*` (colour, border, radius,
 padding, minimum height) still wins.
 
+A `Button` paints its own surface, so the frame contributes only the shadow
+around it: a square fill painted behind TDesign's rounded button used to show
+through at the four corners, and it spent the app's `padding` twice. Text is
+centred by measurement rather than by padding arithmetic: TDesign's line box
+carries the font's own leading above the baseline, and no `leadingDistribution`
+setting moves it in this Flutter build, so a button label and a field editor are
+lifted by the ascent fraction the font actually added (`_labelLift`), while a
+borderless input is given its natural height so the marks under the baseline are
+not cut in half. `test/qapp_alignment_test.dart` pins both.
+
 The exception is deliberately one file wide:
 
 - `lib/features/miniapps/qapp/qapp_tdesign.dart` is the only file that imports
