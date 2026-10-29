@@ -774,9 +774,55 @@ fn read_text_file(path: String) -> Result<String, String> {
     Ok(text)
 }
 
+/// Base64 for the asset protocol the live preview uses: an `<img>` needs a
+/// data URL, and the webview cannot read a local path the CLI produced.
+fn base64_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0] as u32;
+        let second = chunk.get(1).copied().unwrap_or(0) as u32;
+        let third = chunk.get(2).copied().unwrap_or(0) as u32;
+        let combined = (first << 16) | (second << 8) | third;
+        out.push(ALPHABET[((combined >> 18) & 0x3f) as usize] as char);
+        out.push(ALPHABET[((combined >> 12) & 0x3f) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            ALPHABET[((combined >> 6) & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            ALPHABET[(combined & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Reads an image asset for the live preview. Only the packed `assets/` tree is
+/// ever passed in, and the cap keeps a stray huge file from freezing the IPC.
 #[tauri::command]
-fn write_text_file(path: String, contents: String) -> Result<(), String> {
+fn read_binary_file(path: String) -> Result<String, String> {
     let file = PathBuf::from(&path);
+    let metadata = fs::metadata(&file).map_err(|error| format!("Cannot read {path}: {error}"))?;
+    if !metadata.is_file() {
+        return Err(format!("{path} is not a file"));
+    }
+    const MAX_ASSET_BYTES: u64 = 8 * 1024 * 1024;
+    if metadata.len() > MAX_ASSET_BYTES {
+        return Err(format!(
+            "{path} is larger than {} MB and cannot be previewed",
+            MAX_ASSET_BYTES / 1024 / 1024
+        ));
+    }
+    let bytes = fs::read(&file).map_err(|error| format!("Cannot read {path}: {error}"))?;
+    Ok(base64_encode(&bytes))
+}
+
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {    let file = PathBuf::from(&path);
     if let Some(parent) = file.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent)
@@ -950,6 +996,7 @@ pub fn run() {
             tree_signature,
             file_stamps,
             read_text_file,
+            read_binary_file,
             write_text_file,
             ensure_directory,
             create_entry,

@@ -153,6 +153,8 @@ export interface StudioState {
   sidebarOpen: boolean;
   bottomOpen: boolean;
   previewOpen: boolean;
+  /** Bumped whenever a saved file or a build can change the rendered app. */
+  previewRevision: number;
 
   buildStatus: "idle" | "running" | "success" | "error";
   buildMessage: string;
@@ -199,6 +201,7 @@ export interface StudioState {
   setSidebarOpen: (open: boolean) => void;
   setBottomOpen: (open: boolean) => void;
   setPreviewOpen: (open: boolean) => void;
+  bumpPreview: () => void;
   setCursor: (line: number, column: number) => void;
   runTerminal: (command: string) => Promise<void>;
   createEntry: (parent: string, name: string, directory: boolean) => Promise<void>;
@@ -238,6 +241,7 @@ export const useStudio = create<StudioState>()(
       sidebarOpen: true,
       bottomOpen: true,
       previewOpen: true,
+      previewRevision: 0,
 
       buildStatus: "idle",
       buildMessage: "",
@@ -704,6 +708,7 @@ export const useStudio = create<StudioState>()(
               });
             }
           }
+          get().bumpPreview();
         } catch (error) {
           get().appendLog("stderr", translate(get().settings.language, "store.cannotSave", {
             path,
@@ -845,6 +850,7 @@ export const useStudio = create<StudioState>()(
               ? translate(language, "store.built", { name: match.name })
               : translate(language, "store.buildCompleted"),
           });
+          get().bumpPreview();
         } catch (error) {
           set({
             buildStatus: "error",
@@ -1015,6 +1021,10 @@ export const useStudio = create<StudioState>()(
 
       setPreviewOpen(open) {
         set({ previewOpen: open });
+      },
+
+      bumpPreview() {
+        set({ previewRevision: get().previewRevision + 1 });
       },
 
       setCursor(line, column) {

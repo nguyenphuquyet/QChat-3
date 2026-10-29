@@ -5,6 +5,7 @@
 // raw strings so the IDE and the repo can never drift apart. This module is
 // deliberately free of React imports: it is plain data.
 import miniappsRaw from "../../../../docs/MINIAPPS.md?raw";
+import guideRaw from "../../../../docs/MINIAPP-DEVELOPER-GUIDE.md?raw";
 import architectureRaw from "../../../../docs/ARCHITECTURE.md?raw";
 import deploymentRaw from "../../../../docs/DEPLOYMENT.md?raw";
 
@@ -21,7 +22,7 @@ export interface DocGroup {
   sections: DocSection[];
 }
 
-const STUDIO_OVERVIEW = `QChat Mini App Studio (\`apps/miniapp-ide\`, gói \`@qchat/miniapp-ide\`) là IDE desktop để viết, build và kiểm tra mini app TSX chạy trên runtime QuickJS của QChat. Đây **không** phải WebView host: bảng xem trước chỉ tóm tắt gói \`.japp\` (manifest, quyền, kích thước, SHA-256) chứ không render HTML.
+const STUDIO_OVERVIEW = `QChat Mini App Studio (\`apps/miniapp-ide\`, gói \`@qchat/miniapp-ide\`) là IDE desktop để viết, build và kiểm tra mini app TSX chạy trên runtime QuickJS của QChat. Đây **không** phải WebView host: bảng xem trước chạy chính bundle mà runtime sẽ chạy, bên trong một \`iframe\` sandbox, rồi vẽ cây render bằng DOM; giao diện cuối cùng vẫn do Flutter vẽ nên bản xem trước là gần đúng chứ không pixel-perfect.
 
 ## Kiến trúc
 
@@ -75,9 +76,44 @@ Ctrl+B → buildProject()
   → DevicePanel: manifest, quyền, kích thước, SHA-256
 \`\`\`
 
-\`Ctrl+Shift+B\` build bỏ qua typecheck (\`--no-typecheck\`), \`Ctrl+T\` chạy \`qapp test\`, \`F5\` bật watcher \`qapp dev\`. Tên gói luôn là \`dist/<slug>-<version>.japp\`, và IDE **không** render mini app: bản render thật nằm ở runtime Flutter/QuickJS.
+\`Ctrl+Shift+B\` build bỏ qua typecheck (\`--no-typecheck\`), \`Ctrl+T\` chạy \`qapp test\`, \`F5\` bật watcher \`qapp dev\`. Tên gói luôn là \`dist/<slug>-<version>.japp\`. Bảng xem trước gọi \`qchat bundle\` trên cùng pipeline esbuild đó, nên nó không bao giờ lệch khỏi bản build thật; chỉ phần vẽ giao diện là khác runtime.
 
 > Nếu CLI chưa sẵn sàng, hãy chạy \`corepack pnpm --filter @mna/qchat build\` rồi chọn **Tools → Re-detect CLI**.`;
+
+const STUDIO_LIVE_PREVIEW = `Panel thiết bị (**Ctrl+Shift+P** bật/tắt) chạy mini app thật ngay trong IDE. Mỗi lần lưu tệp hoặc build thành công, store tăng \`previewRevision\` và panel build lại.
+
+## Luồng một lần xem trước
+
+\`\`\`text
+previewRevision đổi
+  → saveAllDirty() (nếu bật autoSave)
+  → qchat bundle --dir <project> --no-typecheck
+  → đọc dist/app.js + assets/** (base64, data URL)
+  → iframe sandbox="allow-scripts" nạp bootstrap + app.js
+  → app gọi host bridge → render frame → React vẽ cây thành DOM
+\`\`\`
+
+## Ranh giới
+
+- **Cùng bundle**: \`qchat bundle\` dùng đúng pipeline esbuild của \`qchat build\`, chỉ dừng trước bước zip. Cái bạn thấy là cái sẽ chạy.
+- **Không cùng công cụ vẽ**: runtime thật vẽ bằng Flutter/TDesign. Bản xem trước vẽ bằng DOM/CSS nên vẫn lệch vài pixel, vài hiệu ứng cuộn, vài chi tiết glyph.
+- **Sandbox**: \`sandbox="allow-scripts"\` \`iframe\` không có \`allow-same-origin\`, nên app không chạm được DOM của Studio. Mọi host method đi qua \`postMessage\` có token.
+- **Quyền**: manifest quyết định. Gọi API chưa xin quyền sẽ nhận lỗi \`PERMISSION_DENIED\` giống trên máy thật.
+- **Giới hạn**: 60 lời gọi/10 giây và 30 lời gọi/phương thức (5 với \`chooseImage\`), body request 32 KB, response 1 MB, ảnh 5 MB, storage 64 KB/giá trị và 512 KB/app, tối đa 128 khoá.
+- **Storage**: dùng \`localStorage\` của Studio với tiền tố \`qapp-preview:<appId>:\`, nên dữ liệu xem trước không lẫn với app khác.
+- **Timer**: SDK thay \`setTimeout\`/\`clearTimeout\` bằng hàng đợi của nó; host giữ bản native trước khi SDK cài đặt để đồng hồ không tự gọi lại chính nó.
+- **Mạng**: \`request\` trả \`NOT_SUPPORTED\`; \`fetch\` HTTPS đi qua Studio. Nếu máy không có mạng, app thấy lỗi mạng như trên thiết bị.
+
+## Khi bản xem trước không chạy
+
+| Hiện tượng | Nguyên nhân thường gặp |
+| --- | --- |
+| "Live preview needs the desktop Studio" | Đang chạy \`pnpm dev\` trong trình duyệt; CLI chỉ có trong shell Tauri |
+| Lỗi đỏ ngay khi mở | \`src/main.tsx\` ném lỗi lúc khởi động; xem tab Console trong panel |
+| Trắng màn hình, không lỗi | App gọi \`close()\` hoặc không render gì; Console ghi lại sự kiện đó |
+| Ảnh hiện khung xám | Đường dẫn không phải \`assets/…\`, hoặc tệp quá 4 MB / tổng quá 12 MB |
+
+> Bản xem trước dùng theme sáng/tối của Studio và thông báo cùng theme đó qua \`getSystemInfo\`, nên hãy kiểm tra cả hai chế độ trước khi gửi duyệt.`;
 
 const STUDIO_REALTIME = `Studio không khóa dự án của bạn: bạn có thể sửa tệp bằng trình soạn thảo bên ngoài (VS Code, \`git checkout\`, script sinh mã) và IDE sẽ tự phát hiện thay đổi.
 
@@ -222,6 +258,13 @@ export const DOC_GROUPS: DocGroup[] = [
         content: STUDIO_OVERVIEW,
       },
       {
+        id: "studio-live-preview",
+        title: "Xem trước trực tiếp trong Studio",
+        summary:
+          "Bảng thiết bị chạy bundle thật trong iframe sandbox: host method, quyền, giới hạn và cách xử lý khi lỗi.",
+        content: STUDIO_LIVE_PREVIEW,
+      },
+      {
         id: "studio-realtime",
         title: "Đồng bộ tệp theo thời gian thực",
         summary:
@@ -248,6 +291,13 @@ export const DOC_GROUPS: DocGroup[] = [
     id: "miniapp",
     titleKey: "docs.groupMiniapp",
     sections: [
+      {
+        id: "miniapp-developer-guide",
+        title: "Hướng dẫn phát triển Mini App",
+        summary:
+          "Hướng dẫn đầy đủ bằng tiếng Việt: kiến trúc, CLI, manifest, vòng đời, JSX, hooks, sự kiện, từng component, API host, đóng gói và kiểm thử.",
+        content: guideRaw,
+      },
       {
         id: "miniapps",
         title: "Mini App & nền tảng qapp",

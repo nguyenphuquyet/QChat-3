@@ -96,6 +96,12 @@ export const api = {
     return invoke<string>("read_text_file", { path });
   },
 
+  /** Base64 of a file, used to turn `assets/…` into data URLs for the preview. */
+  readBinary(path: string): Promise<string> {
+    if (!isTauri()) return desktopOnly("");
+    return invoke<string>("read_binary_file", { path });
+  },
+
   writeText(path: string, contents: string): Promise<void> {
     if (!isTauri()) return desktopOnly(undefined as never);
     return invoke<void>("write_text_file", { path, contents });

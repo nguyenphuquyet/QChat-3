@@ -154,6 +154,7 @@ Giới hạn cứng của một frame (host kiểm tra):
 | `qchat create <name> [--dir <directory>]` | Tạo project mới: `manifest.json`, `tsconfig.json`, `package.json`, `src/main.tsx`, `README.md`. Từ chối nếu thư mục đã tồn tại. |
 | `qchat dev [--dir <project>] [--once] [--out <file.japp>]` | Build `--no-typecheck`, rồi watch `src`, `assets`, `manifest.json` (debounce 250 ms). `--once` chỉ build một lần. |
 | `qchat build [--dir <project>] [--out <file.japp>] [--no-typecheck]` | Typecheck (mặc định), bundle, đóng gói, validate, ghi `.japp`. |
+| `qchat bundle [--dir <project>] [--out <file>] [--no-typecheck]` | Chỉ bundle thành **một tệp JS** (mặc định `dist/app.js`), không đóng gói. Dùng để nhúng vào công cụ xem trước. |
 | `qchat package ...` | Alias của `build`. |
 | `qchat validate <file.japp>` | Kiểm tra package: manifest, entry, hash, kích thước, version. |
 | `qchat inspect <file.japp>` | In JSON manifest + metadata + sha256 + danh sách file. |
@@ -822,7 +823,7 @@ Cơ chế cửa sổ và `endReached` giống `ListView`. Grid cuộn dọc, m�
 <Text
   numberOfLines={2}
   selectable
-  style={{ fontSize: 15, lineHeight: 1.4, textTransform: "uppercase" }}
+  style={{ fontSize: 15, lineHeight: 21, textTransform: "uppercase" }}
 >
   Xin chào
 </Text>
@@ -841,10 +842,10 @@ Cơ chế cửa sổ và `endReached` giống `ListView`. Grid cuộn dọc, m�
 `RichText`: con là `Text`, `Link` hoặc chuỗi; chúng được làm phẳng thành **một**
 paragraph native. Không nhận HTML. Style ở `Text` con được áp cho đoạn đó.
 
-Style chữ: `fontSize`, `fontWeight`, `fontStyle`, `lineHeight` (hệ số, ví dụ
-`1.4`), `letterSpacing`, `textAlign`, `textDecoration`, `textTransform`,
-`color`. `fontFamily` được chấp nhận nhưng QChat không đóng gói font — chỉ dùng
-font hệ thống.
+Style chữ: `fontSize`, `fontWeight`, `fontStyle`, `lineHeight` (số point tuyệt đối,
+ví dụ `21` cho `fontSize: 15`), `letterSpacing`, `textAlign`, `textDecoration`,
+`textTransform`, `color`. `fontFamily` được chấp nhận nhưng QChat không đóng gói
+font — chỉ dùng font hệ thống.
 
 ---
 
@@ -1312,8 +1313,8 @@ không có `px`, `rem`, `vw`, `calc`, `%` (trừ `width`/`height`).
 | --- | --- | --- |
 | `width`, `height` | `number \| "50%"` | Chuỗi `%` tính theo cha. |
 | `minWidth`, `minHeight`, `maxWidth`, `maxHeight` | `number` | — |
-| `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop/Right/Bottom/Left` | `number` | Cộng dồn: `padding` + biến thể. |
-| `margin`, `marginHorizontal`, `marginVertical`, `marginTop/Right/Bottom/Left` | `number` | — |
+| `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop/Right/Bottom/Left` | `number` | Khoá cụ thể thắng: `paddingTop` → `paddingVertical` → `padding`. |
+| `margin`, `marginHorizontal`, `marginVertical`, `marginTop/Right/Bottom/Left` | `number` | Cùng quy tắc thắng/thua như `padding`. |
 | `gap`, `rowGap`, `columnGap` | `number` | Khoảng cách giữa con trong flex. |
 | `aspectRatio` | `number` | Rộng/cao; `ScrollView grid` dùng làm tỉ lệ ô. |
 
@@ -1373,7 +1374,7 @@ Màu không hợp lệ → không tô (dùng mặc định của widget/theme).
 | `fontWeight` | `normal`, `bold`, `100`…`900` |
 | `fontStyle` | `normal`, `italic` |
 | `fontFamily` | chuỗi (chỉ font hệ thống; QChat không bundle font) |
-| `lineHeight` | hệ số (1.4) |
+| `lineHeight` | số, tính bằng logical point (ví dụ `21` với `fontSize: 15`); host chia cho `fontSize` để ra hệ số dòng. |
 | `letterSpacing` | số |
 | `textAlign` | `left`, `right`, `center`, `justify` (alias `start`, `end`) |
 | `textDecoration` | `none`, `underline`, `lineThrough` (alias `line-through`) |

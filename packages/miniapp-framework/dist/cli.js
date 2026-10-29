@@ -2,7 +2,7 @@
 import { existsSync, watch } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { compileProject, validateQapp, COMPILER_VERSION } from "./compiler.js";
+import { bundleProject, compileProject, typecheckProject, validateQapp, COMPILER_VERSION } from "./compiler.js";
 import { SDK_VERSION } from "./protocol.js";
 import { findNode, runQapp, textContent } from "./tester.js";
 function usage() {
@@ -14,9 +14,13 @@ Usage:
   qchat build [--dir <project>] [--out <file.japp>] [--no-typecheck]
   qchat validate <file.japp>
   qchat test [--dir <project>]
+  qchat bundle [--dir <project>] [--out <file.js>] [--no-typecheck]
   qchat package [--dir <project>] [--out <file.japp>]
   qchat inspect <file.japp>
   qchat version
+
+\`bundle\` writes the raw app.js the runtime executes, for Studio's live preview;
+it does not produce a .japp.
 `);
 }
 function argValue(args, name) {
@@ -172,6 +176,23 @@ async function inspect(args) {
         files: result.files,
     }, null, 2));
 }
+/**
+ * Writes the raw `app.js` the runtime executes, without packaging it. Studio's
+ * live preview loads exactly this bundle, so what it renders and what ships can
+ * never be two different builds.
+ */
+async function bundleOnly(args) {
+    const directory = projectDir(args);
+    if (!args.includes("--no-typecheck"))
+        typecheckProject(directory);
+    const { appJs, manifest } = await bundleProject(directory, { minify: false });
+    const output = path.resolve(outFile(args) ?? path.join(directory, "dist", "app.js"));
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(output, appJs, "utf8");
+    const kilobytes = (Buffer.byteLength(appJs, "utf8") / 1024).toFixed(1);
+    console.log(`${output}`);
+    console.log(`${manifest.name}@${manifest.version} · ${kilobytes} KB`);
+}
 async function testProject(args) {
     const temporary = path.join(projectDir(args), "dist", "qchat-test.japp");
     const result = await compileProject({
@@ -281,6 +302,9 @@ async function main() {
             break;
         case "test":
             await testProject(args);
+            break;
+        case "bundle":
+            await bundleOnly(args);
             break;
         case "inspect":
             await inspect(args);
