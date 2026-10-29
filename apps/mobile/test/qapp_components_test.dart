@@ -234,6 +234,42 @@ void main() {
     expect(tester.getSize(find.byType(CupertinoTabBar)).height, 64);
   });
 
+  testWidgets('a TabBar keeps the label close to its icon', (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final root = node(
+      'n0',
+      'View',
+      props: {
+        'style': {'flex': 1, 'flexDirection': 'column'},
+      },
+      children: [
+        node('n1', 'View', props: {
+          'style': {'flex': 1},
+        }),
+        node(
+          'n2',
+          'TabBar',
+          props: {
+            'activeIndex': 0,
+            'tabs': [
+              {'key': 'home', 'label': 'Home', 'icon': 'home'},
+              {'key': 'jobs', 'label': 'Jobs', 'icon': 'briefcase'},
+            ],
+          },
+        ),
+      ],
+    );
+    await tester.pumpWidget(keyboardHost(root, 0));
+    final bar = tester.getRect(find.byKey(const ValueKey('n2')));
+    final icon = tester.getRect(find.byType(QChatIcon).first);
+    final label = tester.getRect(find.text('Home'));
+    expect(bar.height, 56);
+    expect(icon.top - bar.top, 9, reason: 'the icon clears the hairline');
+    expect(label.top - icon.bottom, 4, reason: 'the label hugs the glyph');
+  });
+
   testWidgets('a TabBar stays pinned to the bottom edge under the keyboard', (
     tester,
   ) async {
@@ -275,7 +311,7 @@ void main() {
         tester.getSize(find.byKey(const ValueKey('body'))).height;
     double labelY() => tester.getCenter(find.text('Home')).dy;
     // The contract's default `TabBar` row, above the safe area.
-    const bar = 58.0;
+    const bar = 56.0;
 
     // The host shrinks the whole mini program when a field takes focus. The bar
     // must not be lifted with it: it stays glued to the bottom edge of the

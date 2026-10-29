@@ -321,9 +321,9 @@ and `TabBar` takes a tab list plus the active tab and reports `change` with
 label metrics, the tab semantics and the blur behind a translucent surface are
 the platform's; the contract still owns the look — `style.backgroundColor` is
 the surface, `style.borderTopWidth`/`borderTopColor` the hairline, `style.color`
-the selected tint and `style.height` the row height (58 by default, enough for
-the icon to keep ~10 pt of air under the hairline, plus the home indicator inset
-the bar adds itself). A tab `badge` is wrapped into the
+the selected tint and `style.height` the row height (56 by default: the icon
+starts 9 pt under the hairline and the label sits 4 pt beneath it, plus the home
+indicator inset the bar adds itself). A tab `badge` is wrapped into the
 item's icon, because `CupertinoTabBar` has no badge slot.
 `TabBar.hideOnKeyboard` defaults to true: the host shrinks the whole mini
 program when a field takes focus, so a bar left in the flow would be lifted off

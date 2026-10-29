@@ -1380,7 +1380,7 @@ function QappTabBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
     if (found >= 0) activeIndex = found;
   }
   if (activeIndex < 0) activeIndex = 0;
-  const height = asNumber(style.height) ?? 58;
+  const height = asNumber(style.height) ?? 56;
   const safeArea = node.props.safeArea !== false;
   const active = qappColor(style.color) ?? ctx.colors.brand;
   const inactive = ctx.colors.muted;
@@ -1427,7 +1427,7 @@ function QappTabBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
               flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-              gap: 2,
+              gap: 4,
               border: "none",
               background: "transparent",
               color,

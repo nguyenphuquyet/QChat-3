@@ -18,15 +18,19 @@ typedef QappAssetLoader = Future<Uint8List?> Function(String path);
 
 /// Height of a `TabBar` row, above the bottom safe area.
 ///
-/// Apple's `UITabBar` is 49 pt, but `CupertinoTabBar` keeps the label pinned to
-/// the bottom (4 pt of padding) and centres the icon in what is left, so at 50
-/// the icon ended up 5.5 pt under the bar's top edge and looked glued to the
-/// hairline. 58 gives the icon ~10 pt of air, in line with the app's own bottom
-/// bar. The bar still grows by the home indicator inset on its own.
-const double _kTabBarHeight = 58;
+/// Tall enough for the icon to start [_kTabBarTopInset] under the hairline and
+/// still leave the label its own room underneath. The bar grows by the home
+/// indicator inset on its own.
+const double _kTabBarHeight = 56;
+
+/// Air between the bar's hairline and the top of a tab icon.
+const double _kTabBarTopInset = 9;
+
+/// Air between a tab icon and its label.
+const double _kTabBarIconLabelGap = 4;
 
 /// Size of a tab icon. `CupertinoTabBar` defaults to 30, but the labels of a
-/// mini app are short and the bar is 58 pt tall, so 25 keeps the two rows
+/// mini app are short and the bar is 56 pt tall, so 25 keeps the two rows
 /// comfortably inside the bar instead of crowding the label.
 const double _kTabBarIconSize = 25;
 
@@ -1082,9 +1086,9 @@ class _QappNodeView extends StatelessWidget {
   ///
   /// The contract still owns the look: `style.backgroundColor` is the bar
   /// surface, `style.borderTopWidth`/`borderTopColor` are its hairline,
-  /// `style.color` is the selected tint and `style.height` the row height.
-  /// Everything the app does not override (icon and label metrics, the native
-  /// blur behind a translucent surface, the tab semantics) comes from Cupertino.
+  /// `style.color` is the selected tint and `style.height` the row height. The
+  /// tab label keeps Cupertino's type (`tabLabelTextStyle`) and the tab
+  /// semantics, but its position is ours: see [_tabItem].
   Widget _tabBarSurface(
     BuildContext context,
     List<Map> tabs,
@@ -1097,9 +1101,11 @@ class _QappNodeView extends StatelessWidget {
     final items = <BottomNavigationBarItem>[
       for (final tab in tabs)
         BottomNavigationBarItem(
-          icon: _tabIcon(tab, inactive),
-          activeIcon: _tabIcon(tab, active),
-          label: tab['label']?.toString() ?? '',
+          // The label travels inside the icon slot: `CupertinoTabBar` pins its
+          // own label to the bottom of the row, so the taller the row, the
+          // further the text drifted from the glyph.
+          icon: _tabItem(context, tab, inactive),
+          activeIcon: _tabItem(context, tab, active),
         ),
     ];
     // `CupertinoTabBar` asserts at least two tabs (Apple's HIG), while the
@@ -1107,10 +1113,7 @@ class _QappNodeView extends StatelessWidget {
     // slot instead of letting an assert take the whole app down.
     while (items.length < 2) {
       items.add(
-        const BottomNavigationBarItem(
-          icon: SizedBox.square(dimension: _kTabBarIconSize),
-          label: '',
-        ),
+        const BottomNavigationBarItem(icon: SizedBox.shrink()),
       );
     }
     final topWidth = node.style.borderTopWidth;
@@ -1151,6 +1154,38 @@ class _QappNodeView extends StatelessWidget {
       context: context,
       removeBottom: true,
       child: bar,
+    );
+  }
+
+  /// A tab's glyph and label, drawn as one group.
+  ///
+  /// The group starts [_kTabBarTopInset] under the bar's hairline, the label
+  /// sits [_kTabBarIconLabelGap] under the glyph, and the row height only
+  /// decides how much room is left below the text.
+  Widget _tabItem(BuildContext context, Map tab, Color color) {
+    final label = tab['label']?.toString() ?? '';
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(top: _kTabBarTopInset),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _tabIcon(tab, color),
+            if (label.isNotEmpty) ...[
+              const SizedBox(height: _kTabBarIconLabelGap),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: CupertinoTheme.of(
+                  context,
+                ).textTheme.tabLabelTextStyle.copyWith(color: color),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 
