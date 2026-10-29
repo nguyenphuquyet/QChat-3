@@ -58,7 +58,7 @@ manifest; dấu tiếng Việt được chuyển thành ASCII (`Cà Phê Nhà` �
 - **Header chuẩn**: `NavBar` với `transparent`, `blur`, màu tiêu đề qua
   `style.color`, và `children` làm các hàng dưới (ô tìm kiếm + chip).
 - **Capsule của host**: app không vẽ nút đóng; host float capsule ở góc phải,
-  `reserveRight` mặc định 101 giữ tiêu đề không chui xuống dưới capsule.
+  `reserveRight` mặc định 112 giữ tiêu đề không chui xuống dưới capsule.
 - **Giỏ hàng**: `BottomSheet` (không lồng scroller), `Slider` tip, `Checkbox`
   điểm, `Dialog` xác nhận, `placeOrder()` chốt đơn và xoá giỏ.
 - **Route nội bộ**: `navigateTo`/`navigateBack` của host, cộng nhánh dự phòng

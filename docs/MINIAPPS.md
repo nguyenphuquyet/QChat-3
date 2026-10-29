@@ -377,7 +377,9 @@ therefore never reports `endReached`: give it a bounded height, or use a
 Every screen in QChat uses one header: `QChatHeader`
 (`apps/mobile/lib/core/design_system/qchat_header.dart`).
 
-- The bar is `kQChatHeaderHeight` (44) tall under the status bar. The title is
+- The bar is `kQChatHeaderHeight` (44) tall under the status bar. A bar that
+  carries a capsule is `kQChatCapsuleBarHeight` (48), so the pill keeps 6 pt of
+  air above and below and the Mini App title drops with it. The title is
   centred on the screen, `leading` and `trailing` are centred vertically on the
   same line, so a title, an icon and the capsule share one baseline no matter
   which of them is present.
@@ -390,7 +392,7 @@ Every screen in QChat uses one header: `QChatHeader`
   `transparent`, which is what a mini program needs when its own artwork runs
   under the top edge. `border` draws the hairline.
 
-The mini program control is `QChatCapsule`: one 87×32 pill with `•••` on the
+The mini program control is `QChatCapsule`: one 98×36 pill with `•••` on the
 left, a hairline divider and `◎` on the right. It is a frosted surface, not a
 solid white block: a translucent tint (white in light mode, dark grey in dark
 mode) over a 12 pt blur, so the page behind it shows through. The two halves are
@@ -404,7 +406,7 @@ or a banner grows the header downwards. `transparent` draws no surface at all;
 `blur` frosts what is behind the header; `transparent` wins when both are set.
 `border` defaults to true for a solid or blurred surface, so a white header does
 not blend into the first white card under it; `border={false}` removes the
-hairline. `reserveRight` defaults to `kQChatCapsuleWidth + 14` (101) so the title
+hairline. `reserveRight` defaults to `kQChatCapsuleWidth + 14` (112) so the title
 never slides under the capsule the host floats on the right.
 
 ### JavaScript environment (QuickJS)

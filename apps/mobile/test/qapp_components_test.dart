@@ -367,8 +367,8 @@ void main() {
     final header = tester.getRect(find.byType(QChatHeader));
     final title = tester.getCenter(find.text('Inbox'));
     expect(title.dx, closeTo(header.center.dx, .01));
-    // The title sits on the 44 pt bar, not somewhere below it.
-    expect(title.dy, closeTo(header.top + kQChatHeaderHeight / 2, .01));
+    // The title sits on the capsule bar, not somewhere below it.
+    expect(title.dy, closeTo(header.top + kQChatCapsuleBarHeight / 2, .01));
   });
 
   testWidgets('NavBar children become the rows under the title bar', (
@@ -385,8 +385,8 @@ void main() {
     await tester.pumpWidget(host(root, (_, _, _) {}));
     final header = tester.getRect(find.byType(QChatHeader));
     final row = tester.getRect(find.text('Rows'));
-    expect(row.top, greaterThanOrEqualTo(header.top + kQChatHeaderHeight));
-    expect(header.height, greaterThan(kQChatHeaderHeight));
+    expect(row.top, greaterThanOrEqualTo(header.top + kQChatCapsuleBarHeight));
+    expect(header.height, greaterThan(kQChatCapsuleBarHeight));
   });
 
   testWidgets('a transparent NavBar paints no surface', (tester) async {

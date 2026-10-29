@@ -1002,7 +1002,7 @@ class _QappNodeView extends StatelessWidget {
             onPressed: () => onEvent(node.id, 'back', {'type': 'back'}),
             child: const SizedBox(
               width: 44,
-              height: kQChatHeaderHeight,
+              height: kQChatCapsuleBarHeight,
               child: Center(child: QChatIcon('arrowLeft', size: 22)),
             ),
           )
@@ -1010,6 +1010,7 @@ class _QappNodeView extends StatelessWidget {
     return QChatHeader(
       title: title.isEmpty ? null : title,
       subtitle: subtitle.isEmpty ? null : subtitle,
+      height: kQChatCapsuleBarHeight,
       titleStyle: node.style
           .toTextStyle(fallbackColor: ink(context), fallbackSize: 17)
           .copyWith(fontWeight: FontWeight.w600),

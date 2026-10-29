@@ -132,6 +132,7 @@ void main() {
             QChatHeader(
               title: 'Inbox',
               safeArea: false,
+              height: kQChatCapsuleBarHeight,
               reserveLeading: 56,
               reserveTrailing: kQChatCapsuleWidth + 14,
               leading: const SizedBox(width: 44, height: 44),
@@ -147,10 +148,23 @@ void main() {
         title.dx,
         closeTo(tester.getCenter(find.byType(QChatHeader)).dx, .01),
       );
-      expect(tester.getSize(find.byType(QChatHeader)).height, kQChatHeaderHeight);
+      expect(
+        tester.getSize(find.byType(QChatHeader)).height,
+        kQChatCapsuleBarHeight,
+      );
       expect(
         tester.getSize(find.byType(QChatCapsule)).height,
         kQChatCapsuleHeight,
+      );
+      // Six points of air above and below keep the pill off the bar's edges.
+      final header = tester.getRect(find.byType(QChatHeader));
+      final pill = tester.getRect(find.byType(QChatCapsule));
+      expect(pill.top - header.top, 6);
+      expect(header.bottom - pill.bottom, 6);
+      expect(
+        pill.right,
+        closeTo(header.right - 7, .01),
+        reason: 'the capsule keeps the header trailing inset',
       );
     });
 

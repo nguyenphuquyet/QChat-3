@@ -619,6 +619,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
               right: 0,
               child: QChatHeader(
                 transparent: true,
+                height: kQChatCapsuleBarHeight,
                 reserveLeading: 0,
                 reserveTrailing: kQChatCapsuleWidth + 14,
                 trailing: QChatCapsule(
