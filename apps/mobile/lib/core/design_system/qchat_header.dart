@@ -9,9 +9,9 @@ import 'qchat_theme.dart';
 
 /// Height of the header bar itself, under the status bar.
 ///
-/// 44 is the height the app shares, so a title, an icon and the controls always
-/// sit on the same line. A bar that carries a [QChatCapsule] is a little taller
-/// ([kQChatCapsuleBarHeight]) so the pill keeps 6 pt of air above and below.
+/// 44 is the height the mini app shell and the rest of the app share, so a
+/// title, an icon and the capsule always sit on the same line; the pill keeps
+/// 7 pt of air above and below.
 const double kQChatHeaderHeight = 44;
 
 /// The QChat header standard.
@@ -189,18 +189,10 @@ class QChatHeader extends StatelessWidget {
 
 /// Width of the capsule, matching the mini program control the screenshots
 /// come from.
-const double kQChatCapsuleWidth = 98;
+const double kQChatCapsuleWidth = 88;
 
-/// Height of the capsule.
-const double kQChatCapsuleHeight = 36;
-
-/// Height of the bar a capsule rides in: the pill plus 6 pt above and below.
-///
-/// The mini program shell and a `NavBar` use this instead of
-/// [kQChatHeaderHeight] so the bigger control keeps the same breathing room and
-/// the title stays on the capsule's line. The extra 4 pt also push the floating
-/// host header, and the Mini App title under it, a little further down.
-const double kQChatCapsuleBarHeight = kQChatCapsuleHeight + 12;
+/// Height of the capsule. A 44 pt header centres it with 7 pt above and below.
+const double kQChatCapsuleHeight = 30;
 
 /// The mini program control: one frosted pill with a menu on the left and a
 /// close on the right, separated by a hairline.
@@ -372,10 +364,10 @@ class _Dots extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       for (var index = 0; index < 3; index++) ...[
-        if (index > 0) const SizedBox(width: 4.8),
+        if (index > 0) const SizedBox(width: 4.4),
         Container(
-          width: 5,
-          height: 5,
+          width: 4.6,
+          height: 4.6,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ],
@@ -391,16 +383,16 @@ class _Ring extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 18,
-    height: 18,
+    width: 17,
+    height: 17,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      border: Border.all(color: color, width: 1.9),
+      border: Border.all(color: color, width: 1.8),
     ),
     alignment: Alignment.center,
     child: Container(
-      width: 7,
-      height: 7,
+      width: 6.6,
+      height: 6.6,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     ),
   );
