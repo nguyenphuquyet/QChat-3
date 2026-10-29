@@ -374,7 +374,7 @@ class QappTInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TInput(
+    final input = TInput(
       controller: controller,
       focusNode: focusNode,
       hintText: hintText,
@@ -395,6 +395,26 @@ class QappTInput extends StatelessWidget {
       indicator: false,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
+    );
+    if (!borderless) return input;
+    // `borderless` only drops TDesign's *border*. Its shell still paints its
+    // own fill (`bgColorContainer`) and a 16-point inset on every side, which
+    // inside a frame that already has a background and a border reads as two
+    // designs stacked, one slightly smaller than the other. When the app owns
+    // the chrome, TDesign owns only the editor.
+    final theme = Theme.of(context);
+    return Theme(
+      data: theme.copyWith(
+        extensions: [
+          for (final extension in theme.extensions.values)
+            if (extension is! TInputThemeData) extension,
+          const TInputThemeData(
+            backgroundColor: Colors.transparent,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+      child: input,
     );
   }
 }

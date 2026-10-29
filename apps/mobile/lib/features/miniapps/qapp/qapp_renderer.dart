@@ -1284,6 +1284,29 @@ class _QappNodeView extends StatelessWidget {
     final foreground = node.style.color;
     final tone = foreground ?? qappTButtonForeground(context, variant);
     final buttonStyle = node.style.toTextStyle(fallbackColor: tone);
+    // TDesign centres its label by reserving half of `size - font * 1.5` above
+    // and below, computed from *its* tokens. The moment the app sets its own
+    // `height` or `lineHeight`, that arithmetic no longer describes this
+    // button's text and the label drifts off-centre. Deriving the vertical
+    // inset from the box the app asked for keeps the line box in the middle;
+    // without an app style it reproduces TDesign's own numbers exactly.
+    final compact = node.props['size'] == 'sm';
+    final labelSize = buttonStyle.fontSize ?? (compact ? 14.0 : 16.0);
+    final lineBox = buttonStyle.height != null
+        ? labelSize * buttonStyle.height!
+        : labelSize * (compact ? 22 / 14 : 1.5);
+    final boxHeight = node.style.height ?? minHeight;
+    final verticalInset = ((boxHeight - lineBox) / 2).clamp(0.0, boxHeight);
+    final padding = node.style.padding == EdgeInsets.zero
+        ? EdgeInsets.symmetric(
+            horizontal: switch (node.props['size']) {
+              'sm' => 12.0,
+              'lg' => 20.0,
+              _ => 16.0,
+            },
+            vertical: verticalInset,
+          )
+        : node.style.padding;
     final button = QappTButton(
       label: label,
       variant: variant,
@@ -1306,7 +1329,7 @@ class _QappNodeView extends StatelessWidget {
       radius: node.style.borderRadius == BorderRadius.zero
           ? null
           : node.style.borderRadius,
-      padding: node.style.padding == EdgeInsets.zero ? null : node.style.padding,
+      padding: padding,
       minHeight: minHeight,
       textStyle: buttonStyle,
     );
@@ -1438,7 +1461,13 @@ class _QappNodeView extends StatelessWidget {
   }
 
   Widget _textField(BuildContext context) {
-    return _QappTextField(key: ValueKey(node.id), node: node, onEvent: onEvent);
+    // The node itself is already keyed by `testID`/id; a second, distinct key
+    // keeps the stateful field findable without making the tree ambiguous.
+    return _QappTextField(
+      key: ValueKey('${node.id}:field'),
+      node: node,
+      onEvent: onEvent,
+    );
   }
 
   Widget _checkbox(BuildContext context) {
@@ -2335,55 +2364,98 @@ class _QappTextFieldState extends State<_QappTextField> {
     final radius = style.borderRadius == BorderRadius.zero
         ? BorderRadius.circular(8)
         : style.borderRadius;
+    // One line box, used for both the editor's style and its height.
+    final textStyle = style.toTextStyle(
+      fallbackColor: ink(context),
+      fallbackSize: 15,
+    );
+    final input = QappTInput(
+      controller: _controller,
+      focusNode: _focus,
+      hintText: node.props['placeholder']?.toString() ?? '',
+      multiline: multiline,
+      enabled: editable,
+      obscure: node.props['secureTextEntry'] == true,
+      maxLength: limit,
+      inputType: multiline ? TextInputType.multiline : keyboard,
+      textStyle: textStyle,
+      textAlign: style.textAlign ?? TextAlign.start,
+      // The chrome is drawn once, above: TDesign's own fill and inset are off
+      // in both branches, so an input can never show two nested boxes.
+      borderless: true,
+      onChanged: (value) {
+        if (node.hasEvent('input')) {
+          widget.onEvent(node.id, 'input', value);
+        }
+        if (node.hasEvent('change')) {
+          widget.onEvent(node.id, 'change', {
+            'type': 'change',
+            'value': value,
+            'text': value,
+          });
+        }
+      },
+      onSubmitted: (value) {
+        if (node.hasEvent('submit')) {
+          widget.onEvent(node.id, 'submit', {
+            'type': 'submit',
+            'value': value,
+            'text': value,
+          });
+        }
+      },
+    );
+    // `style.*` wins: `_decorate` already painted the fill, the border and the
+    // radius the app asked for, so the editor only has to sit in the middle of
+    // that box.
+    final appChrome =
+        style.backgroundColor != null ||
+        style.gradient != null ||
+        style.boxShadows.isNotEmpty ||
+        style.boxBorder() != null;
+    // A single-line `TInput` reports 4 points more than its editor (its shell
+    // keeps a hair of slack around the row), so centring the *input* would
+    // still leave the text 2 points low. Pin it to the text's own line box and
+    // centre that instead.
+    final lineBox = (textStyle.fontSize ?? 15) * (textStyle.height ?? 1.2);
+    final editor = multiline ? input : SizedBox(height: lineBox, child: input);
+    if (appChrome) {
+      if (multiline) return editor;
+      final centred = Align(alignment: Alignment.centerLeft, child: editor);
+      if (style.height != null) return centred;
+      // The app tinted or outlined the field but left its height to the host;
+      // a one-line editor on its own would be a bare 22-point strip, so keep
+      // the field's 48-point floor. `_decorate` has already spent part of that
+      // floor on the app's padding and border, so this is only the remainder.
+      final border = style.boxBorder();
+      final borderVertical = border == null
+          ? 0.0
+          : border.top.width + border.bottom.width;
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: (48 - style.padding.vertical - borderVertical).clamp(
+            0.0,
+            48.0,
+          ),
+        ),
+        child: centred,
+      );
+    }
+    // An unstyled field still has to look like a field. TDesign's own chrome is
+    // off (see `QappTInput`), so the host paints one: TDesign's filled input,
+    // 48 points tall, with the editor centred inside it.
     return Container(
+      constraints: multiline ? null : const BoxConstraints(minHeight: 48),
+      padding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: multiline ? 10 : 0,
+      ),
+      alignment: multiline ? null : Alignment.centerLeft,
       decoration: BoxDecoration(
-        color: style.backgroundColor ?? QChatColors.transparent,
+        color: qchatFill(context),
         borderRadius: radius,
-        border: Border.all(
-          color: style.borderColor ?? const Color(0xffdcdcdc),
-          width: style.borderWidth > 0 ? style.borderWidth : 1,
-        ),
       ),
-      // `borderless` keeps the frame above as the field's chrome, so the
-      // contract's `style.*` still owns the background, the border and the
-      // radius while the input itself is the TDesign one.
-      child: QappTInput(
-        controller: _controller,
-        focusNode: _focus,
-        hintText: node.props['placeholder']?.toString() ?? '',
-        multiline: multiline,
-        enabled: editable,
-        obscure: node.props['secureTextEntry'] == true,
-        maxLength: limit,
-        inputType: multiline ? TextInputType.multiline : keyboard,
-        textStyle: style.toTextStyle(
-          fallbackColor: ink(context),
-          fallbackSize: 15,
-        ),
-        textAlign: style.textAlign ?? TextAlign.start,
-        borderless: true,
-        onChanged: (value) {
-          if (node.hasEvent('input')) {
-            widget.onEvent(node.id, 'input', value);
-          }
-          if (node.hasEvent('change')) {
-            widget.onEvent(node.id, 'change', {
-              'type': 'change',
-              'value': value,
-              'text': value,
-            });
-          }
-        },
-        onSubmitted: (value) {
-          if (node.hasEvent('submit')) {
-            widget.onEvent(node.id, 'submit', {
-              'type': 'submit',
-              'value': value,
-              'text': value,
-            });
-          }
-        },
-      ),
+      child: editor,
     );
   }
 }

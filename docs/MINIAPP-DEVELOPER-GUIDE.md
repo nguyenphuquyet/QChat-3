@@ -1077,6 +1077,16 @@ Hành vi quan trọng:
   để dính đáy; nếu bạn tự làm footer, hãy tính tới điều này.
 - Text state không tự đồng bộ vào JS nếu bạn không truyền `value`; muốn
   controlled hoàn toàn thì luôn truyền `value` + `onInput`/`onChange`.
+- Khung ô nhập chỉ được vẽ **một lần**. Nếu style của `TextField` có
+  `backgroundColor` / `borderWidth` / `borderColor` / `borderRadius` / `shadow`
+  thì host vẽ đúng khung đó và phần nhập chỉ là con chữ bên trong — nó không
+  thêm nền hay lề 16 nào nữa, nên không bao giờ thấy hai lớp thiết kế lồng nhau.
+  Không khai báo gì thì host vẽ ô nền xám 48pt, bo 8, lề ngang 12 để ô vẫn ra
+  dáng ô nhập.
+- Chữ trong ô (và trong `Button`) luôn được căn giữa theo chiều dọc của hộp.
+  `lineHeight` là chiều cao **dòng**, không phải chiều cao hộp: đặt
+  `lineHeight` lớn hơn `fontSize` là hợp lệ, host tự cân lại để nét chữ nằm
+  giữa dòng thay vì bị đẩy xuống đáy.
 
 ---
 

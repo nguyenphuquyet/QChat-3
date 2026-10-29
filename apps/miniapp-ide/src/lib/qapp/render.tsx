@@ -1026,20 +1026,33 @@ function QappTextInput({
   }, [node.props.value]);
 
   const type = asString(node.props.keyboardType);
-  const borderWidth = asNumber(style.borderWidth) ?? 1;
   const radius = asNumber(style.borderRadius) ?? 8;
   const textColor = qappColor(style.color) ?? ctx.colors.ink;
+  // The host draws a field's chrome exactly once. When the app styled one,
+  // `boxStyle` already carries its fill, border, radius and padding, so the
+  // preview only has to centre the editor inside them. When it did not, the
+  // host paints TDesign's filled 48-point field (88 for a multiline box) with
+  // a 12-point side inset, and the preview does the same.
+  const appChrome =
+    qappColor(style.backgroundColor) !== undefined ||
+    style.gradient !== undefined ||
+    style.borderWidth !== undefined ||
+    style.borderColor !== undefined ||
+    style.shadow === true;
   const chrome: CSSProperties = {
     display: "flex",
     flexDirection: "column",
     justifyContent: "center",
-    minHeight: multiline ? 88 : 40,
-    padding: "9px 12px",
-    borderRadius: radius,
-    border: `${borderWidth}px solid ${qappColor(style.borderColor) ?? "#dcdcdc"}`,
-    background: qappColor(style.backgroundColor) ?? "transparent",
     boxSizing: "border-box",
     width: style.width === undefined ? "100%" : undefined,
+    ...(appChrome
+      ? {}
+      : {
+          minHeight: multiline ? 88 : 48,
+          padding: multiline ? "10px 12px" : "0 12px",
+          borderRadius: radius,
+          background: ctx.colors.fill,
+        }),
   };
 
   const change = (value: string) => {
