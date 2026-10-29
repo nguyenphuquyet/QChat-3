@@ -17,10 +17,13 @@ class QChatTheme extends StatelessWidget {
         ? QChatColors.darkBackground
         : QChatColors.background;
     final surface = dark ? QChatColors.darkSurface : QChatColors.white;
+    // Keep whatever family the host resolved (SF, Roboto, Segoe UI) instead of
+    // dropping it: QChat ships no fonts, so the family belongs to the platform.
     final text = TextStyle(
       color: ink,
       fontSize: 16,
       height: 1.35,
+      fontFamily: DefaultTextStyle.of(context).style.fontFamily,
       decoration: TextDecoration.none,
     );
     return _QChatThemeScope(

@@ -128,14 +128,14 @@ void main() {
     expect(find.text('Send'), findsOneWidget);
     expect(find.text('Preview'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('a1')));
+    await tester.tap(find.byKey(const ValueKey('pick_a1')));
     await tester.pump();
     // A single pick is a tick, not the number 1.
     expect(find.text('Send (1)'), findsOneWidget);
     expect(find.text('Preview (1)'), findsOneWidget);
     expect(find.text('1'), findsNothing);
 
-    await tester.tap(find.byKey(const ValueKey('a3')));
+    await tester.tap(find.byKey(const ValueKey('pick_a3')));
     await tester.pump();
     // The second pick takes number 2, in the order the user tapped.
     expect(find.text('1'), findsOneWidget);
@@ -147,7 +147,7 @@ void main() {
   testWidgets('sends the picked assets as files', (tester) async {
     await _open(tester);
 
-    await tester.tap(find.byKey(const ValueKey('a2')));
+    await tester.tap(find.byKey(const ValueKey('pick_a2')));
     await tester.pump();
     await tester.tap(find.text('Send (1)'));
     await tester.pumpAndSettle();
@@ -161,9 +161,9 @@ void main() {
   ) async {
     await _open(tester, maxAssets: 1);
 
-    await tester.tap(find.byKey(const ValueKey('a1')));
+    await tester.tap(find.byKey(const ValueKey('pick_a1')));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('a2')));
+    await tester.tap(find.byKey(const ValueKey('pick_a2')));
     await tester.pump();
 
     expect(find.text('Send (1)'), findsOneWidget);
@@ -174,10 +174,10 @@ void main() {
   testWidgets('stops at the selection limit', (tester) async {
     await _open(tester, maxAssets: 2);
 
-    await tester.tap(find.byKey(const ValueKey('a1')));
-    await tester.tap(find.byKey(const ValueKey('a2')));
+    await tester.tap(find.byKey(const ValueKey('pick_a1')));
+    await tester.tap(find.byKey(const ValueKey('pick_a2')));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('a4')));
+    await tester.tap(find.byKey(const ValueKey('pick_a4')));
     await tester.pump();
 
     expect(find.text('Send (2)'), findsOneWidget);
@@ -232,18 +232,20 @@ void main() {
     expect(find.text('Camera'), findsOneWidget);
   });
 
-  testWidgets('previews an item and ticks it from the preview page', (
+  testWidgets('opens the preview from a thumbnail, not from the badge', (
     tester,
   ) async {
     await _open(tester);
 
-    await tester.longPress(find.byKey(const ValueKey('a2')));
+    await tester.tap(find.byKey(const ValueKey('a2')));
     await tester.pumpAndSettle();
-    expect(find.text('2/4'), findsOneWidget);
+    // The preview took over; the grid is behind it and nothing was picked.
+    expect(find.byKey(const ValueKey('previewToggle')), findsOneWidget);
+    expect(find.byKey(const ValueKey('strip_a2')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('previewToggle')));
     await tester.pump();
-    expect(find.text('Send (1)'), findsOneWidget);
+    expect(find.byKey(const ValueKey('strip_a2')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('previewSend')));
     await tester.pumpAndSettle();
@@ -251,8 +253,23 @@ void main() {
     expect(_Host.result!.single.path, endsWith('a2.jpg'));
   });
 
+  testWidgets('picks from the badge without leaving the grid', (tester) async {
+    await _open(tester);
+
+    await tester.tap(find.byKey(const ValueKey('pick_a2')));
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('previewToggle')), findsNothing);
+    expect(find.text('Send (1)'), findsOneWidget);
+  });
+
   test('formats a clip length as m:ss', () {
     expect(formatMediaDuration(const Duration(seconds: 75)), '1:15');
     expect(formatMediaDuration(const Duration(seconds: 5)), '0:05');
+  });
+
+  test('formats a player clock as mm:ss', () {
+    expect(formatMediaClock(const Duration(seconds: 6)), '00:06');
+    expect(formatMediaClock(const Duration(seconds: 75)), '01:15');
   });
 }

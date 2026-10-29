@@ -62,6 +62,7 @@ const translations = <String, List<String>>{
     '你只允许 QChat 查看部分照片。',
   ],
   'widenAccess': ['Change', 'Thay đổi', '更改'],
+  'speed': ['Speed', 'Tốc độ', '倍速'],
   'openSettings': ['Open Settings', 'Mở Cài đặt', '打开设置'],
   'preview': ['Preview', 'Xem trước', '预览'],
   'noMedia': [
