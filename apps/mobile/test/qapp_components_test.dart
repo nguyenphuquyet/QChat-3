@@ -274,15 +274,17 @@ void main() {
     double bodyHeight() =>
         tester.getSize(find.byKey(const ValueKey('body'))).height;
     double labelY() => tester.getCenter(find.text('Home')).dy;
+    // The contract's default `TabBar` row, above the safe area.
+    const bar = 58.0;
 
     // The host shrinks the whole mini program when a field takes focus. The bar
     // must not be lifted with it: it stays glued to the bottom edge of the
     // screen, gives its height back to the page, and the keys cover it.
     await tester.pumpWidget(keyboardHost(page(), 0));
     final restY = labelY();
-    expect(restY, greaterThan(812 - 50));
+    expect(restY, greaterThan(812 - bar));
     expect(restY, lessThan(812));
-    expect(bodyHeight(), 812 - 50);
+    expect(bodyHeight(), 812 - bar);
 
     await tester.pumpWidget(keyboardHost(page(), 320));
     await tester.pump();
@@ -294,7 +296,7 @@ void main() {
     await tester.pumpWidget(keyboardHost(page(), 20));
     await tester.pump();
     expect(labelY(), closeTo(restY, .5));
-    expect(bodyHeight(), 812 - 50);
+    expect(bodyHeight(), 812 - bar);
 
     // A page that really wants the bar to stay above the keys can opt out.
     await tester.pumpWidget(keyboardHost(page(hideOnKeyboard: false), 320));

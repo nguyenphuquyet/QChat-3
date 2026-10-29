@@ -1283,6 +1283,8 @@ Lưu ý: `A` (arc) **không** được hỗ trợ; hãy xấp xỉ bằng `Q`/`C
 | `style.height` | `number` | chiều cao chuẩn của QChat |
 
 - Nếu có `activeKey` và tìm thấy, nó thắng `activeIndex`.
+- Hàng tab cao 58 pt mặc định (trên vùng an toàn đáy): icon 25 pt, nhãn dính đáy
+  cách 4 pt, icon được ~10 pt khoảng thở phía trên. `style.height` đổi được.
 - `tabs` ít hơn 2 phần tử được **đệm** cho đủ 2 (giới hạn của
   `CupertinoTabBar`); tab đệm không bao giờ phát `change`.
 - `badge` là chuỗi, vẽ đè lên icon.

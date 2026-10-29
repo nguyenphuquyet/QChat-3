@@ -16,14 +16,18 @@ typedef QappEventHandler =
     void Function(String nodeId, String event, Object? payload);
 typedef QappAssetLoader = Future<Uint8List?> Function(String path);
 
-/// Height of a `TabBar` row, above the bottom safe area. Apple's `UITabBar` is
-/// 49 pt tall; `CupertinoTabBar` defaults to 50, and the bar grows by the home
-/// indicator inset on its own.
-const double _kTabBarHeight = 50;
+/// Height of a `TabBar` row, above the bottom safe area.
+///
+/// Apple's `UITabBar` is 49 pt, but `CupertinoTabBar` keeps the label pinned to
+/// the bottom (4 pt of padding) and centres the icon in what is left, so at 50
+/// the icon ended up 5.5 pt under the bar's top edge and looked glued to the
+/// hairline. 58 gives the icon ~10 pt of air, in line with the app's own bottom
+/// bar. The bar still grows by the home indicator inset on its own.
+const double _kTabBarHeight = 58;
 
 /// Size of a tab icon. `CupertinoTabBar` defaults to 30, but the labels of a
-/// mini app are short and the bar is 50 pt tall, so 25 keeps the two rows
-/// inside the bar instead of overflowing it.
+/// mini app are short and the bar is 58 pt tall, so 25 keeps the two rows
+/// comfortably inside the bar instead of crowding the label.
 const double _kTabBarIconSize = 25;
 
 /// Turns a validated virtual tree produced by the TSX runtime into real
