@@ -26,6 +26,10 @@ stop and use the QChat design system instead.
    `tdesign_flutter` is the only exception, and only for Mini App frames: it is
    imported by exactly one file, `lib/features/miniapps/qapp/qapp_tdesign.dart`
    (see §7).
+   A plugin that only talks to the platform is fine: `photo_manager` lists the
+   photo library and decodes thumbnails for `lib/core/media/`, and the picker
+   page itself is drawn with the QChat design system. A *picker package* with
+   its own widgets (`wechat_assets_picker`) is not, because its UI is Material.
 6. If a control you need does not exist, **add a `QChat*` widget to
    `lib/core/design_system/`** and draw it with primitives
    (`Container`, `DecoratedBox`, `CustomPaint`, `GestureDetector`,

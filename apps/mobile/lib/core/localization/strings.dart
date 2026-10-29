@@ -56,6 +56,14 @@ const translations = <String, List<String>>{
     'Không thể đọc ảnh/video này. Vui lòng thử lại.',
     '无法读取此照片或视频，请重试。',
   ],
+  'allPhotos': ['All photos', 'Toàn bộ hình ảnh', '所有照片'],
+  'openSettings': ['Open Settings', 'Mở Cài đặt', '打开设置'],
+  'preview': ['Preview', 'Xem trước', '预览'],
+  'noMedia': [
+    'No photos or videos yet.',
+    'Chưa có ảnh hoặc video nào.',
+    '还没有照片或视频。',
+  ],
   'chatHistoryManagement': [
     'Manage chat history',
     'Quản lý lịch sử trò chuyện',
