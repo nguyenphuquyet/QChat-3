@@ -391,7 +391,7 @@ Every screen in QChat uses one header: `QChatHeader`
   `transparent`, which is what a mini program needs when its own artwork runs
   under the top edge. `border` draws the hairline.
 
-The mini program control is `QChatCapsule`: one 88×30 pill with `•••` on the
+The mini program control is `QChatCapsule`: one 94×32 pill with `•••` on the
 left, a hairline divider and `◎` on the right. It is a frosted surface, not a
 solid white block: a translucent tint (white in light mode, dark grey in dark
 mode) over a 12 pt blur, so the page behind it shows through. The two halves are
@@ -405,7 +405,7 @@ or a banner grows the header downwards. `transparent` draws no surface at all;
 `blur` frosts what is behind the header; `transparent` wins when both are set.
 `border` defaults to true for a solid or blurred surface, so a white header does
 not blend into the first white card under it; `border={false}` removes the
-hairline. `reserveRight` defaults to `kQChatCapsuleWidth + 14` (102) so the title
+hairline. `reserveRight` defaults to `kQChatCapsuleWidth + 14` (108) so the title
 never slides under the capsule the host floats on the right.
 
 ### JavaScript environment (QuickJS)

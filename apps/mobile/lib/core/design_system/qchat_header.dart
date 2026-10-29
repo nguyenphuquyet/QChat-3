@@ -189,10 +189,10 @@ class QChatHeader extends StatelessWidget {
 
 /// Width of the capsule, matching the mini program control the screenshots
 /// come from.
-const double kQChatCapsuleWidth = 88;
+const double kQChatCapsuleWidth = 94;
 
-/// Height of the capsule. A 44 pt header centres it with 7 pt above and below.
-const double kQChatCapsuleHeight = 30;
+/// Height of the capsule. A 44 pt header centres it with 6 pt above and below.
+const double kQChatCapsuleHeight = 32;
 
 /// The mini program control: one frosted pill with a menu on the left and a
 /// close on the right, separated by a hairline.
@@ -364,10 +364,10 @@ class _Dots extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       for (var index = 0; index < 3; index++) ...[
-        if (index > 0) const SizedBox(width: 4.4),
+        if (index > 0) const SizedBox(width: 4.8),
         Container(
-          width: 4.6,
-          height: 4.6,
+          width: 5,
+          height: 5,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
       ],
@@ -383,16 +383,16 @@ class _Ring extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-    width: 17,
-    height: 17,
+    width: 18,
+    height: 18,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      border: Border.all(color: color, width: 1.8),
+      border: Border.all(color: color, width: 1.9),
     ),
     alignment: Alignment.center,
     child: Container(
-      width: 6.6,
-      height: 6.6,
+      width: 7,
+      height: 7,
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     ),
   );
