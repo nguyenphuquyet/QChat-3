@@ -188,19 +188,39 @@ void main() {
       await runtime.start(appJs: _appJsOf(envDemo), host: host);
       await Future<void>.delayed(Duration.zero);
 
-      String lastText() => _nodeText(
-        Map<String, dynamic>.from(host.renders.last['root'] as Map),
+      String textOf(int index) => _nodeText(
+        Map<String, dynamic>.from(host.renders[index]['root'] as Map),
       );
+      String lastText() => textOf(host.renders.length - 1);
 
       expect(host.renders, isNotEmpty);
-      expect(lastText(), contains('Timers: waiting'));
-      expect(lastText(), contains('Ticks: 0'));
+      // The first frame is the one the app commits before its effects run, so
+      // it is the only frame guaranteed to still say "waiting". Starting QuickJS
+      // on a loaded runner can outlast the 10 ms timer below, which makes the
+      // *last* frame already "early" — asserting on it here was a flake.
+      expect(textOf(0), contains('Timers: waiting'));
+      expect(textOf(0), contains('Ticks: 0'));
 
       // The app schedules a 10 ms and a 30 ms timeout, then clears a 15 ms
       // interval 50 ms in. Every wake-up is a real Dart `Timer` the host set
-      // from the delay the bundle asked for, so a little slack is all it needs.
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      final text = lastText();
+      // from the delay the bundle asked for, so wait for the final frame
+      // instead of assuming the runner gets there within a fixed budget.
+      Future<String> settle(bool Function(String text) done) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 10));
+        var text = lastText();
+        while (!done(text)) {
+          if (DateTime.now().isAfter(deadline)) return text;
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          text = lastText();
+        }
+        return text;
+      }
+
+      final text = await settle(
+        (frame) =>
+            frame.contains('Timers: early,late') &&
+            frame.contains('Ticks: 3'),
+      );
       expect(text, contains('Timers: early,late'), reason: text);
       expect(text, contains('Ticks: 3'), reason: text);
       expect(text, contains('Aborted: true'));
