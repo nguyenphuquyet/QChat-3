@@ -32,21 +32,38 @@ Widget host(QappNode root) {
   );
 }
 
-/// Vertical distance between two centres, in logical points.
-double offCentreBy(Rect outer, Rect inner) =>
-    (outer.center.dy - inner.center.dy).abs();
+/// The y of a label's baseline, from the line box it was given.
+///
+/// Flutter's test font puts three quarters of its line box above the baseline
+/// and fills the ascent with ink, so a label's caps start at the top of its line
+/// box. Deriving the baseline from the measured rect keeps this independent of
+/// the style a control passes down, and sees any paint-time lift, because a
+/// `Transform` moves the rect too.
+double baselineOf(Rect lineBox) => lineBox.top + lineBox.height * .75;
+
+/// Where a cap-centred label's baseline belongs in [box].
+///
+/// A control is centred when its *caps* are, not its line box: Flutter's
+/// `height` multiplier adds its leading above the glyphs, so a centred line box
+/// paints low — which is what `QappRenderer._labelLift` corrects. A cap is about
+/// 0.7 of the font size, and half of it hangs above the middle.
+double centredBaseline(Rect box, double fontSize) =>
+    box.center.dy + .35 * fontSize;
 
 void main() {
   group('text centring', () {
-    test('a styled line height centres the ink in its line box', () {
+    test('a styled line height keeps its ink in the middle of the line box', () {
       final style = QappStyle.fromMap({
         'fontSize': 16,
         'lineHeight': 32,
       }).toTextStyle();
       expect(style.height, 2);
-      // Flutter's default (`proportional`) grows the ascent far more than the
+      // Flutter's default (`proportional`) grows the ascent more than the
       // descent, so a tall line drops the glyphs below the middle of their own
-      // line box. `even` is what Material uses, and what a QChat frame needs.
+      // line box. `even` is the distribution that would centre them; this
+      // build of Flutter still splits a `height` multiplier proportionally, so
+      // the renderer does the centring itself (see `_labelLift`). The intent
+      // stays declared in the style for hosts that honour it.
       expect(style.leadingDistribution, TextLeadingDistribution.even);
     });
 
@@ -86,14 +103,14 @@ void main() {
       await tester.pumpWidget(host(root));
 
       final box = tester.getRect(find.byKey(const ValueKey('b1')));
-      final label = tester.getRect(find.text('Trước'));
+      final label = find.text('Trước');
       expect(box.height, 44);
       // TDesign's own inset is computed from its 16/24 token, which would leave
-      // the 32-point line 4 points low in a 44-point box.
+      // the app's 32-point line 4 points low in a 44-point box.
       expect(
-        offCentreBy(box, label),
-        lessThan(0.6),
-        reason: 'label $label is not centred in button $box',
+        baselineOf(tester.getRect(label)),
+        closeTo(centredBaseline(box, 16), 0.6),
+        reason: 'label ${tester.getRect(label)} is not centred in $box',
       );
     });
 
@@ -117,9 +134,13 @@ void main() {
       await tester.pumpWidget(host(root));
 
       final box = tester.getRect(find.byKey(const ValueKey('b1')));
-      final label = tester.getRect(find.text('Lưu'));
+      final label = find.text('Lưu');
       expect(box.height, 40, reason: 'the contract keeps the 40-point target');
-      expect(offCentreBy(box, label), lessThan(0.6));
+      // No app style: TDesign's 16-point label, in a 40-point box.
+      expect(
+        baselineOf(tester.getRect(label)),
+        closeTo(centredBaseline(box, 16), 0.6),
+      );
     });
 
     testWidgets('a TextField draws one box and centres the editor in it', (
@@ -161,7 +182,15 @@ void main() {
         closeTo(22, 0.5),
         reason: 'TDesign\'s 16-point inset must be gone: $editor',
       );
-      expect(offCentreBy(box, editor), lessThan(0.6));
+      // The hint is what a reader sees in an empty field, and TDesign gives it
+      // its own 14-point style.
+      final hint = find.text('Ghi chú');
+      final hintSize = tester.widget<Text>(hint).style!.fontSize!;
+      expect(
+        baselineOf(tester.getRect(hint)),
+        closeTo(centredBaseline(box, hintSize), 0.6),
+      );
+      expect(editor.center.dy, closeTo(box.center.dy, 2));
       // The app's own padding is the only horizontal inset, plus the 1-point
       // border the app asked for (padding sits inside the border).
       expect(editor.left - box.left, closeTo(11, 0.5));
@@ -185,7 +214,13 @@ void main() {
       final box = tester.getRect(find.byKey(const ValueKey('f1')));
       final editor = tester.getRect(find.byType(EditableText));
       expect(box.height, 48);
-      expect(offCentreBy(box, editor), lessThan(0.6));
+      final hint = find.text('Ghi chú');
+      final hintSize = tester.widget<Text>(hint).style!.fontSize!;
+      expect(
+        baselineOf(tester.getRect(hint)),
+        closeTo(centredBaseline(box, hintSize), 0.6),
+      );
+      expect(editor.center.dy, closeTo(box.center.dy, 2));
       expect(editor.left - box.left, closeTo(12, 0.5));
     });
 
@@ -218,7 +253,16 @@ void main() {
         final box = tester.getRect(find.byKey(const ValueKey('f1')));
         final editor = tester.getRect(find.byType(EditableText));
         expect(box.height, 48);
-        expect(offCentreBy(box, editor), lessThan(0.6));
+        final hint = find.text('Ghi chú');
+        final hintSize = tester.widget<Text>(hint).style!.fontSize!;
+        expect(
+          baselineOf(tester.getRect(hint)),
+          closeTo(centredBaseline(box, hintSize), 0.6),
+        );
+        expect(editor.center.dy, closeTo(box.center.dy, 2));
+        // The app set its own 10-point padding (plus the 1-point border), so the
+        // host's 12-point inset must not be added on top.
+        expect(editor.left - box.left, closeTo(11, 0.5));
       },
     );
   });

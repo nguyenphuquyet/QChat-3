@@ -102,6 +102,12 @@ Color qappTButtonForeground(BuildContext context, String variant) =>
       _ => QChatColors.white,
     };
 
+/// The corner radius a `Button` draws when the app sets no `borderRadius`.
+///
+/// `qapp_renderer.dart` reads it too: a `Button` paints its own surface, so the
+/// frame must not paint a square fill behind it (see `_decorate`).
+const BorderRadius kQappTButtonRadius = BorderRadius.all(Radius.circular(6));
+
 /// `Button`: TDesign's filled / outline / text button. The contract owns the
 /// label, the loading state, the disabled state and any colour the app sets
 /// through `style.*`; TDesign owns the shape, the palette and the interaction.
@@ -124,6 +130,7 @@ class QappTButton extends StatelessWidget {
     this.padding,
     this.minHeight,
     this.textStyle,
+    this.labelLift = 0,
   });
 
   final String label;
@@ -143,6 +150,10 @@ class QappTButton extends StatelessWidget {
   final double? minHeight;
   final TextStyle? textStyle;
 
+  /// How far to lift the label so its glyphs sit in the middle of the line box
+  /// the padding centres in the button. See `QappRenderer._labelLift`.
+  final double labelLift;
+
   double get _iconSize => switch (size) {
     'sm' => 14,
     'lg' => 20,
@@ -150,7 +161,7 @@ class QappTButton extends StatelessWidget {
   };
 
   ButtonStyle _style(BuildContext context) {
-    final borderRadius = radius ?? BorderRadius.circular(6);
+    final borderRadius = radius ?? kQappTButtonRadius;
     final side = borderWidth > 0
         ? BorderSide(
             color: borderColor ?? foreground ?? qappTButtonForeground(context, variant),
@@ -178,6 +189,19 @@ class QappTButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = foreground ?? qappTButtonForeground(context, variant);
+    Widget labelText = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
+      style: textStyle,
+    );
+    if (labelLift > 0) {
+      labelText = Transform.translate(
+        offset: Offset(0, -labelLift),
+        child: labelText,
+      );
+    }
     return TButton(
       variant: qappTButtonVariant(variant),
       colorPreset: qappTButtonColorPreset(variant),
@@ -188,15 +212,7 @@ class QappTButton extends StatelessWidget {
       icon: icon == null
           ? null
           : QappTIcon(icon!, size: _iconSize, color: tone),
-      child: loading
-          ? TLoading(size: _iconSize)
-          : Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: textStyle,
-            ),
+      child: loading ? TLoading(size: _iconSize) : labelText,
     );
   }
 }

@@ -366,12 +366,11 @@ class QappStyle {
       fontStyle: fontStyle,
       fontFamily: fontFamily,
       height: height,
-      // `lineHeight` is the app's line box, not its ink box. Flutter's default
-      // `proportional` leading grows the ascent more than the descent, so the
-      // taller the line, the lower the glyphs sit inside it: a label in a
-      // button or an input then reads as bottom-aligned even though the box
-      // centres it. Even leading keeps the ink in the middle of the line box
-      // the app asked for.
+      // Declared as intent: `lineHeight` is the app's line box, not its ink
+      // box, and even leading would keep the ink in the middle of it. This
+      // Flutter build still distributes a `height` multiplier proportionally,
+      // so the renderer lifts glyphs by the leading it actually added — see
+      // `_labelLift` in `qapp_renderer.dart`.
       leadingDistribution: height == null ? null : TextLeadingDistribution.even,
       letterSpacing: letterSpacing,
       decoration: textDecoration,

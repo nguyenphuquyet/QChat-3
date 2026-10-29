@@ -34,6 +34,60 @@ const double _kTabBarIconLabelGap = 4;
 /// comfortably inside the bar instead of crowding the label.
 const double _kTabBarIconSize = 25;
 
+/// Cap height as a fraction of the font size. SF Pro, Roboto and Segoe UI all
+/// sit within a few thousandths of 0.70, and Flutter does not expose the value.
+const double _kCapHeightRatio = .70;
+
+/// The style a label actually paints with: the app's style over whatever the
+/// frame inherits, so the probe in [_labelLift] measures the same face. An app
+/// that leaves `fontFamily` unset still gets the host's, not the bare default.
+TextStyle _inheritTextStyle(BuildContext context, TextStyle style) =>
+    DefaultTextStyle.of(context).style.merge(style);
+
+/// How far to lift a label so its glyphs, not its line box, sit in the middle
+/// of the space the padding centres.
+///
+/// A `height` multiplier does not centre the glyphs in the line box it creates:
+/// Flutter scales the font's ascent and descent to fill it in proportion, and a
+/// Latin face leans on its ascent, so most of the leading the multiplier adds
+/// lands above the text. A label centred by its line box (as TDesign's padding
+/// does) therefore hangs below the middle of the control — the "text is too low
+/// in the button" look, four points at TDesign's 22/14 token.
+///
+/// So place the baseline where the cap band is centred instead: the font's own
+/// ascent fraction says where the baseline falls in the scaled line box, and a
+/// cap is half a cap height above it. That is one number for every face, rather
+/// than a hand-tuned offset per platform.
+double _labelLift(TextStyle style, double height) {
+  final fontSize = style.fontSize ?? 14;
+  final probe = TextPainter(
+    // Keep the face and the weight, drop the multiplier: the probe reports the
+    // font's own line box and baseline.
+    text: TextSpan(
+      text: 'Ag',
+      style: TextStyle(
+        fontFamily: style.fontFamily,
+        fontFamilyFallback: style.fontFamilyFallback,
+        fontSize: fontSize,
+        fontWeight: style.fontWeight,
+        letterSpacing: style.letterSpacing,
+        wordSpacing: style.wordSpacing,
+        locale: style.locale,
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    maxLines: 1,
+  )..layout();
+  final natural = probe.height;
+  final ascent = probe.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  probe.dispose();
+  if (natural <= 0) return 0;
+  final line = fontSize * height;
+  final baseline = ascent / natural * line;
+  final centred = line / 2 + _kCapHeightRatio * fontSize / 2;
+  return (baseline - centred).clamp(0.0, fontSize * .35);
+}
+
 /// Turns a validated virtual tree produced by the TSX runtime into real
 /// Flutter widgets. Every node type is mapped to a widget the app already
 /// trusts; nothing in the package can instantiate arbitrary Dart code.
@@ -1331,9 +1385,8 @@ class _QappNodeView extends StatelessWidget {
     // without an app style it reproduces TDesign's own numbers exactly.
     final compact = node.props['size'] == 'sm';
     final labelSize = buttonStyle.fontSize ?? (compact ? 14.0 : 16.0);
-    final lineBox = buttonStyle.height != null
-        ? labelSize * buttonStyle.height!
-        : labelSize * (compact ? 22 / 14 : 1.5);
+    final lineRatio = buttonStyle.height ?? (compact ? 22 / 14 : 1.5);
+    final lineBox = labelSize * lineRatio;
     final boxHeight = node.style.height ?? minHeight;
     final verticalInset = ((boxHeight - lineBox) / 2).clamp(0.0, boxHeight);
     final padding = node.style.padding == EdgeInsets.zero
@@ -1350,6 +1403,12 @@ class _QappNodeView extends StatelessWidget {
       label: label,
       variant: variant,
       size: node.props['size'],
+      // The line box above is centred in the pill; the glyphs are not centred
+      // in their line box — see `_labelLift`.
+      labelLift: _labelLift(
+        _inheritTextStyle(context, buttonStyle).copyWith(fontSize: labelSize),
+        lineRatio,
+      ),
       icon: node.props['icon'] is String
           ? node.props['icon'] as String
           : null,
@@ -1683,20 +1742,38 @@ class _QappNodeView extends StatelessWidget {
         node.type == 'ScrollView' ||
         node.type == 'ListView' ||
         node.type == 'GridView';
+    // A `Button` paints its own surface: `_button` hands the app's fill, border
+    // and radius to TDesign, which draws them inside the rounded shape. Painting
+    // them here as well put a hard-edged `Container` behind a rounded control —
+    // an app-coloured button showed square corners — and spent `style.padding`
+    // twice, since the control receives that padding too.
+    final ownsSurface = node.type == 'Button';
     final hasDecoration =
         !isTabBar &&
-        (style.backgroundColor != null ||
-            style.gradient != null ||
-            border != null ||
-            shadows.isNotEmpty);
+        (shadows.isNotEmpty ||
+            (!ownsSurface &&
+                (style.backgroundColor != null ||
+                    style.gradient != null ||
+                    border != null)));
     var content = child;
     if (hasDecoration) {
-      final padding = ownsPadding || style.padding == EdgeInsets.zero
+      final padding = ownsSurface || ownsPadding || style.padding == EdgeInsets.zero
           ? null
           : style.padding;
-      final color = style.gradient == null ? style.backgroundColor : null;
+      // The shadow of a self-painted control still has to follow its shape.
+      final shapeRadius = hasRadius
+          ? style.borderRadius
+          : ownsSurface
+          ? kQappTButtonRadius
+          : null;
+      final color = ownsSurface || style.gradient != null
+          ? null
+          : style.backgroundColor;
+      final paintedBorder = ownsSurface ? null : border;
       final shadow = shadows.isEmpty ? null : shadows;
-      if (hasRadius && border != null && !_borderFitsRadius(border)) {
+      if (hasRadius &&
+          paintedBorder != null &&
+          !_borderFitsRadius(paintedBorder)) {
         // Flutter can only paint a per-edge border together with a corner
         // radius while every visible edge shares one colour, and it refuses to
         // paint a zero-width edge as soon as a radius is present. Keep the
@@ -1714,7 +1791,7 @@ class _QappNodeView extends StatelessWidget {
             borderRadius: style.borderRadius,
             child: Container(
               padding: padding,
-              decoration: BoxDecoration(border: border),
+              decoration: BoxDecoration(border: paintedBorder),
               child: content,
             ),
           ),
@@ -1724,15 +1801,17 @@ class _QappNodeView extends StatelessWidget {
           padding: padding,
           decoration: BoxDecoration(
             color: color,
-            gradient: style.gradient,
-            borderRadius: hasRadius ? style.borderRadius : null,
-            border: border,
+            gradient: ownsSurface ? null : style.gradient,
+            borderRadius: shapeRadius,
+            border: paintedBorder,
             boxShadow: shadow,
           ),
           child: content,
         );
       }
-    } else if (style.padding != EdgeInsets.zero && !ownsPadding) {
+    } else if (style.padding != EdgeInsets.zero &&
+        !ownsPadding &&
+        !ownsSurface) {
       content = Padding(padding: style.padding, child: content);
     }
     if (style.clipsContent) {
@@ -2414,7 +2493,9 @@ class _QappTextFieldState extends State<_QappTextField> {
     final radius = style.borderRadius == BorderRadius.zero
         ? BorderRadius.circular(8)
         : style.borderRadius;
-    // One line box, used for both the editor's style and its height.
+    // One line box, used for both the editor's style and its height. An app
+    // `lineHeight` already becomes the editor's own line box; otherwise the
+    // field inherits TDesign's body token, and the label lift below assumes it.
     final textStyle = style.toTextStyle(
       fallbackColor: ink(context),
       fallbackSize: 15,
@@ -2463,15 +2544,45 @@ class _QappTextFieldState extends State<_QappTextField> {
         style.gradient != null ||
         style.boxShadows.isNotEmpty ||
         style.boxBorder() != null;
-    // A single-line `TInput` reports 4 points more than its editor (its shell
-    // keeps a hair of slack around the row), so centring the *input* would
-    // still leave the text 2 points low. Pin it to the text's own line box and
-    // centre that instead.
-    final lineBox = (textStyle.fontSize ?? 15) * (textStyle.height ?? 1.2);
-    final editor = multiline ? input : SizedBox(height: lineBox, child: input);
+    // A borderless `TInput` is exactly its editor — one line box, no slack — so
+    // centring it centres the text. Pinning the editor to a smaller box than the
+    // one it reports (the old `SizedBox(height: lineBox)`) cut the marks that
+    // hang under the baseline in half: "truyện" and "hoặc" lost their dots.
+    //
+    // Its glyphs still sit low in that line box for the reason `_labelLift`
+    // describes, so lift them the same way a button label is lifted.
+    final lift = _labelLift(
+      _inheritTextStyle(context, textStyle).copyWith(
+        fontSize: textStyle.fontSize ?? 15,
+      ),
+      textStyle.height ?? 1.5,
+    );
+    final editor = lift > 0 && !multiline
+        ? Transform.translate(offset: Offset(0, -lift), child: input)
+        : input;
     if (appChrome) {
       if (multiline) return editor;
-      final centred = Align(alignment: Alignment.centerLeft, child: editor);
+      final centred = Align(
+        alignment: Alignment.centerLeft,
+        // The app tinted the field but left the inset to the host: a placeholder
+        // flush against a rounded edge reads as a clipped control.
+        //
+        // The shell is asked for its natural height first: when the app sets
+        // both a `height` and a `padding`, the room left for the editor is
+        // smaller than TDesign's shell, and a squeezed shell puts its editor at
+        // the top of the room it has instead of centring it — the field then
+        // reads as two points high.
+        child: UnconstrainedBox(
+          alignment: Alignment.centerLeft,
+          constrainedAxis: Axis.horizontal,
+          child: style.padding == EdgeInsets.zero
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: editor,
+                )
+              : editor,
+        ),
+      );
       if (style.height != null) return centred;
       // The app tinted or outlined the field but left its height to the host;
       // a one-line editor on its own would be a bare 22-point strip, so keep
