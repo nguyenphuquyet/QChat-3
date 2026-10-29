@@ -5,7 +5,7 @@ QChat: kiến trúc, CLI, manifest, vòng đời, hooks, toàn bộ component, h
 API host, giới hạn đóng gói, kiểm thử và các lỗi thường gặp.
 
 - Đối tượng: lập trình viên viết Mini App bằng TypeScript/TSX.
-- SDK: `@mna/qchat` 1.0.0 — protocol `1`, runtime `1.0.0`.
+- SDK: `@mna/qchat` 1.0.0 — protocol `1`, runtime `1.1.0`.
 - Tên API, tên prop, tên style giữ nguyên tiếng Anh; phần giải thích là tiếng Việt.
 - Nguồn sự thật của component/event/style/permission là
   `packages/contracts/miniapp-ui.contract.json`; bảng sinh tự động nằm ở
@@ -729,12 +729,12 @@ phủ luôn header/TabBar.
 
 ```tsx
 <ScrollView
-  style={{ flex: 1 }}
+  style={{ flex: 1, padding: 16, gap: 12 }}
   onScroll={(event) => setY(event.y)}
   showsScrollIndicator
 >
   {items.map((item) => (
-    <Row key={item.id} style={{ padding: 16 }}>{item.title}</Row>
+    <Row key={item.id}>{item.title}</Row>
   ))}
 </ScrollView>
 ```
@@ -749,14 +749,27 @@ phủ luôn header/TabBar.
 | `numColumns` | `number` | `2`, clamp `1…12` |
 | `style` | `Style` | `gap`, `padding`, `aspectRatio` được dùng |
 
+- **`padding` trên scroller là khoảng đệm bên trong vùng cuộn**, đúng như
+  `ListView(padding: …)` của Flutter: viewport vẫn phủ kín vùng được cấp (từ mép
+  header tới mép `TabBar`, hết chiều ngang), padding chỉ đẩy nội dung vào trong
+  và đi theo nội dung khi cuộn. `paddingHorizontal` / `paddingVertical` /
+  `paddingTop`… hoạt động như §11.1, và **không** cần bọc thêm `View` để lấy lề.
+  `margin`, `backgroundColor`, border và radius vẫn ở lớp ngoài, nên nền phủ kín
+  viewport chứ không co theo padding.
 - `grid: true` biến nội dung thành lưới **không cuộn riêng** bên trong scroller
   (grid dùng `shrinkWrap`, `NeverScrollableScrollPhysics`), `gap` làm cả hai
-  khoảng cách, `style.aspectRatio` làm tỉ lệ ô (mặc định 1).
+  khoảng cách, `style.aspectRatio` làm tỉ lệ ô (mặc định 1). Padding của
+  `ScrollView` được tính **một lần**; lưới bên trong không cộng thêm lề.
 - `scroll` chỉ phát khi có `onScroll`; tần suất được throttle theo thời gian và
   khoảng cách; `x` chỉ có nghĩa khi `horizontal`.
 - Offset được nhớ theo **screen** (xem §2): rời tab rồi quay lại vẫn giữ chỗ.
 - Scroller lồng trong scroller cùng hướng sẽ tự nhường việc cuộn cho scroller
   ngoài thay vì crash.
+
+> Hành vi này là của runtime `1.1.0`. Trước đó `padding` bị áp cả ngoài lẫn
+> trong nên viewport bị thu nhỏ và nội dung bị cắt đúng một padding ở sát header,
+> `TabBar` và mép phải. App cần chắc chắn chạy trên host đã sửa hãy khai
+> `"minRuntimeVersion": "1.1.0"` trong manifest.
 
 ---
 
@@ -766,9 +779,10 @@ phủ luôn header/TabBar.
 <ListView
   data={transactions}
   initialCount={30}
+  style={{ flex: 1, paddingHorizontal: 16 }}
   empty={<Text style={{ color: "#8a8a8a" }}>Chưa có giao dịch</Text>}
   renderItem={(item) => (
-    <Row key={item.id} style={{ padding: 16, gap: 12 }}>
+    <Row key={item.id} style={{ paddingVertical: 16, gap: 12 }}>
       <Text style={{ flex: 1 }}>{item.title}</Text>
       <Text>{formatVnd(item.amount)}</Text>
     </Row>
@@ -786,6 +800,11 @@ phủ luôn header/TabBar.
 | `horizontal` | `boolean` | `false` |
 | `onEndReached` | `() => void` | — |
 | `keyExtractor` | `(item, index) => string` | Nhận nhưng host chưa dùng |
+
+`style.padding` trên `ListView` cũng là khoảng đệm **bên trong** vùng cuộn: danh
+sách vẫn chiếm trọn ô flex được cấp, item đầu cách mép trên đúng bằng padding, và
+cuộn hết danh sách thì item cuối dừng cách mép dưới đúng bằng padding. Dùng
+`paddingHorizontal` để lề hai bên mà item vẫn chạm sát mép trên/dưới khi cuộn.
 
 Cách hoạt động:
 
@@ -814,6 +833,17 @@ phân trang: cửa sổ giúp giảm số node, nhưng mảng vẫn nằm trong 
 
 Cơ chế cửa sổ và `endReached` giống `ListView`. Grid cuộn dọc, mỗi item do
 `renderItem` quyết định kích thước; dùng `style.aspectRatio` nếu cần ô vuông.
+`style.padding` (và `gap`) áp bên trong vùng cuộn: `aspectRatio` được tính trên
+bề rộng ô còn lại **sau** padding và `gap`, nên ô không bị tràn ngang khi có lề.
+
+```tsx
+<GridView
+  data={stories}
+  numColumns={2}
+  style={{ flex: 1, padding: 16, gap: 12, aspectRatio: 0.8 }}
+  renderItem={(item) => <StoryCard item={item} />}
+/>
+```
 
 ---
 
@@ -1323,7 +1353,7 @@ không có `px`, `rem`, `vw`, `calc`, `%` (trừ `width`/`height`).
 | --- | --- | --- |
 | `width`, `height` | `number \| "50%"` | Chuỗi `%` tính theo cha. |
 | `minWidth`, `minHeight`, `maxWidth`, `maxHeight` | `number` | — |
-| `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop/Right/Bottom/Left` | `number` | Khoá cụ thể thắng: `paddingTop` → `paddingVertical` → `padding`. |
+| `padding`, `paddingHorizontal`, `paddingVertical`, `paddingTop/Right/Bottom/Left` | `number` | Khoá cụ thể thắng: `paddingTop` → `paddingVertical` → `padding`. Trên `ScrollView`/`ListView`/`GridView` đây là khoảng đệm **bên trong** vùng cuộn (§10.7). |
 | `margin`, `marginHorizontal`, `marginVertical`, `marginTop/Right/Bottom/Left` | `number` | Cùng quy tắc thắng/thua như `padding`. |
 | `gap`, `rowGap`, `columnGap` | `number` | Khoảng cách giữa con trong flex. |
 | `aspectRatio` | `number` | Rộng/cao; `ScrollView grid` dùng làm tỉ lệ ô. |
@@ -1502,6 +1532,28 @@ hoặc `width`/`height` cụ thể.
 `zIndex` chỉ sắp xếp trong một `Stack`. Overlay (`Modal`, `Dialog`,
 `BottomSheet`) nên nằm ở `Page.overlays`; nếu đặt trong một `Stack` con, barrier
 chỉ phủ `Stack` đó.
+
+### 12.11 `padding` trên scroller
+
+Đặt `padding` lên chính `ScrollView`/`ListView`/`GridView` thay vì bọc một `View`
+bên trong: padding của scroller là khoảng đệm **bên trong** vùng cuộn, nên
+viewport vẫn phủ kín vùng được cấp và nội dung trượt sát mép.
+
+```tsx
+// Đúng: một lớp padding, viewport kín vùng giữa header và TabBar.
+<ScrollView style={{ flex: 1, padding: 16, gap: 14 }}>{cards}</ScrollView>
+
+// Thừa: cùng kết quả, nhưng phải giữ lề ở hai nơi và dễ cộng nhầm khi lồng
+// scroller — dùng padding của chính scroller cho gọn.
+<ScrollView style={{ flex: 1 }}>
+  <View style={{ padding: 16, gap: 14 }}>{cards}</View>
+</ScrollView>
+```
+
+Triệu chứng của runtime cũ (1.0.0): nội dung bị cắt đúng một padding ở sát
+header, `TabBar` và mép phải, như có một lớp che. Từ runtime `1.1.0` padding chỉ
+được áp một lần, bên trong; app cần chắc chắn khai `"minRuntimeVersion": "1.1.0"`
+trong manifest.
 
 ---
 
@@ -1859,6 +1911,9 @@ và `manifest.appSha256`; `version` trong metadata khớp manifest;
 - Upload `.japp` lên Developer Center; server cấp `appId` và phát hành.
 - `minRuntimeVersion` cao hơn runtime của máy → app không chạy
   (`RUNTIME_TOO_OLD`).
+- Runtime `1.1.0`: `padding` trên `ScrollView`/`ListView`/`GridView` là khoảng đệm
+  bên trong vùng cuộn (§10.7, §12.11). App dựa vào bố cục đã sửa nên khai
+  `"minRuntimeVersion": "1.1.0"`; app cũ để `1.0.0` vẫn chạy trên host cũ.
 
 ---
 

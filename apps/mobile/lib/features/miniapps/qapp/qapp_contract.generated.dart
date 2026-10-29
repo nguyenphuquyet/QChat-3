@@ -5,7 +5,7 @@
 const int qappContractVersion = 1;
 const int qappProtocolVersion = 1;
 const String qappTextNodeType = '#text';
-const String qappRuntimeVersion = '1.0.0';
+const String qappRuntimeVersion = '1.1.0';
 
 /// Component (and text) node types the host accepts.
 const Set<String> qappNodeTypes = <String>{

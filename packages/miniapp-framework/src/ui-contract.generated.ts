@@ -8,7 +8,7 @@ export const PROTOCOL_VERSION = 1 as const;
 export const TEXT_NODE_TYPE = "#text";
 export const FRAGMENT_TYPE = "#fragment";
 export const SDK_VERSION = "1.0.0" as const;
-export const RUNTIME_VERSION = "1.0.0" as const;
+export const RUNTIME_VERSION = "1.1.0" as const;
 
 export const HOST_NODE_TYPES: ReadonlySet<string> = new Set<string>(["View", "Row", "Column", "Text", "RichText", "Link", "Badge", "Tag", "Avatar", "Button", "Pressable", "Image", "Icon", "TextField", "Checkbox", "Switch", "Slider", "ScrollView", "ListView", "GridView", "Stack", "Positioned", "Spacer", "Divider", "ActivityIndicator", "SafeArea", "AnimatedView", "CustomPaint", "Modal", "BottomSheet", "Dialog", "NavBar", "TabBar", "#text"]);
 

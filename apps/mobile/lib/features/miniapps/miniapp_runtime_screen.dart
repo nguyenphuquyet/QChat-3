@@ -25,7 +25,15 @@ import 'models.dart';
 import 'qapp/qapp_js_types.dart';
 import 'qapp/qapp_view.dart';
 
-const miniAppRuntimeVersion = '1.0.0';
+/// The host runtime the app is checked against, and the version reported to the
+/// mini program bridge.
+///
+/// 1.1.0 changed how a scroller's `padding` is drawn: it now insets the content
+/// inside the viewport instead of wrapping (and shrinking) the viewport itself.
+/// An app that depends on the corrected layout declares `minRuntimeVersion`
+/// 1.1.0 so it is never served by a 1.0.0 host, which clips the content one
+/// padding short of the header, the footer and the right edge.
+const miniAppRuntimeVersion = '1.1.0';
 
 /// Failures the launch error view can explain in words. Anything else is a
 /// package, download or platform problem, so the view shows the raw code

@@ -1635,6 +1635,15 @@ class _QappNodeView extends StatelessWidget {
     // here would sit outside the pinned bar and a fixed height would fight the
     // height the bar reserves for the keyboard.
     final isTabBar = node.type == 'TabBar';
+    // A scroller owns its own `padding`: `_scroll`/`_lazyList` hand it to
+    // `SingleChildScrollView`/`ListView`/`GridView`, which pads the content
+    // *inside* the viewport. Padding here as well would be applied twice and,
+    // worse, wrap the viewport itself, so the content would be clipped one
+    // padding short of the header, the TabBar and the right edge.
+    final ownsPadding =
+        node.type == 'ScrollView' ||
+        node.type == 'ListView' ||
+        node.type == 'GridView';
     final hasDecoration =
         !isTabBar &&
         (style.backgroundColor != null ||
@@ -1643,7 +1652,9 @@ class _QappNodeView extends StatelessWidget {
             shadows.isNotEmpty);
     var content = child;
     if (hasDecoration) {
-      final padding = style.padding == EdgeInsets.zero ? null : style.padding;
+      final padding = ownsPadding || style.padding == EdgeInsets.zero
+          ? null
+          : style.padding;
       final color = style.gradient == null ? style.backgroundColor : null;
       final shadow = shadows.isEmpty ? null : shadows;
       if (hasRadius && border != null && !_borderFitsRadius(border)) {
@@ -1682,7 +1693,7 @@ class _QappNodeView extends StatelessWidget {
           child: content,
         );
       }
-    } else if (style.padding != EdgeInsets.zero) {
+    } else if (style.padding != EdgeInsets.zero && !ownsPadding) {
       content = Padding(padding: style.padding, child: content);
     }
     if (style.clipsContent) {
