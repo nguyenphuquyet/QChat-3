@@ -64,7 +64,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   int wallpaperRequest = 0;
   bool wallpaperLoaded = false;
   final inputFocus = FocusNode();
-  final recorder = AudioRecorder();
+  /// The microphone plugin is only built on first use, so simply opening a
+  /// chat never reaches the platform channel (and widget tests stay quiet).
+  AudioRecorder? _recorder;
+  AudioRecorder get recorder => _recorder ??= AudioRecorder();
   bool recordingVoice = false;
   DateTime? voiceStartedAt;
   Timer? voiceHoldTimer;
@@ -121,8 +124,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     voiceLimitTimer?.cancel();
     ++voiceHoldToken;
     highlightTimer?.cancel();
-    if (recordingVoice) unawaited(recorder.stop());
-    recorder.dispose();
+    final recorder = _recorder;
+    if (recorder != null) {
+      if (recordingVoice) unawaited(recorder.stop());
+      recorder.dispose().ignore();
+    }
     inputFocus.dispose();
     input.dispose();
     scroll.dispose();
