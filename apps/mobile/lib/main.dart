@@ -263,6 +263,9 @@ class _QChatAppState extends ConsumerState<QChatApp> {
       localizationsDelegates: const [
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
+        // The photo picker is drawn by wechat_assets_picker, whose Material
+        // widgets look their labels up through MaterialLocalizations.
+        GlobalMaterialLocalizations.delegate,
       ],
       routerConfig: router,
     );

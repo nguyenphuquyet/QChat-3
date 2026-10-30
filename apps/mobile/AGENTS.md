@@ -1,35 +1,39 @@
 # QChat mobile — agent rules
 
 > **Tuyệt đối không dùng ngôn ngữ thiết kế Google Material trong app này.**
-> Never use Google's Material design language in this app. The one scoped
-> exception is a Mini App frame, which draws its own controls with TDesign — see
-> [§7](#7-mini-app-frames-tdesign-exception). Nothing else may use Material, not
-> even temporarily, behind a flag, or only in tests.
+> Never use Google's Material design language in this app. There are exactly two
+> scoped exceptions: a Mini App frame, which draws its own controls with TDesign
+> ([§7](#7-mini-app-frames-tdesign-exception)), and the photo picker page, which
+> is `wechat_assets_picker` ([§8](#8-the-photo-picker-is-the-material-island)).
+> Nothing else may use Material, not even temporarily, behind a flag, or only in
+> tests.
 
 This file applies to everything under `apps/mobile/`. Read it before adding or
 changing any UI code. If you are about to import `package:flutter/material.dart`,
-stop and use the QChat design system instead.
+stop and use the QChat design system instead — unless you are in the picker file
+named in §8.
 
 ## 1. Hard rules
 
-1. `apps/mobile/lib` must never import `package:flutter/material.dart`.
+1. `apps/mobile/lib` must never import `package:flutter/material.dart`, except
+   `lib/core/media/media_picker_native.dart` (§8).
 2. The app entry point is `WidgetsApp.router` in `lib/main.dart`. Never reintroduce
    `MaterialApp` (or `MaterialApp.router`).
-3. `uses-material-design: false` must stay in `pubspec.yaml`. Never enable it and
-   never bundle the Material icon font, Roboto, Google Fonts, or a Material widget
-   package.
+3. `uses-material-design: true` ships only for the picker's icon font (§8). Never
+   bundle Roboto, Google Fonts, or a Material widget package beyond
+   `wechat_assets_picker`.
 4. Do not use Material widgets, tokens, icons, ripples, elevations or interaction
-   patterns anywhere in `lib` or `test` (see the list below).
+   patterns anywhere in `lib` or `test` (see the list below), outside §7 and §8.
 5. Do not add a dependency that brings Material UI, for example `tdesign_flutter`,
-   `wechat_assets_picker`, `google_fonts`, `material_design_icons_flutter`,
-   `flex_color_scheme`, or any package whose widgets are Material-based.
-   `tdesign_flutter` is the only exception, and only for Mini App frames: it is
-   imported by exactly one file, `lib/features/miniapps/qapp/qapp_tdesign.dart`
-   (see §7).
+   `google_fonts`, `material_design_icons_flutter`, `flex_color_scheme`, or any
+   package whose widgets are Material-based. `tdesign_flutter` is allowed only
+   for Mini App frames: it is imported by exactly one file,
+   `lib/features/miniapps/qapp/qapp_tdesign.dart` (see §7). `wechat_assets_picker`
+   is allowed only for the photo picker: it is imported by exactly one file,
+   `lib/core/media/media_picker_native.dart` (see §8).
    A plugin that only talks to the platform is fine: `photo_manager` lists the
-   photo library and decodes thumbnails for `lib/core/media/`, and the picker
-   page itself is drawn with the QChat design system. A *picker package* with
-   its own widgets (`wechat_assets_picker`) is not, because its UI is Material.
+   photo library, and the desktop fallback picker is drawn with the QChat design
+   system.
 6. If a control you need does not exist, **add a `QChat*` widget to
    `lib/core/design_system/`** and draw it with primitives
    (`Container`, `DecoratedBox`, `CustomPaint`, `GestureDetector`,
@@ -39,8 +43,8 @@ stop and use the QChat design system instead.
 
 ## 2. Forbidden APIs (non-exhaustive)
 
-Any symbol exported by `package:flutter/material.dart` is forbidden. The most
-common traps:
+Any symbol exported by `package:flutter/material.dart` is forbidden, except in
+the picker file named in §8. The most common traps:
 
 | Area | Forbidden | Use instead |
 | --- | --- | --- |
@@ -55,7 +59,7 @@ common traps:
 | Icons | `Icons.*`, `AnimatedIcon` | `QChatIcon('name')` |
 | Ink / ripple | `InkWell`, `InkResponse`, `Ink`, `Material` (as ink surface) | `GestureDetector(behavior: HitTestBehavior.opaque)` |
 | Colors | `Colors.*`, Material palette literals (`#6200EE`, `#3700B3`, `#03DAC6`, `#BB86FC`, `#018786`, …) | `QChatColors.*`, `qchatInk/Surface/Fill/Muted/Line/Background` |
-| Localization | `GlobalMaterialLocalizations`, `MaterialLocalizations` | `GlobalWidgetsLocalizations`, `GlobalCupertinoLocalizations` |
+| Localization | `GlobalMaterialLocalizations`, `MaterialLocalizations` | `GlobalWidgetsLocalizations`, `GlobalCupertinoLocalizations` (the picker's `GlobalMaterialLocalizations.delegate` in `main.dart` is part of §8) |
 
 `Hero`, `Navigator`, `PageRouteBuilder`, `CupertinoPageRoute`, `SafeArea`,
 `MediaQuery`, `LayoutBuilder`, `ListView`, `GridView`, `PageView`, `AnimatedOpacity`,
@@ -69,6 +73,10 @@ Cupertino is allowed: `CupertinoTextField` for inputs, `CupertinoPageRoute` /
 `lib/core/design_system/qchat_icons.dart`, plus the Mini App control file
 `lib/features/miniapps/qapp/qapp_tdesign.dart` (§7). Do not import it anywhere
 else, and do not use TDesign widgets outside a Mini App frame.
+
+`wechat_assets_picker` is tolerated **only** inside
+`lib/core/media/media_picker_native.dart` (§8). Do not import it anywhere else,
+and do not copy its Material widgets into the rest of the app.
 
 ## 3. Design system reference
 
@@ -158,7 +166,9 @@ If the name is missing, add a case in `qchat_icons.dart` (Lucide/TIcons glyph or
 - Never use `MaterialApp`, `Scaffold`, `Material`, `Colors.*` or `Icons.*` in tests
   either. The test tree must match the shipped tree. The only tests that may
   name TDesign types are `qapp_tdesign_smoke_test.dart` and the Mini App
-  renderer tests, and only to prove the scoped exception of §7.
+  renderer tests, and only to prove the scoped exception of §7. No test opens
+  the photo picker: `wechat_assets_picker` needs a real photo library and
+  platform channels, so §8 is exercised on a device.
 - Prefer finders by `QChat*`/`QappT*` type, visible text, or `Key`.
 - If a golden image changes because the UI changed, regenerate it and commit the
   new PNG:
@@ -181,8 +191,9 @@ Get-ChildItem apps\mobile\lib -Recurse -Filter *.dart |
   Select-String -Pattern 'package:flutter/material\.dart|MaterialApp|\bScaffold\(|\bColors\.|\bIcons\.|CircularProgressIndicator|InkWell|ThemeData|ColorScheme'
 ```
 
-The only acceptable matches are comments, documentation, and
-`lib/features/miniapps/qapp/qapp_tdesign.dart` (§7). If you find a real match
+The only acceptable matches are comments, documentation,
+`lib/features/miniapps/qapp/qapp_tdesign.dart` (§7) and
+`lib/core/media/media_picker_native.dart` (§8). If you find a real match
 anywhere else, fix it before committing.
 
 ## 7. Mini App frames: TDesign exception
@@ -211,15 +222,44 @@ The exception is deliberately one file wide:
   ships no fonts and TDesign's stock `PingFang SC` → `Microsoft YaHei` chain
   detaches Vietnamese marks from their letters (`Đặt lại` renders as `Đaṭ lại`).
   Never bundle a font, and never restore TDesign's stock family.
-- `uses-material-design: false` stays. `flutter test` prints a pub warning that
-  `tdesign_flutter` asks for `true`; it is a warning, and the app still ships no
-  Material icon font or Roboto.
+- `uses-material-design: true` ships the Material icon font for the photo
+  picker (§8) as well as for TDesign. `flutter test` no longer prints the pub
+  warning. Roboto and Google Fonts are still never bundled: the typeface stays
+  the host's.
 - To add a control, add a `QappT*` wrapper in `qapp_tdesign.dart`. Never import
   `tdesign_flutter` in another file, and never fall back to a `QChat*` widget
   inside a Mini App frame.
 - Pin the exception with `test/qapp_tdesign_smoke_test.dart` (controls build in
   the Material-free `WidgetsApp` host) and the renderer tests (the contract
   components map to the wrappers).
+
+## 8. The photo picker is the Material island
+
+The photo picker is the one full page in the app whose widgets are not QChat's.
+It is `wechat_assets_picker` 10.1.3, kept because it is the WeChat-style picker
+the app has always shown: a four-column grid, the album switcher in the header,
+numbered selection badges and a viewer. Re-drawing it with the QChat design
+system lost that behaviour, so the package stays — behind one file.
+
+- `lib/core/media/media_picker_native.dart` is the **only** file allowed to
+  import `wechat_assets_picker` (which pulls in Material). It asks for the photo
+  permission, opens `AssetPicker`, maps the album names through `tr`, and
+  converts the picked assets to `XFile`s.
+- The page is wrapped in a `Theme` built from `QChatColors` (dark background,
+  green seed, no splash) and the host's font family, so it follows QChat's
+  palette and light/dark switch instead of Material's defaults.
+- `pubspec.yaml` keeps `uses-material-design: true` for the package's icon font.
+  Roboto and Google Fonts are still never bundled, and the rest of the app still
+  draws itself with the QChat design system.
+- `main.dart` registers `GlobalMaterialLocalizations.delegate` next to the
+  widgets and Cupertino delegates, because the picker's Material widgets look
+  their labels up through `MaterialLocalizations`.
+- Desktop keeps the file chooser (`media_picker_fallback.dart`), which is drawn
+  with the QChat design system: a phone's photo library has no desktop
+  equivalent.
+- Nothing else may import the package or copy its widgets. A new picker
+  behaviour means a `QChat*` widget or a config flag on `AssetPicker`, never a
+  Material widget in the chat, the shell or another screen.
 
 > Note for this machine: the repository owner may ask you not to run the full test
 > suite locally. Ask before running long builds or tests; `flutter analyze` is cheap.
