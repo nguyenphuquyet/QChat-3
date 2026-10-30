@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
@@ -18,10 +19,9 @@ const double _kBottomBarHeight = 60;
 const double _kGridGap = 2;
 const double _kBadgeSize = 24;
 
-/// The preview page keeps its chrome on a dark grey, with the picture itself on
-/// pure black, so the bars read as furniture rather than as part of the photo.
+/// The preview page lets the picture own the whole screen: the chrome floats on
+/// top of it as frosted glass, never as a bar that shortens the photo.
 const double _kPreviewBarHeight = 52;
-const Color _kPreviewBar = Color(0xff1c1c1c);
 const int _kPageSize = 100;
 
 /// The page the app shows every time the user sends a photo or a video.
@@ -40,14 +40,31 @@ Future<List<XFile>> showMediaPicker(
 }) async {
   if (maxAssets < 1) return const [];
   final files = await Navigator.of(context).push<List<XFile>>(
-    CupertinoPageRoute(
-      fullscreenDialog: true,
-      builder: (_) => MediaPickerSheet(
+    // The picker rises from the bottom edge like a tray, and drops back down
+    // when it closes, instead of falling in from the top.
+    PageRouteBuilder<List<XFile>>(
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 260),
+      pageBuilder: (_, _, _) => MediaPickerSheet(
         library: library,
         imagesOnly: imagesOnly,
         maxAssets: maxAssets,
         confirmLabel: confirmLabel,
       ),
+      transitionsBuilder: (_, animation, _, child) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return SlideTransition(
+          position: Tween(
+            begin: const Offset(0, 1),
+            end: Offset.zero,
+          ).animate(curve),
+          child: child,
+        );
+      },
     ),
   );
   return files ?? const [];
@@ -345,13 +362,9 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
             color: qchatBackground(c),
             child: Stack(
               children: [
-                Column(
-                  children: [
-                    _bar(c),
-                    Expanded(child: _body(c)),
-                    _bottomBar(c),
-                  ],
-                ),
+                Positioned.fill(child: _body(c)),
+                Positioned(left: 0, right: 0, top: 0, child: _bar(c)),
+                Positioned(left: 0, right: 0, bottom: 0, child: _bottomBar(c)),
                 if (_albumsOpen) _albumPanel(c),
               ],
             ),
@@ -361,10 +374,10 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
     );
   }
 
-  Widget _bar(BuildContext c) => ColoredBox(
-    color: qchatBackground(c),
-    child: SafeArea(
-      bottom: false,
+  Widget _bar(BuildContext c) => _Glass(
+    fromTop: true,
+    child: Padding(
+      padding: EdgeInsets.only(top: MediaQuery.paddingOf(c).top),
       child: SizedBox(
         height: _kBarHeight,
         child: Stack(
@@ -390,7 +403,10 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
   );
 
   Widget _albumPill(BuildContext c) {
-    final name = _album?.name ?? tr(c, 'recentMedia');
+    final album = _album;
+    final name = album == null
+        ? tr(c, 'recentMedia')
+        : _albumName(c, album);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _toggleAlbums,
@@ -462,7 +478,15 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
     }
     return GridView.builder(
       controller: _scroll,
-      padding: EdgeInsets.zero,
+      // The bars float over the grid, so the tiles scroll under them and the
+      // first row starts below the top bar.
+      padding: EdgeInsets.only(
+        top: MediaQuery.paddingOf(c).top + _kBarHeight,
+        bottom:
+            MediaQuery.paddingOf(c).bottom +
+            _kBottomBarHeight +
+            (_access == MediaAccess.limited ? 44 : 0),
+      ),
       itemCount: _assets.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 4,
@@ -476,7 +500,6 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
           asset: asset,
           thumb: _thumb(asset),
           order: _selected.indexOf(asset),
-          count: _selected.length,
           onToggle: () => _toggle(asset),
           onPreview: () => _preview(_assets, index),
         );
@@ -538,22 +561,24 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {},
-                  child: Container(
-                    width: double.infinity,
-                    constraints: BoxConstraints(
-                      maxHeight: MediaQuery.sizeOf(c).height * .62,
-                    ),
-                    color: qchatBackground(c),
-                    child: ListView.separated(
-                      shrinkWrap: true,
-                      padding: EdgeInsets.zero,
-                      itemCount: _albums.length,
-                      separatorBuilder: (_, _) => Container(
-                        height: 0.5,
-                        color: qchatLine(c),
+                  child: _Glass(
+                    fromTop: true,
+                    colors: const [Color(0xf20d0d0d), Color(0xf20d0d0d)],
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(c).height * .62,
                       ),
-                      itemBuilder: (_, index) =>
-                          _albumRow(c, _albums[index]),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        itemCount: _albums.length,
+                        separatorBuilder: (_, _) => Container(
+                          height: 0.5,
+                          color: qchatLine(c),
+                        ),
+                        itemBuilder: (_, index) =>
+                            _albumRow(c, _albums[index]),
+                      ),
                     ),
                   ),
                 ),
@@ -564,6 +589,11 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
       ),
     );
   }
+
+  /// The device names its synthetic "everything" album in English, so the
+  /// picker speaks for it instead.
+  String _albumName(BuildContext c, MediaAlbum album) =>
+      album.isRecent ? tr(c, 'recentMedia') : album.name;
 
   Widget _albumRow(BuildContext c, MediaAlbum album) {
     final current = album.id == _album?.id;
@@ -596,7 +626,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                '${album.name}(${album.count})',
+                '${_albumName(c, album)}(${album.count})',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 17, color: ink(c)),
@@ -617,8 +647,8 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
     );
   }
 
-  Widget _bottomBar(BuildContext c) => ColoredBox(
-    color: qchatBackground(c),
+  Widget _bottomBar(BuildContext c) => _Glass(
+    fromTop: false,
     child: SafeArea(
       top: false,
       child: Column(
@@ -710,7 +740,6 @@ class _AssetTile extends StatelessWidget {
     required this.asset,
     required this.thumb,
     required this.order,
-    required this.count,
     required this.onToggle,
     required this.onPreview,
   });
@@ -721,8 +750,6 @@ class _AssetTile extends StatelessWidget {
   /// The 0-based position in the selection, or -1 when the asset is not picked.
   final int order;
 
-  /// How many assets are picked in total, so a single pick shows a check.
-  final int count;
   final VoidCallback onToggle;
   final VoidCallback onPreview;
 
@@ -777,6 +804,28 @@ class _AssetTile extends StatelessWidget {
                   ),
                 ),
               ),
+            // A picked frame dims, so the ticked set stands out at a glance,
+            // and wears its place in the pick at the top left.
+            if (order >= 0) ...[
+              const Positioned.fill(
+                child: ColoredBox(color: Color(0x59000000)),
+              ),
+              Positioned(
+                left: 6,
+                top: 2,
+                child: Text(
+                  '${order + 1}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: QChatColors.white,
+                    shadows: [
+                      Shadow(color: QChatColors.black38, blurRadius: 4),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -794,7 +843,7 @@ class _AssetTile extends StatelessWidget {
               alignment: Alignment.topRight,
               child: Padding(
                 padding: const EdgeInsets.all(4),
-                child: _SelectionBadge(order: order, count: count),
+                child: _SelectionBadge(order: order),
               ),
             ),
           ),
@@ -805,17 +854,13 @@ class _AssetTile extends StatelessWidget {
 }
 
 class _SelectionBadge extends StatelessWidget {
-  const _SelectionBadge({required this.order, required this.count});
+  const _SelectionBadge({required this.order});
 
   final int order;
-  final int count;
 
   @override
   Widget build(BuildContext c) {
     final selected = order >= 0;
-    // One pick is unambiguous, so it shows a tick; a set shows the order the
-    // user tapped, so the send button's count has a visible cause.
-    final single = selected && count <= 1;
     return Container(
       width: _kBadgeSize,
       height: _kBadgeSize,
@@ -823,20 +868,11 @@ class _SelectionBadge extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: selected ? QChatColors.green : QChatColors.transparent,
-        border: Border.all(color: QChatColors.white, width: 2),
+        border: selected ? null : Border.all(color: QChatColors.white, width: 2),
       ),
-      child: !selected
-          ? null
-          : single
-          ? const QChatIcon('check', size: 14, color: QChatColors.white)
-          : Text(
-              '${order + 1}',
-              style: const TextStyle(
-                color: QChatColors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+      child: selected
+          ? const QChatIcon('check', size: 15, color: QChatColors.white)
+          : null,
     );
   }
 }
@@ -950,10 +986,9 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
   @override
   Widget build(BuildContext c) => ColoredBox(
     color: QChatColors.black,
-    child: Column(
+    child: Stack(
       children: [
-        _topBar(c),
-        Expanded(
+        Positioned.fill(
           child: PageView.builder(
             controller: _controller,
             onPageChanged: (value) => setState(() => _index = value),
@@ -964,52 +999,56 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
             ),
           ),
         ),
-        _bottomBar(c),
+        Positioned(left: 0, right: 0, top: 0, child: _topBar(c)),
+        Positioned(left: 0, right: 0, bottom: 0, child: _bottomBar(c)),
       ],
     ),
   );
 
-  Widget _topBar(BuildContext c) => ColoredBox(
-    color: _kPreviewBar,
-    child: SafeArea(
-      bottom: false,
-      child: SizedBox(
-        height: _kPreviewBarHeight,
-        child: Stack(
-          children: [
-            Positioned(
-              left: 4,
-              top: 0,
-              bottom: 0,
-              child: Center(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.of(c).pop(),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: RotatedBox(
-                      quarterTurns: 2,
-                      child: const QChatIcon(
-                        'chevron',
-                        size: 22,
-                        color: QChatColors.white,
+  Widget _topBar(BuildContext c) {
+    final top = MediaQuery.paddingOf(c).top;
+    return _Glass(
+      fromTop: true,
+      child: Padding(
+        padding: EdgeInsets.only(top: top),
+        child: SizedBox(
+          height: _kPreviewBarHeight,
+          child: Stack(
+            children: [
+              Positioned(
+                left: 4,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(c).pop(),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: RotatedBox(
+                        quarterTurns: 2,
+                        child: const QChatIcon(
+                          'chevron',
+                          size: 22,
+                          color: QChatColors.white,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-            Positioned(
-              right: 16,
-              top: 0,
-              bottom: 0,
-              child: Center(child: _checkButton()),
-            ),
-          ],
+              Positioned(
+                right: 16,
+                top: 0,
+                bottom: 0,
+                child: Center(child: _checkButton()),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _checkButton() {
     final selected = widget.selection.contains(widget.assets[_index]);
@@ -1036,10 +1075,10 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
   Widget _bottomBar(BuildContext c) {
     final count = widget.selection.length;
     final base = widget.confirmLabel ?? tr(c, 'send');
-    return ColoredBox(
-      color: _kPreviewBar,
-      child: SafeArea(
-        top: false,
+    return _Glass(
+      fromTop: false,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1184,9 +1223,11 @@ class _PreviewAssetState extends State<_PreviewAsset> {
     if (player != null) {
       return ValueListenableBuilder<VideoPlayerValue>(
         valueListenable: player,
-        builder: (_, value, _) => Column(
+        // The transport floats over the frames, the way a player does: the
+        // picture keeps the whole screen and the controls fade in on top of it.
+        builder: (_, value, _) => Stack(
           children: [
-            Expanded(
+            Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () =>
@@ -1199,7 +1240,12 @@ class _PreviewAssetState extends State<_PreviewAsset> {
                 ),
               ),
             ),
-            _VideoControls(player: player, value: value),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _VideoControls(player: player, value: value),
+            ),
           ],
         ),
       );
@@ -1304,9 +1350,12 @@ class _VideoControlsState extends State<_VideoControls> {
     final position = _drag ?? value.position.inMilliseconds.toDouble();
     final fraction = (position / span).clamp(0.0, 1.0);
     final speed = value.playbackSpeed;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-      child: Row(
+    return _Glass(
+      fromTop: false,
+      // The clock and the line need a scrim to stay legible over a bright frame.
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
+        child: Row(
         children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
@@ -1409,6 +1458,7 @@ class _VideoControlsState extends State<_VideoControls> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -1433,4 +1483,47 @@ String formatMediaClock(Duration duration) {
   final minutes = duration.inMinutes.toString().padLeft(2, '0');
   final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
   return '$minutes:$seconds';
+}
+
+/// A frosted pane: it blurs whatever sits behind it and tints it dark, so the
+/// chrome can float over photos without either hiding them or turning into a
+/// flat bar that cuts the picture short.
+class _Glass extends StatelessWidget {
+  const _Glass({required this.child, required this.fromTop, this.colors});
+
+  final Widget child;
+
+  /// Whether the tint is strongest at the top edge (a top bar) or at the
+  /// bottom one (a bottom bar).
+  final bool fromTop;
+
+  /// Overrides the fade; a single repeated colour makes a steadier sheet for
+  /// the album list, which needs to be readable over busy thumbnails.
+  final List<Color>? colors;
+
+  @override
+  Widget build(BuildContext c) => ClipRect(
+    child: BackdropFilter(
+      filter: ImageFilter.blur(
+        sigmaX: 24,
+        sigmaY: 24,
+        // Without decal the blur samples past the pane's edge and smears the
+        // first row of tiles up into the bar.
+        tileMode: TileMode.decal,
+      ),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+            end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+            // The fade keeps a floor of black so the blur cannot smear the
+            // tiles below the bar into it; the glass still lets them show
+            // through, just dimmed.
+            colors: colors ?? const [Color(0xcc000000), Color(0x73000000)],
+          ),
+        ),
+        child: child,
+      ),
+    ),
+  );
 }

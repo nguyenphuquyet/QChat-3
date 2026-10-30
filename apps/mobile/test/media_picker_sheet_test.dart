@@ -130,10 +130,11 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('pick_a1')));
     await tester.pump();
-    // A single pick is a tick, not the number 1.
+    // A pick wears its place in the set at the top left, and a tick on the badge.
     expect(find.text('Send (1)'), findsOneWidget);
     expect(find.text('Preview (1)'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('1'), findsOneWidget);
+    expect(find.text('2'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('pick_a3')));
     await tester.pump();
@@ -167,7 +168,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('Send (1)'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // The new pick replaces the old one, so it is first in the set again.
+    expect(find.text('1'), findsOneWidget);
     expect(find.text('2'), findsNothing);
   });
 
