@@ -162,6 +162,29 @@ class _GlassPickerDelegate
     // Android draws the bar opaque and never blurs it, so it needs no fix.
     return appBar.blurRadius > 0 ? _GlassAppBar(appBar) : appBar;
   }
+
+  /// The header's close button, with round hover and press feedback.
+  ///
+  /// The bar hands its leading widget a 44-high slot, so the package's
+  /// `IconButton` comes out 40 wide by 36 tall and its stadium border reads as
+  /// a rounded rectangle. A square box keeps the feedback a circle.
+  @override
+  Widget backButton(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      child: Center(
+        child: SizedBox.square(
+          dimension: 40,
+          child: IconButton(
+            onPressed: () => Navigator.maybeOf(context)?.maybePop(),
+            tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+            style: IconButton.styleFrom(shape: const CircleBorder()),
+            icon: const Icon(Icons.close),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// [AssetPickerAppBar] with the tint above the blur instead of below it.
