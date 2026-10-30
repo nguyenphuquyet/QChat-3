@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
@@ -20,7 +19,7 @@ const double _kGridGap = 2;
 const double _kBadgeSize = 24;
 
 /// The preview page lets the picture own the whole screen: the chrome floats on
-/// top of it as frosted glass, never as a bar that shortens the photo.
+/// top of it as a translucent scrim, never as a bar that shortens the photo.
 const double _kPreviewBarHeight = 52;
 const int _kPageSize = 100;
 
@@ -374,7 +373,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
     );
   }
 
-  Widget _bar(BuildContext c) => _Glass(
+  Widget _bar(BuildContext c) => _Scrim(
     fromTop: true,
     child: Padding(
       padding: EdgeInsets.only(top: MediaQuery.paddingOf(c).top),
@@ -561,7 +560,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () {},
-                  child: _Glass(
+                  child: _Scrim(
                     fromTop: true,
                     colors: const [Color(0xf20d0d0d), Color(0xf20d0d0d)],
                     child: ConstrainedBox(
@@ -647,7 +646,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
     );
   }
 
-  Widget _bottomBar(BuildContext c) => _Glass(
+  Widget _bottomBar(BuildContext c) => _Scrim(
     fromTop: false,
     child: SafeArea(
       top: false,
@@ -1007,7 +1006,7 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
 
   Widget _topBar(BuildContext c) {
     final top = MediaQuery.paddingOf(c).top;
-    return _Glass(
+    return _Scrim(
       fromTop: true,
       child: Padding(
         padding: EdgeInsets.only(top: top),
@@ -1075,7 +1074,7 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
   Widget _bottomBar(BuildContext c) {
     final count = widget.selection.length;
     final base = widget.confirmLabel ?? tr(c, 'send');
-    return _Glass(
+    return _Scrim(
       fromTop: false,
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom),
@@ -1350,7 +1349,7 @@ class _VideoControlsState extends State<_VideoControls> {
     final position = _drag ?? value.position.inMilliseconds.toDouble();
     final fraction = (position / span).clamp(0.0, 1.0);
     final speed = value.playbackSpeed;
-    return _Glass(
+    return _Scrim(
       fromTop: false,
       // The clock and the line need a scrim to stay legible over a bright frame.
       child: Padding(
@@ -1485,11 +1484,15 @@ String formatMediaClock(Duration duration) {
   return '$minutes:$seconds';
 }
 
-/// A frosted pane: it blurs whatever sits behind it and tints it dark, so the
-/// chrome can float over photos without either hiding them or turning into a
-/// flat bar that cuts the picture short.
-class _Glass extends StatelessWidget {
-  const _Glass({required this.child, required this.fromTop, this.colors});
+/// A translucent pane. It fades the picture to black under the chrome, so the
+/// controls stay readable while the photo still shows through, and it never
+/// turns into a bar that cuts the picture short.
+///
+/// It is deliberately a plain gradient rather than a [BackdropFilter]: the
+/// backdrop blur stretched the grid behind the bars on device (Impeller samples
+/// a raster-cached scrollable at the wrong scale), so the scrim stays honest.
+class _Scrim extends StatelessWidget {
+  const _Scrim({required this.child, required this.fromTop, this.colors});
 
   final Widget child;
 
@@ -1502,28 +1505,14 @@ class _Glass extends StatelessWidget {
   final List<Color>? colors;
 
   @override
-  Widget build(BuildContext c) => ClipRect(
-    child: BackdropFilter(
-      filter: ImageFilter.blur(
-        sigmaX: 24,
-        sigmaY: 24,
-        // Without decal the blur samples past the pane's edge and smears the
-        // first row of tiles up into the bar.
-        tileMode: TileMode.decal,
-      ),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
-            end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
-            // The fade keeps a floor of black so the blur cannot smear the
-            // tiles below the bar into it; the glass still lets them show
-            // through, just dimmed.
-            colors: colors ?? const [Color(0xcc000000), Color(0x73000000)],
-          ),
-        ),
-        child: child,
+  Widget build(BuildContext c) => DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+        end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+        colors: colors ?? const [Color(0xcc000000), Color(0x00000000)],
       ),
     ),
+    child: child,
   );
 }
