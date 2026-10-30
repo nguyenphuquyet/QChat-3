@@ -83,7 +83,7 @@ Future<List<XFile>> pickDeviceMedia(
           provider: provider,
           initialPermission: state,
           gridCount: 4,
-          themeColor: QChatColors.green,
+          pickerTheme: _assetPickerTheme(),
           textDelegate: _textDelegate(context, confirmLabel),
           pathNameBuilder: (path) => path.isAll
               ? tr(context, 'recentMedia')
@@ -136,6 +136,21 @@ class _PickerTheme extends StatelessWidget {
   );
 }
 
+/// The package's dark picker theme, with round icon-button feedback.
+///
+/// Both bars hand their leading widget a full-height slot, so an `IconButton`
+/// fills that slot — 40 by 36 in the picker header, 40 by 56 in the viewer —
+/// and its stadium border reads as a tall rounded rectangle on hover and press.
+/// A circle border keeps the feedback round wherever the button is stretched.
+/// The viewer inherits this theme through the picker's `themeData`, so its back
+/// arrow follows the same rule.
+ThemeData _assetPickerTheme() =>
+    AssetPicker.themeData(QChatColors.green).copyWith(
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(shape: WidgetStatePropertyAll(CircleBorder())),
+      ),
+    );
+
 /// The picker's own builder, with one change: the frosted header.
 ///
 /// `AssetPickerAppBar` paints its tint into the backdrop and blurs that, so the
@@ -150,7 +165,7 @@ class _GlassPickerDelegate
     required super.provider,
     required super.initialPermission,
     super.gridCount,
-    super.themeColor,
+    super.pickerTheme,
     super.textDelegate,
     super.pathNameBuilder,
     super.locale,
