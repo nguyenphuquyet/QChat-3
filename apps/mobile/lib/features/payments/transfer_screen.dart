@@ -1,23 +1,30 @@
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart' show CupertinoTextField;
-import 'package:flutter/services.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter/widgets.dart';
+
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
+import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import 'payments_screen.dart';
+
+const _linkBlue = Color(0xff576b95);
+const _placeholderGrey = Color(0xffb2b2b2);
+const _redPacketButton = Color(0xffff6144);
+const _caretGreen = Color(0xff8fd6b4);
 
 class TransferScreen extends ConsumerStatefulWidget {
   const TransferScreen({
     super.key,
     this.to = '',
+    this.name = '',
+    this.avatarId = '',
     this.conversationId,
     this.redPacket = false,
   });
-  final String to;
+  final String to, name, avatarId;
   final String? conversationId;
   final bool redPacket;
   @override
@@ -26,22 +33,122 @@ class TransferScreen extends ConsumerStatefulWidget {
 
 class _TransferScreenState extends ConsumerState<TransferScreen> {
   late final to = TextEditingController(text: widget.to);
-  late final amount = TextEditingController();
-  late final note = TextEditingController(
-    text: widget.redPacket ? 'Hồng bao' : '',
-  );
-  late Future<Map> wallet = loadWallet();
+  final note = TextEditingController();
+  String digits = '';
   bool sending = false;
   String? error;
 
-  Future<Map> loadWallet() async =>
-      await ref.read(clientProvider).get('/wallet', cached: false) as Map;
+  int get amount => int.tryParse(digits) ?? 0;
+
+  String get target => widget.to.isNotEmpty ? widget.to : to.text.trim();
+
+  String get recipientName {
+    if (widget.name.isNotEmpty) return widget.name;
+    return target;
+  }
+
+  void pressDigit(String digit) {
+    if (sending || digits.length >= 12) return;
+    setState(() {
+      digits = digits == '0' ? digit : '$digits$digit';
+      error = null;
+    });
+  }
+
+  void backspace() {
+    if (sending) return;
+    setState(() {
+      if (digits.isNotEmpty) {
+        digits = digits.substring(0, digits.length - 1);
+      }
+      error = null;
+    });
+  }
+
+  Future<void> editNote() async {
+    final value = await editText(
+      context,
+      tr(context, 'transferNote'),
+      initial: note.text,
+      maxLength: 100,
+    );
+    if (value != null && mounted) setState(() => note.text = value);
+  }
+
+  Future<void> editAmount() async {
+    var draft = digits;
+    final result = await showQChatSheet<int?>(
+      context,
+      (sheet) => StatefulBuilder(
+        builder: (sheet, setSheet) => SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+                child: Row(
+                  children: [
+                    Text(
+                      tr(sheet, 'amountLabel'),
+                      style: TextStyle(fontSize: 17, color: ink(sheet)),
+                    ),
+                    const Spacer(),
+                    Text(
+                      '₫${moneyText(draft.isEmpty ? 0 : int.parse(draft), withUnit: false)}',
+                      style: TextStyle(
+                        fontSize: 17,
+                        color: draft.isEmpty
+                            ? _placeholderGrey
+                            : ink(sheet),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              QChatKeypad(
+                onDigit: (digit) => setSheet(() {
+                  if (draft.length >= 12) return;
+                  draft = draft == '0' ? digit : '$draft$digit';
+                }),
+                onBackspace: () => setSheet(() {
+                  if (draft.isNotEmpty) {
+                    draft = draft.substring(0, draft.length - 1);
+                  }
+                }),
+                onDecimal: () {},
+                onSubmit: () => Navigator.of(
+                  sheet,
+                ).pop(draft.isEmpty ? null : int.parse(draft)),
+                submitLabel: tr(sheet, 'done'),
+                backspaceLabel: tr(sheet, 'backspace'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (result != null && mounted) {
+      setState(() {
+        digits = '$result';
+        error = null;
+      });
+    }
+  }
 
   Future<void> submit() async {
-    final value = int.tryParse(amount.text.replaceAll(RegExp(r'[^0-9]'), ''));
-    final target = to.text.trim();
-    if (target.isEmpty || value == null || value < 1000) {
-      setState(() => error = 'Nhập QChat ID và số tiền từ 1.000 đ.');
+    final value = int.tryParse(digits);
+    final recipient = target;
+    if (recipient.isEmpty || value == null || value < 1000) {
+      final message = tr(
+        context,
+        recipient.isEmpty ? 'enterRecipientAndAmount' : 'enterAmount',
+      );
+      if (widget.redPacket) {
+        showQChatToast(context, message);
+      } else {
+        setState(() => error = message);
+      }
       return;
     }
     setState(() {
@@ -49,9 +156,8 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       error = null;
     });
     try {
-      final client = ref.read(clientProvider);
-      final result = await client.post('/wallet/transfer', {
-        'to': target,
+      final result = await ref.read(clientProvider).post('/wallet/transfer', {
+        'to': recipient,
         'amount': value,
         'kind': widget.redPacket ? 'RED_PACKET' : 'TRANSFER',
         'note': note.text.trim(),
@@ -62,186 +168,493 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       final balance = (result['balance'] as num?)?.toInt() ?? 0;
       await showQChatDialog<void>(
         context,
-        title: widget.redPacket ? 'Đã gửi hồng bao' : 'Đã chuyển tiền',
+        title: tr(
+          context,
+          widget.redPacket ? 'redPacketSent' : 'transferSent',
+        ),
         message:
-            '${moneyText(value)} tới $target.\nSố dư còn lại: ${moneyText(balance)}',
+            '${moneyText(value)} → $recipientName.\n'
+            '${tr(context, 'balanceLeft')} ${moneyText(balance)}',
         actions: [
           QChatDialogAction(label: tr(context, 'confirm'), primary: true),
         ],
       );
       if (mounted) context.pop();
     } on DioException catch (e) {
-      if (mounted) {
-        setState(() {
-          sending = false;
-          error = switch (e.response?.statusCode) {
-            404 => 'Không tìm thấy người nhận.',
-            400 => 'Số dư không đủ hoặc người nhận không hợp lệ.',
-            _ => tr(context, 'networkError'),
-          };
-        });
-      }
+      if (!mounted) return;
+      fail(
+        switch (e.response?.statusCode) {
+          404 => tr(context, 'recipientNotFound'),
+          400 => tr(context, 'transferFailed'),
+          _ => tr(context, 'networkError'),
+        },
+      );
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          sending = false;
-          error = tr(context, 'networkError');
-        });
-      }
+      if (!mounted) return;
+      fail(tr(context, 'networkError'));
     }
+  }
+
+  void fail(String message) {
+    if (!mounted) return;
+    setState(() {
+      sending = false;
+      error = message;
+    });
+    if (widget.redPacket) showQChatToast(context, message);
   }
 
   @override
   void dispose() {
     to.dispose();
-    amount.dispose();
     note.dispose();
     super.dispose();
   }
 
-  Widget field(
-    BuildContext c,
-    TextEditingController controller,
-    String hint, {
-    TextInputType? keyboardType,
-    TextInputAction? textInputAction,
-    List<TextInputFormatter>? inputFormatters,
-    int? maxLength,
-  }) => CupertinoTextField(
-    controller: controller,
-    placeholder: hint,
-    placeholderStyle: const TextStyle(
-      fontSize: 16,
-      color: Color(0xffb2b2b2),
-    ),
-    keyboardType: keyboardType,
-    textInputAction: textInputAction,
-    inputFormatters: inputFormatters,
-    maxLength: maxLength,
-    cursorColor: QChatColors.green,
-    style: TextStyle(fontSize: 16, color: ink(c)),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-    decoration: BoxDecoration(
-      color: surface(c),
-      borderRadius: BorderRadius.circular(6),
-    ),
-  );
-
   @override
-  Widget build(BuildContext c) => QChatPage(
-    title: widget.redPacket ? 'Hồng bao' : 'Chuyển tiền',
+  Widget build(BuildContext c) =>
+      widget.redPacket ? _redPacket(c) : _transfer(c);
+
+  Widget _transfer(BuildContext c) => QChatPage(
+    title: '',
     glassHeader: false,
     leading: QChatIconButton(
       'back',
       label: tr(c, 'back'),
       onTap: () => c.pop(),
     ),
-    child: FutureBuilder<Map>(
-      future: wallet,
-      builder: (c, s) {
-        final balance = (s.data?['balance'] as num?)?.toInt() ?? 0;
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 28),
-          children: [
-            if (widget.redPacket)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xfff5a623),
-                  borderRadius: BorderRadius.circular(8),
+    child: Column(
+      children: [
+        _recipient(c),
+        Expanded(child: _transferCard(c)),
+        ColoredBox(
+          color: qchatNavigationSurface(c),
+          child: SafeArea(
+            top: false,
+            child: QChatKeypad(
+              onDigit: pressDigit,
+              onBackspace: sending ? null : backspace,
+              onDecimal: sending ? null : () {},
+              onSubmit: sending ? null : submit,
+              submitLabel: tr(c, 'transferMoney'),
+              submitLoading: sending,
+              backspaceLabel: tr(c, 'backspace'),
+              enabled: !sending,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _recipient(BuildContext c) {
+    final id = target;
+    final name = recipientName;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 10, 32, 30),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  id.isEmpty
+                      ? tr(c, 'transferTo')
+                      : '${tr(c, 'transferTo')} $name',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 20,
+                    height: 1.2,
+                    fontWeight: FontWeight.w500,
+                    color: ink(c),
+                  ),
                 ),
-                child: const Row(
-                  children: [
-                    QChatIcon('gift', color: QChatColors.white, size: 34),
-                    SizedBox(width: 14),
-                    Expanded(
+                const SizedBox(height: 3),
+                if (widget.to.isNotEmpty)
+                  Text(
+                    '${tr(c, 'qchatId')}: ${widget.to}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.2,
+                      color: qchatMuted(c),
+                    ),
+                  )
+                else
+                  SizedBox(
+                    height: 24,
+                    child: CupertinoTextField(
+                      controller: to,
+                      placeholder: tr(c, 'enterRecipientId'),
+                      placeholderStyle: const TextStyle(
+                        fontSize: 15,
+                        color: _placeholderGrey,
+                      ),
+                      padding: EdgeInsets.zero,
+                      maxLength: 32,
+                      style: TextStyle(fontSize: 15, color: ink(c)),
+                      cursorColor: QChatColors.green,
+                      onChanged: (_) => setState(() => error = null),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          UserAvatar({
+            'nickname': name,
+            'avatarId': widget.avatarId,
+          }, size: 48),
+        ],
+      ),
+    );
+  }
+
+  Widget _transferCard(BuildContext c) => Container(
+    width: double.infinity,
+    decoration: BoxDecoration(
+      color: surface(c),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+    ),
+    child: Padding(
+      padding: const EdgeInsets.fromLTRB(32, 22, 32, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            tr(c, 'amountTransferred'),
+            style: TextStyle(fontSize: 17, height: 1.2, color: ink(c)),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 54,
+            child: Row(
+              children: [
+                Text(
+                  '₫',
+                  style: TextStyle(
+                    fontSize: 40,
+                    height: 1,
+                    fontWeight: FontWeight.w700,
+                    color: ink(c),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (digits.isNotEmpty)
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
                       child: Text(
-                        'Hồng bao sẽ được gửi ngay vào cuộc trò chuyện.',
+                        moneyText(amount, withUnit: false),
+                        key: const ValueKey('transfer-amount'),
                         style: TextStyle(
-                          color: QChatColors.white,
-                          fontSize: 15,
-                          height: 1.35,
+                          fontSize: 40,
+                          height: 1,
+                          fontWeight: FontWeight.w600,
+                          color: ink(c),
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                const SizedBox(width: 2),
+                const _BlinkingCaret(),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(height: .5, color: qchatLine(c)),
+          const SizedBox(height: 18),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: sending ? null : editNote,
+            child: Text(
+              note.text.trim().isEmpty
+                  ? tr(c, 'addTransferNote')
+                  : note.text.trim(),
+              style: TextStyle(
+                fontSize: 17,
+                height: 1.3,
+                color: note.text.trim().isEmpty ? _linkBlue : ink(c),
               ),
-            if (widget.redPacket) const SizedBox(height: 16),
-            field(
-              c,
-              to,
-              'QChat ID người nhận',
-              keyboardType: TextInputType.text,
-              textInputAction: TextInputAction.next,
             ),
-            const SizedBox(height: 12),
-            field(
-              c,
-              amount,
-              'Số tiền (đ)',
-              keyboardType: TextInputType.number,
-              textInputAction: TextInputAction.next,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          ),
+          if (error != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              error!,
+              style: const TextStyle(fontSize: 14, color: QChatColors.danger),
             ),
-            const SizedBox(height: 12),
-            field(
-              c,
-              note,
-              widget.redPacket ? 'Lời chúc' : 'Lời nhắn',
-              maxLength: 100,
-            ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                onTap: () => setState(() => wallet = loadWallet()),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    s.hasData
-                        ? 'Số dư: ${moneyText(balance)}'
-                        : 'Đang tải số dư…',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: QChatColors.muted,
-                    ),
+          ],
+        ],
+      ),
+    ),
+  );
+
+  Widget _redPacket(BuildContext c) => QChatPage(
+    title: tr(c, 'sendRedPacket'),
+    glassHeader: false,
+    leading: QChatIconButton(
+      'back',
+      label: tr(c, 'back'),
+      onTap: () => c.pop(),
+    ),
+    trailing: QChatIconButton(
+      'more',
+      label: tr(c, 'more'),
+      onTap: () => qchatSheet(c, [
+        (tr(c, 'receivedRedPackets'), () => c.push('/payments/wallet')),
+      ]),
+    ),
+    child: SafeArea(
+      top: false,
+      child: Column(
+        children: [
+          const SizedBox(height: 12),
+          _redRow(
+            c,
+            height: 56,
+            onTap: sending ? null : editAmount,
+            child: Row(
+              children: [
+                Text(
+                  tr(c, 'amountLabel'),
+                  style: TextStyle(fontSize: 17, color: ink(c)),
+                ),
+                const Spacer(),
+                Text(
+                  '₫${moneyText(amount, withUnit: false)}',
+                  style: TextStyle(
+                    fontSize: 17,
+                    color: amount == 0 ? _placeholderGrey : ink(c),
                   ),
                 ),
-              ),
+              ],
             ),
-            if (error != null) ...[
-              const SizedBox(height: 8),
+          ),
+          const SizedBox(height: 12),
+          _redRow(
+            c,
+            height: 64,
+            child: Row(
+              children: [
+                Expanded(
+                  child: CupertinoTextField(
+                    controller: note,
+                    placeholder: tr(c, 'bestWishes'),
+                    placeholderStyle: const TextStyle(
+                      fontSize: 17,
+                      color: _placeholderGrey,
+                    ),
+                    padding: EdgeInsets.zero,
+                    maxLength: 100,
+                    style: TextStyle(fontSize: 17, color: ink(c)),
+                    cursorColor: QChatColors.green,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: addWishEmoji,
+                  child: _emojiPlus(c),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // TODO(red-packet-cover): open the cover picker when covers exist.
+          _redRow(
+            c,
+            height: 64,
+            child: Row(
+              children: [
+                Text(
+                  tr(c, 'redPacketCover'),
+                  style: TextStyle(fontSize: 17, color: ink(c)),
+                ),
+                const Spacer(),
+                const QChatIcon(
+                  'chevron',
+                  size: 18,
+                  color: QChatColors.muted,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 78),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
               Text(
-                error!,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: QChatColors.danger,
+                '₫',
+                style: TextStyle(
+                  fontSize: 40,
+                  height: 1,
+                  fontWeight: FontWeight.w600,
+                  color: ink(c),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                moneyText(amount, withUnit: false),
+                style: TextStyle(
+                  fontSize: 48,
+                  height: 1,
+                  fontWeight: FontWeight.w600,
+                  color: ink(c),
                 ),
               ),
             ],
-            const SizedBox(height: 18),
-            QChatButton(
-              widget.redPacket ? 'Gửi hồng bao' : 'Chuyển tiền',
-              loading: sending,
-              onTap: sending ? null : submit,
+          ),
+          const SizedBox(height: 30),
+          _sendButton(c),
+          const Spacer(),
+          Text(
+            tr(c, 'redPacketHint'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 14, color: QChatColors.muted),
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    ),
+  );
+
+  Widget _redRow(
+    BuildContext c, {
+    required Widget child,
+    double height = 64,
+    VoidCallback? onTap,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        height: height,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: surface(c),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: child,
+      ),
+    ),
+  );
+
+  Widget _emojiPlus(BuildContext c) => SizedBox(
+    width: 26,
+    height: 26,
+    child: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const QChatIcon('emoji', size: 24, color: QChatColors.muted),
+        Positioned(
+          right: -2,
+          bottom: -2,
+          child: Container(
+            width: 12,
+            height: 12,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: surface(c),
+              shape: BoxShape.circle,
             ),
-            const SizedBox(height: 12),
-            Text(
-              widget.conversationId == null
-                  ? 'Tiền được chuyển ngay vào ví QChat của người nhận và không hoàn lại.'
-                  : widget.redPacket
-                  ? 'Người nhận chỉ có thể mở một lần; hồng bao trong nhóm được chia ngẫu nhiên theo từng suất.'
-                  : 'Tiền được cộng vào ví QChat khi người nhận xác nhận.',
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                height: 1.4,
+            child: const Text(
+              '+',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1,
                 color: QChatColors.muted,
               ),
             ),
-          ],
-        );
-      },
+          ),
+        ),
+      ],
     ),
+  );
+
+  void addWishEmoji() {
+    if (sending) return;
+    const emoji = '🧧';
+    final text = note.text;
+    final selection = note.selection;
+    final at = selection.isValid ? selection.end : text.length;
+    note.value = TextEditingValue(
+      text: text.replaceRange(at, at, emoji),
+      selection: TextSelection.collapsed(offset: at + emoji.length),
+    );
+    setState(() {});
+  }
+
+  Widget _sendButton(BuildContext c) => Semantics(
+    button: true,
+    enabled: !sending,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: sending ? null : submit,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 120),
+        opacity: sending ? .6 : 1,
+        child: Container(
+          width: 184,
+          height: 46,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _redPacketButton,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: sending
+              ? const CupertinoActivityIndicator(
+                  radius: 9,
+                  color: QChatColors.white,
+                )
+              : Text(
+                  tr(c, 'send'),
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
+                    color: QChatColors.white,
+                  ),
+                ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _BlinkingCaret extends StatefulWidget {
+  const _BlinkingCaret();
+
+  @override
+  State<_BlinkingCaret> createState() => _BlinkingCaretState();
+}
+
+class _BlinkingCaretState extends State<_BlinkingCaret>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 560),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) => FadeTransition(
+    opacity: Tween<double>(begin: 1, end: 0).animate(
+      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
+    ),
+    child: Container(width: 2, height: 44, color: _caretGreen),
   );
 }

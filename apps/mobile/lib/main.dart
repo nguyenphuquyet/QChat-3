@@ -140,6 +140,8 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           path: '/payments/transfer',
           builder: (_, s) => TransferScreen(
             to: s.uri.queryParameters['to'] ?? '',
+            name: s.uri.queryParameters['name'] ?? '',
+            avatarId: s.uri.queryParameters['avatar'] ?? '',
             conversationId: s.uri.queryParameters['conversation'],
             redPacket: s.uri.queryParameters['red'] == '1',
           ),

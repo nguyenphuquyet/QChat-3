@@ -755,12 +755,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return null;
   }
 
+  Map? get peerUser {
+    final me = ref.read(clientProvider).userId;
+    for (final member in members) {
+      if (member is! Map) continue;
+      if (member['userId'] == me) continue;
+      final user = member['user'];
+      if (user is Map) return user;
+    }
+    return null;
+  }
+
   void openMoney(BuildContext c, {bool redPacket = false}) {
     final peer = peerQchatId;
+    final user = peerUser;
+    final name = user?['nickname']?.toString() ?? '';
+    final avatar = user?['avatarId']?.toString() ?? '';
     c.push(
       '/payments/transfer'
       '?to=${Uri.encodeQueryComponent(peer ?? '')}'
       '${peer == null ? '' : '&conversation=${widget.id}'}'
+      '&name=${Uri.encodeQueryComponent(name)}'
+      '&avatar=${Uri.encodeQueryComponent(avatar)}'
       '${redPacket ? '&red=1' : ''}',
     );
   }

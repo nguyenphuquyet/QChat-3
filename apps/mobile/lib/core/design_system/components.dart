@@ -16,6 +16,7 @@ export 'overlays.dart';
 export 'qchat_colors.dart';
 export 'qchat_header.dart';
 export 'qchat_icons.dart';
+export 'qchat_keypad.dart';
 export 'qchat_theme.dart';
 
 Color surface(BuildContext context) => qchatSurface(context);
