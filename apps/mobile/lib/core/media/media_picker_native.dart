@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -61,31 +62,41 @@ Future<List<XFile>> pickDeviceMedia(
   }
   final dark = qchatDark(context);
   final family = DefaultTextStyle.of(context).style.fontFamily;
-  final selected = await AssetPicker.pickAssets(
-    context,
-    permissionRequestOption: permission,
-    pickerConfig: AssetPickerConfig(
-      requestType: type,
-      maxAssets: maxAssets,
-      gridCount: 4,
-      themeColor: QChatColors.green,
-      textDelegate: _textDelegate(context, confirmLabel),
-      pathNameBuilder: (path) => path.isAll
-          ? tr(context, 'recentMedia')
-          : mediaAlbumName(context, path.name),
-    ),
-    pageRouteBuilder: (picker) => AssetPickerPageRoute(
-      builder: (_) => _PickerTheme(
-        dark: dark,
-        fontFamily: family,
-        child: picker,
-      ),
-      transitionCurve: Curves.easeOutCubic,
-      transitionDuration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : const Duration(milliseconds: 300),
-    ),
+  final transition = MediaQuery.disableAnimationsOf(context)
+      ? Duration.zero
+      : const Duration(milliseconds: 300);
+  final provider = DefaultAssetPickerProvider(
+    maxAssets: maxAssets,
+    requestType: type,
+    initializeDelayDuration: transition,
   );
+  final selected = await const AssetPickerDelegate()
+      .pickAssetsWithDelegate<
+        AssetEntity,
+        AssetPathEntity,
+        DefaultAssetPickerProvider,
+        _GlassPickerDelegate
+      >(
+        context,
+        permissionRequestOption: permission,
+        delegate: _GlassPickerDelegate(
+          provider: provider,
+          initialPermission: state,
+          gridCount: 4,
+          themeColor: QChatColors.green,
+          textDelegate: _textDelegate(context, confirmLabel),
+          pathNameBuilder: (path) => path.isAll
+              ? tr(context, 'recentMedia')
+              : mediaAlbumName(context, path.name),
+          locale: Localizations.localeOf(context),
+        ),
+        pageRouteBuilder: (picker) => AssetPickerPageRoute(
+          builder: (_) =>
+              _PickerTheme(dark: dark, fontFamily: family, child: picker),
+          transitionCurve: Curves.easeOutCubic,
+          transitionDuration: transition,
+        ),
+      );
   if (selected == null || selected.isEmpty) return [];
   final files = <XFile>[];
   for (final asset in selected) {
@@ -123,6 +134,73 @@ class _PickerTheme extends StatelessWidget {
     ),
     child: child,
   );
+}
+
+/// The picker's own builder, with one change: the frosted header.
+///
+/// `AssetPickerAppBar` paints its tint into the backdrop and blurs that, so the
+/// blur pulls the bright grid from *below* the bar into the bar's bottom edge.
+/// The result is a lit band under the header that the tint cannot cover, since
+/// the tint is part of what gets blurred. The app's own glass
+/// (`design_system/qchat_glass.dart`) blurs first and tints on top; this
+/// delegate does the same for the picker.
+class _GlassPickerDelegate
+    extends DefaultAssetPickerBuilderDelegate<DefaultAssetPickerProvider> {
+  _GlassPickerDelegate({
+    required super.provider,
+    required super.initialPermission,
+    super.gridCount,
+    super.themeColor,
+    super.textDelegate,
+    super.pathNameBuilder,
+    super.locale,
+  });
+
+  @override
+  AssetPickerAppBar appBar(BuildContext context) {
+    final appBar = super.appBar(context);
+    // Android draws the bar opaque and never blurs it, so it needs no fix.
+    return appBar.blurRadius > 0 ? _GlassAppBar(appBar) : appBar;
+  }
+}
+
+/// [AssetPickerAppBar] with the tint above the blur instead of below it.
+class _GlassAppBar extends AssetPickerAppBar {
+  _GlassAppBar(AssetPickerAppBar base)
+    : sigma = base.blurRadius,
+      super(
+        title: base.title,
+        leading: base.leading,
+        actions: base.actions,
+        actionsPadding: base.actionsPadding,
+        bottom: base.bottom,
+        centerTitle: base.centerTitle,
+        automaticallyImplyLeading: base.automaticallyImplyLeading,
+        automaticallyImplyActions: base.automaticallyImplyActions,
+        backgroundColor: QChatColors.transparent,
+        elevation: base.elevation,
+        height: base.height,
+        brightness: base.brightness,
+        iconTheme: base.iconTheme,
+        semanticsBuilder: base.semanticsBuilder,
+      );
+
+  final double sigma;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final tint = theme.appBarTheme.backgroundColor ?? theme.colorScheme.surface;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+        child: ColoredBox(
+          color: tint.withValues(alpha: .9),
+          child: super.build(context),
+        ),
+      ),
+    );
+  }
 }
 
 /// The package ships a text delegate per language; these subclasses only put
