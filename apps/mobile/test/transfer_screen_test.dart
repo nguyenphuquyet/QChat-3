@@ -1,10 +1,20 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/design_system/components.dart';
+import 'package:qchat/core/network/client.dart';
 import 'package:qchat/features/payments/transfer_screen.dart';
 
 import 'test_app.dart';
+
+/// The send sheet asks for the account's active cover; tests answer with an
+/// empty gallery so no real request leaves the widget tree.
+class _CoversClient extends QChatClient {
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async =>
+      path == '/wallet/covers' ? {'items': <dynamic>[]} : {};
+}
 
 void main() {
   testWidgets('transfer screen shows the recipient, card and keypad', (
@@ -12,6 +22,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [clientProvider.overrideWithValue(_CoversClient())],
         child: qchatHarness(
           const TransferScreen(to: 'zyg0978', name: 'Cương'),
           locale: const Locale('vi'),
@@ -47,6 +58,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [clientProvider.overrideWithValue(_CoversClient())],
         child: qchatHarness(
           const TransferScreen(to: 'zyg0978', name: 'Cương'),
           locale: const Locale('vi'),
@@ -69,6 +81,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [clientProvider.overrideWithValue(_CoversClient())],
           child: qchatHarness(
             const TransferScreen(to: 'zyg0978', name: 'Cương', redPacket: true),
             locale: const Locale('vi'),

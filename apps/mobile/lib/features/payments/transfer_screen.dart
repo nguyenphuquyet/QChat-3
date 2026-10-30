@@ -8,7 +8,9 @@ import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../chats/red_packet_design.dart';
 import 'payments_screen.dart';
+import 'red_packet_cover_ui.dart';
 
 const _linkBlue = Color(0xff576b95);
 const _placeholderGrey = Color(0xffb2b2b2);
@@ -40,6 +42,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   bool sending = false;
   bool keypadVisible = true;
   String? error;
+  RedPacketCoverData? selectedCover;
 
   @override
   void initState() {
@@ -48,6 +51,27 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     // the bottom of the screen: focusing a field hides the QChat keypad.
     recipientFocus.addListener(_hideKeypadForTextInput);
     noteFocus.addListener(_hideKeypadForTextInput);
+    if (widget.redPacket) _loadActiveCover();
+  }
+
+  /// Starts the send sheet on the cover the account marked as "in use", so the
+  /// "Sử dụng" action of the cover gallery actually drives the next packet.
+  Future<void> _loadActiveCover() async {
+    try {
+      final result = await ref
+          .read(clientProvider)
+          .get('/wallet/covers', cached: false);
+      if (!mounted || result is! Map || result['items'] is! List) return;
+      for (final item in result['items'] as List) {
+        final cover = RedPacketCoverData.fromJson(item);
+        if (cover != null && cover.selected) {
+          setState(() => selectedCover = cover);
+          return;
+        }
+      }
+    } catch (_) {
+      // A cover is optional: sending must work when the gallery is offline.
+    }
   }
 
   void _hideKeypadForTextInput() {
@@ -100,6 +124,13 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     if (value != null && mounted) setState(() => note.text = value);
   }
 
+  Future<void> pickCover() async {
+    final picked = await context.push<RedPacketCoverData>(
+      '/red-packets/covers?pick=1',
+    );
+    if (picked != null && mounted) setState(() => selectedCover = picked);
+  }
+
   Future<void> submit() async {
     final value = int.tryParse(digits);
     final recipient = target;
@@ -127,6 +158,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
         'note': note.text.trim(),
         if (widget.conversationId != null)
           'conversationId': widget.conversationId,
+        if (widget.redPacket) 'coverId': selectedCover?.id ?? 'default',
       });
       if (!mounted) return;
       final balance = (result['balance'] as num?)?.toInt() ?? 0;
@@ -454,24 +486,56 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      // TODO(red-packet-cover): open the cover picker when
-                      // covers exist.
-                      _redRow(
-                        c,
-                        height: 64,
-                        child: Row(
-                          children: [
-                            Text(
-                              tr(c, 'redPacketCover'),
-                              style: TextStyle(fontSize: 17, color: ink(c)),
-                            ),
-                            const Spacer(),
-                            const QChatIcon(
-                              'chevron',
-                              size: 18,
-                              color: QChatColors.muted,
-                            ),
-                          ],
+                      GestureDetector(
+                        key: const ValueKey('red-packet-cover-row'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: sending ? null : pickCover,
+                        child: _redRow(
+                          c,
+                          height: 64,
+                          child: Row(
+                            children: [
+                              Text(
+                                tr(c, 'redPacketCover'),
+                                style: TextStyle(fontSize: 17, color: ink(c)),
+                              ),
+                              const Spacer(),
+                              if (selectedCover != null) ...[
+                                SizedBox(
+                                  width: 26,
+                                  height: 26 * 4 / 3,
+                                  child: CoverThumb(
+                                    design: selectedCover!.design,
+                                    radius: 4,
+                                    showOpen: false,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 110,
+                                  ),
+                                  child: Text(
+                                    selectedCover!.id == 'default'
+                                        ? tr(c, 'defaultCover')
+                                        : selectedCover!.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: QChatColors.muted,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                              ],
+                              const QChatIcon(
+                                'chevron',
+                                size: 18,
+                                color: QChatColors.muted,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const Spacer(),

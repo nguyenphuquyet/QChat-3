@@ -104,7 +104,7 @@ export async function handle(request: Request) {
         result = await mediaRoute(userId, method, path, body);
         break;
       case "wallet":
-        result = await walletRoute(userId, method, path, body);
+        result = await walletRoute(userId, method, path, body, url);
         break;
       case "miniapps":
         result = await miniAppsRoute(

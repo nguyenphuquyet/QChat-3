@@ -2,7 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
-import 'money_message.dart';
+import 'red_packet_design.dart';
 
 /// Cover of a red packet, drawn edge to edge inside its parent card.
 ///
@@ -20,6 +20,7 @@ class RedPacketCover extends StatelessWidget {
     required this.mine,
     required this.opening,
     required this.onClose,
+    this.design = CoverDesign.defaultDesign,
     this.onOpen,
     this.footnote,
   });
@@ -28,210 +29,617 @@ class RedPacketCover extends StatelessWidget {
   final String senderName, greeting;
   final bool mine, opening;
   final VoidCallback onClose;
+  final CoverDesign design;
   final VoidCallback? onOpen;
   final String? footnote;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox.expand(
-      child: ColoredBox(
-        color: redPacketRed,
-        child: LayoutBuilder(
-          builder: (context, box) {
-            final height = box.maxHeight, width = box.maxWidth;
-            // The lowest point of the arch, and how far its edges rise.
-            final archY = height * .80;
-            final archDepth = math.min(height * .05, 56.0);
-            final diameter = math.min(width * .28, 104.0);
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final height = box.maxHeight, width = box.maxWidth;
+          // The lowest point of the arch, and how far its edges rise.
+          final archY = height * design.topHeight;
+          final archDepth = math.min(height * .05, 56.0);
+          final diameter = math.min(width * .28, 104.0);
 
-            return Stack(
-              children: [
-                // Below the arch.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: archY - archDepth,
-                  bottom: 0,
-                  child: RedPacketCoverBottom(footnote: footnote),
+          return Stack(
+            children: [
+              // Below the arch.
+              Positioned(
+                left: 0,
+                right: 0,
+                top: archY - archDepth,
+                bottom: 0,
+                child: RedPacketCoverBottom(
+                  design: design,
+                  footnote: footnote,
+                  onClose: onClose,
                 ),
-                // Above the arch. Clipped so its bottom edge is the arch.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: 0,
-                  height: archY,
-                  child: ClipPath(
-                    clipper: _ArchClipper(depth: archDepth),
-                    child: RedPacketCoverTop(
-                      sender: sender,
-                      senderName: senderName,
-                      greeting: greeting,
-                      onClose: onClose,
-                    ),
+              ),
+              // Above the arch. Clipped so its bottom edge is the arch.
+              Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                height: archY,
+                child: ClipPath(
+                  clipper: _ArchClipper(depth: archDepth),
+                  child: RedPacketCoverTop(
+                    design: design,
+                    sender: sender,
+                    senderName: senderName,
+                    greeting: greeting,
+                    onClose: onClose,
                   ),
                 ),
-                // The seam between the two halves.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  top: archY - archDepth,
-                  height: archDepth,
-                  child: IgnorePointer(
-                    child: CustomPaint(painter: _ArchLinePainter()),
-                  ),
+              ),
+              // Decorations that live on both halves.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: _DecorationLayer(design: design, area: 'all'),
                 ),
-                // The open button sits on the lowest point of the arch, half
-                // above it and half below it.
-                Positioned(
-                  left: (width - diameter) / 2,
-                  top: archY - diameter / 2,
-                  width: diameter,
-                  height: diameter,
-                  child: _OpenButton(
-                    diameter: diameter,
-                    mine: mine,
-                    opening: opening,
-                    onTap: onOpen,
-                  ),
+              ),
+              // The seam between the two halves.
+              Positioned(
+                left: 0,
+                right: 0,
+                top: archY - archDepth,
+                height: archDepth,
+                child: IgnorePointer(
+                  child: CustomPaint(painter: _ArchLinePainter()),
                 ),
-              ],
-            );
-          },
-        ),
+              ),
+              // The open button sits on the lowest point of the arch, half
+              // above it and half below it.
+              Positioned(
+                left: (width - diameter) / 2,
+                top: archY - diameter / 2,
+                width: diameter,
+                height: diameter,
+                child: _OpenButton(
+                  diameter: diameter,
+                  design: design,
+                  mine: mine,
+                  opening: opening,
+                  onTap: onOpen,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 }
 
-/// The part of the cover above the arch: close button, sender and greeting.
+/// A cover without the sender text, used by galleries and previews.
+class CoverArtwork extends StatelessWidget {
+  const CoverArtwork({super.key, required this.design, this.showOpen = true});
+
+  final CoverDesign design;
+  final bool showOpen;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final height = box.maxHeight, width = box.maxWidth;
+      final archY = height * design.topHeight;
+      final depth = math.min(height * .05, 56.0);
+      final diameter = math.min(width * .28, 104.0);
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned(
+            left: 0,
+            right: 0,
+            top: archY - depth,
+            bottom: 0,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: design.bottomColor),
+                IgnorePointer(
+                  child: _DecorationLayer(design: design, area: 'bottom'),
+                ),
+                if (design.effects.sparkles)
+                  IgnorePointer(child: _SparkleLayer(color: design.openColor)),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            height: archY,
+            child: ClipPath(
+              clipper: _ArchClipper(depth: depth),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CoverBackdrop(design: design),
+                  IgnorePointer(
+                    child: _DecorationLayer(design: design, area: 'top'),
+                  ),
+                  if (design.effects.sparkles)
+                    IgnorePointer(
+                      child: _SparkleLayer(color: design.openColor),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          IgnorePointer(
+            child: _DecorationLayer(design: design, area: 'all'),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            top: archY - depth,
+            height: depth,
+            child: IgnorePointer(
+              child: CustomPaint(painter: _ArchLinePainter()),
+            ),
+          ),
+          if (showOpen)
+            Positioned(
+              left: (width - diameter) / 2,
+              top: archY - diameter / 2,
+              width: diameter,
+              height: diameter,
+              child: IgnorePointer(
+                child: Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: design.openColor,
+                  ),
+                  child: Center(
+                    child: Text(
+                      design.openLabel,
+                      style: TextStyle(
+                        color: design.openTextColor,
+                        fontSize: diameter * .22,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    },
+  );
+}
+
+/// The part of the cover above the arch: artwork, decorations, sender and
+/// greeting.
 class RedPacketCoverTop extends StatelessWidget {
   const RedPacketCoverTop({
     super.key,
+    required this.design,
     required this.sender,
     required this.senderName,
     required this.greeting,
     required this.onClose,
+    this.showDetails = true,
   });
 
+  final CoverDesign design;
   final Map sender;
   final String senderName, greeting;
   final VoidCallback onClose;
+  final bool showDetails;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
+    return Stack(
       key: const ValueKey('red-packet-cover-top'),
-      color: redPacketRed,
-      child: Column(
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              key: const ValueKey('red-packet-cover-close'),
-              behavior: HitTestBehavior.opaque,
-              onTap: onClose,
-              child: const Padding(
-                padding: EdgeInsets.all(14),
-                child: QChatIcon('close', size: 22, color: Color(0xffffffff)),
-              ),
-            ),
-          ),
-          Expanded(
+      fit: StackFit.expand,
+      children: [
+        CoverBackdrop(design: design),
+        IgnorePointer(
+          child: _DecorationLayer(design: design, area: 'top'),
+        ),
+        if (design.effects.sparkles)
+          IgnorePointer(child: _SparkleLayer(color: design.openColor)),
+        if (showDetails)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      UserAvatar(sender, size: 22),
-                      const SizedBox(width: 7),
-                      Flexible(
-                        child: Text(
-                          'Đã gửi bởi $senderName',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xffffffff),
-                            fontSize: 14,
-                          ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    UserAvatar(sender, size: 22),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        'Đã gửi bởi $senderName',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xffffffff),
+                          fontSize: 14,
+                          shadows: [
+                            Shadow(color: Color(0x66000000), blurRadius: 3),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    greeting,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xffffffff),
-                      fontSize: 22,
-                      height: 1.35,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Text(
+                  greeting,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xffffffff),
+                    fontSize: 22,
+                    height: 1.35,
+                    fontWeight: FontWeight.w500,
+                    shadows: [
+                      Shadow(color: Color(0x66000000), blurRadius: 3),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          // Keep the greeting clear of the arch and the gold button.
-          const SizedBox(height: 24),
+      ],
+    );
+  }
+}
+
+/// The part of the cover below the arch: decorations, the refund footnote and
+/// the close button.
+///
+/// Today it only carries the footnote and the close control; future red-packet
+/// features can be added here without touching the top half.
+class RedPacketCoverBottom extends StatelessWidget {
+  const RedPacketCoverBottom({
+    super.key,
+    required this.design,
+    required this.onClose,
+    this.footnote,
+  });
+
+  final CoverDesign design;
+  final VoidCallback onClose;
+  final String? footnote;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      key: const ValueKey('red-packet-cover-bottom'),
+      fit: StackFit.expand,
+      children: [
+        ColoredBox(color: design.bottomColor),
+        IgnorePointer(
+          child: _DecorationLayer(design: design, area: 'bottom'),
+        ),
+        if (design.effects.sparkles)
+          IgnorePointer(child: _SparkleLayer(color: design.openColor)),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (footnote != null) ...[
+                  Text(
+                    footnote!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Color(0xd9ffffff),
+                      fontSize: 11.5,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                _CoverCloseButton(onTap: onClose),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Decorated header of the opened receipt. Its height is controlled by the
+/// design (`receiptHeight`), so a designer can push it down over the receipt
+/// or keep it as a thin band.
+class RedPacketOpenedTop extends StatelessWidget {
+  const RedPacketOpenedTop({super.key, required this.design, this.darkInk = false});
+
+  final CoverDesign design;
+  final bool darkInk;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipPath(
+      clipper: _ReceiptArchClipper(),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          CoverBackdrop(design: design),
+          IgnorePointer(
+            child: _DecorationLayer(design: design, area: 'top', receipt: true),
+          ),
+          if (design.effects.sparkles)
+            IgnorePointer(child: _SparkleLayer(color: design.openColor)),
         ],
       ),
     );
   }
 }
 
-/// The part of the cover below the arch.
-///
-/// Today it only carries the refund-window footnote; future red-packet
-/// features (a cover picker, stickers, …) can be added here without touching
-/// the top half.
-class RedPacketCoverBottom extends StatelessWidget {
-  const RedPacketCoverBottom({super.key, this.footnote});
+/// Paints the configured background: solid, gradient or an uploaded image.
+class CoverBackdrop extends StatelessWidget {
+  const CoverBackdrop({super.key, required this.design});
 
-  final String? footnote;
+  final CoverDesign design;
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      key: const ValueKey('red-packet-cover-bottom'),
-      color: redPacketRed,
-      child: Align(
-        alignment: Alignment.bottomCenter,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 28, left: 24, right: 24),
-          child: footnote == null
-              ? const SizedBox.shrink()
-              : Text(
-                  footnote!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Color(0xd9ffffff),
-                    fontSize: 11.5,
+    final background = design.background;
+    if (background.isImage) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          MediaImage(id: background.mediaId!, fit: BoxFit.cover),
+          ColoredBox(color: background.color.withValues(alpha: .18)),
+        ],
+      );
+    }
+    if (background.type == 'gradient' && background.colors.length >= 2) {
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: background.colors,
+          ),
+        ),
+      );
+    }
+    return ColoredBox(color: background.color);
+  }
+}
+
+/// Lays out the designer's decorations with their idle motion.
+class _DecorationLayer extends StatefulWidget {
+  const _DecorationLayer({
+    required this.design,
+    required this.area,
+    this.receipt = false,
+  });
+
+  final CoverDesign design;
+  final String area;
+  final bool receipt;
+
+  @override
+  State<_DecorationLayer> createState() => _DecorationLayerState();
+}
+
+class _DecorationLayerState extends State<_DecorationLayer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final items = widget.design.decorations
+        .where(
+          (item) => widget.receipt
+              ? item.area == 'top' || item.area == 'all'
+              : item.area == widget.area,
+        )
+        .toList();
+    if (items.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, box) {
+        final width = box.maxWidth, height = box.maxHeight;
+        return AnimatedBuilder(
+          animation: _clock,
+          builder: (context, _) {
+            final t = _clock.value;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                for (final item in items)
+                  Positioned(
+                    left: item.x * width - item.size * width / 2,
+                    top: item.y * height - item.size * width / 2,
+                    width: item.size * width,
+                    height: item.size * width,
+                    child: _DecoratedItem(
+                      item: item,
+                      effects: widget.design.effects,
+                      t: t,
+                    ),
                   ),
-                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _DecoratedItem extends StatelessWidget {
+  const _DecoratedItem({
+    required this.item,
+    required this.effects,
+    required this.t,
+  });
+
+  final CoverDecoration item;
+  final CoverEffects effects;
+  final double t;
+
+  @override
+  Widget build(BuildContext context) {
+    final phase = (item.x * 7 + item.y * 11) % 1;
+    final wave = math.sin((t + phase) * math.pi * 2);
+    var scale = 1.0, opacity = 1.0;
+    var offset = Offset.zero;
+    // A decoration's own motion wins; otherwise the cover-wide switches give
+    // every still decoration the same idle movement.
+    final animation = item.animation != 'none'
+        ? item.animation
+        : effects.float
+        ? 'float'
+        : effects.pulse
+        ? 'pulse'
+        : 'none';
+    switch (animation) {
+      case 'float':
+        offset = Offset(wave * 3, wave * 5);
+      case 'pulse':
+        scale = 1 + wave * .06;
+      case 'sparkle':
+        opacity = .35 + .65 * (wave.abs());
+    }
+    return Transform.translate(
+      offset: offset,
+      child: Transform.rotate(
+        angle: item.rotation,
+        child: Transform.scale(
+          scale: scale,
+          child: Opacity(
+            opacity: opacity.clamp(0, 1).toDouble(),
+            child: Center(
+              child: item.kind == 'image'
+                  ? MediaImage(id: item.value, fit: BoxFit.contain)
+                  : FittedBox(
+                      fit: BoxFit.contain,
+                      child: Text(
+                        item.value,
+                        style: TextStyle(
+                          fontSize: 64,
+                          height: 1,
+                          fontWeight: item.kind == 'text'
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                          color: const Color(0xffffffff),
+                          shadows: const [
+                            Shadow(color: Color(0x55000000), blurRadius: 4),
+                          ],
+                        ),
+                      ),
+                    ),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
+/// Soft gold sparkles drifting over the cover when the design enables them.
+class _SparkleLayer extends StatefulWidget {
+  const _SparkleLayer({required this.color});
+
+  final Color color;
+
+  @override
+  State<_SparkleLayer> createState() => _SparkleLayerState();
+}
+
+class _SparkleLayerState extends State<_SparkleLayer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _clock = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 4),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _clock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _clock,
+    builder: (context, _) => CustomPaint(
+      painter: _SparklePainter(widget.color, _clock.value),
+    ),
+  );
+}
+
+class _SparklePainter extends CustomPainter {
+  _SparklePainter(this.color, this.t);
+
+  final Color color;
+  final double t;
+
+  static const _points = [
+    (.14, .18, .8),
+    (.82, .12, 1.1),
+    (.32, .46, .7),
+    (.72, .55, .9),
+    (.5, .28, 1.2),
+    (.9, .74, .8),
+    (.08, .66, 1),
+    (.62, .86, .7),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var index = 0; index < _points.length; index++) {
+      final (x, y, scale) = _points[index];
+      final phase = (t + index / _points.length) % 1;
+      final pulse = .25 + .75 * math.sin(phase * math.pi).abs();
+      final center = Offset(x * size.width, y * size.height);
+      final radius = 1.6 * scale * pulse;
+      final paint = Paint()
+        ..color = color.withValues(alpha: .75 * pulse)
+        ..style = PaintingStyle.fill;
+      canvas.drawCircle(center, radius, paint);
+      final arm = 5.0 * scale * pulse;
+      final line = Paint()
+        ..color = color.withValues(alpha: .5 * pulse)
+        ..strokeWidth = .8
+        ..strokeCap = StrokeCap.round;
+      canvas
+        ..drawLine(center.translate(-arm, 0), center.translate(arm, 0), line)
+        ..drawLine(center.translate(0, -arm), center.translate(0, arm), line);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_SparklePainter old) => old.t != t || old.color != color;
+}
+
 class _OpenButton extends StatelessWidget {
   const _OpenButton({
     required this.diameter,
+    required this.design,
     required this.mine,
     required this.opening,
     this.onTap,
   });
 
   final double diameter;
+  final CoverDesign design;
   final bool mine, opening;
   final VoidCallback? onTap;
 
@@ -241,10 +649,10 @@ class _OpenButton extends StatelessWidget {
       key: const ValueKey('red-packet-cover-open'),
       onTap: onTap,
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Color(0xfff6e3b0),
-          boxShadow: [
+          color: design.openColor,
+          boxShadow: const [
             BoxShadow(
               color: Color(0x33000000),
               blurRadius: 10,
@@ -254,13 +662,9 @@ class _OpenButton extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            opening
-                ? '...'
-                : mine
-                ? 'Đã gửi'
-                : 'Mở',
+            opening ? '...' : mine ? 'Đã gửi' : design.openLabel,
             style: TextStyle(
-              color: const Color(0xffa8512f),
+              color: design.openTextColor,
               fontSize: diameter * .22,
               fontWeight: FontWeight.w500,
             ),
@@ -269,6 +673,31 @@ class _OpenButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CoverCloseButton extends StatelessWidget {
+  const _CoverCloseButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    key: const ValueKey('red-packet-cover-close'),
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: const Color(0x66ffffff), width: 1.2),
+        color: const Color(0x1a000000),
+      ),
+      child: const Center(
+        child: QChatIcon('close', size: 18, color: Color(0xffffffff)),
+      ),
+    ),
+  );
 }
 
 /// Clips a box so its bottom edge is the arch (deepest in the middle).
@@ -292,6 +721,29 @@ class _ArchClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(_ArchClipper old) => old.depth != depth;
+}
+
+/// The arch under the decorated header of the opened receipt.
+class _ReceiptArchClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final edge = size.width * .08;
+    final depth = size.height * .18;
+    return Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height - edge)
+      ..quadraticBezierTo(
+        size.width / 2,
+        size.height + depth,
+        0,
+        size.height - edge,
+      )
+      ..close();
+  }
+
+  @override
+  bool shouldReclip(_ReceiptArchClipper old) => false;
 }
 
 /// Draws the thin shadowed line that separates the two halves.

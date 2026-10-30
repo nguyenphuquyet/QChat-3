@@ -40,6 +40,8 @@ model User {
   devices PushDevice[]
   feedback Feedback[]
   wallet Wallet?
+  designer RedPacketDesigner?
+  redPacketCovers UserRedPacketCover[]
   miniApps MiniApp[] @relation("miniAppOwner")
   miniAppMemberships MiniAppMember[]
   miniAppRecents UserRecentMiniApp[]
@@ -160,9 +162,13 @@ model MoneyTransfer {
   refundedAt DateTime?
   recipientCount Int @default(1)
   claimedCount Int @default(0)
+  coverId String? @db.Uuid
+  cover RedPacketCover? @relation(fields: [coverId], references: [id], onDelete: SetNull)
+  coverDesign Json?
   createdAt DateTime @default(now())
   claims MoneyTransferClaim[]
   @@index([recipientId,status])
+  @@index([coverId])
   @@index([senderId,createdAt])
   @@index([status,createdAt])
 }
@@ -176,6 +182,49 @@ model MoneyTransferClaim {
   @@id([transferId,userId])
   @@index([userId,status])
 }
+/// A public design identity. It is deliberately separate from the QChat
+/// account (display name, bio, avatar) but linked to it through `userId`, so a
+/// designer can publish without exposing their personal profile.
+model RedPacketDesigner {
+  userId String @id @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  displayName String
+  bio String @default("")
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  covers RedPacketCover[]
+}
+
+model RedPacketCover {
+  id String @id @default(uuid()) @db.Uuid
+  designerId String @db.Uuid
+  designer RedPacketDesigner @relation(fields: [designerId], references: [userId], onDelete: Cascade)
+  name String
+  description String @default("")
+  design Json
+  status String @default("DRAFT")
+  price Int @default(0)
+  claimCount Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owners UserRedPacketCover[]
+  transfers MoneyTransfer[]
+  @@index([status, updatedAt])
+  @@index([designerId, updatedAt])
+}
+
+model UserRedPacketCover {
+  userId String @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coverId String @db.Uuid
+  cover RedPacketCover @relation(fields: [coverId], references: [id], onDelete: Cascade)
+  selected Boolean @default(false)
+  acquiredAt DateTime @default(now())
+  @@id([userId, coverId])
+  @@index([userId, selected])
+}
+
 model MessageUserState {
   messageId String @db.Uuid
   userId String @db.Uuid

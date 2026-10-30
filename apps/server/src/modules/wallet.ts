@@ -1,8 +1,10 @@
 import { randomInt, randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "../services/db";
 import { requireCondition } from "../security/errors";
 import { sendMessage } from "../services/messages";
+import { coverSnapshotForTransfer, coversRoute } from "./covers";
 import { uuid } from "../../../../packages/contracts";
 
 const minTransfer = 1_000;
@@ -140,8 +142,12 @@ export async function walletRoute(
   method: string,
   path: string[],
   body: unknown,
+  url: URL,
 ) {
   const [, sub] = path;
+  if (sub === "covers" || sub === "designer" || sub === "designers") {
+    return coversRoute(userId, method, path, body, url);
+  }
   if (!sub && method === "GET") {
     const wallet = await ensureWallet(userId);
     return { balance: wallet.balance, transactions: await history(userId) };
@@ -158,9 +164,16 @@ export async function walletRoute(
         kind: z.enum(["TRANSFER", "RED_PACKET"]).default("TRANSFER"),
         note: z.string().trim().max(100).default(""),
         conversationId: uuid.optional(),
+        coverId: z.union([uuid, z.literal("default")]).optional(),
       })
       .strict()
       .parse(body);
+    const cover =
+      input.kind === "RED_PACKET" &&
+      input.coverId &&
+      input.coverId !== "default"
+        ? await coverSnapshotForTransfer(userId, input.coverId)
+        : null;
     const peer = await db.user.findUnique({
       where: { qchatId: input.to },
       select: { id: true, nickname: true, disabled: true },
@@ -259,6 +272,12 @@ export async function walletRoute(
           kind: input.kind,
           note: input.note,
           recipientCount: shares.length,
+          ...(cover
+            ? {
+                cover: { connect: { id: cover.id } },
+                coverDesign: cover.design as Prisma.InputJsonValue,
+              }
+            : {}),
           claims: { create: shares },
         },
       });
@@ -273,6 +292,7 @@ export async function walletRoute(
           amount: input.amount,
           note: input.note,
           transferId: transfer.id,
+          ...(cover ? { coverId: cover.id, cover: cover.design } : {}),
         }),
       });
       await db.moneyTransfer.update({

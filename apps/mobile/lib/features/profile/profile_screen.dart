@@ -478,6 +478,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             sectionGap,
             MenuRow('ringtone', onTap: () => c.push('/settings/calls')),
+            MenuRow(
+              'redPacketCovers',
+              onTap: () => c.push('/red-packets/covers'),
+            ),
+            MenuRow(
+              'designerHub',
+              onTap: () => c.push('/red-packets/designer'),
+            ),
             sectionGap,
             const MenuRow('addresses'),
             const MenuRow('invoice'),

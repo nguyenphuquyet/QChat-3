@@ -825,11 +825,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         .refreshMoneyMessage(Map<String, dynamic>.from(m));
     if (!mounted) return;
     if (m['kind'] == 'RED_PACKET') {
+      // The designer picks the scrim colour, so the popup tint matches the
+      // cover instead of always being plain black.
+      final cover = MoneyPayload.parse(message['text']).cover;
       final result = await Navigator.of(context).push<String>(
         PageRouteBuilder(
           opaque: false,
           barrierDismissible: true,
-          barrierColor: const Color(0x80000000),
+          barrierColor: cover?.overlayColor ?? const Color(0x80000000),
           barrierLabel: 'Hồng bao',
           transitionDuration: const Duration(milliseconds: 220),
           reverseTransitionDuration: const Duration(milliseconds: 180),

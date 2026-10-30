@@ -97,6 +97,9 @@ class QChatIcon extends StatelessWidget {
       'clock' => LucideIcons.clock,
       'undo' => LucideIcons.undo2,
       'arrowLeft' => LucideIcons.arrowLeft,
+      'palette' => LucideIcons.palette,
+      'sparkles' => LucideIcons.sparkles,
+      'brush' => LucideIcons.brush,
       _ => null,
     };
     if (glyph != null) return Icon(glyph, size: size, color: color);

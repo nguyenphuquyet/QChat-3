@@ -1,20 +1,26 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../payments/payments_screen.dart';
+import 'red_packet_design.dart';
+
+export 'red_packet_design.dart' show redPacketRed;
 
 /// Orange of the money bubbles (transfer and red packet share it).
 const moneyOrange = Color(0xfff5a83a);
-const redPacketRed = Color(0xffd93b30);
 const _deepRed = Color(0xffc0342a);
 const _footerInk = Color(0xfff8d9a8);
 
 /// The message text of TRANSFER / RED_PACKET rows is a small JSON payload:
 /// `{"amount": 520000, "note": "...", "transferId": "..."}`.
 class MoneyPayload {
-  const MoneyPayload(this.amount, this.note, [this.transferId]);
+  const MoneyPayload(this.amount, this.note, [this.transferId, this.cover]);
   final int amount;
   final String note;
   final String? transferId;
+
+  /// Snapshot of the cover the sender chose. It travels inside the message so
+  /// a packet keeps its look even if the designer edits or deletes the cover.
+  final CoverDesign? cover;
 
   static MoneyPayload parse(Object? text) {
     try {
@@ -24,6 +30,7 @@ class MoneyPayload {
           (value['amount'] as num?)?.toInt() ?? 0,
           value['note']?.toString().trim() ?? '',
           value['transferId']?.toString(),
+          value['cover'] == null ? null : CoverDesign.fromJson(value['cover']),
         );
       }
     } catch (_) {}

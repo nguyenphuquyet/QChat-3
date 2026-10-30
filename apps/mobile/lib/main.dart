@@ -22,6 +22,11 @@ import 'features/profile/user_profile_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
 import 'features/payments/payments_screen.dart';
+import 'features/payments/red_packet_covers_screen.dart';
+import 'features/payments/red_packet_cover_preview_screen.dart';
+import 'features/payments/red_packet_cover_studio_screen.dart';
+import 'features/payments/red_packet_designer_screen.dart';
+import 'features/chats/red_packet_design.dart';
 import 'features/payments/money_screen.dart';
 import 'features/payments/wallet_screen.dart';
 import 'features/payments/transfer_screen.dart';
@@ -144,6 +149,42 @@ class _QChatAppState extends ConsumerState<QChatApp> {
             avatarId: s.uri.queryParameters['avatar'] ?? '',
             conversationId: s.uri.queryParameters['conversation'],
             redPacket: s.uri.queryParameters['red'] == '1',
+          ),
+        ),
+        qchatRoute(
+          path: '/red-packets/covers',
+          builder: (_, s) => RedPacketCoversScreen(
+            pick: s.uri.queryParameters['pick'] == '1',
+          ),
+        ),
+        qchatRoute(
+          path: '/red-packets/covers/market',
+          builder: (_, s) => const RedPacketCoverMarketScreen(),
+        ),
+        qchatRoute(
+          path: '/red-packets/covers/preview',
+          builder: (_, s) => RedPacketCoverPreviewScreen(
+            cover: s.extra is RedPacketCoverData
+                ? s.extra as RedPacketCoverData
+                : RedPacketCoverData.defaultCover,
+          ),
+        ),
+        qchatRoute(
+          path: '/red-packets/designer',
+          builder: (_, s) => const RedPacketDesignerScreen(),
+        ),
+        qchatRoute(
+          path: '/red-packets/designer/cover',
+          builder: (_, s) => RedPacketCoverStudioScreen(
+            cover: s.extra is RedPacketCoverData
+                ? s.extra as RedPacketCoverData
+                : null,
+          ),
+        ),
+        qchatRoute(
+          path: '/red-packets/designers/:id',
+          builder: (_, s) => RedPacketDesignerProfileScreen(
+            designerId: s.pathParameters['id']!,
           ),
         ),
         qchatRoute(
