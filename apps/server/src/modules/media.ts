@@ -204,6 +204,33 @@ export async function mediaRoute(
           break;
         } catch {}
       }
+    // Cover artwork is public with a published cover and travels with every
+    // red packet that used it, so a market viewer or a recipient can load the
+    // same background and decoration pictures as the designer.
+    if (!allowed) {
+      const rows = await db.$queryRaw<{ one: number }[]>`
+        SELECT 1 AS one
+        FROM "RedPacketCover"
+        WHERE status = 'PUBLISHED'
+          AND design::text LIKE ${`%${file.id}%`}
+        LIMIT 1
+      `;
+      allowed = rows.length > 0;
+    }
+    if (!allowed) {
+      const rows = await db.$queryRaw<{ one: number }[]>`
+        SELECT 1 AS one
+        FROM "MoneyTransfer" mt
+        JOIN "Message" m ON m.id = mt."messageId"
+        JOIN "ConversationMember" cm
+          ON cm."conversationId" = m."conversationId"
+        WHERE cm."userId" = ${userId}::uuid
+          AND mt."coverDesign" IS NOT NULL
+          AND mt."coverDesign"::text LIKE ${`%${file.id}%`}
+        LIMIT 1
+      `;
+      allowed = rows.length > 0;
+    }
     requireCondition(allowed);
     return {
       mime: file.mime,

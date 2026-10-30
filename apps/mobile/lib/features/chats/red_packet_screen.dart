@@ -73,7 +73,7 @@ class _RedPacketScreenState extends State<RedPacketScreen>
 
   String get greeting {
     final note = payload.note;
-    return note.isEmpty ? 'Best wishes' : note;
+    return note.isEmpty ? 'Hồng bao' : note;
   }
 
   String get sentProgress {
@@ -115,35 +115,54 @@ class _RedPacketScreenState extends State<RedPacketScreen>
       color: QChatColors.transparent,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
         value: opened ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final screenWidth = constraints.maxWidth;
-              final screenHeight = constraints.maxHeight;
-              final cardWidth = math.min(336.0, screenWidth - 32);
-              final cardHeight = math.min(470.0, screenHeight - 32);
-              return AnimatedBuilder(
-                animation: _expand,
-                builder: (context, _) {
-                  final t = Curves.easeOutCubic.transform(_expand.value);
-                  final width = cardWidth + (screenWidth - cardWidth) * t;
-                  final height = cardHeight + (screenHeight - cardHeight) * t;
-                  return Center(
-                    child: SizedBox(
-                      width: width,
-                      height: height,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10 * (1 - t)),
-                        child: opened
-                            ? _opened(c, height)
-                            : _cover(c),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenWidth = constraints.maxWidth;
+            final screenHeight = constraints.maxHeight;
+            final insets = MediaQuery.paddingOf(context);
+            // The reference packet is a tall 3:4.6 card, not a short banner.
+            final cardWidth = math.min(360.0, screenWidth * .82);
+            final cardHeight = math.min(
+              cardWidth * 1.53,
+              screenHeight - insets.top - insets.bottom - 140,
+            );
+            return AnimatedBuilder(
+              animation: _expand,
+              builder: (context, _) {
+                final t = Curves.easeOutCubic.transform(_expand.value);
+                final width = cardWidth + (screenWidth - cardWidth) * t;
+                final height = cardHeight + (screenHeight - cardHeight) * t;
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Center(
+                      child: SizedBox(
+                        width: width,
+                        height: height,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10 * (1 - t)),
+                          child: opened ? _opened(c, height) : _cover(c),
+                        ),
                       ),
                     ),
-                  );
-                },
-              );
-            },
-          ),
+                    // The close control is not part of the cover: it floats
+                    // below the card so the packet stays a clean sheet.
+                    if (!opened)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: (screenHeight + height) / 2 + 16,
+                        child: Center(
+                          child: _CoverCloseOutside(
+                            onTap: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            );
+          },
         ),
       ),
     );
@@ -157,11 +176,7 @@ class _RedPacketScreenState extends State<RedPacketScreen>
     greeting: greeting,
     mine: widget.mine,
     opening: opening,
-    onClose: () => Navigator.of(context).pop(),
     onOpen: widget.mine || opening || refunded ? null : open,
-    footnote: widget.mine
-        ? null
-        : MoneyMessageState.refundWindowText(widget.message),
   );
 
   Widget _opened(BuildContext c, double height) {
@@ -181,16 +196,11 @@ class _RedPacketScreenState extends State<RedPacketScreen>
                   width: double.infinity,
                   child: RedPacketOpenedTop(design: design),
                 ),
-                Expanded(
-                  child: SafeArea(
-                    top: false,
-                    child: _receipt(c),
-                  ),
-                ),
+                Expanded(child: SafeArea(top: false, child: _receipt(c))),
               ],
             ),
             Positioned(
-              top: 8,
+              top: 8 + MediaQuery.paddingOf(context).top,
               left: 6,
               child: GestureDetector(
                 key: const ValueKey('red-packet-opened-close'),
@@ -198,11 +208,7 @@ class _RedPacketScreenState extends State<RedPacketScreen>
                 onTap: () => Navigator.of(context).pop(),
                 child: const Padding(
                   padding: EdgeInsets.all(12),
-                  child: QChatIcon(
-                    'close',
-                    size: 21,
-                    color: Color(0xffffffff),
-                  ),
+                  child: QChatIcon('close', size: 21, color: Color(0xffffffff)),
                 ),
               ),
             ),
@@ -227,9 +233,7 @@ class _RedPacketScreenState extends State<RedPacketScreen>
               const SizedBox(width: 7),
               Flexible(
                 child: Text(
-                  widget.mine
-                      ? 'Hồng bao của bạn'
-                      : 'Đã gửi bởi $senderName',
+                  widget.mine ? 'Hồng bao của bạn' : 'Đã gửi bởi $senderName',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -363,18 +367,12 @@ class _RedPacketScreenState extends State<RedPacketScreen>
                   children: [
                     Text(
                       '☺',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Color(0xffa0a0a0),
-                      ),
+                      style: TextStyle(fontSize: 16, color: Color(0xffa0a0a0)),
                     ),
                     SizedBox(width: 7),
                     Text(
                       'Trả lời bằng một Nhãn dán',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xff8f8f8f),
-                      ),
+                      style: TextStyle(fontSize: 12, color: Color(0xff8f8f8f)),
                     ),
                   ],
                 ),
@@ -385,4 +383,37 @@ class _RedPacketScreenState extends State<RedPacketScreen>
       ),
     );
   }
+}
+
+/// Close control that floats below the packet instead of sitting on the cover.
+class _CoverCloseOutside extends StatelessWidget {
+  const _CoverCloseOutside({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    key: const ValueKey('red-packet-cover-close'),
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: Container(
+      width: 46,
+      height: 46,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xf2ffffff),
+        border: Border.all(color: const Color(0x22000000), width: 1),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 12,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+      child: const Center(
+        child: QChatIcon('close', size: 24, color: Color(0xff5a4034)),
+      ),
+    ),
+  );
 }

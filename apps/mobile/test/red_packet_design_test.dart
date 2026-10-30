@@ -67,7 +67,10 @@ void main() {
   });
 
   test('colour parsing accepts #rrggbb and #aarrggbb', () {
-    expect(coverColor('#ff0000', const Color(0xff000000)), const Color(0xffff0000));
+    expect(
+      coverColor('#ff0000', const Color(0xff000000)),
+      const Color(0xffff0000),
+    );
     expect(
       coverColor('#80d93b30', const Color(0xff000000)),
       const Color(0x80d93b30),
@@ -115,7 +118,6 @@ void main() {
             greeting: 'Best wishes',
             mine: false,
             opening: false,
-            onClose: () {},
             onOpen: () {},
           ),
         ),

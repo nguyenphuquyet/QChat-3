@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qchat/features/chats/money_message.dart';
 import 'package:qchat/features/chats/red_packet_cover.dart';
+import 'package:qchat/features/chats/red_packet_design.dart';
 
 import 'test_app.dart';
 
@@ -8,7 +10,7 @@ void main() {
   testWidgets(
     'cover keeps the top and bottom halves separate around the arch',
     (tester) async {
-      var closed = 0, opened = 0;
+      var opened = 0;
       await tester.pumpWidget(
         qchatHarness(
           RedPacketCover(
@@ -17,9 +19,7 @@ void main() {
             greeting: 'Best wishes',
             mine: false,
             opening: false,
-            onClose: () => closed++,
             onOpen: () => opened++,
-            footnote: '24 giờ',
           ),
         ),
       );
@@ -37,7 +37,10 @@ void main() {
       expect(find.text('Đã gửi bởi Cương'), findsOneWidget);
       expect(find.text('Best wishes'), findsOneWidget);
       expect(find.text('Mở'), findsOneWidget);
-      expect(find.text('24 giờ'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('red-packet-cover-seam')),
+        findsOneWidget,
+      );
 
       // The open button straddles the seam: its centre is the lowest point of
       // the arch, which is also the bottom edge of the top half.
@@ -49,10 +52,29 @@ void main() {
 
       await tester.tap(find.byKey(const ValueKey('red-packet-cover-open')));
       expect(opened, 1);
-      await tester.tap(find.byKey(const ValueKey('red-packet-cover-close')));
-      expect(closed, 1);
     },
   );
+
+  testWidgets('the designer can hide the seam and keep a flat cover', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      qchatHarness(
+        RedPacketCover(
+          design: const CoverDesign(archLine: false),
+          sender: const {'nickname': 'Cương'},
+          senderName: 'Cương',
+          greeting: 'Hồng bao',
+          mine: false,
+          opening: false,
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const ValueKey('red-packet-cover-seam')), findsNothing);
+    expect(find.byKey(const ValueKey('red-packet-cover-top')), findsOneWidget);
+  });
 
   testWidgets('sender sees the sent state instead of the open button', (
     tester,
@@ -65,7 +87,6 @@ void main() {
           greeting: 'Best wishes',
           mine: true,
           opening: false,
-          onClose: () {},
         ),
       ),
     );
@@ -73,5 +94,24 @@ void main() {
 
     expect(find.text('Đã gửi'), findsOneWidget);
     expect(find.text('Mở'), findsNothing);
+  });
+
+  testWidgets('a packet without a greeting is called Hồng bao', (tester) async {
+    await tester.pumpWidget(
+      qchatHarness(
+        MoneyMessageCard(
+          message: const {
+            'kind': 'RED_PACKET',
+            'text': '{"amount":1000,"note":""}',
+          },
+          mine: false,
+          onTap: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Hồng bao'), findsOneWidget);
+    expect(find.text('Chúc mừng năm mới'), findsNothing);
   });
 }

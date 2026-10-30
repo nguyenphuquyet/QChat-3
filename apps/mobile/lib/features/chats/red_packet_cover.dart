@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
-import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
+import '../../core/media/media_video.dart';
 import 'red_packet_design.dart';
 
 /// Cover of a red packet, drawn edge to edge inside its parent card.
@@ -19,19 +19,20 @@ class RedPacketCover extends StatelessWidget {
     required this.greeting,
     required this.mine,
     required this.opening,
-    required this.onClose,
     this.design = CoverDesign.defaultDesign,
     this.onOpen,
-    this.footnote,
+    this.radius = 10,
   });
 
   final Map sender;
   final String senderName, greeting;
   final bool mine, opening;
-  final VoidCallback onClose;
   final CoverDesign design;
   final VoidCallback? onOpen;
-  final String? footnote;
+
+  /// Corner radius of the card itself. Decorations are drawn outside this clip,
+  /// so a designer can hang artwork around the cover's edges.
+  final double radius;
 
   @override
   Widget build(BuildContext context) {
@@ -39,56 +40,69 @@ class RedPacketCover extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, box) {
           final height = box.maxHeight, width = box.maxWidth;
-          // The lowest point of the arch, and how far its edges rise.
+          // The lowest point of the arch, and how far its edges rise. The
+          // reference seam sags about a fifteenth of the card height, so the
+          // curve stays soft instead of reading as a straight diagonal.
           final archY = height * design.topHeight;
-          final archDepth = math.min(height * .05, 56.0);
+          final archDepth = math.min(height * .066, 64.0);
           final diameter = math.min(width * .28, 104.0);
 
           return Stack(
+            clipBehavior: Clip.none,
             children: [
-              // Below the arch.
-              Positioned(
-                left: 0,
-                right: 0,
-                top: archY - archDepth,
-                bottom: 0,
-                child: RedPacketCoverBottom(
-                  design: design,
-                  footnote: footnote,
-                  onClose: onClose,
-                ),
-              ),
-              // Above the arch. Clipped so its bottom edge is the arch.
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: archY,
-                child: ClipPath(
-                  clipper: _ArchClipper(depth: archDepth),
-                  child: RedPacketCoverTop(
-                    design: design,
-                    sender: sender,
-                    senderName: senderName,
-                    greeting: greeting,
-                    onClose: onClose,
+              // The card: both halves and the seam, clipped to its corners.
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(radius),
+                  child: Stack(
+                    children: [
+                      // Below the arch.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: archY - archDepth,
+                        bottom: 0,
+                        child: RedPacketCoverBottom(design: design),
+                      ),
+                      // Above the arch. Clipped so its bottom edge is the arch.
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 0,
+                        height: archY,
+                        child: ClipPath(
+                          clipper: _ArchClipper(depth: archDepth),
+                          child: RedPacketCoverTop(
+                            design: design,
+                            sender: sender,
+                            senderName: senderName,
+                            greeting: greeting,
+                          ),
+                        ),
+                      ),
+                      // The seam between the two halves.
+                      if (design.archLine)
+                        Positioned(
+                          key: const ValueKey('red-packet-cover-seam'),
+                          left: 0,
+                          right: 0,
+                          top: archY - archDepth,
+                          height: archDepth,
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: const _ArchLinePainter(),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
               ),
-              // Decorations that live on both halves.
+              // Decorations that live on both halves, free to spill over the
+              // card's edges.
               Positioned.fill(
                 child: IgnorePointer(
                   child: _DecorationLayer(design: design, area: 'all'),
-                ),
-              ),
-              // The seam between the two halves.
-              Positioned(
-                left: 0,
-                right: 0,
-                top: archY - archDepth,
-                height: archDepth,
-                child: IgnorePointer(
-                  child: CustomPaint(painter: _ArchLinePainter()),
                 ),
               ),
               // The open button sits on the lowest point of the arch, half
@@ -116,70 +130,102 @@ class RedPacketCover extends StatelessWidget {
 
 /// A cover without the sender text, used by galleries and previews.
 class CoverArtwork extends StatelessWidget {
-  const CoverArtwork({super.key, required this.design, this.showOpen = true});
+  const CoverArtwork({
+    super.key,
+    required this.design,
+    this.showOpen = true,
+    this.radius = 8,
+  });
 
   final CoverDesign design;
   final bool showOpen;
+
+  /// Corner radius of the card. Decorations are painted above this clip, so
+  /// artwork may hang outside the cover.
+  final double radius;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
       final height = box.maxHeight, width = box.maxWidth;
       final archY = height * design.topHeight;
-      final depth = math.min(height * .05, 56.0);
+      final depth = math.min(height * .066, 64.0);
       final diameter = math.min(width * .28, 104.0);
       return Stack(
-        fit: StackFit.expand,
+        clipBehavior: Clip.none,
         children: [
-          Positioned(
-            left: 0,
-            right: 0,
-            top: archY - depth,
-            bottom: 0,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                ColoredBox(color: design.bottomColor),
-                IgnorePointer(
-                  child: _DecorationLayer(design: design, area: 'bottom'),
-                ),
-                if (design.effects.sparkles)
-                  IgnorePointer(child: _SparkleLayer(color: design.openColor)),
-              ],
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: 0,
-            height: archY,
-            child: ClipPath(
-              clipper: _ArchClipper(depth: depth),
+          // The card itself: lower half, flap and seam, clipped to its corners.
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  CoverBackdrop(design: design),
-                  IgnorePointer(
-                    child: _DecorationLayer(design: design, area: 'top'),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: archY - depth,
+                    bottom: 0,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ColoredBox(color: design.bottomColor),
+                        IgnorePointer(
+                          child: _DecorationLayer(
+                            design: design,
+                            area: 'bottom',
+                          ),
+                        ),
+                        if (design.effects.sparkles)
+                          IgnorePointer(
+                            child: _SparkleLayer(color: design.openColor),
+                          ),
+                      ],
+                    ),
                   ),
-                  if (design.effects.sparkles)
-                    IgnorePointer(
-                      child: _SparkleLayer(color: design.openColor),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: archY,
+                    child: ClipPath(
+                      clipper: _ArchClipper(depth: depth),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CoverBackdrop(design: design),
+                          IgnorePointer(
+                            child: _DecorationLayer(
+                              design: design,
+                              area: 'top',
+                            ),
+                          ),
+                          if (design.effects.sparkles)
+                            IgnorePointer(
+                              child: _SparkleLayer(color: design.openColor),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (design.archLine)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: archY - depth,
+                      height: depth,
+                      child: IgnorePointer(
+                        child: CustomPaint(painter: const _ArchLinePainter()),
+                      ),
                     ),
                 ],
               ),
             ),
           ),
-          IgnorePointer(
-            child: _DecorationLayer(design: design, area: 'all'),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            top: archY - depth,
-            height: depth,
+          // Artwork that belongs to the whole cover, free to spill outside.
+          Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(painter: _ArchLinePainter()),
+              child: _DecorationLayer(design: design, area: 'all'),
             ),
           ),
           if (showOpen)
@@ -222,14 +268,12 @@ class RedPacketCoverTop extends StatelessWidget {
     required this.sender,
     required this.senderName,
     required this.greeting,
-    required this.onClose,
     this.showDetails = true,
   });
 
   final CoverDesign design;
   final Map sender;
   final String senderName, greeting;
-  final VoidCallback onClose;
   final bool showDetails;
 
   @override
@@ -282,9 +326,7 @@ class RedPacketCoverTop extends StatelessWidget {
                     fontSize: 22,
                     height: 1.35,
                     fontWeight: FontWeight.w500,
-                    shadows: [
-                      Shadow(color: Color(0x66000000), blurRadius: 3),
-                    ],
+                    shadows: [Shadow(color: Color(0x66000000), blurRadius: 3)],
                   ),
                 ),
               ],
@@ -295,22 +337,15 @@ class RedPacketCoverTop extends StatelessWidget {
   }
 }
 
-/// The part of the cover below the arch: decorations, the refund footnote and
-/// the close button.
+/// The part of the cover below the arch: background and decorations.
 ///
-/// Today it only carries the footnote and the close control; future red-packet
-/// features can be added here without touching the top half.
+/// The close control lives outside the cover, so the card itself stays a clean
+/// sheet of paper. Future red-packet features can be added here without
+/// touching the top half.
 class RedPacketCoverBottom extends StatelessWidget {
-  const RedPacketCoverBottom({
-    super.key,
-    required this.design,
-    required this.onClose,
-    this.footnote,
-  });
+  const RedPacketCoverBottom({super.key, required this.design});
 
   final CoverDesign design;
-  final VoidCallback onClose;
-  final String? footnote;
 
   @override
   Widget build(BuildContext context) {
@@ -324,29 +359,6 @@ class RedPacketCoverBottom extends StatelessWidget {
         ),
         if (design.effects.sparkles)
           IgnorePointer(child: _SparkleLayer(color: design.openColor)),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (footnote != null) ...[
-                  Text(
-                    footnote!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xd9ffffff),
-                      fontSize: 11.5,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                _CoverCloseButton(onTap: onClose),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -356,7 +368,11 @@ class RedPacketCoverBottom extends StatelessWidget {
 /// design (`receiptHeight`), so a designer can push it down over the receipt
 /// or keep it as a thin band.
 class RedPacketOpenedTop extends StatelessWidget {
-  const RedPacketOpenedTop({super.key, required this.design, this.darkInk = false});
+  const RedPacketOpenedTop({
+    super.key,
+    required this.design,
+    this.darkInk = false,
+  });
 
   final CoverDesign design;
   final bool darkInk;
@@ -380,7 +396,9 @@ class RedPacketOpenedTop extends StatelessWidget {
   }
 }
 
-/// Paints the configured background: solid, gradient or an uploaded image.
+/// Paints the configured background: solid, gradient, a still picture, or a
+/// looping clip. A picture and a clip both fill the flap edge to edge, so the
+/// artwork below the arch is never touched and never letterboxed.
 class CoverBackdrop extends StatelessWidget {
   const CoverBackdrop({super.key, required this.design});
 
@@ -389,14 +407,15 @@ class CoverBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = design.background;
-    if (background.isImage) {
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          MediaImage(id: background.mediaId!, fit: BoxFit.cover),
-          ColoredBox(color: background.color.withValues(alpha: .18)),
-        ],
+    if (background.isVideo) {
+      return MediaVideo(
+        id: background.mediaId!,
+        fit: BoxFit.cover,
+        placeholder: background.color,
       );
+    }
+    if (background.isImage) {
+      return MediaImage(id: background.mediaId!, fit: BoxFit.cover);
     }
     if (background.type == 'gradient' && background.colors.length >= 2) {
       return DecoratedBox(
@@ -411,6 +430,37 @@ class CoverBackdrop extends StatelessWidget {
     }
     return ColoredBox(color: background.color);
   }
+}
+
+/// Dresses [child] with the cover's whole-cover decorations.
+///
+/// The layer is deliberately not clipped: a chat bubble can wear the same
+/// artwork as the packet, with pieces hanging around its edges the way a
+/// WeChat red packet does.
+class CoverDecorationOverlay extends StatelessWidget {
+  const CoverDecorationOverlay({
+    super.key,
+    required this.design,
+    required this.child,
+    this.area = 'all',
+  });
+
+  final CoverDesign design;
+  final Widget child;
+  final String area;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    clipBehavior: Clip.none,
+    children: [
+      child,
+      Positioned.fill(
+        child: IgnorePointer(
+          child: _DecorationLayer(design: design, area: area),
+        ),
+      ),
+    ],
+  );
 }
 
 /// Lays out the designer's decorations with their idle motion.
@@ -434,7 +484,33 @@ class _DecorationLayerState extends State<_DecorationLayer>
   late final AnimationController _clock = AnimationController(
     vsync: this,
     duration: const Duration(seconds: 6),
-  )..repeat();
+  );
+
+  List<CoverDecoration> get _items => widget.design.decorations
+      .where(
+        (item) => widget.receipt
+            ? item.area == 'top' || item.area == 'all'
+            : item.area == widget.area,
+      )
+      .toList();
+
+  @override
+  void initState() {
+    super.initState();
+    // A bubble that only carries top/bottom artwork has nothing to animate;
+    // leaving its clock stopped keeps the chat from scheduling idle frames.
+    if (_items.isNotEmpty) _clock.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DecorationLayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_items.isNotEmpty) {
+      if (!_clock.isAnimating) _clock.repeat();
+    } else if (_clock.isAnimating) {
+      _clock.stop();
+    }
+  }
 
   @override
   void dispose() {
@@ -444,13 +520,7 @@ class _DecorationLayerState extends State<_DecorationLayer>
 
   @override
   Widget build(BuildContext context) {
-    final items = widget.design.decorations
-        .where(
-          (item) => widget.receipt
-              ? item.area == 'top' || item.area == 'all'
-              : item.area == widget.area,
-        )
-        .toList();
+    final items = _items;
     if (items.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, box) {
@@ -579,9 +649,8 @@ class _SparkleLayerState extends State<_SparkleLayer>
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: _clock,
-    builder: (context, _) => CustomPaint(
-      painter: _SparklePainter(widget.color, _clock.value),
-    ),
+    builder: (context, _) =>
+        CustomPaint(painter: _SparklePainter(widget.color, _clock.value)),
   );
 }
 
@@ -662,7 +731,11 @@ class _OpenButton extends StatelessWidget {
         ),
         child: Center(
           child: Text(
-            opening ? '...' : mine ? 'Đã gửi' : design.openLabel,
+            opening
+                ? '...'
+                : mine
+                ? 'Đã gửi'
+                : design.openLabel,
             style: TextStyle(
               color: design.openTextColor,
               fontSize: diameter * .22,
@@ -673,31 +746,6 @@ class _OpenButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CoverCloseButton extends StatelessWidget {
-  const _CoverCloseButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    key: const ValueKey('red-packet-cover-close'),
-    behavior: HitTestBehavior.opaque,
-    onTap: onTap,
-    child: Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: const Color(0x66ffffff), width: 1.2),
-        color: const Color(0x1a000000),
-      ),
-      child: const Center(
-        child: QChatIcon('close', size: 18, color: Color(0xffffffff)),
-      ),
-    ),
-  );
 }
 
 /// Clips a box so its bottom edge is the arch (deepest in the middle).
@@ -727,17 +775,19 @@ class _ArchClipper extends CustomClipper<Path> {
 class _ReceiptArchClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-    final edge = size.width * .08;
-    final depth = size.height * .18;
+    // A shallow sag like the reference seam: the sides sit a little higher
+    // than the middle, and the curve meets the card edge instead of cutting
+    // across it with a straight diagonal.
+    final sag = size.width * .075;
     return Path()
       ..moveTo(0, 0)
       ..lineTo(size.width, 0)
-      ..lineTo(size.width, size.height - edge)
+      ..lineTo(size.width, size.height - sag)
       ..quadraticBezierTo(
         size.width / 2,
-        size.height + depth,
+        size.height + sag,
         0,
-        size.height - edge,
+        size.height - sag,
       )
       ..close();
   }
@@ -748,25 +798,30 @@ class _ReceiptArchClipper extends CustomClipper<Path> {
 
 /// Draws the thin shadowed line that separates the two halves.
 class _ArchLinePainter extends CustomPainter {
+  const _ArchLinePainter();
+
   @override
   void paint(Canvas canvas, Size size) {
     final path = Path()
       ..moveTo(0, 0)
       ..quadraticBezierTo(size.width / 2, size.height * 2, size.width, 0);
+    // The flap casts a soft shadow on the body, then a single hairline marks
+    // the fold. Both stay close to the reference: no thick painted band.
     canvas
       ..drawPath(
         path,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 8
-          ..color = const Color(0x1a000000),
+          ..strokeWidth = 9
+          ..color = const Color(0x1a000000)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
       )
       ..drawPath(
         path,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0x40000000),
+          ..strokeWidth = 1.3
+          ..color = const Color(0x30000000),
       );
   }
 

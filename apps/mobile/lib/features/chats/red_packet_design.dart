@@ -73,8 +73,8 @@ class CoverDecoration {
     id: json?['id']?.toString() ?? 'decoration-$index',
     kind: json?['kind']?.toString() ?? 'emoji',
     value: json?['value']?.toString() ?? '',
-    x: _double(json?['x'], .5),
-    y: _double(json?['y'], .3),
+    x: _double(json?['x'], .5).clamp(-.2, 1.2).toDouble(),
+    y: _double(json?['y'], .3).clamp(-.2, 1.2).toDouble(),
     size: _double(json?['size'], .2),
     rotation: _double(json?['rotation'], 0),
     animation: json?['animation']?.toString() ?? 'none',
@@ -91,13 +91,19 @@ class CoverBackground {
     this.mediaId,
   });
 
-  /// `solid`, `gradient` or `image`.
+  /// `solid`, `gradient`, `image` or `video`.
+  ///
+  /// A photo and a video both fill the flap edge to edge, so a designer never
+  /// sees letterboxing. GIF and animated WebP animate through `image`; a live
+  /// photo or a short clip uses `video` and loops silently.
   final String type;
   final Color color;
   final List<Color> colors;
   final String? mediaId;
 
   bool get isImage => type == 'image' && (mediaId ?? '').isNotEmpty;
+  bool get isVideo => type == 'video' && (mediaId ?? '').isNotEmpty;
+  bool get hasMedia => isImage || isVideo;
 
   CoverBackground copyWith({
     String? type,
@@ -175,6 +181,7 @@ class CoverDesign {
     this.bottomColor = redPacketRed,
     this.topHeight = .80,
     this.receiptHeight = .34,
+    this.archLine = true,
     this.overlayColor = const Color(0x80000000),
     this.openColor = const Color(0xfff6e3b0),
     this.openTextColor = const Color(0xffa8512f),
@@ -197,6 +204,10 @@ class CoverDesign {
   /// screen. Designers can push it down or pull it up freely.
   final double receiptHeight;
 
+  /// Whether the hairline seam between the flap and the body is drawn. Turning
+  /// it off leaves the cover flat, as if only the lower half were showing.
+  final bool archLine;
+
   /// Scrim shown behind the popup when the cover is tapped.
   final Color overlayColor;
 
@@ -212,6 +223,7 @@ class CoverDesign {
     Color? bottomColor,
     double? topHeight,
     double? receiptHeight,
+    bool? archLine,
     Color? overlayColor,
     Color? openColor,
     Color? openTextColor,
@@ -223,6 +235,7 @@ class CoverDesign {
     bottomColor: bottomColor ?? this.bottomColor,
     topHeight: topHeight ?? this.topHeight,
     receiptHeight: receiptHeight ?? this.receiptHeight,
+    archLine: archLine ?? this.archLine,
     overlayColor: overlayColor ?? this.overlayColor,
     openColor: openColor ?? this.openColor,
     openTextColor: openTextColor ?? this.openTextColor,
@@ -236,6 +249,7 @@ class CoverDesign {
     'bottomColor': coverHex(bottomColor),
     'topHeight': topHeight,
     'receiptHeight': receiptHeight,
+    'archLine': archLine,
     'overlayColor': coverHex(overlayColor),
     'openColor': coverHex(openColor),
     'openTextColor': coverHex(openTextColor),
@@ -268,10 +282,8 @@ class CoverDesign {
         json['receiptHeight'],
         .34,
       ).clamp(.12, .70).toDouble(),
-      overlayColor: coverColor(
-        json['overlayColor'],
-        const Color(0x80000000),
-      ),
+      archLine: json['archLine'] != false,
+      overlayColor: coverColor(json['overlayColor'], const Color(0x80000000)),
       openColor: coverColor(json['openColor'], const Color(0xfff6e3b0)),
       openTextColor: coverColor(json['openTextColor'], const Color(0xffa8512f)),
       openLabel: json['openLabel']?.toString() ?? 'Mở',
@@ -279,10 +291,7 @@ class CoverDesign {
           ? [
               for (var index = 0; index < decorations.length; index++)
                 if (decorations[index] is Map)
-                  CoverDecoration.fromJson(
-                    decorations[index] as Map,
-                    index,
-                  ),
+                  CoverDecoration.fromJson(decorations[index] as Map, index),
             ]
           : const [],
       effects: CoverEffects.fromJson(
@@ -380,7 +389,8 @@ class RedPacketCoverData {
       design: CoverDesign.fromJson(raw['design']),
       status: raw['status']?.toString() ?? 'DRAFT',
       claimCount: (raw['claimCount'] as num?)?.toInt() ?? 0,
-      designerId: designer['userId']?.toString() ?? raw['designerId']?.toString(),
+      designerId:
+          designer['userId']?.toString() ?? raw['designerId']?.toString(),
       designerName:
           designer['displayName']?.toString() ??
           user['nickname']?.toString() ??

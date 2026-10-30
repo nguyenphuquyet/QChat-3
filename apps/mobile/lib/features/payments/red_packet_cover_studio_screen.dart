@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +7,7 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../../core/media/media_video.dart';
 import '../../core/network/media_upload.dart';
 import '../chats/red_packet_cover.dart';
 import '../chats/red_packet_design.dart';
@@ -150,7 +152,10 @@ class _RedPacketCoverStudioScreenState
     });
   }
 
-  void _updateDecoration(int index, CoverDecoration Function(CoverDecoration) change) {
+  void _updateDecoration(
+    int index,
+    CoverDecoration Function(CoverDecoration) change,
+  ) {
     final items = [...design.decorations];
     items[index] = change(items[index]);
     setState(() => design = design.copyWith(decorations: items));
@@ -164,11 +169,13 @@ class _RedPacketCoverStudioScreenState
     });
   }
 
-  Future<void> _pickPhoto({bool decoration = false}) async {
+  Future<void> _pickPhoto({bool decoration = false, bool video = false}) async {
     if (uploading) return;
     setState(() => uploading = true);
     try {
-      final file = await pickImageWithSource(context);
+      final file = video
+          ? await _pickVideoFile()
+          : await pickImageWithSource(context);
       if (file == null || !mounted) return;
       final id = await uploadMedia(ref.read(clientProvider), file);
       if (!mounted) return;
@@ -178,7 +185,7 @@ class _RedPacketCoverStudioScreenState
         _apply(
           design.copyWith(
             background: design.background.copyWith(
-              type: 'image',
+              type: _isVideo(file) ? 'video' : 'image',
               mediaId: id,
             ),
           ),
@@ -189,6 +196,19 @@ class _RedPacketCoverStudioScreenState
     } finally {
       if (mounted) setState(() => uploading = false);
     }
+  }
+
+  Future<PlatformFile?> _pickVideoFile() async {
+    final files = await pickMediaWithSource(context, maxAssets: 1);
+    return files.isEmpty ? null : files.first;
+  }
+
+  /// A live photo or GIF arrives as an image, a clip as a video. The picker
+  /// accepts both under the "live" pill, so the stored type follows the file.
+  bool _isVideo(PlatformFile file) {
+    final dot = file.name.lastIndexOf('.');
+    final extension = dot < 0 ? '' : file.name.substring(dot + 1);
+    return (mediaMime(extension) ?? '').startsWith('video/');
   }
 
   Future<void> _createDesigner() async {
@@ -298,9 +318,7 @@ class _RedPacketCoverStudioScreenState
   Widget _gate(BuildContext c) => ListView(
     padding: const EdgeInsets.fromLTRB(20, 30, 20, 40),
     children: [
-      const Center(
-        child: QChatIcon('palette', size: 56, color: coverCoral),
-      ),
+      const Center(child: QChatIcon('palette', size: 56, color: coverCoral)),
       const SizedBox(height: 18),
       Text(
         tr(c, 'designerCreate'),
@@ -374,6 +392,17 @@ class _RedPacketCoverStudioScreenState
         const SizedBox(height: 4),
         Text(
           tr(c, 'coverArchHeightNote'),
+          style: TextStyle(fontSize: 12, color: qchatMuted(c)),
+        ),
+        const SizedBox(height: 10),
+        _toggle(
+          c,
+          tr(c, 'coverArchLine'),
+          design.archLine,
+          (value) => _apply(design.copyWith(archLine: value)),
+        ),
+        Text(
+          tr(c, 'coverArchLineNote'),
           style: TextStyle(fontSize: 12, color: qchatMuted(c)),
         ),
         const SizedBox(height: 14),
@@ -489,40 +518,45 @@ class _RedPacketCoverStudioScreenState
   );
 
   Widget _previews(BuildContext c) => CoverSurface(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+    padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
     child: LayoutBuilder(
       builder: (context, box) {
-        final coverWidth = (box.maxWidth * .54).clamp(120.0, 168.0);
-        final openedWidth = (box.maxWidth - coverWidth - 14).clamp(
-          96.0,
-          150.0,
-        );
+        final coverWidth = (box.maxWidth * .38).clamp(96.0, 132.0);
+        // Room around the card so decorations dragged past its edges stay
+        // visible in the studio, exactly as they will hang in the chat.
+        final spill = coverWidth * .22;
         final coverHeight = coverWidth * 4 / 3;
+        final openedWidth = (box.maxWidth - coverWidth - spill * 2 - 14).clamp(
+          84.0,
+          132.0,
+        );
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Column(
               children: [
                 SizedBox(
-                  width: coverWidth,
-                  height: coverHeight,
-                  child: LayoutBuilder(
-                    builder: (context, canvas) => Stack(
-                      children: [
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: CoverThumb(
-                              design: design,
-                              radius: 8,
-                            ),
-                          ),
+                  width: coverWidth + spill * 2,
+                  height: coverHeight + spill * 2,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned(
+                        left: spill,
+                        top: spill,
+                        width: coverWidth,
+                        height: coverHeight,
+                        child: IgnorePointer(
+                          child: CoverThumb(design: design, radius: 8),
                         ),
-                        for (var index = 0;
-                            index < design.decorations.length;
-                            index++)
-                          _handle(index, canvas),
-                      ],
-                    ),
+                      ),
+                      for (
+                        var index = 0;
+                        index < design.decorations.length;
+                        index++
+                      )
+                        _handle(index, coverWidth, coverHeight, spill),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -554,15 +588,15 @@ class _RedPacketCoverStudioScreenState
   );
 
   /// Draggable hit box over a decoration, so a designer can place artwork
-  /// anywhere on the cover by dragging it in the preview.
-  Widget _handle(int index, BoxConstraints canvas) {
+  /// anywhere on or around the cover by dragging it in the preview.
+  Widget _handle(int index, double width, double height, double spill) {
     final item = design.decorations[index];
-    final width = item.size * canvas.maxWidth;
+    final size = item.size * width;
     return Positioned(
-      left: item.x * canvas.maxWidth - width / 2,
-      top: item.y * canvas.maxHeight - width / 2,
-      width: width,
-      height: width,
+      left: spill + item.x * width - size / 2,
+      top: spill + item.y * height - size / 2,
+      width: size,
+      height: size,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => setState(() => selected = index),
@@ -570,8 +604,8 @@ class _RedPacketCoverStudioScreenState
           _updateDecoration(
             index,
             (current) => current.copyWith(
-              x: (item.x + details.delta.dx / canvas.maxWidth).clamp(0.0, 1.0),
-              y: (item.y + details.delta.dy / canvas.maxHeight).clamp(0.0, 1.0),
+              x: (current.x + details.delta.dx / width).clamp(-.2, 1.2),
+              y: (current.y + details.delta.dy / height).clamp(-.2, 1.2),
             ),
           );
         },
@@ -593,46 +627,29 @@ class _RedPacketCoverStudioScreenState
         ? background.colors
         : const [Color(0xffd93b30), Color(0xfff3d19c)];
     return _section(c, tr(c, 'coverBackground'), [
-      Row(
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          for (final type in const ['solid', 'gradient', 'image'])
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: _Pill(
-                  label: tr(
-                    c,
-                    type == 'solid'
-                        ? 'coverSolid'
-                        : type == 'gradient'
-                        ? 'coverGradient'
-                        : 'coverImage',
+          for (final type in const ['solid', 'gradient', 'image', 'video'])
+            _Pill(
+              label: tr(
+                c,
+                type == 'solid'
+                    ? 'coverSolid'
+                    : type == 'gradient'
+                    ? 'coverGradient'
+                    : type == 'image'
+                    ? 'coverImage'
+                    : 'coverVideo',
+              ),
+              selected: background.type == type,
+              onTap: () => _apply(
+                design.copyWith(
+                  background: background.copyWith(
+                    type: type,
+                    colors: type == 'gradient' ? colors : background.colors,
                   ),
-                  selected: background.type == type,
-                  onTap: () {
-                    if (type == 'gradient') {
-                      _apply(
-                        design.copyWith(
-                          background: background.copyWith(
-                            type: type,
-                            colors: colors,
-                          ),
-                        ),
-                      );
-                    } else if (type == 'image') {
-                      _apply(
-                        design.copyWith(
-                          background: background.copyWith(type: type),
-                        ),
-                      );
-                    } else {
-                      _apply(
-                        design.copyWith(
-                          background: background.copyWith(type: type),
-                        ),
-                      );
-                    }
-                  },
                 ),
               ),
             ),
@@ -680,7 +697,7 @@ class _RedPacketCoverStudioScreenState
             ),
           ),
         ),
-      ] else
+      ] else ...[
         Row(
           children: [
             Container(
@@ -691,11 +708,13 @@ class _RedPacketCoverStudioScreenState
                 color: qchatFill(c),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: background.isImage
+              child: background.isVideo
+                  ? MediaVideo(id: background.mediaId!, fit: BoxFit.cover)
+                  : background.isImage
                   ? MediaImage(id: background.mediaId!, fit: BoxFit.cover)
-                  : const Center(
+                  : Center(
                       child: QChatIcon(
-                        'image',
+                        background.type == 'video' ? 'play' : 'image',
                         size: 24,
                         color: QChatColors.muted,
                       ),
@@ -704,15 +723,26 @@ class _RedPacketCoverStudioScreenState
             const SizedBox(width: 12),
             Expanded(
               child: CoralButton(
-                tr(c, 'coverPickImage'),
+                tr(
+                  c,
+                  background.type == 'video'
+                      ? 'coverPickVideo'
+                      : 'coverPickImage',
+                ),
                 height: 40,
                 secondary: true,
                 loading: uploading,
-                onTap: _pickPhoto,
+                onTap: () => _pickPhoto(video: background.type == 'video'),
               ),
             ),
           ],
         ),
+        const SizedBox(height: 8),
+        Text(
+          tr(c, 'coverMediaFillNote'),
+          style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
+        ),
+      ],
     ]);
   }
 
@@ -743,6 +773,11 @@ class _RedPacketCoverStudioScreenState
               ),
             ),
         ],
+      ),
+      const SizedBox(height: 8),
+      Text(
+        tr(c, 'coverAreaAllNote'),
+        style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
       ),
       const SizedBox(height: 12),
       Row(
@@ -992,10 +1027,7 @@ class _RedPacketCoverStudioScreenState
               color: checker ? null : color,
               gradient: checker
                   ? LinearGradient(
-                      colors: [
-                        color.withValues(alpha: .15),
-                        color,
-                      ],
+                      colors: [color.withValues(alpha: .15), color],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     )

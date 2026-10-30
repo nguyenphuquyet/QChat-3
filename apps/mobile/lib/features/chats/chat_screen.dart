@@ -1415,6 +1415,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                     : CrossAxisAlignment.start,
                                                 children: [
                                                   Stack(
+                                                    clipBehavior: Clip.none,
                                                     alignment: Alignment.center,
                                                     children: [
                                                       Opacity(

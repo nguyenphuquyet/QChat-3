@@ -81,12 +81,9 @@ class CoverThumb extends StatelessWidget {
   final bool showOpen;
 
   @override
-  Widget build(BuildContext context) => ClipRRect(
-    borderRadius: BorderRadius.circular(radius),
-    child: AspectRatio(
-      aspectRatio: 3 / 4,
-      child: CoverArtwork(design: design, showOpen: showOpen),
-    ),
+  Widget build(BuildContext context) => AspectRatio(
+    aspectRatio: 3 / 4,
+    child: CoverArtwork(design: design, showOpen: showOpen, radius: radius),
   );
 }
 
@@ -148,19 +145,12 @@ class DesignerLine extends StatelessWidget {
               name.isEmpty ? qchatId : name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                color: color ?? ink(context),
-              ),
+              style: TextStyle(fontSize: 14, color: color ?? ink(context)),
             ),
           ),
           if (onTap != null) ...[
             const SizedBox(width: 2),
-            QChatIcon(
-              'chevron',
-              size: 15,
-              color: color ?? QChatColors.muted,
-            ),
+            QChatIcon('chevron', size: 15, color: color ?? QChatColors.muted),
           ],
         ],
       ),

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../payments/payments_screen.dart';
+import 'red_packet_cover.dart';
 import 'red_packet_design.dart';
 
 export 'red_packet_design.dart' show redPacketRed;
@@ -91,7 +92,9 @@ class MoneyMessageState {
   static Duration? refundRemaining(Map message) {
     final created = createdAt(message);
     if (created == null) return null;
-    final left = created.add(const Duration(hours: 24)).difference(DateTime.now());
+    final left = created
+        .add(const Duration(hours: 24))
+        .difference(DateTime.now());
     return left.isNegative ? Duration.zero : left;
   }
 
@@ -135,8 +138,14 @@ class MoneyMessageCard extends StatelessWidget {
   String get greeting {
     final note = MoneyPayload.parse(message['text']).note;
     if (note.isNotEmpty) return note;
-    return red ? 'Chúc mừng năm mới' : 'Chuyển tiền';
+    return red ? 'Hồng bao' : 'Chuyển tiền';
   }
+
+  /// The bubble wears the sender's cover artwork: decorations marked "whole
+  /// cover" hang around the message just like they hang around the packet.
+  Widget _art(CoverDesign? cover, Widget child) => red && cover != null
+      ? CoverDecorationOverlay(design: cover, child: child)
+      : child;
 
   @override
   Widget build(BuildContext c) {
@@ -151,147 +160,153 @@ class MoneyMessageCard extends StatelessWidget {
       child: Opacity(
         opacity: completed || refunded ? .48 : 1,
         child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            top: 16,
-            left: mine ? null : -4,
-            right: mine ? -4 : null,
-            child: Transform.rotate(
-              angle: .785398,
-              child: Container(width: 10, height: 10, color: moneyOrange),
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              top: 16,
+              left: mine ? null : -4,
+              right: mine ? -4 : null,
+              child: Transform.rotate(
+                angle: .785398,
+                child: Container(width: 10, height: 10, color: moneyOrange),
+              ),
             ),
-          ),
-          Container(
-            width: width,
-            decoration: BoxDecoration(
-              color: moneyOrange,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
-                  child: SizedBox(
-                    height: 46,
-                    child: red
-                        ? Row(
-                            children: [
-                              const _Envelope(),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      greeting,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Color(0xffffffff),
-                                        fontSize: 16,
-                                        height: 1.3,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (completed || refunded)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 2),
-                                        child: Text(
-                                          refunded
-                                              ? 'Đã hoàn tiền'
-                                              : 'Đã mở hồng bao',
+            _art(
+              payload.cover,
+              Container(
+                width: width,
+                decoration: BoxDecoration(
+                  color: moneyOrange,
+                  borderRadius: BorderRadius.circular(5),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
+                      child: SizedBox(
+                        height: 46,
+                        child: red
+                            ? Row(
+                                children: [
+                                  const _Envelope(),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          greeting,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            color: Color(0xf2ffffff),
-                                            fontSize: 12.5,
+                                            color: Color(0xffffffff),
+                                            fontSize: 16,
+                                            height: 1.3,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              const _TransferArrows(),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      moneyText(payload.amount),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Color(0xffffffff),
-                                        fontSize: 17.5,
-                                        height: 1.2,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                        if (completed || refunded)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 2,
+                                            ),
+                                            child: Text(
+                                              refunded
+                                                  ? 'Đã hoàn tiền'
+                                                  : 'Đã mở hồng bao',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Color(0xf2ffffff),
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    // The reference keeps this caption on one
-                                    // line, shrinking it a touch when needed.
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          refunded
-                                              ? 'Đã hoàn tiền'
-                                              : mine
-                                              ? 'Bạn đã thực hiện chuyển khoản'
-                                              : completed
-                                              ? 'Đã nhận'
-                                              : 'Chấp nhận chuyển tiền',
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  const _TransferArrows(),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          moneyText(payload.amount),
                                           maxLines: 1,
-                                          softWrap: false,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            color: Color(0xf2ffffff),
-                                            fontSize: 12.5,
+                                            color: Color(0xffffffff),
+                                            fontSize: 17.5,
                                             height: 1.2,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(height: 2),
+                                        // The reference keeps this caption on one
+                                        // line, shrinking it a touch when needed.
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              refunded
+                                                  ? 'Đã hoàn tiền'
+                                                  : mine
+                                                  ? 'Bạn đã thực hiện chuyển khoản'
+                                                  : completed
+                                                  ? 'Đã nhận'
+                                                  : 'Chấp nhận chuyển tiền',
+                                              maxLines: 1,
+                                              softWrap: false,
+                                              style: const TextStyle(
+                                                color: Color(0xf2ffffff),
+                                                fontSize: 12.5,
+                                                height: 1.2,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Container(
-                    width: double.infinity,
-                    height: .5,
-                    color: const Color(0x33ffffff),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 5),
-                  child: Text(
-                    red ? 'QChat Hồng bao' : 'QChat Chuyển tiền',
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: _footerInk,
-                      fontSize: 11,
+                      ),
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Container(
+                        width: double.infinity,
+                        height: .5,
+                        color: const Color(0x33ffffff),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 5),
+                      child: Text(
+                        red ? 'QChat Hồng bao' : 'QChat Chuyển tiền',
+                        maxLines: 1,
+                        style: const TextStyle(color: _footerInk, fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );

@@ -8,7 +8,7 @@ const color = z
   .regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "INVALID_COLOR");
 
 const backgroundSchema = z.object({
-  type: z.enum(["solid", "gradient", "image"]).default("solid"),
+  type: z.enum(["solid", "gradient", "image", "video"]).default("solid"),
   color: color.default("#d93b30"),
   colors: z.array(color).max(4).default([]),
   mediaId: uuid.optional(),
@@ -38,6 +38,7 @@ const designSchema = z
     bottomColor: color.default("#d93b30"),
     topHeight: z.number().min(0.45).max(0.92).default(0.8),
     receiptHeight: z.number().min(0.12).max(0.7).default(0.34),
+    archLine: z.boolean().default(true),
     overlayColor: color.default("#80000000"),
     openColor: color.default("#f6e3b0"),
     openTextColor: color.default("#a8512f"),
@@ -59,17 +60,36 @@ function parseDesign(raw: unknown) {
   };
 }
 
-async function validateMedia(userId: string, design: { background: { type: string; mediaId?: string } }) {
+type DesignMedia = {
+  background: { type: string; mediaId?: string };
+  decorations?: { kind: string; value: string }[];
+};
+
+async function validateMedia(userId: string, design: DesignMedia) {
+  const checks: { id: string; video: boolean }[] = [];
   const mediaId = design.background.mediaId;
-  if (design.background.type !== "image" || !mediaId) return;
-  requireCondition(
-    await db.media.findFirst({
-      where: { id: mediaId, ownerId: userId, status: "READY" },
-      select: { id: true },
-    }),
-    400,
-    "MEDIA_NOT_READY",
-  );
+  if (
+    (design.background.type === "image" ||
+      design.background.type === "video") &&
+    mediaId
+  ) {
+    checks.push({ id: mediaId, video: design.background.type === "video" });
+  }
+  for (const item of design.decorations ?? []) {
+    if (item.kind === "image" && item.value) {
+      checks.push({ id: item.value, video: false });
+    }
+  }
+  for (const check of checks) {
+    const file = await db.media.findFirst({
+      where: { id: check.id, ownerId: userId, status: "READY" },
+      select: { id: true, mime: true },
+    });
+    requireCondition(file, 400, "MEDIA_NOT_READY");
+    if (check.video) {
+      requireCondition(file.mime.startsWith("video/"), 400, "MEDIA_NOT_VIDEO");
+    }
+  }
 }
 
 const designerSelect = {
