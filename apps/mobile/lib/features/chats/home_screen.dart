@@ -635,12 +635,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         onTap: () => c.push('/payments'),
       ),
       MenuRow(
-        'redPacketCovers',
-        icon: 'gift',
-        color: const Color(0xffe75c4a),
-        onTap: () => c.push('/red-packets/covers'),
-      ),
-      MenuRow(
         'designerHub',
         icon: 'palette',
         color: const Color(0xff7c70ec),

@@ -23,7 +23,6 @@ import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
 import 'features/payments/payments_screen.dart';
 import 'features/payments/red_packet_covers_screen.dart';
-import 'features/payments/red_packet_cover_preview_screen.dart';
 import 'features/payments/red_packet_cover_studio_screen.dart';
 import 'features/payments/red_packet_designer_screen.dart';
 import 'features/chats/red_packet_design.dart';
@@ -160,14 +159,6 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         qchatRoute(
           path: '/red-packets/covers/market',
           builder: (_, s) => const RedPacketCoverMarketScreen(),
-        ),
-        qchatRoute(
-          path: '/red-packets/covers/preview',
-          builder: (_, s) => RedPacketCoverPreviewScreen(
-            cover: s.extra is RedPacketCoverData
-                ? s.extra as RedPacketCoverData
-                : RedPacketCoverData.defaultCover,
-          ),
         ),
         qchatRoute(
           path: '/red-packets/designer',

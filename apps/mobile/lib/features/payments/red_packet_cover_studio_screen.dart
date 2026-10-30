@@ -567,19 +567,25 @@ class _RedPacketCoverStudioScreenState
               ],
             ),
             const SizedBox(width: 14),
-            Column(
-              children: [
-                SizedBox(
-                  width: openedWidth,
-                  height: coverHeight,
-                  child: _OpenedPreview(design: design),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  tr(c, 'coverOpenedPreview'),
-                  style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
-                ),
-              ],
+            // The left column reserves `spill` around the cover for artwork
+            // that hangs outside it. Offset the opened preview by the same
+            // amount so both previews and their captions line up.
+            Padding(
+              padding: EdgeInsets.only(top: spill, bottom: spill),
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: openedWidth,
+                    height: coverHeight,
+                    child: _OpenedPreview(design: design),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    tr(c, 'coverOpenedPreview'),
+                    style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
+                  ),
+                ],
+              ),
             ),
           ],
         );

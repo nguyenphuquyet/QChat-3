@@ -8,6 +8,7 @@ import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import '../chats/red_packet_design.dart';
+import 'red_packet_cover_preview_screen.dart';
 import 'red_packet_cover_ui.dart';
 
 /// "Xưởng thiết kế": the private studio hub of a cover designer.
@@ -489,7 +490,7 @@ class _RedPacketDesignerScreenState
         children: [
           GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: () => c.push('/red-packets/covers/preview', extra: cover),
+            onTap: () => showRedPacketCoverPreview(c, cover),
             child: SizedBox(
               width: 62,
               height: 62 * 4 / 3,
@@ -723,10 +724,7 @@ class _RedPacketDesignerProfileScreenState
                       padding: const EdgeInsets.all(9),
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () => c.push(
-                          '/red-packets/covers/preview',
-                          extra: cover,
-                        ),
+                        onTap: () => showRedPacketCoverPreview(c, cover),
                         child: Column(
                           children: [
                             Expanded(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/network/client.dart';
+import 'package:qchat/features/payments/red_packet_cover_ui.dart';
 import 'package:qchat/features/payments/red_packet_covers_screen.dart';
 
 import 'test_app.dart';
@@ -26,13 +27,7 @@ class CoversClient extends QChatClient {
             'design': {
               'topHeight': .7,
               'decorations': [
-                {
-                  'id': 'blossom',
-                  'value': '🌸',
-                  'x': .5,
-                  'y': .3,
-                  'size': .2,
-                },
+                {'id': 'blossom', 'value': '🌸', 'x': .5, 'y': .3, 'size': .2},
               ],
             },
             'designer': {
@@ -89,11 +84,35 @@ void main() {
   testWidgets('pick mode offers the use action for every cover', (
     tester,
   ) async {
-    await mount(tester, CoversClient(), const RedPacketCoversScreen(pick: true));
+    await mount(
+      tester,
+      CoversClient(),
+      const RedPacketCoversScreen(pick: true),
+    );
 
     // Default cover and the owned cover are both pickable from the send sheet,
     // even when one of them is already the active cover.
     expect(find.text('Sử dụng'), findsNWidgets(2));
     expect(find.text('Đang dùng'), findsNothing);
+  });
+
+  testWidgets('a cover preview opens as a frosted popup over the gallery', (
+    tester,
+  ) async {
+    await mount(tester, CoversClient(), const RedPacketCoversScreen());
+
+    await tester.tap(find.byType(CoverThumb).last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+
+    expect(find.byKey(const ValueKey('cover-preview-close')), findsOneWidget);
+    expect(find.byType(BackdropFilter), findsOneWidget);
+    // The gallery stays mounted behind the dialog instead of being replaced.
+    expect(find.text('Vỏ hồng bao của tôi'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('cover-preview-close')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 260));
+    expect(find.byKey(const ValueKey('cover-preview-close')), findsNothing);
   });
 }
