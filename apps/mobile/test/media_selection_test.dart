@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/widgets.dart';
@@ -7,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
+import 'package:qchat/core/media/media_fit.dart';
 import 'package:qchat/core/media/media_picker_fallback.dart';
 import 'package:qchat/core/network/media_upload.dart';
 import 'test_app.dart';
@@ -157,4 +159,37 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     },
   );
+
+  test('fit keeps the aspect ratio inside the box', () {
+    const wide = MediaFit(width: 1024, height: 4096, quality: 0.85);
+    expect(wide.sizeFor(4000, 3000), (1024, 768));
+    const square = MediaFit(width: 1024, height: 1024, quality: 0.85);
+    expect(square.sizeFor(3000, 4000), (768, 1024));
+    // Never upscales, and a picture inside the box is left alone.
+    expect(square.sizeFor(100, 100), (100, 100));
+  });
+
+  testWidgets('a picture larger than the fit is scaled down to fit', (
+    tester,
+  ) async {
+    final bytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAQSURBVBhXY/jPwPCfARkAAB7zAf+x9MCaAAAAAElFTkSuQmCC',
+    );
+    final file = XFile.fromData(bytes, mimeType: 'image/png', name: 'px.png');
+    final fitted = await tester.runAsync(
+      () =>
+          fitImageFile(file, const MediaFit(width: 1, height: 1, quality: 0.8)),
+    );
+    expect(fitted!.mimeType, 'image/png');
+    final size = await tester.runAsync(() async {
+      final data = await fitted.readAsBytes();
+      final codec = await ui.instantiateImageCodec(data);
+      final frame = await codec.getNextFrame();
+      final size = (frame.image.width, frame.image.height);
+      frame.image.dispose();
+      codec.dispose();
+      return size;
+    });
+    expect(size, (1, 1));
+  });
 }

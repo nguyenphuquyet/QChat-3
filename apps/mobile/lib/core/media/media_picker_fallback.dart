@@ -7,32 +7,36 @@ import '../../features/chats/preview_video_web.dart'
     if (dart.library.io) '../../features/chats/preview_video_native.dart';
 import '../design_system/components.dart';
 import '../localization/strings.dart';
+import 'media_fit.dart';
 
 Future<List<XFile>> pickDeviceMedia(
   BuildContext context, {
   required bool imagesOnly,
   required int maxAssets,
   String? confirmLabel,
-}) async =>
-    await Navigator.of(context).push<List<XFile>>(
-      PageRouteBuilder(
-        pageBuilder: (_, _, _) => LocalMediaPicker(
-          imagesOnly: imagesOnly,
-          maxAssets: maxAssets,
-          confirmLabel: confirmLabel,
-        ),
-        transitionDuration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 300),
-        transitionsBuilder: (_, animation, _, child) => SlideTransition(
-          position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(
-            CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-          ),
-          child: child,
-        ),
+  MediaFit? fit,
+}) async {
+  final files = await Navigator.of(context).push<List<XFile>>(
+    PageRouteBuilder(
+      pageBuilder: (_, _, _) => LocalMediaPicker(
+        imagesOnly: imagesOnly,
+        maxAssets: maxAssets,
+        confirmLabel: confirmLabel,
       ),
-    ) ??
-    [];
+      transitionDuration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 300),
+      transitionsBuilder: (_, animation, _, child) => SlideTransition(
+        position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        ),
+        child: child,
+      ),
+    ),
+  ) ?? [];
+  if (fit == null) return files;
+  return [for (final file in files) await fitImageFile(file, fit)];
+}
 
 class LocalMediaPicker extends StatefulWidget {
   const LocalMediaPicker({

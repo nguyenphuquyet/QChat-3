@@ -9,6 +9,7 @@ import '../design_system/components.dart';
 import '../design_system/dialogs.dart';
 import '../localization/strings.dart';
 import 'media_album_names.dart';
+import 'media_fit.dart';
 import 'media_picker_fallback.dart' as fallback;
 
 /// Opens the WeChat-style picker over the device's photo library.
@@ -26,6 +27,7 @@ Future<List<XFile>> pickDeviceMedia(
   required bool imagesOnly,
   required int maxAssets,
   String? confirmLabel,
+  MediaFit? fit,
 }) async {
   if (!Platform.isAndroid && !Platform.isIOS && !Platform.isMacOS) {
     return fallback.pickDeviceMedia(
@@ -33,6 +35,7 @@ Future<List<XFile>> pickDeviceMedia(
       imagesOnly: imagesOnly,
       maxAssets: maxAssets,
       confirmLabel: confirmLabel,
+      fit: fit,
     );
   }
   final type = imagesOnly ? RequestType.image : RequestType.common;
@@ -100,11 +103,46 @@ Future<List<XFile>> pickDeviceMedia(
   if (selected == null || selected.isEmpty) return [];
   final files = <XFile>[];
   for (final asset in selected) {
+    if (fit != null) {
+      files.add(await _fittedAsset(asset, fit));
+      continue;
+    }
     final file = await asset.file;
     if (file == null) throw StateError('mediaUnavailable');
     files.add(XFile(file.path));
   }
   return files;
+}
+
+/// The asset as a JPEG no larger than [fit] asks for.
+///
+/// `photo_manager` re-encodes through the platform's own decoder, so this keeps
+/// the requested [MediaFit.quality] and never loads the full-resolution picture
+/// into Dart. The box handed over has the source's aspect ratio, because the
+/// platform encoders fill the size they are given.
+Future<XFile> _fittedAsset(AssetEntity asset, MediaFit fit) async {
+  final (width, height) = fit.sizeFor(asset.width, asset.height);
+  final size = ThumbnailSize(width, height);
+  final quality = (fit.quality * 100).round();
+  // iOS fills the size it is handed unless told to fit; Android's decoder keeps
+  // the whole picture. Either way `fitImageBytes` enforces the exact bound.
+  final data = await asset.thumbnailDataWithOption(
+    Platform.isAndroid
+        ? ThumbnailOption(size: size, quality: quality)
+        : ThumbnailOption.ios(
+            size: size,
+            quality: quality,
+            resizeContentMode: ResizeContentMode.fit,
+          ),
+  );
+  if (data == null) throw StateError('mediaUnavailable');
+  final fitted = await fitImageBytes(data, fit, 'image/jpeg');
+  final png = fitted.mimeType == 'image/png';
+  return XFile.fromData(
+    fitted.bytes,
+    mimeType: fitted.mimeType,
+    name: png ? 'image.png' : 'image.jpg',
+  );
 }
 
 /// The app's palette, handed to the one page that expects a Material theme.

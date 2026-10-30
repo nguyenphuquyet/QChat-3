@@ -5,18 +5,20 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter/widgets.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../../core/media/media_picker.dart';
 import 'miniapp_api.dart';
 import 'miniapp_bridge.dart';
 import 'miniapp_cache.dart';
@@ -288,6 +290,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       storage: storage,
       granted: granted,
       requestPermission: _requestPermission,
+      onChooseImage: _chooseImage,
       onToast: _showToast,
       onShare: _share,
       onNavigate: (path) async {
@@ -536,6 +539,20 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       _showToast(tr(context, 'miniAppsCopied'), 'success');
     }
     return copied == true;
+  }
+
+  /// `chooseImage`: opens the same WeChat-style picker as the chat, bounded by
+  /// the size and quality the call asked for.
+  Future<XFile?> _chooseImage({
+    required int maxWidth,
+    required int maxHeight,
+    required double quality,
+  }) async {
+    if (!mounted) return null;
+    return pickQChatImage(
+      context,
+      MediaFit(width: maxWidth, height: maxHeight, quality: quality),
+    );
   }
 
   Map<String, dynamic> _systemInfo() {
@@ -978,4 +995,3 @@ int _compareVersion(String a, String b) {
   }
   return 0;
 }
-

@@ -1679,6 +1679,9 @@ const shared = await share({
 - Ảnh > 5 MB bị từ chối (`INVALID_ARGUMENT`); người dùng đóng bộ chọn →
   `CANCELLED`.
 - `chooseImage` có rate limit riêng: 5 lần / 10 giây.
+- `chooseImage` mở bộ chọn ảnh WeChat của QChat (lưới 4 cột, chuyển album),
+  không phải bộ chọn ảnh của hệ điều hành; ảnh được thu về đúng giới hạn
+  `maxWidth`/`maxHeight` và `quality` trước khi trả `dataUrl`.
 - `share` trả `true` nếu người dùng thực sự chia sẻ; `false` nếu huỷ.
 - Giới hạn `share`: `text` ≤ 2000, `url` ≤ 2048, `title` ≤ 200 ký tự; phải có
   ít nhất `text` hoặc `url`, nếu không → `INVALID_ARGUMENT`.
