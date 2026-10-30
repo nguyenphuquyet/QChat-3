@@ -6,6 +6,7 @@ import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../payments/payments_screen.dart';
 import 'money_message.dart';
+import 'red_packet_cover.dart';
 
 /// Compact red-packet popup with a cover, receipt, and sticker shortcut.
 class RedPacketScreen extends StatefulWidget {
@@ -92,9 +93,7 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
     return ColoredBox(
       color: QChatColors.transparent,
       child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: opened
-            ? SystemUiOverlayStyle.dark
-            : SystemUiOverlayStyle.light,
+        value: opened ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) => Center(
@@ -110,7 +109,10 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
                     transitionBuilder: (child, animation) => FadeTransition(
                       opacity: animation,
                       child: ScaleTransition(
-                        scale: Tween<double>(begin: .96, end: 1).animate(animation),
+                        scale: Tween<double>(
+                          begin: .96,
+                          end: 1,
+                        ).animate(animation),
                         child: child,
                       ),
                     ),
@@ -125,114 +127,18 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
     );
   }
 
-  Widget _cover(BuildContext c) => SizedBox.expand(
+  Widget _cover(BuildContext c) => RedPacketCover(
     key: const ValueKey('red-packet-cover'),
-    child: ColoredBox(
-      color: redPacketRed,
-      child: Column(
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(),
-              child: const Padding(
-                padding: EdgeInsets.all(14),
-                child: QChatIcon(
-                  'close',
-                  size: 22,
-                  color: Color(0xffffffff),
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    UserAvatar(widget.sender, size: 22),
-                    const SizedBox(width: 7),
-                    Text(
-                      'Đã gửi bởi $senderName',
-                      style: const TextStyle(
-                        color: Color(0xffffffff),
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    greeting,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0xffffffff),
-                      fontSize: 22,
-                      height: 1.35,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                GestureDetector(
-                  onTap: widget.mine || opening ? null : open,
-                  child: Container(
-                    width: 92,
-                    height: 92,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Color(0xfff6e3b0),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Color(0x33000000),
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Text(
-                        opening ? '...' : widget.mine ? 'Đã gửi' : 'Mở',
-                        style: TextStyle(
-                          color: Color(0xffa8512f),
-                          fontSize: 20,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                if (!widget.mine) ...[
-                  const SizedBox(height: 14),
-                  Text(
-                    MoneyMessageState.refundWindowText(widget.message),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Color(0xd9ffffff),
-                      fontSize: 11.5,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
+    sender: widget.sender,
+    senderName: senderName,
+    greeting: greeting,
+    mine: widget.mine,
+    opening: opening,
+    onClose: () => Navigator.of(context).pop(),
+    onOpen: widget.mine || opening || refunded ? null : open,
+    footnote: widget.mine
+        ? null
+        : MoneyMessageState.refundWindowText(widget.message),
   );
 
   Widget _opened(BuildContext c) => SizedBox.expand(
@@ -240,224 +146,225 @@ class _RedPacketScreenState extends State<RedPacketScreen> {
     child: ColoredBox(
       color: const Color(0xffffffff),
       child: Stack(
-      children: [
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: SizedBox(
-            height: 200,
-            child: ClipPath(
-              clipper: _ArcClipper(),
-              child: const ColoredBox(color: redPacketRed),
+        children: [
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SizedBox(
+              height: 200,
+              child: ClipPath(
+                clipper: _ArcClipper(),
+                child: const ColoredBox(color: redPacketRed),
+              ),
             ),
           ),
-        ),
-        SafeArea(
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Padding(
-                    padding: EdgeInsets.all(14),
-                    child: QChatIcon(
-                      'close',
-                      size: 21,
-                      color: Color(0xff555555),
+          SafeArea(
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(14),
+                      child: QChatIcon(
+                        'close',
+                        size: 21,
+                        color: Color(0xff555555),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              if (widget.mine) const Spacer(),
-              if (!widget.mine) const SizedBox(height: 92),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  UserAvatar(widget.sender, size: 22),
-                  const SizedBox(width: 7),
-                  Text(
-                    widget.mine ? 'Hồng bao của bạn' : 'Đã gửi bởi $senderName',
-                    style: const TextStyle(
-                      color: Color(0xffb2b2b2),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 9),
-              Text(
-                greeting,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Color(0xffb2b2b2),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (widget.mine)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 2),
-                  child: Text(
-                    'Tổng hồng bao',
-                    style: TextStyle(
-                      color: Color(0xffb2b2b2),
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              if (expiredForMe)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    'Hồng bao đã hết hạn',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xff8f8f8f),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                )
-              else
+                if (widget.mine) const Spacer(),
+                if (!widget.mine) const SizedBox(height: 92),
                 Row(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
                   children: [
+                    UserAvatar(widget.sender, size: 22),
+                    const SizedBox(width: 7),
                     Text(
-                      moneyText(
-                        widget.mine
-                            ? payload.amount
-                            : (openedAmount ?? payload.amount),
-                        withUnit: false,
-                      ),
+                      widget.mine
+                          ? 'Hồng bao của bạn'
+                          : 'Đã gửi bởi $senderName',
                       style: const TextStyle(
-                        color: Color(0xffc9a063),
-                        fontSize: 42,
-                        height: 1.1,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Text(
-                      ' đ',
-                      style: TextStyle(
-                        color: Color(0xffc9a063),
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
+                        color: Color(0xffb2b2b2),
+                        fontSize: 14,
                       ),
                     ),
                   ],
                 ),
-              const SizedBox(height: 6),
-              if (widget.mine)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 4,
-                    horizontal: 10,
+                const SizedBox(height: 9),
+                Text(
+                  greeting,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Color(0xffb2b2b2),
+                    fontSize: 14,
                   ),
-                  child: Column(
+                ),
+                const SizedBox(height: 16),
+                if (widget.mine)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'Tổng hồng bao',
+                      style: TextStyle(color: Color(0xffb2b2b2), fontSize: 12),
+                    ),
+                  ),
+                if (expiredForMe)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24),
+                    child: Text(
+                      'Hồng bao đã hết hạn',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Color(0xff8f8f8f),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  )
+                else
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
-                        sentProgress,
+                        moneyText(
+                          widget.mine
+                              ? payload.amount
+                              : (openedAmount ?? payload.amount),
+                          withUnit: false,
+                        ),
                         style: const TextStyle(
+                          color: Color(0xffc9a063),
+                          fontSize: 42,
+                          height: 1.1,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const Text(
+                        ' đ',
+                        style: TextStyle(
+                          color: Color(0xffc9a063),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                const SizedBox(height: 6),
+                if (widget.mine)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 10,
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          sentProgress,
+                          style: const TextStyle(
+                            color: Color(0xffb2b2b2),
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (!refunded)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Text(
+                              MoneyMessageState.refundWindowText(
+                                widget.message,
+                              ),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xffc8c8c8),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  )
+                else if (expiredForMe)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 24),
+                    child: Text(
+                      'Tiền chưa nhận đã được hoàn về người gửi.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Color(0xffb2b2b2), fontSize: 13),
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    onTap: openWallet,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(
+                        vertical: 4,
+                        horizontal: 10,
+                      ),
+                      child: Text(
+                        'Đã chuyển vào Ví  ›',
+                        style: TextStyle(
                           color: Color(0xffb2b2b2),
                           fontSize: 13,
                         ),
                       ),
-                      if (!refunded)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            MoneyMessageState.refundWindowText(widget.message),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xffc8c8c8),
-                              fontSize: 11,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                )
-              else if (expiredForMe)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4, horizontal: 24),
-                  child: Text(
-                    'Tiền chưa nhận đã được hoàn về người gửi.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: Color(0xffb2b2b2),
-                      fontSize: 13,
                     ),
                   ),
-                )
-              else
-                GestureDetector(
-                  onTap: openWallet,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 10),
-                    child: Text(
-                      'Đã chuyển vào Ví  ›',
-                      style: TextStyle(
-                        color: Color(0xffb2b2b2),
-                        fontSize: 13,
+                if (!widget.mine) ...[
+                  const SizedBox(height: 22),
+                  Container(
+                    width: 262,
+                    height: 1,
+                    color: const Color(0xffeeeeee),
+                  ),
+                  const SizedBox(height: 22),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).pop('sticker'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 9,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xfff6f6f6),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '☺',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Color(0xffa0a0a0),
+                            ),
+                          ),
+                          SizedBox(width: 7),
+                          Text(
+                            'Trả lời bằng một Nhãn dán',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xff8f8f8f),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-              if (!widget.mine) ...[
-                const SizedBox(height: 22),
-                Container(
-                  width: 262,
-                  height: 1,
-                  color: const Color(0xffeeeeee),
-                ),
-                const SizedBox(height: 22),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).pop('sticker'),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 9,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xfff6f6f6),
-                      borderRadius: BorderRadius.circular(5),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '☺',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Color(0xffa0a0a0),
-                          ),
-                        ),
-                        SizedBox(width: 7),
-                        Text(
-                          'Trả lời bằng một Nhãn dán',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xff8f8f8f),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                ],
+                if (widget.mine) const Spacer(),
               ],
-              if (widget.mine) const Spacer(),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
-  ),
   );
 }
 

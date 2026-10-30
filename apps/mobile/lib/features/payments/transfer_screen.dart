@@ -34,9 +34,34 @@ class TransferScreen extends ConsumerStatefulWidget {
 class _TransferScreenState extends ConsumerState<TransferScreen> {
   late final to = TextEditingController(text: widget.to);
   final note = TextEditingController();
+  final recipientFocus = FocusNode();
+  final noteFocus = FocusNode();
   String digits = '';
   bool sending = false;
+  bool keypadVisible = true;
   String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    // A text field's system keyboard and the QChat keypad must not fight for
+    // the bottom of the screen: focusing a field hides the QChat keypad.
+    recipientFocus.addListener(_hideKeypadForTextInput);
+    noteFocus.addListener(_hideKeypadForTextInput);
+  }
+
+  void _hideKeypadForTextInput() {
+    if (!mounted) return;
+    if ((recipientFocus.hasFocus || noteFocus.hasFocus) && keypadVisible) {
+      setState(() => keypadVisible = false);
+    }
+  }
+
+  void toggleKeypad() {
+    if (sending) return;
+    FocusScope.of(context).unfocus();
+    setState(() => keypadVisible = !keypadVisible);
+  }
 
   int get amount => int.tryParse(digits) ?? 0;
 
@@ -75,67 +100,6 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
     if (value != null && mounted) setState(() => note.text = value);
   }
 
-  Future<void> editAmount() async {
-    var draft = digits;
-    final result = await showQChatSheet<int?>(
-      context,
-      (sheet) => StatefulBuilder(
-        builder: (sheet, setSheet) => SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-                child: Row(
-                  children: [
-                    Text(
-                      tr(sheet, 'amountLabel'),
-                      style: TextStyle(fontSize: 17, color: ink(sheet)),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '₫${moneyText(draft.isEmpty ? 0 : int.parse(draft), withUnit: false)}',
-                      style: TextStyle(
-                        fontSize: 17,
-                        color: draft.isEmpty
-                            ? _placeholderGrey
-                            : ink(sheet),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              QChatKeypad(
-                onDigit: (digit) => setSheet(() {
-                  if (draft.length >= 12) return;
-                  draft = draft == '0' ? digit : '$draft$digit';
-                }),
-                onBackspace: () => setSheet(() {
-                  if (draft.isNotEmpty) {
-                    draft = draft.substring(0, draft.length - 1);
-                  }
-                }),
-                onDecimal: () {},
-                onSubmit: () => Navigator.of(
-                  sheet,
-                ).pop(draft.isEmpty ? null : int.parse(draft)),
-                submitLabel: tr(sheet, 'done'),
-                backspaceLabel: tr(sheet, 'backspace'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (result != null && mounted) {
-      setState(() {
-        digits = '$result';
-        error = null;
-      });
-    }
-  }
-
   Future<void> submit() async {
     final value = int.tryParse(digits);
     final recipient = target;
@@ -168,10 +132,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       final balance = (result['balance'] as num?)?.toInt() ?? 0;
       await showQChatDialog<void>(
         context,
-        title: tr(
-          context,
-          widget.redPacket ? 'redPacketSent' : 'transferSent',
-        ),
+        title: tr(context, widget.redPacket ? 'redPacketSent' : 'transferSent'),
         message:
             '${moneyText(value)} → $recipientName.\n'
             '${tr(context, 'balanceLeft')} ${moneyText(balance)}',
@@ -182,13 +143,11 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       if (mounted) context.pop();
     } on DioException catch (e) {
       if (!mounted) return;
-      fail(
-        switch (e.response?.statusCode) {
-          404 => tr(context, 'recipientNotFound'),
-          400 => tr(context, 'transferFailed'),
-          _ => tr(context, 'networkError'),
-        },
-      );
+      fail(switch (e.response?.statusCode) {
+        404 => tr(context, 'recipientNotFound'),
+        400 => tr(context, 'transferFailed'),
+        _ => tr(context, 'networkError'),
+      });
     } catch (_) {
       if (!mounted) return;
       fail(tr(context, 'networkError'));
@@ -208,6 +167,8 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   void dispose() {
     to.dispose();
     note.dispose();
+    recipientFocus.dispose();
+    noteFocus.dispose();
     super.dispose();
   }
 
@@ -223,27 +184,32 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       label: tr(c, 'back'),
       onTap: () => c.pop(),
     ),
-    child: Column(
-      children: [
-        _recipient(c),
-        Expanded(child: _transferCard(c)),
-        ColoredBox(
-          color: qchatNavigationSurface(c),
-          child: SafeArea(
-            top: false,
-            child: QChatKeypad(
-              onDigit: pressDigit,
-              onBackspace: sending ? null : backspace,
-              onDecimal: sending ? null : () {},
-              onSubmit: sending ? null : submit,
-              submitLabel: tr(c, 'transferMoney'),
-              submitLoading: sending,
-              backspaceLabel: tr(c, 'backspace'),
-              enabled: !sending,
+    child: SafeArea(
+      top: false,
+      bottom: !keypadVisible,
+      child: Column(
+        children: [
+          _recipient(c),
+          Expanded(child: _transferCard(c)),
+          if (keypadVisible)
+            ColoredBox(
+              color: qchatNavigationSurface(c),
+              child: SafeArea(
+                top: false,
+                child: QChatKeypad(
+                  onDigit: pressDigit,
+                  onBackspace: sending ? null : backspace,
+                  onDecimal: sending ? null : () {},
+                  onSubmit: sending ? null : submit,
+                  submitLabel: tr(c, 'transferMoney'),
+                  submitLoading: sending,
+                  backspaceLabel: tr(c, 'backspace'),
+                  enabled: !sending,
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 
@@ -289,6 +255,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                     height: 24,
                     child: CupertinoTextField(
                       controller: to,
+                      focusNode: recipientFocus,
                       placeholder: tr(c, 'enterRecipientId'),
                       placeholderStyle: const TextStyle(
                         fontSize: 15,
@@ -305,10 +272,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          UserAvatar({
-            'nickname': name,
-            'avatarId': widget.avatarId,
-          }, size: 48),
+          UserAvatar({'nickname': name, 'avatarId': widget.avatarId}, size: 48),
         ],
       ),
     );
@@ -330,40 +294,46 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
             style: TextStyle(fontSize: 17, height: 1.2, color: ink(c)),
           ),
           const SizedBox(height: 14),
-          SizedBox(
-            height: 54,
-            child: Row(
-              children: [
-                Text(
-                  '₫',
-                  style: TextStyle(
-                    fontSize: 40,
-                    height: 1,
-                    fontWeight: FontWeight.w700,
-                    color: ink(c),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: sending ? null : toggleKeypad,
+            child: SizedBox(
+              height: 54,
+              child: Row(
+                children: [
+                  Text(
+                    '₫',
+                    style: TextStyle(
+                      fontSize: 40,
+                      height: 1,
+                      fontWeight: FontWeight.w700,
+                      color: ink(c),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                if (digits.isNotEmpty)
-                  Flexible(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        moneyText(amount, withUnit: false),
-                        key: const ValueKey('transfer-amount'),
-                        style: TextStyle(
-                          fontSize: 40,
-                          height: 1,
-                          fontWeight: FontWeight.w600,
-                          color: ink(c),
+                  const SizedBox(width: 10),
+                  if (digits.isNotEmpty)
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          moneyText(amount, withUnit: false),
+                          key: const ValueKey('transfer-amount'),
+                          style: TextStyle(
+                            fontSize: 40,
+                            height: 1,
+                            fontWeight: FontWeight.w600,
+                            color: ink(c),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                const SizedBox(width: 2),
-                const _BlinkingCaret(),
-              ],
+                  if (keypadVisible) ...[
+                    const SizedBox(width: 2),
+                    const _BlinkingCaret(),
+                  ],
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 14),
@@ -410,120 +380,158 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
         (tr(c, 'receivedRedPackets'), () => c.push('/payments/wallet')),
       ]),
     ),
-    child: SafeArea(
-      top: false,
-      child: Column(
-        children: [
-          const SizedBox(height: 12),
-          _redRow(
-            c,
-            height: 56,
-            onTap: sending ? null : editAmount,
-            child: Row(
-              children: [
-                Text(
-                  tr(c, 'amountLabel'),
-                  style: TextStyle(fontSize: 17, color: ink(c)),
-                ),
-                const Spacer(),
-                Text(
-                  '₫${moneyText(amount, withUnit: false)}',
-                  style: TextStyle(
-                    fontSize: 17,
-                    color: amount == 0 ? _placeholderGrey : ink(c),
+    child: Column(
+      children: [
+        Expanded(
+          child: SafeArea(
+            top: false,
+            bottom: !keypadVisible,
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                child: SizedBox(
+                  height: constraints.maxHeight < 420
+                      ? 420
+                      : constraints.maxHeight,
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 12),
+                      _redRow(
+                        c,
+                        height: 56,
+                        onTap: sending ? null : toggleKeypad,
+                        child: Row(
+                          children: [
+                            Text(
+                              tr(c, 'amountLabel'),
+                              style: TextStyle(fontSize: 17, color: ink(c)),
+                            ),
+                            const Spacer(),
+                            Text(
+                              '₫${moneyText(amount, withUnit: false)}',
+                              style: TextStyle(
+                                fontSize: 17,
+                                color: amount == 0 ? _placeholderGrey : ink(c),
+                              ),
+                            ),
+                            if (keypadVisible) ...[
+                              const SizedBox(width: 2),
+                              const _BlinkingCaret(height: 20),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _redRow(
+                        c,
+                        height: 64,
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: CupertinoTextField(
+                                controller: note,
+                                focusNode: noteFocus,
+                                placeholder: tr(c, 'bestWishes'),
+                                placeholderStyle: const TextStyle(
+                                  fontSize: 17,
+                                  color: _placeholderGrey,
+                                ),
+                                padding: EdgeInsets.zero,
+                                maxLength: 100,
+                                style: TextStyle(fontSize: 17, color: ink(c)),
+                                cursorColor: QChatColors.green,
+                                onChanged: (_) => setState(() {}),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: addWishEmoji,
+                              child: _emojiPlus(c),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      // TODO(red-packet-cover): open the cover picker when
+                      // covers exist.
+                      _redRow(
+                        c,
+                        height: 64,
+                        child: Row(
+                          children: [
+                            Text(
+                              tr(c, 'redPacketCover'),
+                              style: TextStyle(fontSize: 17, color: ink(c)),
+                            ),
+                            const Spacer(),
+                            const QChatIcon(
+                              'chevron',
+                              size: 18,
+                              color: QChatColors.muted,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: sending ? null : toggleKeypad,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '₫',
+                              style: TextStyle(
+                                fontSize: 40,
+                                height: 1,
+                                fontWeight: FontWeight.w600,
+                                color: ink(c),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              moneyText(amount, withUnit: false),
+                              style: TextStyle(
+                                fontSize: 48,
+                                height: 1,
+                                fontWeight: FontWeight.w600,
+                                color: ink(c),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      _sendButton(c),
+                      const Spacer(),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _redRow(
-            c,
-            height: 64,
-            child: Row(
-              children: [
-                Expanded(
-                  child: CupertinoTextField(
-                    controller: note,
-                    placeholder: tr(c, 'bestWishes'),
-                    placeholderStyle: const TextStyle(
-                      fontSize: 17,
-                      color: _placeholderGrey,
-                    ),
-                    padding: EdgeInsets.zero,
-                    maxLength: 100,
-                    style: TextStyle(fontSize: 17, color: ink(c)),
-                    cursorColor: QChatColors.green,
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onTap: addWishEmoji,
-                  child: _emojiPlus(c),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          // TODO(red-packet-cover): open the cover picker when covers exist.
-          _redRow(
-            c,
-            height: 64,
-            child: Row(
-              children: [
-                Text(
-                  tr(c, 'redPacketCover'),
-                  style: TextStyle(fontSize: 17, color: ink(c)),
-                ),
-                const Spacer(),
-                const QChatIcon(
-                  'chevron',
-                  size: 18,
-                  color: QChatColors.muted,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 78),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                '₫',
-                style: TextStyle(
-                  fontSize: 40,
-                  height: 1,
-                  fontWeight: FontWeight.w600,
-                  color: ink(c),
-                ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                moneyText(amount, withUnit: false),
-                style: TextStyle(
-                  fontSize: 48,
-                  height: 1,
-                  fontWeight: FontWeight.w600,
-                  color: ink(c),
-                ),
+            ),
+          ),
+        ),
+        if (keypadVisible)
+          ColoredBox(
+            color: qchatNavigationSurface(c),
+            child: SafeArea(
+              top: false,
+              child: QChatKeypad(
+                onDigit: pressDigit,
+                onBackspace: sending ? null : backspace,
+                onDecimal: sending ? null : () {},
+                onSubmit: sending ? null : submit,
+                submitLabel: tr(c, 'ok'),
+                submitColor: _redPacketButton,
+                submitLoading: sending,
+                backspaceLabel: tr(c, 'backspace'),
+                enabled: !sending,
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 30),
-          _sendButton(c),
-          const Spacer(),
-          Text(
-            tr(c, 'redPacketHint'),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 14, color: QChatColors.muted),
-          ),
-          const SizedBox(height: 12),
-        ],
-      ),
+      ],
     ),
   );
 
@@ -631,7 +639,9 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
 }
 
 class _BlinkingCaret extends StatefulWidget {
-  const _BlinkingCaret();
+  const _BlinkingCaret({this.height = 44});
+
+  final double height;
 
   @override
   State<_BlinkingCaret> createState() => _BlinkingCaretState();
@@ -652,9 +662,10 @@ class _BlinkingCaretState extends State<_BlinkingCaret>
 
   @override
   Widget build(BuildContext c) => FadeTransition(
-    opacity: Tween<double>(begin: 1, end: 0).animate(
-      CurvedAnimation(parent: controller, curve: Curves.easeInOut),
-    ),
-    child: Container(width: 2, height: 44, color: _caretGreen),
+    opacity: Tween<double>(
+      begin: 1,
+      end: 0,
+    ).animate(CurvedAnimation(parent: controller, curve: Curves.easeInOut)),
+    child: Container(width: 2, height: widget.height, color: _caretGreen),
   );
 }
