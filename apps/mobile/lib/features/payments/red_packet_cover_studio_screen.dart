@@ -7,7 +7,6 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
-import '../../core/media/media_video.dart';
 import '../../core/network/media_upload.dart';
 import '../chats/red_packet_cover.dart';
 import '../chats/red_packet_design.dart';
@@ -169,14 +168,16 @@ class _RedPacketCoverStudioScreenState
     });
   }
 
-  Future<void> _pickPhoto({bool decoration = false, bool video = false}) async {
+  Future<void> _pickPhoto({bool decoration = false, bool gif = false}) async {
     if (uploading) return;
     setState(() => uploading = true);
     try {
-      final file = video
-          ? await _pickVideoFile()
-          : await pickImageWithSource(context);
+      final file = await pickImageWithSource(context);
       if (file == null || !mounted) return;
+      if (gif && _extension(file) != 'gif') {
+        showQChatToast(context, tr(context, 'coverGifOnly'));
+        return;
+      }
       final id = await uploadMedia(ref.read(clientProvider), file);
       if (!mounted) return;
       if (decoration) {
@@ -185,7 +186,7 @@ class _RedPacketCoverStudioScreenState
         _apply(
           design.copyWith(
             background: design.background.copyWith(
-              type: _isVideo(file) ? 'video' : 'image',
+              type: gif ? 'gif' : 'image',
               mediaId: id,
             ),
           ),
@@ -198,17 +199,25 @@ class _RedPacketCoverStudioScreenState
     }
   }
 
-  Future<PlatformFile?> _pickVideoFile() async {
-    final files = await pickMediaWithSource(context, maxAssets: 1);
-    return files.isEmpty ? null : files.first;
+  String _extension(PlatformFile file) {
+    final dot = file.name.lastIndexOf('.');
+    return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
-  /// A live photo or GIF arrives as an image, a clip as a video. The picker
-  /// accepts both under the "live" pill, so the stored type follows the file.
-  bool _isVideo(PlatformFile file) {
-    final dot = file.name.lastIndexOf('.');
-    final extension = dot < 0 ? '' : file.name.substring(dot + 1);
-    return (mediaMime(extension) ?? '').startsWith('video/');
+  /// Switches the flap background. A GIF cover only accepts a GIF, so moving to
+  /// that form drops a photo the designer picked earlier instead of saving a
+  /// still picture as an animated cover.
+  void _setBackgroundType(String type) {
+    final background = design.background;
+    if (type == background.type) return;
+    final next = type == 'gif' && background.type != 'gif'
+        ? CoverBackground(
+            type: type,
+            color: background.color,
+            colors: background.colors,
+          )
+        : background.copyWith(type: type);
+    _apply(design.copyWith(background: next));
   }
 
   Future<void> _createDesigner() async {
@@ -637,7 +646,7 @@ class _RedPacketCoverStudioScreenState
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (final type in const ['solid', 'gradient', 'image', 'video'])
+          for (final type in const ['solid', 'gradient', 'image', 'gif'])
             _Pill(
               label: tr(
                 c,
@@ -647,17 +656,23 @@ class _RedPacketCoverStudioScreenState
                     ? 'coverGradient'
                     : type == 'image'
                     ? 'coverImage'
-                    : 'coverVideo',
+                    : 'coverGif',
               ),
               selected: background.type == type,
-              onTap: () => _apply(
-                design.copyWith(
-                  background: background.copyWith(
-                    type: type,
-                    colors: type == 'gradient' ? colors : background.colors,
-                  ),
-                ),
-              ),
+              onTap: () {
+                if (type == 'gradient') {
+                  _apply(
+                    design.copyWith(
+                      background: background.copyWith(
+                        type: type,
+                        colors: colors,
+                      ),
+                    ),
+                  );
+                } else {
+                  _setBackgroundType(type);
+                }
+              },
             ),
         ],
       ),
@@ -714,13 +729,11 @@ class _RedPacketCoverStudioScreenState
                 color: qchatFill(c),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: background.isVideo
-                  ? MediaVideo(id: background.mediaId!, fit: BoxFit.cover)
-                  : background.isImage
+              child: background.isImage
                   ? MediaImage(id: background.mediaId!, fit: BoxFit.cover)
                   : Center(
                       child: QChatIcon(
-                        background.type == 'video' ? 'play' : 'image',
+                        'image',
                         size: 24,
                         color: QChatColors.muted,
                       ),
@@ -731,14 +744,14 @@ class _RedPacketCoverStudioScreenState
               child: CoralButton(
                 tr(
                   c,
-                  background.type == 'video'
-                      ? 'coverPickVideo'
+                  background.type == 'gif'
+                      ? 'coverPickGif'
                       : 'coverPickImage',
                 ),
                 height: 40,
                 secondary: true,
                 loading: uploading,
-                onTap: () => _pickPhoto(video: background.type == 'video'),
+                onTap: () => _pickPhoto(gif: background.type == 'gif'),
               ),
             ),
           ],

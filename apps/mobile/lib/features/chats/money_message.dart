@@ -147,6 +147,26 @@ class MoneyMessageCard extends StatelessWidget {
       ? CoverDecorationOverlay(design: cover, child: child)
       : child;
 
+  /// The message itself wears the cover: the flap artwork fills the bubble
+  /// behind the greeting, so a designed packet looks the same in the chat as it
+  /// does when it pops open.
+  Widget _surface(CoverDesign? cover, double width, Widget child) => Container(
+    width: width,
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: moneyOrange,
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Stack(
+      fit: StackFit.passthrough,
+      children: [
+        if (red && cover != null)
+          Positioned.fill(child: CoverBackdrop(design: cover)),
+        child,
+      ],
+    ),
+  );
+
   @override
   Widget build(BuildContext c) {
     final payload = MoneyPayload.parse(message['text']);
@@ -168,18 +188,21 @@ class MoneyMessageCard extends StatelessWidget {
               right: mine ? -4 : null,
               child: Transform.rotate(
                 angle: .785398,
-                child: Container(width: 10, height: 10, color: moneyOrange),
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  color: red && payload.cover != null
+                      ? payload.cover!.bottomColor
+                      : moneyOrange,
+                ),
               ),
             ),
             _art(
               payload.cover,
-              Container(
-                width: width,
-                decoration: BoxDecoration(
-                  color: moneyOrange,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Column(
+              _surface(
+                payload.cover,
+                width,
+                Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Padding(
@@ -189,7 +212,7 @@ class MoneyMessageCard extends StatelessWidget {
                         child: red
                             ? Row(
                                 children: [
-                                  const _Envelope(),
+                                  _Envelope(opened: completed || refunded),
                                   const SizedBox(width: 11),
                                   Expanded(
                                     child: Column(
@@ -314,7 +337,12 @@ class MoneyMessageCard extends StatelessWidget {
 }
 
 class _Envelope extends StatelessWidget {
-  const _Envelope();
+  const _Envelope({this.opened = false});
+
+  /// An opened packet shows a white flap, so a claimed one reads differently
+  /// from one that is still waiting.
+  final bool opened;
+
   @override
   Widget build(BuildContext c) => Container(
     width: 40,
@@ -332,7 +360,7 @@ class _Envelope extends StatelessWidget {
         Positioned.fill(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: CustomPaint(painter: const _EnvelopeFlap()),
+            child: CustomPaint(painter: _EnvelopeFlap(opened: opened)),
           ),
         ),
         Center(
@@ -361,8 +389,12 @@ class _Envelope extends StatelessWidget {
 }
 
 /// Subtle envelope flap so the icon reads as a red packet, not a plain card.
+/// Once the packet is opened the flap turns white.
 class _EnvelopeFlap extends CustomPainter {
-  const _EnvelopeFlap();
+  const _EnvelopeFlap({this.opened = false});
+
+  final bool opened;
+
   @override
   void paint(Canvas canvas, Size size) {
     final flap = Path()
@@ -376,7 +408,11 @@ class _EnvelopeFlap extends CustomPainter {
         size.height * .30,
       )
       ..close();
-    canvas.drawPath(flap, Paint()..color = const Color(0x14ffffff));
+    canvas.drawPath(
+      flap,
+      Paint()
+        ..color = opened ? const Color(0xffffffff) : const Color(0x14ffffff),
+    );
     final edge = Path()
       ..moveTo(0, size.height * .30)
       ..quadraticBezierTo(
@@ -388,14 +424,14 @@ class _EnvelopeFlap extends CustomPainter {
     canvas.drawPath(
       edge,
       Paint()
-        ..color = const Color(0x33ffffff)
+        ..color = opened ? const Color(0x1f000000) : const Color(0x33ffffff)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
   }
 
   @override
-  bool shouldRepaint(_EnvelopeFlap old) => false;
+  bool shouldRepaint(_EnvelopeFlap old) => old.opened != opened;
 }
 
 /// The transfer mark of `weixin-transfer-icon.svg`: a ring with two arrows,

@@ -333,17 +333,18 @@ const translations = <String, List<String>>{
   'coverSolid': ['Solid', 'Màu trơn', '纯色'],
   'coverGradient': ['Gradient', 'Chuyển sắc', '渐变'],
   'coverImage': ['Photo', 'Ảnh', '图片'],
-  'coverVideo': ['Live / video', 'Ảnh động', '动态图片'],
+  'coverGif': ['GIF', 'Ảnh động', '动图'],
   'coverPickImage': ['Choose a photo', 'Chọn ảnh', '选择图片'],
-  'coverPickVideo': [
-    'Choose a live photo or video',
-    'Chọn ảnh động hoặc video',
-    '选择动态图片或视频',
+  'coverPickGif': ['Choose a GIF', 'Chọn ảnh GIF', '选择 GIF'],
+  'coverGifOnly': [
+    'Only a GIF animates the cover.',
+    'Chỉ ảnh GIF mới làm vỏ hồng bao chuyển động.',
+    '只有 GIF 可以让封面动起来。',
   ],
   'coverMediaFillNote': [
-    'Photos fill the whole top; GIF, live photos and videos loop automatically.',
-    'Ảnh tự lấp đầy phần trên; GIF, ảnh động và video tự phát lặp lại.',
-    '图片会铺满上半部分；GIF、动态图片和视频自动循环播放。',
+    'Photos fill the whole top; a GIF loops automatically.',
+    'Ảnh tự lấp đầy phần trên; ảnh GIF tự phát lặp lại.',
+    '图片会铺满上半部分；GIF 自动循环播放。',
   ],
   'coverArchLine': ['Separator line', 'Vạch ngăn cách', '分隔线'],
   'coverArchLineNote': [

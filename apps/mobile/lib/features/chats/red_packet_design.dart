@@ -91,19 +91,19 @@ class CoverBackground {
     this.mediaId,
   });
 
-  /// `solid`, `gradient`, `image` or `video`.
+  /// `solid`, `gradient`, `image` or `gif`.
   ///
-  /// A photo and a video both fill the flap edge to edge, so a designer never
-  /// sees letterboxing. GIF and animated WebP animate through `image`; a live
-  /// photo or a short clip uses `video` and loops silently.
+  /// `image` is a still photo and `gif` is the only animated form a cover
+  /// accepts, so the flap always animates the same way on every platform.
+  /// Both fill the flap edge to edge, so a designer never sees letterboxing.
   final String type;
   final Color color;
   final List<Color> colors;
   final String? mediaId;
 
-  bool get isImage => type == 'image' && (mediaId ?? '').isNotEmpty;
-  bool get isVideo => type == 'video' && (mediaId ?? '').isNotEmpty;
-  bool get hasMedia => isImage || isVideo;
+  bool get isImage =>
+      (type == 'image' || type == 'gif') && (mediaId ?? '').isNotEmpty;
+  bool get hasMedia => isImage;
 
   CoverBackground copyWith({
     String? type,
@@ -125,7 +125,11 @@ class CoverBackground {
   };
 
   static CoverBackground fromJson(Map? json) {
-    final type = json?['type']?.toString() ?? 'solid';
+    final rawType = json?['type']?.toString() ?? 'solid';
+    // Older covers could point at a clip; those now fall back to a flat flap.
+    final type = const ['solid', 'gradient', 'image', 'gif'].contains(rawType)
+        ? rawType
+        : 'solid';
     final colors = json?['colors'];
     return CoverBackground(
       type: type,

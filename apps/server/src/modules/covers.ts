@@ -8,7 +8,8 @@ const color = z
   .regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "INVALID_COLOR");
 
 const backgroundSchema = z.object({
-  type: z.enum(["solid", "gradient", "image", "video"]).default("solid"),
+  // A cover animates through a GIF only; stills use `image`.
+  type: z.enum(["solid", "gradient", "image", "gif"]).default("solid"),
   color: color.default("#d93b30"),
   colors: z.array(color).max(4).default([]),
   mediaId: uuid.optional(),
@@ -66,18 +67,18 @@ type DesignMedia = {
 };
 
 async function validateMedia(userId: string, design: DesignMedia) {
-  const checks: { id: string; video: boolean }[] = [];
+  const checks: { id: string; gif: boolean }[] = [];
   const mediaId = design.background.mediaId;
   if (
     (design.background.type === "image" ||
-      design.background.type === "video") &&
+      design.background.type === "gif") &&
     mediaId
   ) {
-    checks.push({ id: mediaId, video: design.background.type === "video" });
+    checks.push({ id: mediaId, gif: design.background.type === "gif" });
   }
   for (const item of design.decorations ?? []) {
     if (item.kind === "image" && item.value) {
-      checks.push({ id: item.value, video: false });
+      checks.push({ id: item.value, gif: false });
     }
   }
   for (const check of checks) {
@@ -86,8 +87,9 @@ async function validateMedia(userId: string, design: DesignMedia) {
       select: { id: true, mime: true },
     });
     requireCondition(file, 400, "MEDIA_NOT_READY");
-    if (check.video) {
-      requireCondition(file.mime.startsWith("video/"), 400, "MEDIA_NOT_VIDEO");
+    requireCondition(file.mime.startsWith("image/"), 400, "MEDIA_NOT_IMAGE");
+    if (check.gif) {
+      requireCondition(file.mime === "image/gif", 400, "MEDIA_NOT_GIF");
     }
   }
 }
