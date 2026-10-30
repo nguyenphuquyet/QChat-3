@@ -358,7 +358,9 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
         builder: (c) => AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle.light,
           child: ColoredBox(
-            color: qchatBackground(c),
+            // Hard-wired to the dark palette: the picker is a lightbox and must
+            // never inherit a light host's background.
+            color: QChatColors.darkBackground,
             child: Stack(
               children: [
                 Positioned.fill(child: _body(c)),
@@ -375,6 +377,10 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
 
   Widget _bar(BuildContext c) => _Scrim(
     fromTop: true,
+    edge: true,
+    // A floor of black keeps the bar readable even over a white screenshot,
+    // while the fade lets the tiles show through as they scroll under it.
+    colors: const [Color(0xe6000000), Color(0xb3000000)],
     child: Padding(
       padding: EdgeInsets.only(top: MediaQuery.paddingOf(c).top),
       child: SizedBox(
@@ -648,6 +654,8 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
 
   Widget _bottomBar(BuildContext c) => _Scrim(
     fromTop: false,
+    edge: true,
+    colors: const [Color(0xe6000000), Color(0xb3000000)],
     child: SafeArea(
       top: false,
       child: Column(
@@ -1492,7 +1500,12 @@ String formatMediaClock(Duration duration) {
 /// backdrop blur stretched the grid behind the bars on device (Impeller samples
 /// a raster-cached scrollable at the wrong scale), so the scrim stays honest.
 class _Scrim extends StatelessWidget {
-  const _Scrim({required this.child, required this.fromTop, this.colors});
+  const _Scrim({
+    required this.child,
+    required this.fromTop,
+    this.colors,
+    this.edge = false,
+  });
 
   final Widget child;
 
@@ -1504,6 +1517,10 @@ class _Scrim extends StatelessWidget {
   /// the album list, which needs to be readable over busy thumbnails.
   final List<Color>? colors;
 
+  /// Draws a hairline on the inner edge, so a bar that sits on a dark page
+  /// still has a visible boundary.
+  final bool edge;
+
   @override
   Widget build(BuildContext c) => DecoratedBox(
     decoration: BoxDecoration(
@@ -1512,6 +1529,16 @@ class _Scrim extends StatelessWidget {
         end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
         colors: colors ?? const [Color(0xcc000000), Color(0x00000000)],
       ),
+      border: edge
+          ? Border(
+              bottom: fromTop
+                  ? const BorderSide(color: Color(0x1affffff), width: 0.5)
+                  : BorderSide.none,
+              top: fromTop
+                  ? BorderSide.none
+                  : const BorderSide(color: Color(0x1affffff), width: 0.5),
+            )
+          : null,
     ),
     child: child,
   );
