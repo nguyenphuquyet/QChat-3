@@ -63,6 +63,23 @@ const translations = <String, List<String>>{
   ],
   'widenAccess': ['Change', 'Thay đổi', '更改'],
   'speed': ['Speed', 'Tốc độ', '倍速'],
+  // The device names its own albums, and iOS does so in the system language
+  // rather than the app's. These keys translate the well-known ones.
+  'albumFavorites': ['Favorites', 'Yêu thích', '收藏'],
+  'albumVideos': ['Videos', 'Video', '视频'],
+  'albumSelfies': ['Selfies', 'Ảnh tự chụp', '自拍'],
+  'albumLivePhotos': ['Live Photos', 'Ảnh Live', '实况照片'],
+  'albumPortrait': ['Portrait', 'Chân dung', '人像'],
+  'albumLongExposure': ['Long Exposure', 'Phơi sáng', '长曝光'],
+  'albumSpatial': ['Spatial', 'Ảnh không gian', '空间照片'],
+  'albumScreenshots': ['Screenshots', 'Ảnh chụp màn hình', '截屏'],
+  'albumScreenRecordings': [
+    'Screen Recordings',
+    'Bản ghi màn hình',
+    '屏幕录制',
+  ],
+  'albumCamera': ['Camera', 'Camera', '相机'],
+  'albumAll': ['All Photos', 'Tất cả ảnh', '所有照片'],
   'openSettings': ['Open Settings', 'Mở Cài đặt', '打开设置'],
   'preview': ['Preview', 'Xem trước', '预览'],
   'noMedia': [

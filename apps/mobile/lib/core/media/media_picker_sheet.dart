@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
@@ -17,6 +18,41 @@ const double _kBarHeight = 44;
 const double _kBottomBarHeight = 60;
 const double _kGridGap = 2;
 const double _kBadgeSize = 24;
+
+/// Album names the system hands over in its own language, keyed by their
+/// lower-case form so a device running iOS in English still reads Vietnamese.
+const _kAlbumKeys = <String, String>{
+  'recents': 'recentMedia',
+  'recent': 'recentMedia',
+  'all photos': 'albumAll',
+  '所有照片': 'albumAll',
+  'favorites': 'albumFavorites',
+  'favourites': 'albumFavorites',
+  '收藏': 'albumFavorites',
+  '个人收藏': 'albumFavorites',
+  'videos': 'albumVideos',
+  'video': 'albumVideos',
+  '视频': 'albumVideos',
+  'selfies': 'albumSelfies',
+  '自拍': 'albumSelfies',
+  'live photos': 'albumLivePhotos',
+  '实况照片': 'albumLivePhotos',
+  'portrait': 'albumPortrait',
+  'portraits': 'albumPortrait',
+  '人像': 'albumPortrait',
+  'long exposure': 'albumLongExposure',
+  '长曝光': 'albumLongExposure',
+  'spatial': 'albumSpatial',
+  '空间照片': 'albumSpatial',
+  'screenshots': 'albumScreenshots',
+  'screenshot': 'albumScreenshots',
+  '截屏': 'albumScreenshots',
+  'screen recordings': 'albumScreenRecordings',
+  '屏幕录制': 'albumScreenRecordings',
+  'camera': 'albumCamera',
+  'camera roll': 'albumCamera',
+  '相机': 'albumCamera',
+};
 
 /// The preview page lets the picture own the whole screen: the chrome floats on
 /// top of it as a translucent scrim, never as a bar that shortens the photo.
@@ -378,9 +414,9 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
   Widget _bar(BuildContext c) => _Scrim(
     fromTop: true,
     edge: true,
-    // A floor of black keeps the bar readable even over a white screenshot,
-    // while the fade lets the tiles show through as they scroll under it.
-    colors: const [Color(0xe6000000), Color(0xb3000000)],
+    // Flat and translucent: tiles show through as they scroll under the bar,
+    // and a white screenshot cannot wash the close button out.
+    tint: const Color(0xcc000000),
     child: Padding(
       padding: EdgeInsets.only(top: MediaQuery.paddingOf(c).top),
       child: SizedBox(
@@ -568,7 +604,8 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
                   onTap: () {},
                   child: _Scrim(
                     fromTop: true,
-                    colors: const [Color(0xf20d0d0d), Color(0xf20d0d0d)],
+                    blur: true,
+                    tint: const Color(0xd90d0d0d),
                     child: ConstrainedBox(
                       constraints: BoxConstraints(
                         maxHeight: MediaQuery.sizeOf(c).height * .62,
@@ -596,9 +633,14 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
   }
 
   /// The device names its synthetic "everything" album in English, so the
-  /// picker speaks for it instead.
-  String _albumName(BuildContext c, MediaAlbum album) =>
-      album.isRecent ? tr(c, 'recentMedia') : album.name;
+  /// picker speaks for it instead. The same goes for the other well-known
+  /// albums iOS and Android ship: they arrive in the system language, not the
+  /// app's.
+  String _albumName(BuildContext c, MediaAlbum album) {
+    if (album.isRecent) return tr(c, 'recentMedia');
+    final key = _kAlbumKeys[album.name.trim().toLowerCase()];
+    return key == null ? album.name : tr(c, key);
+  }
 
   Widget _albumRow(BuildContext c, MediaAlbum album) {
     final current = album.id == _album?.id;
@@ -655,7 +697,7 @@ class _MediaPickerSheetState extends State<MediaPickerSheet>
   Widget _bottomBar(BuildContext c) => _Scrim(
     fromTop: false,
     edge: true,
-    colors: const [Color(0xe6000000), Color(0xb3000000)],
+    tint: const Color(0xcc000000),
     child: SafeArea(
       top: false,
       child: Column(
@@ -991,31 +1033,43 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
   }
 
   @override
-  Widget build(BuildContext c) => ColoredBox(
-    color: QChatColors.black,
-    child: Stack(
-      children: [
-        Positioned.fill(
-          child: PageView.builder(
-            controller: _controller,
-            onPageChanged: (value) => setState(() => _index = value),
-            itemCount: widget.assets.length,
-            itemBuilder: (_, index) => _PreviewAsset(
-              library: widget.library,
-              asset: widget.assets[index],
+  Widget build(BuildContext c) {
+    // The video transport floats above the strip and the send row rather than
+    // under them, where it could not be tapped.
+    final chrome =
+        MediaQuery.paddingOf(c).bottom +
+        _kBottomBarHeight +
+        (widget.selection.isEmpty ? 0 : 76);
+    return ColoredBox(
+      color: QChatColors.black,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: PageView.builder(
+              controller: _controller,
+              onPageChanged: (value) => setState(() => _index = value),
+              itemCount: widget.assets.length,
+              itemBuilder: (_, index) => _PreviewAsset(
+                library: widget.library,
+                asset: widget.assets[index],
+                chrome: chrome,
+              ),
             ),
           ),
-        ),
-        Positioned(left: 0, right: 0, top: 0, child: _topBar(c)),
-        Positioned(left: 0, right: 0, bottom: 0, child: _bottomBar(c)),
-      ],
-    ),
-  );
+          Positioned(left: 0, right: 0, top: 0, child: _topBar(c)),
+          Positioned(left: 0, right: 0, bottom: 0, child: _bottomBar(c)),
+        ],
+      ),
+    );
+  }
 
   Widget _topBar(BuildContext c) {
     final top = MediaQuery.paddingOf(c).top;
     return _Scrim(
       fromTop: true,
+      blur: true,
+      edge: true,
+      tint: const Color(0x99000000),
       child: Padding(
         padding: EdgeInsets.only(top: top),
         child: SizedBox(
@@ -1084,6 +1138,9 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
     final base = widget.confirmLabel ?? tr(c, 'send');
     return _Scrim(
       fromTop: false,
+      blur: true,
+      edge: true,
+      tint: const Color(0x99000000),
       child: Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(c).bottom),
         child: Column(
@@ -1185,10 +1242,18 @@ class _MediaPreviewPageState extends State<_MediaPreviewPage> {
 }
 
 class _PreviewAsset extends StatefulWidget {
-  const _PreviewAsset({required this.library, required this.asset});
+  const _PreviewAsset({
+    required this.library,
+    required this.asset,
+    required this.chrome,
+  });
 
   final MediaLibrary library;
   final MediaAsset asset;
+
+  /// How much room the preview's own chrome takes at the bottom, so a clip's
+  /// transport can float above it.
+  final double chrome;
 
   @override
   State<_PreviewAsset> createState() => _PreviewAssetState();
@@ -1250,7 +1315,7 @@ class _PreviewAssetState extends State<_PreviewAsset> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0,
+              bottom: widget.chrome,
               child: _VideoControls(player: player, value: value),
             ),
           ],
@@ -1360,8 +1425,9 @@ class _VideoControlsState extends State<_VideoControls> {
     return _Scrim(
       fromTop: false,
       // The clock and the line need a scrim to stay legible over a bright frame.
+      tint: const Color(0x99000000),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 28, 12, 12),
+        padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
         child: Row(
         children: [
           GestureDetector(
@@ -1492,54 +1558,65 @@ String formatMediaClock(Duration duration) {
   return '$minutes:$seconds';
 }
 
-/// A translucent pane. It fades the picture to black under the chrome, so the
-/// controls stay readable while the photo still shows through, and it never
-/// turns into a bar that cuts the picture short.
+/// A flat pane of tinted glass. The chrome sits on a single translucent colour
+/// — no fade, so the bar reads as a bar — and, where it covers a still picture,
+/// a blur of what is behind it.
 ///
-/// It is deliberately a plain gradient rather than a [BackdropFilter]: the
-/// backdrop blur stretched the grid behind the bars on device (Impeller samples
-/// a raster-cached scrollable at the wrong scale), so the scrim stays honest.
+/// The picker's own bars skip the blur on purpose: on device the backdrop of a
+/// raster-cached grid came through stretched, so the grid's bars stay a plain
+/// translucent colour that cannot smear.
 class _Scrim extends StatelessWidget {
   const _Scrim({
     required this.child,
     required this.fromTop,
-    this.colors,
+    this.tint = const Color(0xb3000000),
+    this.blur = false,
     this.edge = false,
   });
 
   final Widget child;
 
-  /// Whether the tint is strongest at the top edge (a top bar) or at the
-  /// bottom one (a bottom bar).
+  /// Which edge the hairline sits on: the bottom of a top bar, the top of a
+  /// bottom bar.
   final bool fromTop;
 
-  /// Overrides the fade; a single repeated colour makes a steadier sheet for
-  /// the album list, which needs to be readable over busy thumbnails.
-  final List<Color>? colors;
+  final Color tint;
+
+  /// Blurs what sits behind the pane. Only safe over static content.
+  final bool blur;
 
   /// Draws a hairline on the inner edge, so a bar that sits on a dark page
   /// still has a visible boundary.
   final bool edge;
 
   @override
-  Widget build(BuildContext c) => DecoratedBox(
-    decoration: BoxDecoration(
-      gradient: LinearGradient(
-        begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
-        end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
-        colors: colors ?? const [Color(0xcc000000), Color(0x00000000)],
+  Widget build(BuildContext c) {
+    final pane = DecoratedBox(
+      decoration: BoxDecoration(
+        color: tint,
+        border: edge
+            ? Border(
+                bottom: fromTop
+                    ? const BorderSide(color: Color(0x1affffff), width: 0.5)
+                    : BorderSide.none,
+                top: fromTop
+                    ? BorderSide.none
+                    : const BorderSide(color: Color(0x1affffff), width: 0.5),
+              )
+            : null,
       ),
-      border: edge
-          ? Border(
-              bottom: fromTop
-                  ? const BorderSide(color: Color(0x1affffff), width: 0.5)
-                  : BorderSide.none,
-              top: fromTop
-                  ? BorderSide.none
-                  : const BorderSide(color: Color(0x1affffff), width: 0.5),
-            )
-          : null,
-    ),
-    child: child,
-  );
+      child: child,
+    );
+    if (!blur) return pane;
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: 20,
+          sigmaY: 20,
+          tileMode: TileMode.decal,
+        ),
+        child: pane,
+      ),
+    );
+  }
 }
