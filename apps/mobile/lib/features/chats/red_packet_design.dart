@@ -94,6 +94,9 @@ class CoverBackground {
     this.color = redPacketRed,
     this.colors = const [],
     this.mediaId,
+    this.imageScale = 1,
+    this.imageOffsetX = 0,
+    this.imageOffsetY = 0,
   });
 
   /// `solid`, `gradient`, `image` or `video`.
@@ -107,28 +110,54 @@ class CoverBackground {
   final List<Color> colors;
   final String? mediaId;
 
+  /// How the picture sits inside the flap, so a designer can frame a face or a
+  /// detail instead of living with the automatic centre crop.
+  ///
+  /// [imageScale] is the zoom (1 = cover the flap, 3 = three times closer) and
+  /// the offsets are fractions of the flap's width and height: dragging the
+  /// preview writes them, and the renderer clamps them so an edge never shows.
+  final double imageScale, imageOffsetX, imageOffsetY;
+
   bool get isVideo => type == 'video' && (mediaId ?? '').isNotEmpty;
   bool get isImage =>
       (type == 'image' || type == 'gif') && (mediaId ?? '').isNotEmpty;
   bool get hasMedia => isImage || isVideo;
+
+  /// Whether the designer has moved or zoomed the picture away from its
+  /// automatic centre crop.
+  bool get hasMediaCrop =>
+      imageScale != 1 || imageOffsetX != 0 || imageOffsetY != 0;
 
   CoverBackground copyWith({
     String? type,
     Color? color,
     List<Color>? colors,
     String? mediaId,
+    double? imageScale,
+    double? imageOffsetX,
+    double? imageOffsetY,
   }) => CoverBackground(
     type: type ?? this.type,
     color: color ?? this.color,
     colors: colors ?? this.colors,
     mediaId: mediaId ?? this.mediaId,
+    imageScale: imageScale ?? this.imageScale,
+    imageOffsetX: imageOffsetX ?? this.imageOffsetX,
+    imageOffsetY: imageOffsetY ?? this.imageOffsetY,
   );
+
+  /// Resets the picture to its automatic centre crop, keeping the file.
+  CoverBackground withCentredMedia() =>
+      copyWith(imageScale: 1, imageOffsetX: 0, imageOffsetY: 0);
 
   Map<String, dynamic> toJson() => {
     'type': type,
     'color': coverHex(color),
     'colors': colors.map(coverHex).toList(),
     if ((mediaId ?? '').isNotEmpty) 'mediaId': mediaId,
+    if (imageScale != 1) 'imageScale': imageScale,
+    if (imageOffsetX != 0) 'imageOffsetX': imageOffsetX,
+    if (imageOffsetY != 0) 'imageOffsetY': imageOffsetY,
   };
 
   static CoverBackground fromJson(Map? json) {
@@ -151,6 +180,9 @@ class CoverBackground {
             ]
           : const [],
       mediaId: json?['mediaId']?.toString(),
+      imageScale: coverScale(json?['imageScale']),
+      imageOffsetX: coverOffset(json?['imageOffsetX']),
+      imageOffsetY: coverOffset(json?['imageOffsetY']),
     );
   }
 }
@@ -196,6 +228,9 @@ class CoverMessage {
     this.imageId,
     this.startColor = redPacketGold,
     this.endColor = const Color(0xfff7c65a),
+    this.imageScale = 1,
+    this.imageOffsetX = 0,
+    this.imageOffsetY = 0,
   });
 
   /// Media id of the picture shown inside the bubble. The cover background is
@@ -209,33 +244,58 @@ class CoverMessage {
   /// a red packet after the picture.
   final Color endColor;
 
+  /// Framing of [imageId] inside the bubble. A chat card is short and wide, so
+  /// the automatic crop often cuts a face in half; the designer can drag the
+  /// picture in the studio preview to choose the part that shows.
+  final double imageScale, imageOffsetX, imageOffsetY;
+
   bool get hasImage => (imageId ?? '').isNotEmpty;
+
+  bool get hasImageCrop =>
+      imageScale != 1 || imageOffsetX != 0 || imageOffsetY != 0;
 
   CoverMessage copyWith({
     String? imageId,
     Color? startColor,
     Color? endColor,
+    double? imageScale,
+    double? imageOffsetX,
+    double? imageOffsetY,
   }) => CoverMessage(
     imageId: imageId ?? this.imageId,
     startColor: startColor ?? this.startColor,
     endColor: endColor ?? this.endColor,
+    imageScale: imageScale ?? this.imageScale,
+    imageOffsetX: imageOffsetX ?? this.imageOffsetX,
+    imageOffsetY: imageOffsetY ?? this.imageOffsetY,
   );
 
   /// Sets or clears the picture. [copyWith] keeps the old id, so removing the
-  /// picture goes through this method instead.
+  /// picture goes through this method instead. A new picture starts centred,
+  /// because the old framing belonged to the old file.
   CoverMessage withImage(String? id) =>
       CoverMessage(imageId: id, startColor: startColor, endColor: endColor);
+
+  /// Resets the picture to its automatic crop, keeping the file.
+  CoverMessage withCentredImage() =>
+      copyWith(imageScale: 1, imageOffsetX: 0, imageOffsetY: 0);
 
   Map<String, dynamic> toJson() => {
     if ((imageId ?? '').isNotEmpty) 'imageId': imageId,
     'startColor': coverHex(startColor),
     'endColor': coverHex(endColor),
+    if (imageScale != 1) 'imageScale': imageScale,
+    if (imageOffsetX != 0) 'imageOffsetX': imageOffsetX,
+    if (imageOffsetY != 0) 'imageOffsetY': imageOffsetY,
   };
 
   static CoverMessage fromJson(Map? json) => CoverMessage(
     imageId: json?['imageId']?.toString(),
     startColor: coverColor(json?['startColor'], redPacketGold),
     endColor: coverColor(json?['endColor'], const Color(0xfff7c65a)),
+    imageScale: coverScale(json?['imageScale']),
+    imageOffsetX: coverOffset(json?['imageOffsetX']),
+    imageOffsetY: coverOffset(json?['imageOffsetY']),
   );
 }
 
@@ -381,6 +441,14 @@ class CoverDesign {
 
 double _double(Object? value, double fallback) =>
     value is num ? value.toDouble() : double.tryParse('$value') ?? fallback;
+
+/// Zoom of a picture inside the flap or bubble. One means "cover the frame";
+/// the renderer never lets it drop below that, so no edge can show.
+double coverScale(Object? value) => _double(value, 1).clamp(1, 3).toDouble();
+
+/// Normalised pan of a picture, as a fraction of the frame. The renderer clamps
+/// it further against the real crop, so a saved value can never expose a gap.
+double coverOffset(Object? value) => _double(value, 0).clamp(-1, 1).toDouble();
 
 /// Parses `#rrggbb` or `#aarrggbb`; anything else falls back.
 Color coverColor(Object? value, Color fallback) {

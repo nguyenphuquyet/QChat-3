@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import '../../core/design_system/media_widgets.dart';
-import '../../core/media/media_video.dart';
+import 'cover_media_frame.dart';
 import 'red_packet_design.dart';
 
 /// Cover of a red packet, drawn edge to edge inside its parent card.
@@ -398,7 +398,9 @@ class RedPacketOpenedTop extends StatelessWidget {
 
 /// Paints the configured background: solid, gradient, a still picture, or a
 /// looping clip. Every picture fills the flap edge to edge, so the artwork below
-/// the arch is never touched and never letterboxed.
+/// the arch is never touched and never letterboxed. A designer's zoom and pan
+/// are applied here, so the flap, the opened header and the studio preview all
+/// crop the same way.
 class CoverBackdrop extends StatelessWidget {
   const CoverBackdrop({super.key, required this.design});
 
@@ -408,14 +410,22 @@ class CoverBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     final background = design.background;
     if (background.isVideo) {
-      return MediaVideo(
+      return CoverMediaView(
         id: background.mediaId!,
-        fit: BoxFit.cover,
+        video: true,
+        scale: background.imageScale,
+        offsetX: background.imageOffsetX,
+        offsetY: background.imageOffsetY,
         placeholder: background.color,
       );
     }
     if (background.isImage) {
-      return MediaImage(id: background.mediaId!, fit: BoxFit.cover);
+      return CoverMediaView(
+        id: background.mediaId!,
+        scale: background.imageScale,
+        offsetX: background.imageOffsetX,
+        offsetY: background.imageOffsetY,
+      );
     }
     if (background.type == 'gradient' && background.colors.length >= 2) {
       return DecoratedBox(
@@ -439,9 +449,20 @@ class CoverBackdrop extends StatelessWidget {
 /// keeps a warm red-packet tone after the picture. The cover background is never
 /// used here: a message owns its picture through [CoverMessage.imageId].
 class CoverMessageBackdrop extends StatelessWidget {
-  const CoverMessageBackdrop({super.key, required this.message});
+  const CoverMessageBackdrop({super.key, required this.message, this.onAdjust});
 
   final CoverMessage message;
+
+  /// Called when the designer drags or pinches the picture in the studio
+  /// preview. Chats leave it null, so the bubble only reacts to taps.
+  final void Function(double scale, double offsetX, double offsetY)? onAdjust;
+
+  Widget get _picture => CoverMediaView(
+    id: message.imageId!,
+    scale: message.imageScale,
+    offsetX: message.imageOffsetX,
+    offsetY: message.imageOffsetY,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +500,16 @@ class CoverMessageBackdrop extends StatelessWidget {
                 ],
                 stops: [0, .30, .62, 1],
               ).createShader(box),
-              child: MediaImage(id: message.imageId!, fit: BoxFit.cover),
+              child: onAdjust == null
+                  ? _picture
+                  : CoverMediaGesture(
+                      id: message.imageId!,
+                      scale: message.imageScale,
+                      offsetX: message.imageOffsetX,
+                      offsetY: message.imageOffsetY,
+                      onChanged: onAdjust!,
+                      child: _picture,
+                    ),
             ),
           ),
           // The picture never reaches full saturation: a warm gold veil stays

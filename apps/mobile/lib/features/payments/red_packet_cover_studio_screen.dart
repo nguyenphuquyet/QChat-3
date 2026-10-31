@@ -9,8 +9,8 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
-import '../../core/media/media_video.dart';
 import '../../core/network/media_upload.dart';
+import '../chats/cover_media_frame.dart';
 import '../chats/money_message.dart';
 import '../chats/red_packet_cover.dart';
 import '../chats/red_packet_design.dart';
@@ -599,6 +599,32 @@ class _RedPacketCoverStudioScreenState
                           child: CoverThumb(design: design, radius: 8),
                         ),
                       ),
+                      // The flap is the picture's frame, so dragging it moves
+                      // the artwork instead of the page. It sits above the
+                      // thumbnail but below the decoration handles.
+                      if (design.background.hasMedia)
+                        Positioned(
+                          left: spill,
+                          top: spill,
+                          width: coverWidth,
+                          height: coverHeight * design.topHeight,
+                          child: CoverMediaGesture(
+                            id: design.background.mediaId!,
+                            scale: design.background.imageScale,
+                            offsetX: design.background.imageOffsetX,
+                            offsetY: design.background.imageOffsetY,
+                            semanticsLabel: tr(c, 'coverImageAdjust'),
+                            onChanged: (scale, x, y) => _apply(
+                              design.copyWith(
+                                background: design.background.copyWith(
+                                  imageScale: scale,
+                                  imageOffsetX: x,
+                                  imageOffsetY: y,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       for (
                         var index = 0;
                         index < design.decorations.length;
@@ -773,12 +799,15 @@ class _RedPacketCoverStudioScreenState
                   ? Stack(
                       fit: StackFit.expand,
                       children: [
-                        if (background.isVideo) ...[
-                          MediaVideo(
-                            id: background.mediaId!,
-                            fit: BoxFit.cover,
-                            placeholder: background.color,
-                          ),
+                        CoverMediaView(
+                          id: background.mediaId!,
+                          video: background.isVideo,
+                          scale: background.imageScale,
+                          offsetX: background.imageOffsetX,
+                          offsetY: background.imageOffsetY,
+                          placeholder: background.color,
+                        ),
+                        if (background.isVideo)
                           IgnorePointer(
                             child: Center(
                               child: QChatIcon(
@@ -787,11 +816,6 @@ class _RedPacketCoverStudioScreenState
                                 color: const Color(0xccffffff),
                               ),
                             ),
-                          ),
-                        ] else
-                          MediaImage(
-                            id: background.mediaId!,
-                            fit: BoxFit.cover,
                           ),
                       ],
                     )
@@ -825,6 +849,38 @@ class _RedPacketCoverStudioScreenState
           tr(c, 'coverMediaFillNote'),
           style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
         ),
+        if (background.hasMedia) ...[
+          const SizedBox(height: 12),
+          Text(
+            tr(c, 'coverImageAdjustNote'),
+            style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
+          ),
+          const SizedBox(height: 8),
+          _sliderRow(
+            c,
+            background.imageScale,
+            1,
+            3,
+            (value) => _apply(
+              design.copyWith(
+                background: background.copyWith(imageScale: value),
+              ),
+            ),
+            display: '${background.imageScale.toStringAsFixed(1)}x',
+          ),
+          if (background.hasMediaCrop)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: CoralButton(
+                tr(c, 'coverImageReset'),
+                height: 34,
+                secondary: true,
+                onTap: () => _apply(
+                  design.copyWith(background: background.withCentredMedia()),
+                ),
+              ),
+            ),
+        ],
       ],
     ]);
   }
@@ -853,6 +909,15 @@ class _RedPacketCoverStudioScreenState
           },
           mine: false,
           onTap: () {},
+          onMessageAdjust: (scale, x, y) => _apply(
+            design.copyWith(
+              message: message.copyWith(
+                imageScale: scale,
+                imageOffsetX: x,
+                imageOffsetY: y,
+              ),
+            ),
+          ),
         ),
       ),
       const SizedBox(height: 16),
@@ -867,7 +932,12 @@ class _RedPacketCoverStudioScreenState
               borderRadius: BorderRadius.circular(6),
             ),
             child: message.hasImage
-                ? MediaImage(id: message.imageId!, fit: BoxFit.cover)
+                ? CoverMediaView(
+                    id: message.imageId!,
+                    scale: message.imageScale,
+                    offsetX: message.imageOffsetX,
+                    offsetY: message.imageOffsetY,
+                  )
                 : const Center(
                     child: QChatIcon(
                       'image',
@@ -901,6 +971,33 @@ class _RedPacketCoverStudioScreenState
           secondary: true,
           onTap: _clearMessageImage,
         ),
+        const SizedBox(height: 12),
+        Text(
+          tr(c, 'coverMessageAdjustNote'),
+          style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
+        ),
+        const SizedBox(height: 8),
+        _sliderRow(
+          c,
+          message.imageScale,
+          1,
+          3,
+          (value) => _apply(
+            design.copyWith(message: message.copyWith(imageScale: value)),
+          ),
+          display: '${message.imageScale.toStringAsFixed(1)}x',
+        ),
+        if (message.hasImageCrop)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: CoralButton(
+              tr(c, 'coverImageReset'),
+              height: 34,
+              secondary: true,
+              onTap: () =>
+                  _apply(design.copyWith(message: message.withCentredImage())),
+            ),
+          ),
       ],
       const SizedBox(height: 16),
       Text(

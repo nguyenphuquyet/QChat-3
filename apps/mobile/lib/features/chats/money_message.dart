@@ -128,10 +128,16 @@ class MoneyMessageCard extends StatelessWidget {
     required this.message,
     required this.mine,
     required this.onTap,
+    this.onMessageAdjust,
   });
   final Map message;
   final bool mine;
   final VoidCallback onTap;
+
+  /// Studio-only: lets the designer drag or pinch the bubble's own picture.
+  /// Chats leave it null, so a message stays a plain tap target.
+  final void Function(double scale, double offsetX, double offsetY)?
+  onMessageAdjust;
 
   bool get red => message['kind'] == 'RED_PACKET';
 
@@ -162,7 +168,12 @@ class MoneyMessageCard extends StatelessWidget {
       fit: StackFit.passthrough,
       children: [
         if (red && cover != null)
-          Positioned.fill(child: CoverMessageBackdrop(message: cover.message)),
+          Positioned.fill(
+            child: CoverMessageBackdrop(
+              message: cover.message,
+              onAdjust: onMessageAdjust,
+            ),
+          ),
         child,
       ],
     ),

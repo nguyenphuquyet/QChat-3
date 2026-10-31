@@ -346,6 +346,17 @@ const translations = <String, List<String>>{
     'Ảnh tự lấp đầy phần trên; video tự phát lặp lại. MP4 phát được trên mọi thiết bị.',
     '图片会铺满上半部分；视频自动循环播放。MP4 在所有设备上都能播放。',
   ],
+  'coverImageAdjustNote': [
+    'Hold the picture in the preview and drag it to frame it. Pinch or use the zoom slider to move closer.',
+    'Giữ vào ảnh ở phần xem trước rồi kéo để căn chỉnh. Chụm hai ngón hoặc dùng thanh thu phóng để phóng to.',
+    '在预览中按住图片拖动即可调整构图，双指捏合或用缩放滑块放大。',
+  ],
+  'coverMessageAdjustNote': [
+    'Drag the picture inside the bubble to choose the part the chat shows. Pinch or use the zoom slider to get closer.',
+    'Kéo ảnh trong tin nhắn để chọn phần hiển thị trong chat. Chụm hai ngón hoặc dùng thanh thu phóng để phóng to.',
+    '在消息气泡内拖动图片，选择聊天中显示的部分。双指捏合或用缩放滑块放大。',
+  ],
+  'coverImageReset': ['Reset the picture', 'Đặt lại ảnh', '重置图片'],
   'coverMessage': ['Message bubble', 'Tin nhắn hồng bao', '红包消息'],
   'coverMessageNote': [
     'The bubble in the chat has its own picture and its own gold wash. It never reuses the cover photo.',

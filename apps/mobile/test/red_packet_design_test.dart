@@ -151,6 +151,93 @@ void main() {
     expect(cover.design.topHeight, .7);
   });
 
+  test(
+    'a picture keeps its zoom and pan through JSON and clamps wild values',
+    () {
+      const design = CoverDesign(
+        background: CoverBackground(
+          type: 'image',
+          mediaId: 'photo-1',
+          imageScale: 2.2,
+          imageOffsetX: .18,
+          imageOffsetY: -.12,
+        ),
+        message: CoverMessage(
+          imageId: 'message-1',
+          imageScale: 1.6,
+          imageOffsetX: -.2,
+          imageOffsetY: .1,
+        ),
+      );
+
+      final parsed = CoverDesign.fromJson(design.toJsonString());
+
+      expect(parsed.background.imageScale, closeTo(2.2, 1e-9));
+      expect(parsed.background.imageOffsetX, closeTo(.18, 1e-9));
+      expect(parsed.background.imageOffsetY, closeTo(-.12, 1e-9));
+      expect(parsed.background.hasMediaCrop, isTrue);
+      expect(parsed.message.imageScale, closeTo(1.6, 1e-9));
+      expect(parsed.message.imageOffsetX, closeTo(-.2, 1e-9));
+      expect(parsed.message.imageOffsetY, closeTo(.1, 1e-9));
+      expect(parsed.message.hasImageCrop, isTrue);
+
+      // A saved value can never zoom out past the frame or leave it entirely.
+      final wild = CoverDesign.fromJson({
+        'background': {
+          'type': 'image',
+          'imageScale': 9,
+          'imageOffsetX': -5,
+          'imageOffsetY': 7,
+        },
+        'message': {'imageScale': .2, 'imageOffsetX': 4},
+      });
+      expect(wild.background.imageScale, 3);
+      expect(wild.background.imageOffsetX, -1);
+      expect(wild.background.imageOffsetY, 1);
+      expect(wild.message.imageScale, 1);
+      expect(wild.message.imageOffsetX, 1);
+      expect(const CoverBackground().hasMediaCrop, isFalse);
+      expect(const CoverMessage().hasImageCrop, isFalse);
+    },
+  );
+
+  test('a new message picture starts centred instead of inheriting a crop', () {
+    const reframed = CoverMessage(
+      imageId: 'old',
+      imageScale: 2,
+      imageOffsetX: .3,
+      imageOffsetY: -.4,
+    );
+
+    final replaced = reframed.withImage('new');
+    expect(replaced.imageId, 'new');
+    expect(replaced.imageScale, 1);
+    expect(replaced.imageOffsetX, 0);
+    expect(replaced.imageOffsetY, 0);
+
+    final centred = reframed.withCentredImage();
+    expect(centred.imageId, 'old');
+    expect(centred.imageScale, 1);
+    expect(centred.hasImageCrop, isFalse);
+  });
+
+  test('a cover background resets its crop without dropping the file', () {
+    const background = CoverBackground(
+      type: 'image',
+      mediaId: 'photo-1',
+      imageScale: 1.8,
+      imageOffsetX: .2,
+      imageOffsetY: .1,
+    );
+
+    final centred = background.withCentredMedia();
+    expect(centred.mediaId, 'photo-1');
+    expect(centred.type, 'image');
+    expect(centred.imageScale, 1);
+    expect(centred.imageOffsetX, 0);
+    expect(centred.imageOffsetY, 0);
+  });
+
   testWidgets('the arch follows the design top height', (tester) async {
     Future<double> seam(double topHeight) async {
       await tester.pumpWidget(

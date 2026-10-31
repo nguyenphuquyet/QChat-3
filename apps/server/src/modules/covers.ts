@@ -18,6 +18,12 @@ const backgroundSchema = z.object({
   color: color.default("#d93b30"),
   colors: z.array(color).max(4).default([]),
   mediaId: uuid.optional(),
+  // Framing of the picture inside the flap: 1 covers it, up to 3 zooms in,
+  // and the offsets are fractions of the flap. The client clamps them against
+  // the real crop before painting.
+  imageScale: z.number().min(1).max(3).default(1),
+  imageOffsetX: z.number().min(-1).max(1).default(0),
+  imageOffsetY: z.number().min(-1).max(1).default(0),
 });
 
 const decorationSchema = z.object({
@@ -44,6 +50,10 @@ const messageSchema = z.object({
   imageId: uuid.optional(),
   startColor: color.default("#f5a83a"),
   endColor: color.default("#f7c65a"),
+  // Framing of the message picture, same units as the cover background.
+  imageScale: z.number().min(1).max(3).default(1),
+  imageOffsetX: z.number().min(-1).max(1).default(0),
+  imageOffsetY: z.number().min(-1).max(1).default(0),
 });
 
 const designSchema = z
