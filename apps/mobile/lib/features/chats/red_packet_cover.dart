@@ -453,8 +453,9 @@ class CoverMessageBackdrop extends StatelessWidget {
           ),
         ),
         if (message.hasImage) ...[
-          // The picture is invisible at the head and fully visible near the
-          // tail: a fade rather than a hard cut, as in the reference card.
+          // The picture is invisible at the head and fades in towards the
+          // tail: a soft blend rather than a hard cut, as in the reference
+          // card.
           Positioned.fill(
             child: ShaderMask(
               key: const ValueKey('red-packet-message-image'),
@@ -468,13 +469,14 @@ class CoverMessageBackdrop extends StatelessWidget {
                   Color(0xffffffff),
                   Color(0xffffffff),
                 ],
-                stops: [0, .34, .72, 1],
+                stops: [0, .30, .62, 1],
               ).createShader(box),
               child: MediaImage(id: message.imageId!, fit: BoxFit.cover),
             ),
           ),
-          // A second gold pass keeps the tail "hơi vàng" instead of letting the
-          // picture run to full saturation at the rounded corner.
+          // The picture never reaches full saturation: a warm gold veil stays
+          // over it all the way to the tail, so the whole card still reads as
+          // gold with the artwork showing through, like the reference.
           Positioned.fill(
             child: IgnorePointer(
               child: DecoratedBox(
@@ -485,11 +487,11 @@ class CoverMessageBackdrop extends StatelessWidget {
                     end: Alignment.centerRight,
                     colors: [
                       message.startColor,
-                      message.startColor.withValues(alpha: .7),
-                      message.endColor.withValues(alpha: .08),
-                      message.endColor.withValues(alpha: .3),
+                      message.startColor.withValues(alpha: .88),
+                      message.startColor.withValues(alpha: .6),
+                      message.endColor.withValues(alpha: .5),
                     ],
-                    stops: const [0, .34, .7, 1],
+                    stops: const [0, .30, .62, 1],
                   ),
                 ),
               ),
