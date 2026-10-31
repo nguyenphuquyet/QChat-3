@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import '../../core/design_system/media_widgets.dart';
+import '../../core/media/media_video.dart';
 import 'red_packet_design.dart';
 
 /// Cover of a red packet, drawn edge to edge inside its parent card.
@@ -396,7 +397,7 @@ class RedPacketOpenedTop extends StatelessWidget {
 }
 
 /// Paints the configured background: solid, gradient, a still picture, or a
-/// looping GIF. Every picture fills the flap edge to edge, so the artwork below
+/// looping clip. Every picture fills the flap edge to edge, so the artwork below
 /// the arch is never touched and never letterboxed.
 class CoverBackdrop extends StatelessWidget {
   const CoverBackdrop({super.key, required this.design});
@@ -406,6 +407,14 @@ class CoverBackdrop extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = design.background;
+    if (background.isVideo) {
+      return MediaVideo(
+        id: background.mediaId!,
+        fit: BoxFit.cover,
+        placeholder: background.color,
+        extension: 'webm',
+      );
+    }
     if (background.isImage) {
       return MediaImage(id: background.mediaId!, fit: BoxFit.cover);
     }

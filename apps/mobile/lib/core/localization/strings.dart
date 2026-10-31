@@ -333,18 +333,18 @@ const translations = <String, List<String>>{
   'coverSolid': ['Solid', 'Màu trơn', '纯色'],
   'coverGradient': ['Gradient', 'Chuyển sắc', '渐变'],
   'coverImage': ['Photo', 'Ảnh', '图片'],
-  'coverGif': ['GIF', 'Ảnh động', '动图'],
+  'coverWebm': ['WebM', 'Ảnh động', '动图'],
   'coverPickImage': ['Choose a photo', 'Chọn ảnh', '选择图片'],
-  'coverPickGif': ['Choose a GIF', 'Chọn ảnh GIF', '选择 GIF'],
-  'coverGifOnly': [
-    'Only a GIF animates the cover.',
-    'Chỉ ảnh GIF mới làm vỏ hồng bao chuyển động.',
-    '只有 GIF 可以让封面动起来。',
+  'coverPickWebm': ['Choose a WebM clip', 'Chọn clip WebM', '选择 WebM 视频'],
+  'coverWebmOnly': [
+    'Only a WebM clip animates the cover.',
+    'Chỉ clip WebM mới làm vỏ hồng bao chuyển động.',
+    '只有 WebM 视频可以让封面动起来。',
   ],
   'coverMediaFillNote': [
-    'Photos fill the whole top; a GIF loops automatically.',
-    'Ảnh tự lấp đầy phần trên; ảnh GIF tự phát lặp lại.',
-    '图片会铺满上半部分；GIF 自动循环播放。',
+    'Photos fill the whole top; a WebM clip loops automatically.',
+    'Ảnh tự lấp đầy phần trên; clip WebM tự phát lặp lại.',
+    '图片会铺满上半部分；WebM 视频自动循环播放。',
   ],
   'coverMessage': ['Message bubble', 'Tin nhắn hồng bao', '红包消息'],
   'coverMessageNote': [

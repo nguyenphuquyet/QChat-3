@@ -9,6 +9,7 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../../core/media/media_video.dart';
 import '../../core/network/media_upload.dart';
 import '../chats/money_message.dart';
 import '../chats/red_packet_cover.dart';
@@ -186,16 +187,22 @@ class _RedPacketCoverStudioScreenState
 
   Future<void> _pickPhoto({
     bool decoration = false,
-    bool gif = false,
+    bool webm = false,
     bool message = false,
   }) async {
     if (uploading) return;
     setState(() => uploading = true);
     try {
-      final file = await pickImageWithSource(context);
+      final PlatformFile? file;
+      if (webm) {
+        final files = await pickMediaWithSource(context, maxAssets: 1);
+        file = files.isEmpty ? null : files.first;
+      } else {
+        file = await pickImageWithSource(context);
+      }
       if (file == null || !mounted) return;
-      if (gif && _extension(file) != 'gif') {
-        showQChatToast(context, tr(context, 'coverGifOnly'));
+      if (webm && _extension(file) != 'webm') {
+        showQChatToast(context, tr(context, 'coverWebmOnly'));
         return;
       }
       final id = await uploadMedia(ref.read(clientProvider), file);
@@ -208,7 +215,7 @@ class _RedPacketCoverStudioScreenState
         _apply(
           design.copyWith(
             background: design.background.copyWith(
-              type: gif ? 'gif' : 'image',
+              type: webm ? 'webm' : 'image',
               mediaId: id,
             ),
           ),
@@ -229,19 +236,24 @@ class _RedPacketCoverStudioScreenState
     return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
-  /// Switches the flap background. A GIF cover only accepts a GIF, so moving to
-  /// that form drops a photo the designer picked earlier instead of saving a
-  /// still picture as an animated cover.
+  /// Switches the flap background. A WebM cover only accepts a WebM clip and a
+  /// photo only accepts an image, so moving between those forms drops a file the
+  /// designer picked earlier instead of saving a clip as a still or the reverse.
   void _setBackgroundType(String type) {
     final background = design.background;
     if (type == background.type) return;
-    final next = type == 'gif' && background.type != 'gif'
-        ? CoverBackground(
+    final compatible = type == 'image'
+        ? background.type == 'image' || background.type == 'gif'
+        : type == 'webm'
+        ? background.type == 'webm'
+        : true;
+    final next = compatible
+        ? background.copyWith(type: type)
+        : CoverBackground(
             type: type,
             color: background.color,
             colors: background.colors,
-          )
-        : background.copyWith(type: type);
+          );
     _apply(design.copyWith(background: next));
   }
 
@@ -673,7 +685,7 @@ class _RedPacketCoverStudioScreenState
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (final type in const ['solid', 'gradient', 'image', 'gif'])
+          for (final type in const ['solid', 'gradient', 'image', 'webm'])
             _Pill(
               label: tr(
                 c,
@@ -683,7 +695,7 @@ class _RedPacketCoverStudioScreenState
                     ? 'coverGradient'
                     : type == 'image'
                     ? 'coverImage'
-                    : 'coverGif',
+                    : 'coverWebm',
               ),
               selected: background.type == type,
               onTap: () {
@@ -756,8 +768,33 @@ class _RedPacketCoverStudioScreenState
                 color: qchatFill(c),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: background.isImage
-                  ? MediaImage(id: background.mediaId!, fit: BoxFit.cover)
+              child: background.hasMedia
+                  ? Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (background.isVideo) ...[
+                          MediaVideo(
+                            id: background.mediaId!,
+                            fit: BoxFit.cover,
+                            placeholder: background.color,
+                            extension: 'webm',
+                          ),
+                          IgnorePointer(
+                            child: Center(
+                              child: QChatIcon(
+                                'play',
+                                size: 20,
+                                color: const Color(0xccffffff),
+                              ),
+                            ),
+                          ),
+                        ] else
+                          MediaImage(
+                            id: background.mediaId!,
+                            fit: BoxFit.cover,
+                          ),
+                      ],
+                    )
                   : Center(
                       child: QChatIcon(
                         'image',
@@ -771,12 +808,14 @@ class _RedPacketCoverStudioScreenState
               child: CoralButton(
                 tr(
                   c,
-                  background.type == 'gif' ? 'coverPickGif' : 'coverPickImage',
+                  background.type == 'webm'
+                      ? 'coverPickWebm'
+                      : 'coverPickImage',
                 ),
                 height: 40,
                 secondary: true,
                 loading: uploading,
-                onTap: () => _pickPhoto(gif: background.type == 'gif'),
+                onTap: () => _pickPhoto(webm: background.type == 'webm'),
               ),
             ),
           ],

@@ -8,8 +8,11 @@ const color = z
   .regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "INVALID_COLOR");
 
 const backgroundSchema = z.object({
-  // A cover animates through a GIF only; stills use `image`.
-  type: z.enum(["solid", "gradient", "image", "gif"]).default("solid"),
+  // A cover animates through a WebM loop; stills use `image`. `gif` is kept
+  // readable for covers saved before the switch.
+  type: z
+    .enum(["solid", "gradient", "image", "gif", "webm"])
+    .default("solid"),
   color: color.default("#d93b30"),
   colors: z.array(color).max(4).default([]),
   mediaId: uuid.optional(),
@@ -83,22 +86,31 @@ type DesignMedia = {
 };
 
 async function validateMedia(userId: string, design: DesignMedia) {
-  const checks: { id: string; gif: boolean }[] = [];
+  const checks: { id: string; kind: "image" | "gif" | "webm" }[] = [];
   const mediaId = design.background.mediaId;
   if (
     (design.background.type === "image" ||
-      design.background.type === "gif") &&
+      design.background.type === "gif" ||
+      design.background.type === "webm") &&
     mediaId
   ) {
-    checks.push({ id: mediaId, gif: design.background.type === "gif" });
+    checks.push({
+      id: mediaId,
+      kind:
+        design.background.type === "image"
+          ? "image"
+          : design.background.type === "gif"
+            ? "gif"
+            : "webm",
+    });
   }
   for (const item of design.decorations ?? []) {
     if (item.kind === "image" && item.value) {
-      checks.push({ id: item.value, gif: false });
+      checks.push({ id: item.value, kind: "image" });
     }
   }
   if (design.message?.imageId) {
-    checks.push({ id: design.message.imageId, gif: false });
+    checks.push({ id: design.message.imageId, kind: "image" });
   }
   for (const check of checks) {
     const file = await db.media.findFirst({
@@ -106,8 +118,12 @@ async function validateMedia(userId: string, design: DesignMedia) {
       select: { id: true, mime: true },
     });
     requireCondition(file, 400, "MEDIA_NOT_READY");
+    if (check.kind === "webm") {
+      requireCondition(file.mime === "video/webm", 400, "MEDIA_NOT_WEBM");
+      continue;
+    }
     requireCondition(file.mime.startsWith("image/"), 400, "MEDIA_NOT_IMAGE");
-    if (check.gif) {
+    if (check.kind === "gif") {
       requireCondition(file.mime === "image/gif", 400, "MEDIA_NOT_GIF");
     }
   }

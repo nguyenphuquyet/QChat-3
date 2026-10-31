@@ -14,10 +14,14 @@ class CachedVideo {
     await release();
   }
 
-  static Future<CachedVideo> load(QChatClient client, String id) async {
+  static Future<CachedVideo> load(
+    QChatClient client,
+    String id, {
+    String extension = 'mp4',
+  }) async {
     final bytes = await MediaCache.load(client, id);
     if (bytes == null) throw StateError('Media unavailable');
-    final source = await platform.createVideoSource(bytes);
+    final source = await platform.createVideoSource(bytes, extension);
     return CachedVideo(source.controller, source.release);
   }
 }

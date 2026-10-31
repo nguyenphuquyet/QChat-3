@@ -96,19 +96,21 @@ class CoverBackground {
     this.mediaId,
   });
 
-  /// `solid`, `gradient`, `image` or `gif`.
+  /// `solid`, `gradient`, `image` or `webm`.
   ///
-  /// `image` is a still photo and `gif` is the only animated form a cover
-  /// accepts, so the flap always animates the same way on every platform.
-  /// Both fill the flap edge to edge, so a designer never sees letterboxing.
+  /// `image` is a still photo and `webm` is the only animated form a cover
+  /// accepts: a short, silent loop that every platform but iOS plays natively.
+  /// `gif` is still parsed for covers saved before the switch to WebM. All
+  /// three fill the flap edge to edge, so a designer never sees letterboxing.
   final String type;
   final Color color;
   final List<Color> colors;
   final String? mediaId;
 
+  bool get isVideo => type == 'webm' && (mediaId ?? '').isNotEmpty;
   bool get isImage =>
       (type == 'image' || type == 'gif') && (mediaId ?? '').isNotEmpty;
-  bool get hasMedia => isImage;
+  bool get hasMedia => isImage || isVideo;
 
   CoverBackground copyWith({
     String? type,
@@ -131,8 +133,10 @@ class CoverBackground {
 
   static CoverBackground fromJson(Map? json) {
     final rawType = json?['type']?.toString() ?? 'solid';
-    // Older covers could point at a clip; those now fall back to a flat flap.
-    final type = const ['solid', 'gradient', 'image', 'gif'].contains(rawType)
+    // Older covers could point at a GIF; those still render, but new designs
+    // only offer WebM.
+    final type =
+        const ['solid', 'gradient', 'image', 'gif', 'webm'].contains(rawType)
         ? rawType
         : 'solid';
     final colors = json?['colors'];
