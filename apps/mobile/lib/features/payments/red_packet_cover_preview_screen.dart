@@ -23,18 +23,19 @@ Future<void> showRedPacketCoverPreview(
     barrierDismissible: true,
     barrierLabel: tr(context, 'close'),
     barrierColor: const Color(0x00000000),
-    transitionDuration: const Duration(milliseconds: 220),
+    transitionDuration: const Duration(milliseconds: 240),
     pageBuilder: (context, animation, secondaryAnimation) =>
-        RedPacketCoverPreviewScreen(cover: cover),
+        RedPacketCoverPreviewScreen(cover: cover, animation: animation),
     transitionBuilder: (context, animation, _, child) {
-      final curved = animation.drive(CurveTween(curve: Curves.easeOutCubic));
-      return FadeTransition(
-        opacity: curved,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: .96, end: 1).animate(curved),
-          child: child,
-        ),
+      // The scrim has to leave as soon as the tap lands: `easeInCubic` on the
+      // reverse makes the fade fall across the whole exit, instead of holding
+      // near-opaque for most of it and then snapping away in the last frames.
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
       );
+      return FadeTransition(opacity: curved, child: child);
     },
   );
 }
@@ -42,9 +43,17 @@ Future<void> showRedPacketCoverPreview(
 /// Large preview of a cover: artwork, name, designer, claim/use button and the
 /// close control below the card, like the reference.
 class RedPacketCoverPreviewScreen extends ConsumerStatefulWidget {
-  const RedPacketCoverPreviewScreen({super.key, required this.cover});
+  const RedPacketCoverPreviewScreen({
+    super.key,
+    required this.cover,
+    this.animation,
+  });
 
   final RedPacketCoverData cover;
+
+  /// Route animation that grows the card out of the scrim and fades the
+  /// frosted veil. Null when the screen is built directly, as in tests.
+  final Animation<double>? animation;
 
   @override
   ConsumerState<RedPacketCoverPreviewScreen> createState() =>
@@ -55,6 +64,26 @@ class _RedPacketCoverPreviewScreenState
     extends ConsumerState<RedPacketCoverPreviewScreen> {
   bool busy = false;
   late bool owned = widget.cover.owned || widget.cover.mine;
+  CurvedAnimation? _curve;
+
+  @override
+  void initState() {
+    super.initState();
+    final animation = widget.animation;
+    if (animation != null) {
+      _curve = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _curve?.dispose();
+    super.dispose();
+  }
 
   Future<void> _use() async {
     if (busy) return;
@@ -92,15 +121,10 @@ class _RedPacketCoverPreviewScreenState
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // Frosted glass over the gallery/studio that opened this popup.
-          ClipRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-              child: ColoredBox(
-                color: qchatBackground(c).withValues(alpha: .46),
-              ),
-            ),
-          ),
+          // Frosted glass over the gallery/studio that opened this popup. Its
+          // blur and tint follow the route animation, so dismissing the popup
+          // visibly clears the veil instead of snapping it away.
+          _PreviewBackdrop(animation: widget.animation),
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
@@ -115,65 +139,68 @@ class _RedPacketCoverPreviewScreenState
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: cardWidth,
-                        padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                        clipBehavior: Clip.antiAlias,
-                        decoration: BoxDecoration(
-                          color: surface(c),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x33000000),
-                              blurRadius: 32,
-                              offset: Offset(0, 14),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            CoverThumb(design: design, radius: 12),
-                            const SizedBox(height: 18),
-                            Text(
-                              widget.cover.id == 'default'
-                                  ? tr(c, 'defaultCover')
-                                  : widget.cover.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                                color: ink(c),
-                              ),
-                            ),
-                            if (widget.cover.designerName.isNotEmpty ||
-                                widget.cover.designerQchatId.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              DesignerLine(
-                                name: widget.cover.designerName,
-                                avatarId: widget.cover.designerAvatar,
-                                qchatId: widget.cover.designerQchatId,
-                                onTap: (widget.cover.designerId ?? '').isEmpty
-                                    ? null
-                                    : () => c.push(
-                                        '/red-packets/designers/${widget.cover.designerId}',
-                                      ),
+                      _PopupScale(
+                        animation: _curve,
+                        child: Container(
+                          width: cardWidth,
+                          padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                          clipBehavior: Clip.antiAlias,
+                          decoration: BoxDecoration(
+                            color: surface(c),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x33000000),
+                                blurRadius: 32,
+                                offset: Offset(0, 14),
                               ),
                             ],
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: CoralButton(
-                                owned
-                                    ? tr(c, 'useCover')
-                                    : tr(c, 'receiveCover'),
-                                height: 48,
-                                loading: busy,
-                                onTap: _use,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CoverThumb(design: design, radius: 12),
+                              const SizedBox(height: 18),
+                              Text(
+                                widget.cover.id == 'default'
+                                    ? tr(c, 'defaultCover')
+                                    : widget.cover.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.w600,
+                                  color: ink(c),
+                                ),
                               ),
-                            ),
-                          ],
+                              if (widget.cover.designerName.isNotEmpty ||
+                                  widget.cover.designerQchatId.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                DesignerLine(
+                                  name: widget.cover.designerName,
+                                  avatarId: widget.cover.designerAvatar,
+                                  qchatId: widget.cover.designerQchatId,
+                                  onTap: (widget.cover.designerId ?? '').isEmpty
+                                      ? null
+                                      : () => c.push(
+                                          '/red-packets/designers/${widget.cover.designerId}',
+                                        ),
+                                ),
+                              ],
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: CoralButton(
+                                  owned
+                                      ? tr(c, 'useCover')
+                                      : tr(c, 'receiveCover'),
+                                  height: 48,
+                                  loading: busy,
+                                  onTap: _use,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -218,4 +245,53 @@ class _RedPacketCoverPreviewScreenState
       ),
     );
   }
+}
+
+/// Grows the card out of the scrim and shrinks it back when the popup closes.
+class _PopupScale extends StatelessWidget {
+  const _PopupScale({required this.animation, required this.child});
+
+  final Animation<double>? animation;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final animation = this.animation;
+    if (animation == null) return child;
+    return ScaleTransition(
+      scale: Tween<double>(begin: .92, end: 1).animate(animation),
+      child: child,
+    );
+  }
+}
+
+/// Frosted veil over the screen behind the popup.
+///
+/// The blur and the tint follow the route animation. Applying a
+/// [FadeTransition] to a [BackdropFilter] alone can leave the blur looking
+/// frozen until the route disappears, which is what made the close feel
+/// instant.
+class _PreviewBackdrop extends StatelessWidget {
+  const _PreviewBackdrop({this.animation});
+
+  final Animation<double>? animation;
+
+  @override
+  Widget build(BuildContext context) {
+    final animation = this.animation;
+    if (animation == null) return _layer(context, 1);
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) => _layer(context, animation.value),
+    );
+  }
+
+  Widget _layer(BuildContext context, double t) => ClipRect(
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 30 * t, sigmaY: 30 * t),
+      child: ColoredBox(
+        color: qchatBackground(context).withValues(alpha: .46 * t),
+      ),
+    ),
+  );
 }
