@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -9,17 +10,22 @@ import 'sticker_models.dart';
 import 'sticker_view.dart';
 import 'wechat_emoji.dart';
 
-/// The composer's emoji and sticker panel.
+/// The composer's emoji and sticker panel, laid out like the reference app.
 ///
-/// Three tabs, like the reference: the bundled WeChat emoji, the stickers in
-/// the user's own library, and the packs themselves. Stickers are sent straight
-/// from the grid; the pack tab is where a new pack starts.
+/// A row of four icons — search, emoji, recent stickers and custom stickers —
+/// sits under the composer, with the content below it. Backspace and send
+/// float over the bottom-right corner of the content, because the keyboard is
+/// closed while the panel is open.
 class StickerPanel extends ConsumerStatefulWidget {
   const StickerPanel({
     super.key,
     required this.onEmoji,
     required this.onSticker,
     required this.onOpenStudio,
+    required this.onOpenLibrary,
+    this.onBackspace,
+    this.onSend,
+    this.canSend = false,
     required this.safeBottom,
   });
 
@@ -29,6 +35,14 @@ class StickerPanel extends ConsumerStatefulWidget {
 
   /// Opens the studio, optionally on one pack or on the new-pack flow.
   final void Function({String? packId, bool create}) onOpenStudio;
+
+  /// Opens the full sticker library.
+  final VoidCallback onOpenLibrary;
+
+  /// Deletes one character from the composer.
+  final VoidCallback? onBackspace;
+  final VoidCallback? onSend;
+  final bool canSend;
   final double safeBottom;
 
   @override
@@ -36,21 +50,63 @@ class StickerPanel extends ConsumerStatefulWidget {
 }
 
 class StickerPanelState extends ConsumerState<StickerPanel> {
-  final tabs = const [
-    'stickerTabEmoji',
-    'stickerTabStickers',
-    'stickerTabPacks',
-  ];
-  int tab = 0;
+  static const _recentEmojiKey = 'sticker:recentEmoji';
+
+  /// 0 search, 1 emoji, 2 recent stickers, 3 custom stickers.
+  int tab = 1;
   StickerLibrary? library;
   bool loading = true;
   bool failed = false;
-  String? busyPack;
+  String query = '';
+  final search = TextEditingController();
+  final recentEmoji = <String>[];
 
   @override
   void initState() {
     super.initState();
     reload();
+    _loadRecentEmoji();
+  }
+
+  @override
+  void dispose() {
+    search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadRecentEmoji() async {
+    try {
+      final saved = await SharedPreferences.getInstance();
+      final stored = saved.getStringList(_recentEmojiKey);
+      if (!mounted || stored == null) return;
+      final known = {for (final emoji in wechatEmojiSet) emoji.code};
+      setState(() {
+        recentEmoji
+          ..clear()
+          ..addAll(stored.where(known.contains));
+      });
+    } catch (_) {
+      // The recent strip is a convenience; a storage failure is harmless.
+    }
+  }
+
+  Future<void> _rememberEmoji(String code) async {
+    if (mounted) {
+      setState(() {
+        recentEmoji
+          ..remove(code)
+          ..insert(0, code);
+        if (recentEmoji.length > 16) {
+          recentEmoji.removeRange(16, recentEmoji.length);
+        }
+      });
+    }
+    try {
+      final saved = await SharedPreferences.getInstance();
+      await saved.setStringList(_recentEmojiKey, recentEmoji);
+    } catch (_) {
+      // Keep the in-memory strip even when the write fails.
+    }
   }
 
   Future<void> reload() async {
@@ -72,322 +128,524 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
     }
   }
 
-  Future<void> addPack(StickerPack pack) async {
-    if (busyPack != null) return;
-    setState(() => busyPack = pack.id);
-    try {
-      await StickerApi(ref.read(clientProvider)).addToLibrary(pack.id);
-      if (!mounted) return;
-      showQChatToast(context, tr(context, 'stickerPackAdded'));
-      await reload();
-    } catch (_) {
-      if (mounted) showQChatToast(context, tr(context, 'networkError'));
-    } finally {
-      if (mounted) setState(() => busyPack = null);
-    }
-  }
+  double get _contentBottom => 66 + widget.safeBottom;
 
   @override
-  Widget build(BuildContext c) => Column(
-    children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(8, 2, 8, 0),
-        child: QChatTabBar(
-          labels: [for (final tab in tabs) tr(c, tab)],
-          index: tab,
-          onChanged: (value) => setState(() => tab = value),
-        ),
-      ),
-      Expanded(child: _body(c)),
-    ],
-  );
-
-  Widget _body(BuildContext c) {
-    if (tab == 0) return _emojiGrid();
-    if (loading) return const Center(child: QChatLoading());
-    if (failed || library == null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              tr(c, 'stickerLoadFailed'),
-              style: TextStyle(fontSize: 13, color: qchatMuted(c)),
-            ),
-            const SizedBox(height: 10),
-            QChatButton(tr(c, 'retry'), onTap: reload),
-          ],
-        ),
-      );
-    }
-    return tab == 1 ? _stickerLibrary(c) : _packList(c);
-  }
-
-  Widget _emojiGrid() => GridView.builder(
-    padding: EdgeInsets.fromLTRB(8, 6, 8, 8 + widget.safeBottom),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 9,
-      mainAxisSpacing: 2,
-      crossAxisSpacing: 2,
-    ),
-    itemCount: wechatEmojiSet.length,
-    itemBuilder: (c, index) {
-      final emoji = wechatEmojiSet[index];
-      return Semantics(
-        button: true,
-        label: emoji.code,
-        child: GestureDetector(
-          key: ValueKey('wechat-emoji-${emoji.code}'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => widget.onEmoji(emoji.token),
-          child: Center(
-            child: Image.asset(
-              emoji.asset,
-              width: 30,
-              height: 30,
-              filterQuality: FilterQuality.medium,
-              excludeFromSemantics: true,
-            ),
+  Widget build(BuildContext c) => ColoredBox(
+    color: qchatBackground(c),
+    child: Column(
+      children: [
+        _iconRow(c),
+        Container(height: .5, color: qchatLine(c)),
+        Expanded(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Column(
+                  children: [
+                    const _DragHandle(),
+                    Expanded(child: _content(c)),
+                  ],
+                ),
+              ),
+              if (tab == 1)
+                Positioned(
+                  right: 14,
+                  bottom: 10 + widget.safeBottom,
+                  child: _floatingActions(c),
+                ),
+            ],
           ),
         ),
-      );
-    },
+      ],
+    ),
   );
 
-  Widget _stickerLibrary(BuildContext c) {
-    final data = library!;
-    final recent = data.recent;
-    final all = data.all.take(140).toList();
-    if (recent.isEmpty && all.isEmpty) {
-      return _emptyLibrary(c);
+  Widget _content(BuildContext c) {
+    switch (tab) {
+      case 0:
+        return _searchTab(c);
+      case 1:
+        return _emojiTab(c);
+      case 2:
+        return _recentTab(c);
+      default:
+        return _customTab(c);
     }
-    return ListView(
-      padding: EdgeInsets.fromLTRB(12, 10, 12, 12 + widget.safeBottom),
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tab 0: search
+  // ---------------------------------------------------------------------------
+
+  Widget _searchTab(BuildContext c) {
+    final data = library;
+    final needle = query.trim().toLowerCase();
+    final results = data == null
+        ? const <Sticker>[]
+        : (needle.isEmpty
+                  ? data.all.take(18)
+                  : data.all.where(
+                      (sticker) =>
+                          sticker.label.toLowerCase().contains(needle) ||
+                          sticker.packName.toLowerCase().contains(needle),
+                    ))
+              .toList();
+    return Column(
       children: [
-        if (recent.isNotEmpty) ...[
-          _sectionTitle(c, 'stickerRecent'),
-          _grid(recent),
-          const SizedBox(height: 10),
-        ],
-        Row(
-          children: [
-            _sectionTitle(c, 'stickerCustom'),
-            const Spacer(),
-            if (data.mine.isNotEmpty)
-              _link(c, 'stickerManage', () => widget.onOpenStudio()),
-          ],
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+          child: QChatSearchField(
+            controller: search,
+            hintText: tr(c, 'stickerSearchHint'),
+            onChanged: (value) => setState(() => query = value),
+          ),
         ),
-        _grid(
-          data.mine.expand((pack) => pack.stickers).toList(),
-          leading: _addTile(c),
+        Expanded(
+          child: loading && data == null
+              ? const Center(child: QChatLoading())
+              : failed && data == null
+              ? _failure(c)
+              : results.isEmpty
+              ? Center(
+                  child: Text(
+                    tr(c, 'stickerNoResults'),
+                    style: TextStyle(fontSize: 13, color: qchatMuted(c)),
+                  ),
+                )
+              : ListView(
+                  padding: EdgeInsets.fromLTRB(14, 4, 14, _contentBottom),
+                  children: [_stickerGrid(results, columns: 4, size: 58)],
+                ),
         ),
-        const SizedBox(height: 10),
-        _sectionTitle(c, 'stickerAll'),
-        _grid(all),
       ],
     );
   }
 
-  Widget _emptyLibrary(BuildContext c) => Center(
+  // ---------------------------------------------------------------------------
+  // Tab 1: emoji
+  // ---------------------------------------------------------------------------
+
+  Widget _emojiTab(BuildContext c) {
+    final recent = [
+      for (final code in recentEmoji)
+        for (final emoji in wechatEmojiSet)
+          if (emoji.code == code) emoji,
+    ];
+    return ListView(
+      padding: EdgeInsets.fromLTRB(16, 10, 16, _contentBottom),
+      children: [
+        if (recent.isNotEmpty) ...[
+          _sectionTitle(c, 'stickerRecent'),
+          _emojiGrid(recent, size: 36),
+          const SizedBox(height: 18),
+        ],
+        _sectionTitle(c, 'stickerAll'),
+        _emojiGrid(wechatEmojiSet, size: 34),
+      ],
+    );
+  }
+
+  Widget _emojiGrid(List<WeChatEmoji> emoji, {required double size}) =>
+      GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 7,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+        ),
+        itemCount: emoji.length,
+        itemBuilder: (c, index) {
+          final item = emoji[index];
+          return Semantics(
+            button: true,
+            label: item.code,
+            child: GestureDetector(
+              key: ValueKey('wechat-emoji-${item.code}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                widget.onEmoji(item.token);
+                _rememberEmoji(item.code);
+              },
+              child: Center(
+                child: Image.asset(
+                  item.asset,
+                  width: size,
+                  height: size,
+                  filterQuality: FilterQuality.medium,
+                  excludeFromSemantics: true,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+
+  // ---------------------------------------------------------------------------
+  // Tab 2: recently used stickers
+  // ---------------------------------------------------------------------------
+
+  Widget _recentTab(BuildContext c) {
+    if (loading && library == null) return const Center(child: QChatLoading());
+    if (failed && library == null) return _failure(c);
+    final recent = library?.recent ?? const <Sticker>[];
+    if (recent.isEmpty) return _emptyRecent(c);
+    return ListView(
+      padding: EdgeInsets.fromLTRB(14, 8, 14, _contentBottom),
+      children: [_stickerGrid(recent, columns: 4, size: 66)],
+    );
+  }
+
+  Widget _emptyRecent(BuildContext c) => Center(
     child: Padding(
-      padding: const EdgeInsets.all(20),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, _contentBottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const QChatIcon('emoji', size: 34, color: QChatColors.muted),
-          const SizedBox(height: 8),
+          const QChatIcon('heart', size: 32, color: QChatColors.muted),
+          const SizedBox(height: 10),
           Text(
             tr(c, 'stickerEmpty'),
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13, height: 1.4, color: qchatMuted(c)),
           ),
           const SizedBox(height: 12),
-          QChatButton(
-            tr(c, 'stickerCreatePack'),
-            secondary: true,
+          _link(c, 'stickerMore', widget.onOpenLibrary, arrow: true),
+        ],
+      ),
+    ),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Tab 3: custom stickers
+  // ---------------------------------------------------------------------------
+
+  Widget _customTab(BuildContext c) {
+    if (loading && library == null) return const Center(child: QChatLoading());
+    if (failed && library == null) return _failure(c);
+    final mine =
+        library?.mine.expand((pack) => pack.stickers).toList() ??
+        const <Sticker>[];
+    if (mine.isEmpty) return _recordEmpty(c);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 14, 2),
+          child: Row(
+            children: [
+              Text(
+                tr(c, 'stickerCustom'),
+                style: TextStyle(fontSize: 15.5, color: ink(c)),
+              ),
+              const Spacer(),
+              _link(c, 'stickerMore', widget.onOpenLibrary, arrow: true),
+            ],
+          ),
+        ),
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(14, 6, 14, _contentBottom),
+            children: [
+              _stickerGrid(mine, columns: 4, size: 62, leading: _addTile(c)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _recordEmpty(BuildContext c) => Center(
+    child: SingleChildScrollView(
+      padding: EdgeInsets.fromLTRB(24, 10, 24, _contentBottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          GestureDetector(
+            key: const ValueKey('sticker-record'),
+            behavior: HitTestBehavior.opaque,
             onTap: () => widget.onOpenStudio(create: true),
+            child: SizedBox.square(
+              dimension: 118,
+              child: CustomPaint(
+                painter: _DashedBorderPainter(color: qchatMuted(c), radius: 10),
+                child: Center(
+                  child: QChatIcon('camera', size: 40, color: ink(c)),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            tr(c, 'stickerRecord'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18, color: ink(c)),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            tr(c, 'stickerRecordNote'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, height: 1.45, color: qchatMuted(c)),
           ),
         ],
       ),
     ),
   );
 
-  Widget _packList(BuildContext c) {
-    final data = library!;
-    return ListView(
-      padding: EdgeInsets.fromLTRB(12, 8, 12, 12 + widget.safeBottom),
-      children: [
-        Row(
-          children: [
-            _sectionTitle(c, 'stickerMyPacks'),
-            const Spacer(),
-            _link(c, 'stickerNewPack', () => widget.onOpenStudio(create: true)),
-          ],
-        ),
-        if (data.mine.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              tr(c, 'stickerEmpty'),
-              style: TextStyle(fontSize: 13, color: qchatMuted(c)),
-            ),
-          )
-        else
-          for (final pack in data.mine)
-            _packRow(c, pack, mine: true),
-        const SizedBox(height: 8),
-        _sectionTitle(c, 'stickerMarket'),
-        if (data.market.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              tr(c, 'stickerMarketEmpty'),
-              style: TextStyle(fontSize: 13, color: qchatMuted(c)),
-            ),
-          )
-        else
-          for (final pack in data.market) _packRow(c, pack, mine: false),
-      ],
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // Icons and floating actions
+  // ---------------------------------------------------------------------------
 
-  Widget _packRow(BuildContext c, StickerPack pack, {required bool mine}) {
-    final cover = pack.coverMediaId;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: mine
-          ? () => widget.onOpenStudio(packId: pack.id)
-          : () => widget.onOpenStudio(packId: pack.id),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: qchatFill(c).withValues(alpha: .45),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            SizedBox.square(
-              dimension: 40,
-              child: cover == null
-                  ? const QChatIcon('emoji', size: 28)
-                  : StickerView(mediaId: cover, size: 40),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pack.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: ink(c),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${pack.stickers.length} ${tr(c, 'stickerCount')}',
-                    style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
-                  ),
-                ],
-              ),
-            ),
-            if (mine)
-              Text(
-                tr(c, 'edit'),
-                style: const TextStyle(fontSize: 12.5, color: QChatColors.green),
-              )
-            else if (pack.added)
-              Text(
-                tr(c, 'stickerAdded'),
-                style: TextStyle(fontSize: 12.5, color: qchatMuted(c)),
-              )
-            else
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: busyPack == null ? () => addPack(pack) : null,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    color: surface(c),
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                  child: busyPack == pack.id
-                      ? const SizedBox.square(
-                          dimension: 14,
-                          child: QChatLoading(size: 14),
-                        )
-                      : Text(
-                          tr(c, 'stickerAdd'),
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: QChatColors.green,
-                          ),
-                        ),
-                ),
-              ),
-          ],
+  Widget _iconRow(BuildContext c) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+    child: Row(
+      children: [
+        _tabButton(c, 0, 'search', tr(c, 'stickerSearchHint')),
+        const SizedBox(width: 14),
+        _tabButton(c, 1, 'emoji', tr(c, 'stickerTabEmoji')),
+        const SizedBox(width: 14),
+        _tabButton(c, 2, 'heart', tr(c, 'stickerRecent')),
+        const SizedBox(width: 14),
+        _tabButton(c, 3, 'stickerV', tr(c, 'stickerCustom')),
+      ],
+    ),
+  );
+
+  Widget _tabButton(BuildContext c, int index, String icon, String label) {
+    final selected = tab == index;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: GestureDetector(
+        key: ValueKey('sticker-tab-$index'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => tab = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: 46,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? qchatSurface(c) : QChatColors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: QChatIcon(icon, size: 26, color: ink(c)),
         ),
       ),
     );
   }
 
-  Widget _sectionTitle(BuildContext c, String key) => Padding(
-    padding: const EdgeInsets.only(top: 6, bottom: 8),
-    child: Text(
-      tr(c, key),
-      style: TextStyle(fontSize: 12.5, color: qchatMuted(c)),
-    ),
-  );
-
-  Widget _link(BuildContext c, String key, VoidCallback onTap) =>
-      GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-          child: Text(
-            tr(c, key),
-            style: const TextStyle(fontSize: 12.5, color: QChatColors.green),
+  Widget _floatingActions(BuildContext c) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _actionTile(
+        c,
+        key: const ValueKey('sticker-backspace'),
+        onTap: widget.onBackspace,
+        semantic: tr(c, 'delete'),
+        child: QChatIcon('backspace', size: 22, color: qchatMuted(c)),
+      ),
+      const SizedBox(width: 10),
+      Semantics(
+        button: true,
+        enabled: widget.canSend,
+        label: tr(c, 'send'),
+        child: GestureDetector(
+          key: const ValueKey('sticker-send'),
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.canSend ? widget.onSend : null,
+          child: Container(
+            width: 56,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.canSend
+                  ? QChatColors.green
+                  : qchatFill(c).withValues(alpha: .75),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              tr(c, 'send'),
+              style: TextStyle(
+                fontSize: 15,
+                color: widget.canSend ? QChatColors.white : qchatMuted(c),
+              ),
+            ),
           ),
         ),
-      );
-
-  Widget _grid(List<Sticker> items, {Widget? leading}) => Wrap(
-    spacing: 4,
-    runSpacing: 4,
-    children: [
-      ?leading,
-      for (final sticker in items) _stickerTile(sticker),
+      ),
     ],
   );
 
-  Widget _stickerTile(Sticker sticker) => GestureDetector(
-    key: ValueKey('sticker-${sticker.id}'),
+  Widget _actionTile(
+    BuildContext c, {
+    required Key key,
+    required VoidCallback? onTap,
+    required String semantic,
+    required Widget child,
+  }) => Semantics(
+    button: true,
+    label: semantic,
+    child: GestureDetector(
+      key: key,
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 50,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: qchatFill(c).withValues(alpha: .75),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: child,
+      ),
+    ),
+  );
+
+  // ---------------------------------------------------------------------------
+  // Shared pieces
+  // ---------------------------------------------------------------------------
+
+  Widget _failure(BuildContext c) => Center(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          tr(c, 'stickerLoadFailed'),
+          style: TextStyle(fontSize: 13, color: qchatMuted(c)),
+        ),
+        const SizedBox(height: 10),
+        QChatButton(tr(c, 'retry'), onTap: reload),
+      ],
+    ),
+  );
+
+  Widget _sectionTitle(BuildContext c, String key) => Padding(
+    padding: const EdgeInsets.only(bottom: 10, left: 2),
+    child: Text(
+      tr(c, key),
+      style: TextStyle(fontSize: 15, color: qchatMuted(c)),
+    ),
+  );
+
+  Widget _link(
+    BuildContext c,
+    String key,
+    VoidCallback onTap, {
+    bool arrow = false,
+  }) => GestureDetector(
     behavior: HitTestBehavior.opaque,
-    onTap: () => widget.onSticker(sticker),
-    child: StickerView(mediaId: sticker.mediaId, size: 46),
+    onTap: onTap,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          tr(c, key),
+          style: const TextStyle(fontSize: 13.5, color: Color(0xff576b95)),
+        ),
+        if (arrow) ...[
+          const SizedBox(width: 3),
+          const QChatIcon('chevron', size: 14, color: Color(0xff576b95)),
+        ],
+      ],
+    ),
+  );
+
+  Widget _stickerGrid(
+    List<Sticker> items, {
+    required int columns,
+    required double size,
+    Widget? leading,
+  }) => GridView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    padding: EdgeInsets.zero,
+    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      crossAxisCount: columns,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+    ),
+    itemCount: items.length + (leading == null ? 0 : 1),
+    itemBuilder: (c, index) {
+      if (leading != null && index == 0) return Center(child: leading);
+      final sticker = items[index - (leading == null ? 0 : 1)];
+      return GestureDetector(
+        key: ValueKey('sticker-${sticker.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => widget.onSticker(sticker),
+        child: Center(
+          child: StickerView(mediaId: sticker.mediaId, size: size),
+        ),
+      );
+    },
   );
 
   Widget _addTile(BuildContext c) => GestureDetector(
     key: const ValueKey('sticker-add-studio'),
     behavior: HitTestBehavior.opaque,
     onTap: () => widget.onOpenStudio(create: true),
-    child: Container(
-      width: 46,
-      height: 46,
-      decoration: BoxDecoration(
-        border: Border.all(color: qchatLine(c), width: .8),
-        borderRadius: BorderRadius.circular(4),
+    child: SizedBox.square(
+      dimension: 64,
+      child: CustomPaint(
+        painter: _DashedBorderPainter(color: qchatMuted(c), radius: 8),
+        child: Center(child: QChatIcon('plus', size: 30, color: ink(c))),
       ),
-      child: const Center(child: QChatIcon('plus', size: 22)),
     ),
   );
+}
+
+/// The small grabber at the top of the panel content, like the reference.
+class _DragHandle extends StatelessWidget {
+  const _DragHandle();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 7, bottom: 3),
+    child: Center(
+      child: Container(
+        width: 38,
+        height: 4,
+        decoration: BoxDecoration(
+          color: const Color(0xffd3d3d3),
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Draws a dashed rounded outline, used by the empty and add stickers tiles.
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color, required this.radius});
+
+  final Color color;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)),
+      );
+    const dash = 6.0, gap = 5.0;
+    for (final metric in path.computeMetrics()) {
+      var distance = 0.0;
+      while (distance < metric.length) {
+        final end = (distance + dash).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance = end + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter old) =>
+      old.color != color || old.radius != radius;
 }

@@ -8,6 +8,7 @@ import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import '../chats/red_packet_design.dart';
+import '../stickers/sticker_workshop.dart';
 import 'red_packet_cover_preview_screen.dart';
 import 'red_packet_cover_ui.dart';
 
@@ -155,23 +156,13 @@ class _RedPacketDesignerScreenState
       label: tr(c, 'close'),
       onTap: () => c.pop(),
     ),
-    trailing: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        QChatIconButton(
-          'emoji',
-          label: tr(c, 'stickerStudio'),
-          onTap: () => c.push('/red-packets/designer/stickers'),
-        ),
-        QChatIconButton(
-          'palette',
-          label: tr(c, 'coverStudio'),
-          onTap: () async {
-            final saved = await c.push<bool>('/red-packets/designer/cover');
-            if (saved == true) setState(_reload);
-          },
-        ),
-      ],
+    trailing: QChatIconButton(
+      'palette',
+      label: tr(c, 'coverStudio'),
+      onTap: () async {
+        final saved = await c.push<bool>('/red-packets/designer/cover');
+        if (saved == true) setState(_reload);
+      },
     ),
     child: FutureBuilder<dynamic>(
       future: data,
@@ -293,6 +284,8 @@ class _RedPacketDesignerScreenState
             onTap: () => setState(() => editing = false),
           ),
         ],
+        const SizedBox(height: 24),
+        const StickerWorkshop(accent: coverCoral),
       ],
     );
   }
@@ -422,40 +415,7 @@ class _RedPacketDesignerScreenState
           ],
         ),
         const SizedBox(height: 10),
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () => c.push('/red-packets/designer/stickers'),
-          child: CoverSurface(
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-            child: Row(
-              children: [
-                const QChatIcon('emoji', size: 24, color: coverCoral),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        tr(c, 'stickerStudio'),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: ink(c),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        tr(c, 'stickerStudioShort'),
-                        style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
-                      ),
-                    ],
-                  ),
-                ),
-                QChatIcon('more', size: 16, color: QChatColors.muted),
-              ],
-            ),
-          ),
-        ),
+        const StickerWorkshop(accent: coverCoral),
         const SizedBox(height: 16),
         Row(
           children: [

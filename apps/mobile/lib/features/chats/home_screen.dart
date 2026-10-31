@@ -667,7 +667,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         'stickers',
         icon: 'emoji',
         color: const Color(0xffeeb714),
-        onTap: () => c.push('/red-packets/designer/stickers'),
+        onTap: () => c.push('/stickers'),
       ),
       sectionGap,
       MenuRow('settings', icon: 'settings', onTap: () => c.push('/settings')),

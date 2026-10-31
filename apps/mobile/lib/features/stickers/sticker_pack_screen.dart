@@ -120,7 +120,7 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
 
   Future<void> _import() async {
     final saved = await context.push<bool>(
-      '/red-packets/designer/stickers/${widget.packId}/import',
+      '/stickers/${widget.packId}/import',
     );
     if (saved == true && mounted) _load();
   }
@@ -129,7 +129,7 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
   Widget build(BuildContext c) {
     final data = pack;
     return QChatPage(
-      title: data?.name ?? tr(c, 'stickerStudio'),
+      title: data?.name ?? tr(c, 'sticker'),
       glassHeader: false,
       leading: QChatIconButton(
         'back',

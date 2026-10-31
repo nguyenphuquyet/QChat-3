@@ -26,8 +26,8 @@ import 'features/payments/red_packet_covers_screen.dart';
 import 'features/payments/red_packet_cover_studio_screen.dart';
 import 'features/payments/red_packet_designer_screen.dart';
 import 'features/stickers/sticker_import_screen.dart';
+import 'features/stickers/sticker_library_screen.dart';
 import 'features/stickers/sticker_pack_screen.dart';
-import 'features/stickers/sticker_studio_screen.dart';
 import 'features/chats/red_packet_design.dart';
 import 'features/payments/money_screen.dart';
 import 'features/payments/wallet_screen.dart';
@@ -177,18 +177,18 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           ),
         ),
         qchatRoute(
-          path: '/red-packets/designer/stickers',
-          builder: (_, s) => StickerStudioScreen(
-            create: s.uri.queryParameters['create'] == '1',
+          path: '/stickers',
+          builder: (_, s) => StickerLibraryScreen(
+            start: s.uri.queryParameters['tab'] == 'gallery' ? 1 : 0,
           ),
         ),
         qchatRoute(
-          path: '/red-packets/designer/stickers/:id',
+          path: '/stickers/:id',
           builder: (_, s) =>
               StickerPackScreen(packId: s.pathParameters['id']!),
         ),
         qchatRoute(
-          path: '/red-packets/designer/stickers/:id/import',
+          path: '/stickers/:id/import',
           builder: (_, s) =>
               StickerImportScreen(packId: s.pathParameters['id']!),
         ),

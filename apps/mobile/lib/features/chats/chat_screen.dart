@@ -33,6 +33,7 @@ import '../stickers/emoji_text.dart';
 import '../stickers/sticker_api.dart';
 import '../stickers/sticker_models.dart';
 import '../stickers/sticker_panel.dart';
+import '../stickers/wechat_emoji.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.id});
@@ -322,6 +323,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     setState(() {});
   }
 
+  /// Deletes one character from the composer, or a whole `[emoji]` token, the
+  /// way the reference panel's backspace key behaves.
+  void backspaceInput() {
+    final text = input.text;
+    final sel = input.selection;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+    var from = start;
+    if (start == end) {
+      if (start <= 0) return;
+      from = start - 1;
+      if (from > 0) {
+        final unit = text.codeUnitAt(from);
+        if (unit >= 0xDC00 && unit <= 0xDFFF) from -= 1;
+      }
+      final before = text.substring(0, start);
+      if (before.endsWith(']')) {
+        final open = before.lastIndexOf('[');
+        if (open >= 0) {
+          final code = before.substring(open + 1, before.length - 1);
+          if (wechatEmojiSet.any((emoji) => emoji.code == code)) from = open;
+        }
+      }
+    }
+    input.value = TextEditingValue(
+      text: text.replaceRange(from, end, ''),
+      selection: TextSelection.collapsed(offset: from),
+    );
+    setState(() {});
+  }
+
   /// Sends a sticker as its own message kind: the bubble carries no canvas, so
   /// the artwork floats over the chat like it does in the reference app.
   Future<void> sendSticker(Sticker sticker) async {
@@ -340,11 +372,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   /// Opens the sticker studio from the panel. Returning refreshes the library,
   /// so a pack created or published a moment ago is usable immediately.
   Future<void> openStickerStudio({String? packId, bool create = false}) async {
-    final query = create ? '?create=1' : '';
     await context.push<void>(
-      packId == null
-          ? '/red-packets/designer/stickers$query'
-          : '/red-packets/designer/stickers/$packId',
+      packId != null
+          ? '/stickers/$packId'
+          : create
+          ? '/red-packets/designer'
+          : '/stickers',
     );
     if (mounted) stickerPanel.currentState?.reload();
   }
@@ -1254,7 +1287,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Panel luôn thấp, cố định; chỉ bàn phím thật mới đẩy thanh nhập lên cao.
     // Không ghi nhớ chiều cao bàn phím trước đó, nếu không panel (khi bàn phím
     // đã đóng) sẽ bị kéo cao bằng bàn phím và để lại một khoảng trống xấu.
-    final panelHeight = 250 + safeBottom;
+    // The sticker panel needs more room than the attachment grid, so the two
+    // keep their own heights instead of sharing one reserved band.
+    final panelHeight = (emoji ? 320 : 250) + safeBottom;
     // Vùng đáy nằm trong lớp kính của thanh nhập: bàn phím | panel | safe area.
     // Dùng max() để khi bàn phím đóng dần, ô nhập vẫn nằm trên safe area chứ
     // không tụt xuống sát đáy rồi bật ngược lên.
@@ -1647,6 +1682,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                 onEmoji: insertEmoji,
                                                 onSticker: sendSticker,
                                                 onOpenStudio: openStickerStudio,
+                                                onOpenLibrary: () async {
+                                                  await context.push<void>(
+                                                    '/stickers',
+                                                  );
+                                                  if (mounted) {
+                                                    stickerPanel.currentState
+                                                        ?.reload();
+                                                  }
+                                                },
+                                                onBackspace: backspaceInput,
+                                                onSend: send,
+                                                canSend: input.text
+                                                    .trim()
+                                                    .isNotEmpty,
                                               )
                                             : attachmentPanel(c, safeBottom),
                                       ),

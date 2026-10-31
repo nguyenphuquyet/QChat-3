@@ -1113,6 +1113,26 @@ const translations = <String, List<String>>{
   'stickerSave': ['Save stickers', 'Lưu nhãn dán', '保存贴纸'],
   'stickerSaved': ['Stickers saved', 'Đã lưu nhãn dán', '贴纸已保存'],
   'stickerPackFull': ['This pack is full.', 'Bộ nhãn dán đã đầy.', '此专辑已满。'],
+  'stickerTabSelected': [
+    'Selected stickers',
+    'Những nhãn dán đã chọn',
+    '已选贴纸',
+  ],
+  'stickerTabGallery': ['Sticker gallery', 'Nhãn dán khéo', '精选贴纸'],
+  'stickerSearchHint': ['Search', 'Tìm kiếm', '搜索'],
+  'stickerSelection': ['For you', 'Lựa chọn', '精选'],
+  'stickerMore': ['More stickers', 'Xem thêm nhãn dán', '更多贴纸'],
+  'stickerRecord': ['Record a sticker', 'Ghi lại nhãn dán', '录制贴纸'],
+  'stickerRecordNote': [
+    'Your own stickers will be saved here for you to use.',
+    'Nhãn tự chụp của bạn sẽ được lưu ở đây để bạn sử dụng.',
+    '你拍摄的贴纸会保存在这里供你使用。',
+  ],
+  'stickerNoResults': [
+    'No stickers found.',
+    'Không tìm thấy nhãn dán.',
+    '未找到贴纸。',
+  ],
 };
 String tr(BuildContext context, String key) {
   final language = Localizations.localeOf(context).languageCode;

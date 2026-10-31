@@ -100,6 +100,7 @@ class QChatIcon extends StatelessWidget {
       'palette' => LucideIcons.palette,
       'sparkles' => LucideIcons.sparkles,
       'brush' => LucideIcons.brush,
+      'backspace' => LucideIcons.delete,
       _ => null,
     };
     if (glyph != null) return Icon(glyph, size: size, color: color);
@@ -413,6 +414,31 @@ class _IconPainter extends CustomPainter {
         canvas.drawArc(const Rect.fromLTWH(6, 7, 12, 11), 0.2, 2.7, false, p);
         canvas.drawCircle(const Offset(8, 8), .6, p);
         canvas.drawCircle(const Offset(16, 8), .6, p);
+        break;
+      case 'stickerV':
+        // Peace-sign hand: two raised fingers over a rounded palm.
+        canvas.drawPath(
+          Path()
+            ..moveTo(8, 14)
+            ..cubicTo(6.2, 9.5, 5.4, 4.6, 7.4, 4)
+            ..cubicTo(9.2, 3.5, 10.2, 7.4, 11.2, 11.4),
+          p,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(13, 11)
+            ..cubicTo(14.2, 7, 16, 3.6, 17.8, 4.4)
+            ..cubicTo(19.6, 5.2, 17.6, 9.7, 15.4, 14.2),
+          p,
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(8, 13.6)
+            ..cubicTo(6.8, 17.2, 8.4, 21, 12, 21)
+            ..cubicTo(15.6, 21, 17.2, 17.2, 15.8, 13.6)
+            ..close(),
+          p,
+        );
         break;
       case 'qr':
         for (final r in [
