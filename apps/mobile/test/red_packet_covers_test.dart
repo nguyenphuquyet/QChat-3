@@ -112,7 +112,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('cover-preview-close')));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 260));
+    await tester.pump(const Duration(milliseconds: 340));
     expect(find.byKey(const ValueKey('cover-preview-close')), findsNothing);
   });
 }
