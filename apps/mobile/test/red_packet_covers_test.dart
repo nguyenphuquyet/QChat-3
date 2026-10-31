@@ -96,9 +96,7 @@ void main() {
     expect(find.text('Đang dùng'), findsNothing);
   });
 
-  testWidgets('a cover preview opens as a frosted popup over the gallery', (
-    tester,
-  ) async {
+  testWidgets('a cover preview opens over a dimmed gallery', (tester) async {
     await mount(tester, CoversClient(), const RedPacketCoversScreen());
 
     await tester.tap(find.byType(CoverThumb).last);
@@ -107,7 +105,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 320));
 
     expect(find.byKey(const ValueKey('cover-preview-close')), findsOneWidget);
-    expect(find.byType(BackdropFilter), findsOneWidget);
+    expect(find.byKey(const ValueKey('cover-preview-scrim')), findsOneWidget);
     // The gallery stays mounted behind the dialog instead of being replaced.
     expect(find.text('Vỏ hồng bao của tôi'), findsOneWidget);
 

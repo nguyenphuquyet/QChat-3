@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,8 +10,8 @@ import 'red_packet_cover_ui.dart';
 
 /// Opens a cover as a modal popup over the current screen.
 ///
-/// The page behind stays visible through a frosted-glass scrim, so the preview
-/// feels like a layer on top of the gallery instead of another route.
+/// The page behind stays visible through a dimmed scrim, so the preview feels
+/// like a layer on top of the gallery instead of another route.
 Future<void> showRedPacketCoverPreview(
   BuildContext context,
   RedPacketCoverData cover,
@@ -78,8 +76,8 @@ class _RedPacketCoverPreviewScreenState
     super.initState();
     // Wait until the first frame has been built and painted before starting
     // the clock. The card decodes a cover thumbnail (and may prepare a clip),
-    // and doing that while the entrance runs made the popup skip straight to
-    // a fully frosted veil on slower devices.
+    // and doing that while the entrance runs made the popup appear fully
+    // formed on slower devices.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _fade.forward();
     });
@@ -93,7 +91,7 @@ class _RedPacketCoverPreviewScreenState
     super.dispose();
   }
 
-  /// Plays the exit and only then removes the route, so tapping the frosted
+  /// Plays the exit and only then removes the route, so tapping the dimmed
   /// backdrop cannot cut the fade short.
   Future<void> _dismiss() async {
     if (_closing) return;
@@ -145,11 +143,8 @@ class _RedPacketCoverPreviewScreenState
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Frosted glass over the gallery/studio that opened this popup. The
-            // blur and tint are animated on this layer itself: a
-            // [BackdropFilter] only blurs what is painted beneath it in the same
-            // layer, so wrapping the page in an opacity layer would hide the
-            // frost until the layer vanished.
+            // Dims the gallery/studio that opened this popup. No backdrop
+            // blur: animating a full-screen filter dropped frames on phones.
             _PreviewBackdrop(animation: _scrim),
             SafeArea(
               child: Center(
@@ -287,10 +282,7 @@ class _RedPacketCoverPreviewScreenState
   }
 }
 
-/// Fades the card and its close control in and out.
-///
-/// This layer holds no [BackdropFilter], so an opacity layer is safe here; the
-/// veil is animated separately in [_PreviewBackdrop].
+/// Fades the card and its close control in and out, separately from the scrim.
 class _PopupFade extends StatelessWidget {
   const _PopupFade({required this.animation, required this.child});
 
@@ -327,37 +319,22 @@ class _PopupScale extends StatelessWidget {
   }
 }
 
-/// Frosted veil over the screen behind the popup.
+/// Dim veil over the screen behind the popup.
 ///
-/// The blur and the tint grow together with the route animation. Keeping the
-/// filter on this layer, rather than fading a whole page that contains it,
-/// matters: a [BackdropFilter] only blurs what is painted beneath it in the
-/// same layer, so an opacity ancestor leaves nothing to blur and the frost
-/// appears in a single frame when that layer is dropped.
+/// A plain scrim, deliberately not a [BackdropFilter]. The frosted version had
+/// to animate a full-screen blur radius, which on a phone drops frames and
+/// makes the veil appear in steps instead of fading in.
 class _PreviewBackdrop extends StatelessWidget {
-  const _PreviewBackdrop({this.animation});
+  const _PreviewBackdrop({required this.animation});
 
-  /// Blur radius at full strength.
-  static const _sigma = 26.0;
+  static const scrimKey = ValueKey('cover-preview-scrim');
 
-  final Animation<double>? animation;
+  final Animation<double> animation;
 
   @override
-  Widget build(BuildContext context) {
-    final animation = this.animation;
-    if (animation == null) return _layer(context, 1);
-    return AnimatedBuilder(
-      animation: animation,
-      builder: (context, _) => _layer(context, animation.value),
-    );
-  }
-
-  Widget _layer(BuildContext context, double t) => ClipRect(
-    child: BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: _sigma * t, sigmaY: _sigma * t),
-      child: ColoredBox(
-        color: qchatBackground(context).withValues(alpha: .46 * t),
-      ),
-    ),
+  Widget build(BuildContext context) => FadeTransition(
+    key: scrimKey,
+    opacity: animation,
+    child: const ColoredBox(color: qchatOverlayBarrier),
   );
 }
