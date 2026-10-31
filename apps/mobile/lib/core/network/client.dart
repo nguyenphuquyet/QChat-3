@@ -426,6 +426,7 @@ class QChatClient {
             'refundedAt': transfer['refundedAt'],
             'claimedCount': transfer['claimedCount'],
             'recipientCount': transfer['recipientCount'],
+            'splitMode': transfer['splitMode'],
             'claims': transfer['claims'],
           });
         }

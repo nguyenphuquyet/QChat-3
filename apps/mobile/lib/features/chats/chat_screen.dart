@@ -53,6 +53,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   List<dynamic> members = [];
   int readSequence = 0;
   String title = 'QChat';
+
+  /// Set from the conversation kind, so the red packet screen can offer the
+  /// group split options.
+  bool groupChat = false;
   String? error, reply;
   bool loading = true, emoji = false, uploading = false, pickingMedia = false;
   bool attachments = false, voice = false;
@@ -573,6 +577,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               : others.isEmpty
               ? 'QChat'
               : others.first['user']['nickname'];
+          groupChat = c['kind'] == 'GROUP';
           error = null;
         });
       }
@@ -783,7 +788,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       '${peer == null ? '' : '&conversation=${widget.id}'}'
       '&name=${Uri.encodeQueryComponent(name)}'
       '&avatar=${Uri.encodeQueryComponent(avatar)}'
-      '${redPacket ? '&red=1' : ''}',
+      '${redPacket ? '&red=1' : ''}'
+      '${redPacket && groupChat ? '&group=1' : ''}',
     );
   }
 

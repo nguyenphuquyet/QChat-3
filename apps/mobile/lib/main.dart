@@ -148,6 +148,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
             avatarId: s.uri.queryParameters['avatar'] ?? '',
             conversationId: s.uri.queryParameters['conversation'],
             redPacket: s.uri.queryParameters['red'] == '1',
+            group: s.uri.queryParameters['group'] == '1',
           ),
         ),
         qchatRoute(

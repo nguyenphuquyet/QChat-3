@@ -14,7 +14,13 @@ const _footerInk = Color(0xfff8d9a8);
 /// The message text of TRANSFER / RED_PACKET rows is a small JSON payload:
 /// `{"amount": 520000, "note": "...", "transferId": "..."}`.
 class MoneyPayload {
-  const MoneyPayload(this.amount, this.note, [this.transferId, this.cover]);
+  const MoneyPayload(
+    this.amount,
+    this.note, [
+    this.transferId,
+    this.cover,
+    this.splitMode,
+  ]);
   final int amount;
   final String note;
   final String? transferId;
@@ -22,6 +28,9 @@ class MoneyPayload {
   /// Snapshot of the cover the sender chose. It travels inside the message so
   /// a packet keeps its look even if the designer edits or deletes the cover.
   final CoverDesign? cover;
+
+  /// `EQUAL` or `RANDOM` for a group packet. Null for a one-person packet.
+  final String? splitMode;
 
   static MoneyPayload parse(Object? text) {
     try {
@@ -32,6 +41,7 @@ class MoneyPayload {
           value['note']?.toString().trim() ?? '',
           value['transferId']?.toString(),
           value['cover'] == null ? null : CoverDesign.fromJson(value['cover']),
+          value['splitMode']?.toString(),
         );
       }
     } catch (_) {}
@@ -74,6 +84,17 @@ class MoneyMessageState {
 
   static int recipientCount(Map message) =>
       ((_transfer(message)?['recipientCount'] as num?)?.toInt() ?? 1);
+
+  /// How a group packet is divided. The transfer row is authoritative; the
+  /// message payload keeps working for messages cached before the column
+  /// existed and for the optimistic bubble right after sending.
+  static String? splitMode(Map message) {
+    final transfer = _transfer(message);
+    final mode = transfer?['splitMode']?.toString();
+    if (mode != null && mode.isNotEmpty) return mode;
+    final payload = MoneyPayload.parse(message['text']).splitMode;
+    return payload == null || payload.isEmpty ? null : payload;
+  }
 
   static bool isRefunded(Map message) =>
       _transfer(message)?['status'] == 'REFUNDED';

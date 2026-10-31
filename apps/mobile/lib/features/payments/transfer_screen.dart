@@ -25,10 +25,15 @@ class TransferScreen extends ConsumerStatefulWidget {
     this.avatarId = '',
     this.conversationId,
     this.redPacket = false,
+    this.group = false,
   });
   final String to, name, avatarId;
   final String? conversationId;
   final bool redPacket;
+
+  /// The packet is being sent into a group, so it is divided between every
+  /// member and the sender can pick how.
+  final bool group;
   @override
   ConsumerState<TransferScreen> createState() => _TransferScreenState();
 }
@@ -43,6 +48,9 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
   bool keypadVisible = true;
   String? error;
   RedPacketCoverData? selectedCover;
+
+  /// EQUAL or RANDOM, only meaningful for a red packet in a group.
+  String splitMode = 'RANDOM';
 
   @override
   void initState() {
@@ -159,6 +167,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
         if (widget.conversationId != null)
           'conversationId': widget.conversationId,
         if (widget.redPacket) 'coverId': selectedCover?.id ?? 'default',
+        if (widget.redPacket && widget.group) 'splitMode': splitMode,
       });
       if (!mounted) return;
       final balance = (result['balance'] as num?)?.toInt() ?? 0;
@@ -167,6 +176,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
         title: tr(context, widget.redPacket ? 'redPacketSent' : 'transferSent'),
         message:
             '${moneyText(value)} → $recipientName.\n'
+            '${widget.redPacket && widget.group ? '${tr(context, splitMode == 'EQUAL' ? 'splitEven' : 'splitRandom')}.\n' : ''}'
             '${tr(context, 'balanceLeft')} ${moneyText(balance)}',
         actions: [
           QChatDialogAction(label: tr(context, 'confirm'), primary: true),
@@ -422,8 +432,8 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
                 child: SizedBox(
-                  height: constraints.maxHeight < 420
-                      ? 420
+                  height: constraints.maxHeight < (widget.group ? 506 : 420)
+                      ? (widget.group ? 506 : 420)
                       : constraints.maxHeight,
                   child: Column(
                     children: [
@@ -454,6 +464,37 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      if (widget.group) ...[
+                        _redRow(
+                          c,
+                          height: 54,
+                          child: Row(
+                            children: [
+                              Text(
+                                tr(c, 'splitMode'),
+                                style: TextStyle(fontSize: 17, color: ink(c)),
+                              ),
+                              const Spacer(),
+                              _splitChoice(c, 'EQUAL', tr(c, 'splitEven')),
+                              const SizedBox(width: 8),
+                              _splitChoice(c, 'RANDOM', tr(c, 'splitRandom')),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(22, 6, 22, 0),
+                          child: Text(
+                            '${tr(c, splitMode == 'EQUAL' ? 'splitEvenHint' : 'splitRandomHint')}'
+                            ' · ${tr(c, 'refundNotice')}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              height: 1.35,
+                              color: qchatMuted(c),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       _redRow(
                         c,
                         height: 64,
@@ -600,6 +641,41 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
       ],
     ),
   );
+
+  /// One of the two group split options. Drawn as a pill so the active choice
+  /// reads at a glance without a Material segmented control.
+  Widget _splitChoice(BuildContext c, String value, String label) {
+    final selected = splitMode == value;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: sending ? null : () => setState(() => splitMode = value),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+          decoration: BoxDecoration(
+            color: selected
+                ? _redPacketButton.withValues(alpha: .12)
+                : qchatFill(c),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: selected ? _redPacketButton : QChatColors.transparent,
+            ),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: selected ? _redPacketButton : qchatMuted(c),
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _redRow(
     BuildContext c, {

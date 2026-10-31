@@ -124,15 +124,50 @@ export async function claimMoneyTransfer(userId: string, messageId: string) {
   });
 }
 
-function splitRedPacket(amount: number, recipients: string[]) {
+export type RedPacketSplit = "EQUAL" | "RANDOM";
+
+/// Divides `amount` over `recipients`.
+///
+/// EQUAL gives every member the same share and scatters the odd đồng across
+/// random members, so the same people are not always paid the extra unit.
+/// RANDOM keeps the lucky-draw feel: one unit per member is reserved first,
+/// then the rest is weighted, so nobody can receive a zero share.
+export function splitRedPacket(
+  amount: number,
+  recipients: string[],
+  mode: RedPacketSplit = "RANDOM",
+) {
   requireCondition(amount >= recipients.length, 400, "AMOUNT_TOO_SMALL");
-  const weights = recipients.map(() => randomInt(40, 161));
-  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
-  const shares = weights.map((weight) => Math.floor((amount * weight) / totalWeight));
-  let remainder = amount - shares.reduce((sum, share) => sum + share, 0);
-  for (let index = 0; remainder > 0; index = (index + 1) % shares.length) {
-    shares[index]++;
-    remainder--;
+  const count = recipients.length;
+  const shares = new Array<number>(count).fill(1);
+  if (mode === "EQUAL") {
+    const base = Math.floor(amount / count);
+    shares.fill(base);
+    let remainder = amount - base * count;
+    const order = recipients.map((_, index) => index);
+    for (let index = order.length - 1; index > 0; index--) {
+      const swap = randomInt(index + 1);
+      [order[index], order[swap]] = [order[swap], order[index]];
+    }
+    for (let index = 0; remainder > 0; index++, remainder--) {
+      shares[order[index]]++;
+    }
+  } else {
+    const rest = amount - count;
+    const weights = recipients.map(() => randomInt(40, 161));
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    const extras = weights.map((weight) =>
+      Math.floor((rest * weight) / totalWeight),
+    );
+    let remainder = rest - extras.reduce((sum, extra) => sum + extra, 0);
+    for (
+      let index = 0;
+      remainder > 0;
+      index = (index + 1) % count, remainder--
+    ) {
+      extras[index]++;
+    }
+    for (let index = 0; index < count; index++) shares[index] += extras[index];
   }
   return recipients.map((userId, index) => ({ userId, amount: shares[index] }));
 }
@@ -165,6 +200,9 @@ export async function walletRoute(
         note: z.string().trim().max(100).default(""),
         conversationId: uuid.optional(),
         coverId: z.union([uuid, z.literal("default")]).optional(),
+        // Group red packets only. Ignored for a transfer or a one-person
+        // packet, and defaulted for clients that predate the option.
+        splitMode: z.enum(["EQUAL", "RANDOM"]).default("RANDOM"),
       })
       .strict()
       .parse(body);
@@ -242,6 +280,8 @@ export async function walletRoute(
       return { balance: wallet.balance, transactions: await history(userId) };
     }
 
+    const soleRecipient = recipients[0];
+    const grouped = input.kind === "RED_PACKET" && recipients.length > 1;
     const transfer = await db.$transaction(async (tx) => {
       const debit = await tx.wallet.updateMany({
         where: { userId, balance: { gte: input.amount } },
@@ -258,11 +298,9 @@ export async function walletRoute(
           peerName: peer.nickname,
         },
       });
-      const soleRecipient = recipients[0];
-      const shares =
-        input.kind === "RED_PACKET" && recipients.length > 1
-          ? splitRedPacket(input.amount, recipients)
-          : [{ userId: soleRecipient, amount: input.amount }];
+      const shares = grouped
+        ? splitRedPacket(input.amount, recipients, input.splitMode)
+        : [{ userId: soleRecipient, amount: input.amount }];
       const pending = await tx.moneyTransfer.create({
         data: {
           id: randomUUID(),
@@ -272,6 +310,7 @@ export async function walletRoute(
           kind: input.kind,
           note: input.note,
           recipientCount: shares.length,
+          splitMode: grouped ? input.splitMode : "EQUAL",
           ...(cover
             ? {
                 cover: { connect: { id: cover.id } },
@@ -292,6 +331,7 @@ export async function walletRoute(
           amount: input.amount,
           note: input.note,
           transferId: transfer.id,
+          ...(grouped ? { splitMode: input.splitMode } : {}),
           ...(cover ? { coverId: cover.id, cover: cover.design } : {}),
         }),
       });

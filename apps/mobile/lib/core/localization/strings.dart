@@ -276,6 +276,24 @@ const translations = <String, List<String>>{
   'amountLabel': ['Amount', 'Số tiền', '金额'],
   'sendRedPacket': ['Send red packet', 'Gửi Hồng bao', '发红包'],
   'redPacketCover': ['Red packet cover', 'Bìa Vỏ hồng bao', '红包封面'],
+  'splitMode': ['Split', 'Cách chia', '分法'],
+  'splitEven': ['Split evenly', 'Chia đều', '均分'],
+  'splitRandom': ['Random split', 'Chia ngẫu nhiên', '随机'],
+  'splitEvenHint': [
+    'Each member gets the same amount',
+    'Mỗi người nhận số tiền bằng nhau',
+    '每位成员金额相同',
+  ],
+  'splitRandomHint': [
+    'Amounts vary, like a lucky draw',
+    'Số tiền mỗi người khác nhau, như bốc thăm',
+    '金额随机，像抽奖一样',
+  ],
+  'refundNotice': [
+    'Unclaimed money returns to the sender after 24 hours',
+    'Tiền chưa nhận sẽ tự động hoàn về người gửi sau 24 giờ',
+    '24 小时内未领取的金额将自动退回发送者',
+  ],
   'receivedRedPackets': ['Red packets received', 'Hồng bao đã nhận', '已收红包'],
   // WeChat leaves these two strings untranslated on its send screen, and the
   // QChat screens mirror that copy in every locale.

@@ -76,16 +76,28 @@ class _RedPacketScreenState extends State<RedPacketScreen>
     return note.isEmpty ? 'Hồng bao' : note;
   }
 
+  /// `· chia đều` / `· chia ngẫu nhiên` for a group packet. Single-recipient
+  /// packets have nothing to explain, so they stay silent.
+  String get splitLabel {
+    if (MoneyMessageState.recipientCount(widget.message) <= 1) return '';
+    return switch (MoneyMessageState.splitMode(widget.message)) {
+      'EQUAL' => ' · chia đều',
+      'RANDOM' => ' · chia ngẫu nhiên',
+      _ => '',
+    };
+  }
+
   String get sentProgress {
     final claimed = MoneyMessageState.claimedCount(widget.message);
     final total = MoneyMessageState.recipientCount(widget.message);
+    final mode = splitLabel;
     if (refunded) {
-      if (claimed == 0) return 'Đã hoàn tiền';
+      if (claimed == 0) return 'Đã hoàn tiền$mode';
       if (total <= 1) return 'Đã nhận';
-      return 'Đã nhận $claimed/$total · hoàn phần còn lại';
+      return 'Đã nhận $claimed/$total · hoàn phần còn lại$mode';
     }
     if (total <= 1) return claimed > 0 ? 'Đã nhận' : 'Chưa nhận';
-    return 'Đã nhận $claimed/$total suất';
+    return 'Đã nhận $claimed/$total suất$mode';
   }
 
   void openWallet() {

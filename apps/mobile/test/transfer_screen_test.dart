@@ -115,4 +115,53 @@ void main() {
       expect(find.byType(QChatKeypad), findsOneWidget);
     },
   );
+
+  testWidgets('a group red packet offers both split modes and the refund rule', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [clientProvider.overrideWithValue(_CoversClient())],
+        child: qchatHarness(
+          const TransferScreen(
+            to: 'zyg0978',
+            name: 'Cương',
+            redPacket: true,
+            group: true,
+          ),
+          locale: const Locale('vi'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Cách chia'), findsOneWidget);
+    expect(find.text('Chia đều'), findsOneWidget);
+    expect(find.text('Chia ngẫu nhiên'), findsOneWidget);
+    expect(find.textContaining('tự động hoàn về người gửi sau 24 giờ'), findsOneWidget);
+
+    await tester.tap(find.text('Chia đều'));
+    await tester.pump();
+    expect(find.textContaining('Mỗi người nhận số tiền bằng nhau'), findsOneWidget);
+
+    await tester.tap(find.text('Chia ngẫu nhiên'));
+    await tester.pump();
+    expect(find.textContaining('Số tiền mỗi người khác nhau'), findsOneWidget);
+  });
+
+  testWidgets('a one-to-one red packet has no split choice', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [clientProvider.overrideWithValue(_CoversClient())],
+        child: qchatHarness(
+          const TransferScreen(to: 'zyg0978', name: 'Cương', redPacket: true),
+          locale: const Locale('vi'),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Cách chia'), findsNothing);
+    expect(find.text('Chia đều'), findsNothing);
+  });
 }

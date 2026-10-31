@@ -162,6 +162,10 @@ model MoneyTransfer {
   refundedAt DateTime?
   recipientCount Int @default(1)
   claimedCount Int @default(0)
+  /// How a group red packet was divided: EQUAL or RANDOM. Single-recipient
+  /// transfers ignore it, but it is stored on every row so the receipt can
+  /// explain what the sender chose.
+  splitMode String @default("RANDOM")
   coverId String? @db.Uuid
   cover RedPacketCover? @relation(fields: [coverId], references: [id], onDelete: SetNull)
   coverDesign Json?
