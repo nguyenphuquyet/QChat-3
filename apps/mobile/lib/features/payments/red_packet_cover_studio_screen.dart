@@ -698,9 +698,7 @@ class _RedPacketCoverStudioScreenState
                     ? 'coverImage'
                     : 'coverVideo',
               ),
-              selected: type == 'video'
-                  ? background.isVideo
-                  : background.type == type,
+              selected: background.type == type,
               onTap: () {
                 if (type == 'gradient') {
                   _apply(
@@ -799,7 +797,7 @@ class _RedPacketCoverStudioScreenState
                     )
                   : Center(
                       child: QChatIcon(
-                        'image',
+                        background.type == 'video' ? 'videoCall' : 'image',
                         size: 24,
                         color: QChatColors.muted,
                       ),
@@ -808,11 +806,16 @@ class _RedPacketCoverStudioScreenState
             const SizedBox(width: 12),
             Expanded(
               child: CoralButton(
-                tr(c, background.isVideo ? 'coverPickVideo' : 'coverPickImage'),
+                tr(
+                  c,
+                  background.type == 'video'
+                      ? 'coverPickVideo'
+                      : 'coverPickImage',
+                ),
                 height: 40,
                 secondary: true,
                 loading: uploading,
-                onTap: () => _pickPhoto(video: background.isVideo),
+                onTap: () => _pickPhoto(video: background.type == 'video'),
               ),
             ),
           ],
