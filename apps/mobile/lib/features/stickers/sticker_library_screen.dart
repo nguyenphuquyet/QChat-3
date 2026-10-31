@@ -237,7 +237,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
         .take(8)
         .toList();
     return ListView(
-      padding: const EdgeInsets.only(bottom: 34),
+      padding: EdgeInsets.only(bottom: 34 + MediaQuery.paddingOf(c).bottom),
       children: [
         if (banners.isNotEmpty && query.trim().isEmpty) _banners(c, banners),
         Padding(
