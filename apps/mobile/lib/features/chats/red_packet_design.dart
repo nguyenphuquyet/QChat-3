@@ -96,21 +96,27 @@ class CoverBackground {
     this.mediaId,
   });
 
-  /// `solid`, `gradient`, `image` or `webm`.
+  /// `solid`, `gradient`, `image` or a video (`webm` / `mp4`).
   ///
-  /// `image` is a still photo and `webm` is the only animated form a cover
-  /// accepts: a short, silent loop that every platform but iOS plays natively.
-  /// `gif` is still parsed for covers saved before the switch to WebM. All
-  /// three fill the flap edge to edge, so a designer never sees letterboxing.
+  /// `image` is a still photo and a clip is the only animated form a cover
+  /// accepts: a short, silent loop. WebM is the lighter container, but iOS only
+  /// decodes H.264, so MP4 is accepted too and the app plays whichever the
+  /// designer picked. `gif` is still parsed for covers saved before the switch.
+  /// All of them fill the flap edge to edge, so a designer never sees
+  /// letterboxing.
   final String type;
   final Color color;
   final List<Color> colors;
   final String? mediaId;
 
-  bool get isVideo => type == 'webm' && (mediaId ?? '').isNotEmpty;
+  bool get isVideo =>
+      (type == 'webm' || type == 'mp4') && (mediaId ?? '').isNotEmpty;
   bool get isImage =>
       (type == 'image' || type == 'gif') && (mediaId ?? '').isNotEmpty;
   bool get hasMedia => isImage || isVideo;
+
+  /// Container the clip bytes are decoded as.
+  String get videoExtension => type == 'webm' ? 'webm' : 'mp4';
 
   CoverBackground copyWith({
     String? type,
@@ -134,9 +140,16 @@ class CoverBackground {
   static CoverBackground fromJson(Map? json) {
     final rawType = json?['type']?.toString() ?? 'solid';
     // Older covers could point at a GIF; those still render, but new designs
-    // only offer WebM.
+    // only offer video.
     final type =
-        const ['solid', 'gradient', 'image', 'gif', 'webm'].contains(rawType)
+        const [
+          'solid',
+          'gradient',
+          'image',
+          'gif',
+          'webm',
+          'mp4',
+        ].contains(rawType)
         ? rawType
         : 'solid';
     final colors = json?['colors'];

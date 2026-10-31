@@ -187,22 +187,23 @@ class _RedPacketCoverStudioScreenState
 
   Future<void> _pickPhoto({
     bool decoration = false,
-    bool webm = false,
+    bool video = false,
     bool message = false,
   }) async {
     if (uploading) return;
     setState(() => uploading = true);
     try {
       final PlatformFile? file;
-      if (webm) {
+      if (video) {
         final files = await pickMediaWithSource(context, maxAssets: 1);
         file = files.isEmpty ? null : files.first;
       } else {
         file = await pickImageWithSource(context);
       }
       if (file == null || !mounted) return;
-      if (webm && _extension(file) != 'webm') {
-        showQChatToast(context, tr(context, 'coverWebmOnly'));
+      final extension = _extension(file);
+      if (video && extension != 'webm' && extension != 'mp4') {
+        showQChatToast(context, tr(context, 'coverVideoOnly'));
         return;
       }
       final id = await uploadMedia(ref.read(clientProvider), file);
@@ -215,7 +216,8 @@ class _RedPacketCoverStudioScreenState
         _apply(
           design.copyWith(
             background: design.background.copyWith(
-              type: webm ? 'webm' : 'image',
+              // WeChat-style covers ship H.264; WebM is kept for lighter files.
+              type: video ? extension : 'image',
               mediaId: id,
             ),
           ),
@@ -236,16 +238,18 @@ class _RedPacketCoverStudioScreenState
     return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
-  /// Switches the flap background. A WebM cover only accepts a WebM clip and a
+  /// Switches the flap background. A video cover only accepts a clip and a
   /// photo only accepts an image, so moving between those forms drops a file the
   /// designer picked earlier instead of saving a clip as a still or the reverse.
+  /// Both video containers share the pill, so switching WebM ↔ MP4 keeps the
+  /// clip.
   void _setBackgroundType(String type) {
     final background = design.background;
     if (type == background.type) return;
     final compatible = type == 'image'
         ? background.type == 'image' || background.type == 'gif'
-        : type == 'webm'
-        ? background.type == 'webm'
+        : type == 'mp4'
+        ? background.isVideo
         : true;
     final next = compatible
         ? background.copyWith(type: type)
@@ -685,7 +689,7 @@ class _RedPacketCoverStudioScreenState
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (final type in const ['solid', 'gradient', 'image', 'webm'])
+          for (final type in const ['solid', 'gradient', 'image', 'video'])
             _Pill(
               label: tr(
                 c,
@@ -695,9 +699,11 @@ class _RedPacketCoverStudioScreenState
                     ? 'coverGradient'
                     : type == 'image'
                     ? 'coverImage'
-                    : 'coverWebm',
+                    : 'coverVideo',
               ),
-              selected: background.type == type,
+              selected: type == 'video'
+                  ? background.isVideo
+                  : background.type == type,
               onTap: () {
                 if (type == 'gradient') {
                   _apply(
@@ -709,7 +715,7 @@ class _RedPacketCoverStudioScreenState
                     ),
                   );
                 } else {
-                  _setBackgroundType(type);
+                  _setBackgroundType(type == 'video' ? 'mp4' : type);
                 }
               },
             ),
@@ -777,7 +783,7 @@ class _RedPacketCoverStudioScreenState
                             id: background.mediaId!,
                             fit: BoxFit.cover,
                             placeholder: background.color,
-                            extension: 'webm',
+                            extension: background.videoExtension,
                           ),
                           IgnorePointer(
                             child: Center(
@@ -806,16 +812,11 @@ class _RedPacketCoverStudioScreenState
             const SizedBox(width: 12),
             Expanded(
               child: CoralButton(
-                tr(
-                  c,
-                  background.type == 'webm'
-                      ? 'coverPickWebm'
-                      : 'coverPickImage',
-                ),
+                tr(c, background.isVideo ? 'coverPickVideo' : 'coverPickImage'),
                 height: 40,
                 secondary: true,
                 loading: uploading,
-                onTap: () => _pickPhoto(webm: background.type == 'webm'),
+                onTap: () => _pickPhoto(video: background.isVideo),
               ),
             ),
           ],

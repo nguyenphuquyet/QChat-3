@@ -8,10 +8,11 @@ const color = z
   .regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "INVALID_COLOR");
 
 const backgroundSchema = z.object({
-  // A cover animates through a WebM loop; stills use `image`. `gif` is kept
+  // A cover animates through a video loop; stills use `image`. MP4/H.264 plays
+  // everywhere (WeChat uses it too), WebM is the lighter option. `gif` is kept
   // readable for covers saved before the switch.
   type: z
-    .enum(["solid", "gradient", "image", "gif", "webm"])
+    .enum(["solid", "gradient", "image", "gif", "webm", "mp4"])
     .default("solid"),
   color: color.default("#d93b30"),
   colors: z.array(color).max(4).default([]),
@@ -86,12 +87,13 @@ type DesignMedia = {
 };
 
 async function validateMedia(userId: string, design: DesignMedia) {
-  const checks: { id: string; kind: "image" | "gif" | "webm" }[] = [];
+  const checks: { id: string; kind: "image" | "gif" | "video" }[] = [];
   const mediaId = design.background.mediaId;
   if (
     (design.background.type === "image" ||
       design.background.type === "gif" ||
-      design.background.type === "webm") &&
+      design.background.type === "webm" ||
+      design.background.type === "mp4") &&
     mediaId
   ) {
     checks.push({
@@ -101,7 +103,7 @@ async function validateMedia(userId: string, design: DesignMedia) {
           ? "image"
           : design.background.type === "gif"
             ? "gif"
-            : "webm",
+            : "video",
     });
   }
   for (const item of design.decorations ?? []) {
@@ -118,8 +120,14 @@ async function validateMedia(userId: string, design: DesignMedia) {
       select: { id: true, mime: true },
     });
     requireCondition(file, 400, "MEDIA_NOT_READY");
-    if (check.kind === "webm") {
-      requireCondition(file.mime === "video/webm", 400, "MEDIA_NOT_WEBM");
+    if (check.kind === "video") {
+      requireCondition(
+        file.mime === "video/mp4" ||
+          file.mime === "video/webm" ||
+          file.mime === "video/quicktime",
+        400,
+        "MEDIA_NOT_VIDEO",
+      );
       continue;
     }
     requireCondition(file.mime.startsWith("image/"), 400, "MEDIA_NOT_IMAGE");

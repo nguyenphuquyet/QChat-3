@@ -62,18 +62,27 @@ void main() {
     expect(parsed.message.hasImage, isTrue);
   });
 
-  test('a WebM cover keeps its clip and legacy GIF covers still parse', () {
-    const design = CoverDesign(
+  test('a video cover keeps its clip and legacy GIF covers still parse', () {
+    const webm = CoverDesign(
       background: CoverBackground(type: 'webm', mediaId: 'clip-1'),
     );
-
-    final parsed = CoverDesign.fromJson(design.toJsonString());
+    final parsed = CoverDesign.fromJson(webm.toJsonString());
 
     expect(parsed.background.type, 'webm');
     expect(parsed.background.mediaId, 'clip-1');
     expect(parsed.background.isVideo, isTrue);
     expect(parsed.background.isImage, isFalse);
     expect(parsed.background.hasMedia, isTrue);
+    expect(parsed.background.videoExtension, 'webm');
+
+    const mp4 = CoverDesign(
+      background: CoverBackground(type: 'mp4', mediaId: 'clip-2'),
+    );
+    final h264 = CoverDesign.fromJson(mp4.toJsonString());
+
+    expect(h264.background.type, 'mp4');
+    expect(h264.background.isVideo, isTrue);
+    expect(h264.background.videoExtension, 'mp4');
 
     final legacy = CoverDesign.fromJson({
       'background': {'type': 'gif', 'mediaId': 'old-gif'},
