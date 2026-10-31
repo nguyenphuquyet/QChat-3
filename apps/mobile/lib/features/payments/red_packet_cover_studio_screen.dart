@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import '../../core/design_system/components.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import '../../core/network/media_upload.dart';
+import '../chats/money_message.dart';
 import '../chats/red_packet_cover.dart';
 import '../chats/red_packet_design.dart';
 import 'red_packet_cover_ui.dart';
@@ -52,6 +55,19 @@ const _openColors = [
   Color(0xfffff4e6),
   Color(0xffffffff),
   Color(0xff2a2a35),
+];
+
+/// Warm golds a designer can use for the two ends of the message bubble. They
+/// stay in the red-packet family instead of opening the cover's red palette.
+const _messageColors = [
+  redPacketGold,
+  Color(0xfff7b13f),
+  Color(0xffefb84e),
+  Color(0xfff7c65a),
+  Color(0xfff6d488),
+  Color(0xffffe1a8),
+  Color(0xffe89a2e),
+  Color(0xffd98c2b),
 ];
 
 const _emojis = [
@@ -168,7 +184,11 @@ class _RedPacketCoverStudioScreenState
     });
   }
 
-  Future<void> _pickPhoto({bool decoration = false, bool gif = false}) async {
+  Future<void> _pickPhoto({
+    bool decoration = false,
+    bool gif = false,
+    bool message = false,
+  }) async {
     if (uploading) return;
     setState(() => uploading = true);
     try {
@@ -180,7 +200,9 @@ class _RedPacketCoverStudioScreenState
       }
       final id = await uploadMedia(ref.read(clientProvider), file);
       if (!mounted) return;
-      if (decoration) {
+      if (message) {
+        _apply(design.copyWith(message: design.message.withImage(id)));
+      } else if (decoration) {
         _addDecoration(id, kind: 'image');
       } else {
         _apply(
@@ -198,6 +220,9 @@ class _RedPacketCoverStudioScreenState
       if (mounted) setState(() => uploading = false);
     }
   }
+
+  void _clearMessageImage() =>
+      _apply(design.copyWith(message: design.message.withImage(null)));
 
   String _extension(PlatformFile file) {
     final dot = file.name.lastIndexOf('.');
@@ -389,6 +414,8 @@ class _RedPacketCoverStudioScreenState
       ]),
       const SizedBox(height: 12),
       _background(c),
+      const SizedBox(height: 12),
+      _message(c),
       const SizedBox(height: 12),
       _section(c, tr(c, 'coverArchHeight'), [
         _sliderRow(
@@ -744,9 +771,7 @@ class _RedPacketCoverStudioScreenState
               child: CoralButton(
                 tr(
                   c,
-                  background.type == 'gif'
-                      ? 'coverPickGif'
-                      : 'coverPickImage',
+                  background.type == 'gif' ? 'coverPickGif' : 'coverPickImage',
                 ),
                 height: 40,
                 secondary: true,
@@ -762,6 +787,109 @@ class _RedPacketCoverStudioScreenState
           style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
         ),
       ],
+    ]);
+  }
+
+  /// The chat bubble is edited on its own: its own picture, and the two golds
+  /// that fade the picture in. The preview is the real chat card, so a designer
+  /// sees exactly what a message will look like.
+  Widget _message(BuildContext c) {
+    final message = design.message;
+    return _section(c, tr(c, 'coverMessage'), [
+      Text(
+        tr(c, 'coverMessageNote'),
+        style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
+      ),
+      const SizedBox(height: 14),
+      Center(
+        child: MoneyMessageCard(
+          key: const ValueKey('cover-message-preview'),
+          message: {
+            'kind': 'RED_PACKET',
+            'text': jsonEncode({
+              'amount': 0,
+              'note': tr(c, 'coverMessageGreeting'),
+              'cover': design.toJson(),
+            }),
+          },
+          mine: false,
+          onTap: () {},
+        ),
+      ),
+      const SizedBox(height: 16),
+      Row(
+        children: [
+          Container(
+            width: 52,
+            height: 46,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: qchatFill(c),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: message.hasImage
+                ? MediaImage(id: message.imageId!, fit: BoxFit.cover)
+                : const Center(
+                    child: QChatIcon(
+                      'image',
+                      size: 22,
+                      color: QChatColors.muted,
+                    ),
+                  ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: CoralButton(
+              tr(
+                c,
+                message.hasImage
+                    ? 'coverMessageReplaceImage'
+                    : 'coverMessagePickImage',
+              ),
+              height: 40,
+              secondary: true,
+              loading: uploading,
+              onTap: () => _pickPhoto(message: true),
+            ),
+          ),
+        ],
+      ),
+      if (message.hasImage) ...[
+        const SizedBox(height: 8),
+        CoralButton(
+          tr(c, 'coverMessageRemoveImage'),
+          height: 36,
+          secondary: true,
+          onTap: _clearMessageImage,
+        ),
+      ],
+      const SizedBox(height: 16),
+      Text(
+        tr(c, 'coverGradientStart'),
+        style: TextStyle(fontSize: 12.5, color: qchatMuted(c)),
+      ),
+      const SizedBox(height: 8),
+      _swatches(
+        c,
+        _messageColors,
+        message.startColor,
+        (color) => _apply(
+          design.copyWith(message: message.copyWith(startColor: color)),
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        tr(c, 'coverGradientEnd'),
+        style: TextStyle(fontSize: 12.5, color: qchatMuted(c)),
+      ),
+      const SizedBox(height: 8),
+      _swatches(
+        c,
+        _messageColors,
+        message.endColor,
+        (color) =>
+            _apply(design.copyWith(message: message.copyWith(endColor: color))),
+      ),
     ]);
   }
 

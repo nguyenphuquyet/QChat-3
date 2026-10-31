@@ -31,6 +31,11 @@ void main() {
         ),
       ],
       effects: CoverEffects(sparkles: true, float: true),
+      message: CoverMessage(
+        imageId: 'message-photo',
+        startColor: Color(0xfff2a63a),
+        endColor: Color(0xfff7c65a),
+      ),
     );
 
     final parsed = CoverDesign.fromJson(design.toJsonString());
@@ -51,6 +56,18 @@ void main() {
     expect(parsed.effects.sparkles, isTrue);
     expect(parsed.effects.float, isTrue);
     expect(parsed.effects.pulse, isFalse);
+    expect(parsed.message.imageId, 'message-photo');
+    expect(parsed.message.startColor, const Color(0xfff2a63a));
+    expect(parsed.message.endColor, const Color(0xfff7c65a));
+    expect(parsed.message.hasImage, isTrue);
+  });
+
+  test('a cover without a message design falls back to warm gold', () {
+    final parsed = CoverDesign.fromJson({'topHeight': .7});
+
+    expect(parsed.message.hasImage, isFalse);
+    expect(parsed.message.startColor, redPacketGold);
+    expect(parsed.message.endColor, const Color(0xfff7c65a));
   });
 
   test('out-of-range heights and colours fall back safely', () {

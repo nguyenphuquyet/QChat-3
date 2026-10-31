@@ -6,8 +6,8 @@ import 'red_packet_design.dart';
 
 export 'red_packet_design.dart' show redPacketRed;
 
-/// Orange of the money bubbles (transfer and red packet share it).
-const moneyOrange = Color(0xfff5a83a);
+/// Gold of the money bubbles (transfer and red packet share it).
+const moneyOrange = redPacketGold;
 const _deepRed = Color(0xffc0342a);
 const _footerInk = Color(0xfff8d9a8);
 
@@ -147,9 +147,10 @@ class MoneyMessageCard extends StatelessWidget {
       ? CoverDecorationOverlay(design: cover, child: child)
       : child;
 
-  /// The message itself wears the cover: the flap artwork fills the bubble
-  /// behind the greeting, so a designed packet looks the same in the chat as it
-  /// does when it pops open.
+  /// The message wears its own design: a gold head, the message's own picture
+  /// fading in towards the tail, and a warm gold wash left over that tail. The
+  /// cover's background picture is deliberately not reused here, so a packet
+  /// can look one way on the packet and another in the conversation.
   Widget _surface(CoverDesign? cover, double width, Widget child) => Container(
     width: width,
     clipBehavior: Clip.antiAlias,
@@ -161,7 +162,7 @@ class MoneyMessageCard extends StatelessWidget {
       fit: StackFit.passthrough,
       children: [
         if (red && cover != null)
-          Positioned.fill(child: CoverBackdrop(design: cover)),
+          Positioned.fill(child: CoverMessageBackdrop(message: cover.message)),
         child,
       ],
     ),
@@ -191,8 +192,12 @@ class MoneyMessageCard extends StatelessWidget {
                 child: Container(
                   width: 10,
                   height: 10,
+                  // The tail matches the edge it leaves: the gold head on the
+                  // left, the gold-tinted tail on the right.
                   color: red && payload.cover != null
-                      ? payload.cover!.bottomColor
+                      ? mine
+                            ? payload.cover!.message.endColor
+                            : payload.cover!.message.startColor
                       : moneyOrange,
                 ),
               ),

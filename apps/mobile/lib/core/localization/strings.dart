@@ -346,6 +346,28 @@ const translations = <String, List<String>>{
     'Ảnh tự lấp đầy phần trên; ảnh GIF tự phát lặp lại.',
     '图片会铺满上半部分；GIF 自动循环播放。',
   ],
+  'coverMessage': ['Message bubble', 'Tin nhắn hồng bao', '红包消息'],
+  'coverMessageNote': [
+    'The bubble in the chat has its own picture and its own gold wash. It never reuses the cover photo.',
+    'Tin nhắn trong chat có ảnh riêng và sắc vàng riêng, không dùng lại ảnh của vỏ.',
+    '聊天中的红包消息有独立的图片和金色渐变，不会复用封面图片。',
+  ],
+  'coverMessagePickImage': [
+    'Add a message photo',
+    'Thêm ảnh riêng cho tin nhắn',
+    '添加消息图片',
+  ],
+  'coverMessageReplaceImage': [
+    'Change the message photo',
+    'Đổi ảnh tin nhắn',
+    '更换消息图片',
+  ],
+  'coverMessageRemoveImage': [
+    'Remove the message photo',
+    'Xoá ảnh tin nhắn',
+    '移除消息图片',
+  ],
+  'coverMessageGreeting': ['Wishing you luck', 'Chúc mừng năm mới', '恭喜发财'],
   'coverArchLine': ['Separator line', 'Vạch ngăn cách', '分隔线'],
   'coverArchLineNote': [
     'Turn it off to leave a flat cover with only the lower half showing.',

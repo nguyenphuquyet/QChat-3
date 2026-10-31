@@ -6,6 +6,11 @@ import 'package:flutter/widgets.dart';
 /// configured (the chat bubble, the default design, the gold open button).
 const redPacketRed = Color(0xffd93b30);
 
+/// Gold at the head of a red-packet message. It is the colour the chat uses
+/// when the sender picked no cover, so both paths start from the same warm
+/// gold instead of two slightly different oranges.
+const redPacketGold = Color(0xfff5a83a);
+
 /// One free-floating element a designer can place on a cover.
 ///
 /// `x`/`y` are fractions of the cover box, `size` is a fraction of its width
@@ -175,6 +180,60 @@ class CoverEffects {
   );
 }
 
+/// Everything a designer can change about the red-packet bubble in the chat.
+///
+/// The message is edited separately from the cover: its own picture and its own
+/// gold wash, so a packet can wear a cover photo on the packet and a different
+/// picture (or none) in the conversation. The picture fades in from the gold
+/// head and the tail keeps a light gold tint, so the greeting stays readable.
+class CoverMessage {
+  const CoverMessage({
+    this.imageId,
+    this.startColor = redPacketGold,
+    this.endColor = const Color(0xfff7c65a),
+  });
+
+  /// Media id of the picture shown inside the bubble. The cover background is
+  /// deliberately not reused here.
+  final String? imageId;
+
+  /// Gold at the head of the bubble, where the greeting sits.
+  final Color startColor;
+
+  /// Gold at the tail of the bubble. Keep it warm, so the card still reads as
+  /// a red packet after the picture.
+  final Color endColor;
+
+  bool get hasImage => (imageId ?? '').isNotEmpty;
+
+  CoverMessage copyWith({
+    String? imageId,
+    Color? startColor,
+    Color? endColor,
+  }) => CoverMessage(
+    imageId: imageId ?? this.imageId,
+    startColor: startColor ?? this.startColor,
+    endColor: endColor ?? this.endColor,
+  );
+
+  /// Sets or clears the picture. [copyWith] keeps the old id, so removing the
+  /// picture goes through this method instead.
+  CoverMessage withImage(String? id) =>
+      CoverMessage(imageId: id, startColor: startColor, endColor: endColor);
+
+  Map<String, dynamic> toJson() => {
+    if ((imageId ?? '').isNotEmpty) 'imageId': imageId,
+    'startColor': coverHex(startColor),
+    'endColor': coverHex(endColor),
+  };
+
+  static CoverMessage fromJson(Map? json) => CoverMessage(
+    imageId: json?['imageId']?.toString(),
+    startColor: coverColor(json?['startColor'], redPacketGold),
+    endColor: coverColor(json?['endColor'], const Color(0xfff7c65a)),
+  );
+}
+
 /// Everything a designer can change about a red-packet cover.
 ///
 /// The same object drives the closed cover, the popup overlay colour and the
@@ -192,6 +251,7 @@ class CoverDesign {
     this.openLabel = 'Mở',
     this.decorations = const [],
     this.effects = const CoverEffects(),
+    this.message = const CoverMessage(),
   });
 
   /// Painted above the arch.
@@ -220,6 +280,9 @@ class CoverDesign {
   final List<CoverDecoration> decorations;
   final CoverEffects effects;
 
+  /// The chat bubble wears this, independent of the cover's own background.
+  final CoverMessage message;
+
   static const CoverDesign defaultDesign = CoverDesign();
 
   CoverDesign copyWith({
@@ -234,6 +297,7 @@ class CoverDesign {
     String? openLabel,
     List<CoverDecoration>? decorations,
     CoverEffects? effects,
+    CoverMessage? message,
   }) => CoverDesign(
     background: background ?? this.background,
     bottomColor: bottomColor ?? this.bottomColor,
@@ -246,6 +310,7 @@ class CoverDesign {
     openLabel: openLabel ?? this.openLabel,
     decorations: decorations ?? this.decorations,
     effects: effects ?? this.effects,
+    message: message ?? this.message,
   );
 
   Map<String, dynamic> toJson() => {
@@ -260,6 +325,7 @@ class CoverDesign {
     'openLabel': openLabel,
     'decorations': decorations.map((item) => item.toJson()).toList(),
     'effects': effects.toJson(),
+    'message': message.toJson(),
   };
 
   String toJsonString() => jsonEncode(toJson());
@@ -300,6 +366,9 @@ class CoverDesign {
           : const [],
       effects: CoverEffects.fromJson(
         json['effects'] is Map ? json['effects'] as Map : null,
+      ),
+      message: CoverMessage.fromJson(
+        json['message'] is Map ? json['message'] as Map : null,
       ),
     );
   }

@@ -424,6 +424,83 @@ class CoverBackdrop extends StatelessWidget {
   }
 }
 
+/// Artwork behind a red-packet message in the chat.
+///
+/// The bubble is gold where the greeting sits, the message's own picture fades
+/// in towards the tail, and a light gold wash stays over that tail so the card
+/// keeps a warm red-packet tone after the picture. The cover background is never
+/// used here: a message owns its picture through [CoverMessage.imageId].
+class CoverMessageBackdrop extends StatelessWidget {
+  const CoverMessageBackdrop({super.key, required this.message});
+
+  final CoverMessage message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      key: const ValueKey('red-packet-message-backdrop'),
+      fit: StackFit.expand,
+      children: [
+        // The head of the bubble is pure gold, so the greeting never sits on
+        // a busy picture.
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [message.startColor, message.endColor],
+            ),
+          ),
+        ),
+        if (message.hasImage) ...[
+          // The picture is invisible at the head and fully visible near the
+          // tail: a fade rather than a hard cut, as in the reference card.
+          Positioned.fill(
+            child: ShaderMask(
+              key: const ValueKey('red-packet-message-image'),
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (box) => const LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0x00ffffff),
+                  Color(0x00ffffff),
+                  Color(0xffffffff),
+                  Color(0xffffffff),
+                ],
+                stops: [0, .34, .72, 1],
+              ).createShader(box),
+              child: MediaImage(id: message.imageId!, fit: BoxFit.cover),
+            ),
+          ),
+          // A second gold pass keeps the tail "hơi vàng" instead of letting the
+          // picture run to full saturation at the rounded corner.
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                key: const ValueKey('red-packet-message-tail'),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: [
+                      message.startColor,
+                      message.startColor.withValues(alpha: .7),
+                      message.endColor.withValues(alpha: .08),
+                      message.endColor.withValues(alpha: .3),
+                    ],
+                    stops: const [0, .34, .7, 1],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// Dresses [child] with the cover's whole-cover decorations.
 ///
 /// The layer is deliberately not clipped: a chat bubble can wear the same

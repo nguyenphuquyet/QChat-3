@@ -33,6 +33,14 @@ const effectsSchema = z.object({
   pulse: z.boolean().default(false),
 });
 
+// The chat bubble is designed separately from the cover: its own picture and
+// the two golds that fade that picture in towards the tail.
+const messageSchema = z.object({
+  imageId: uuid.optional(),
+  startColor: color.default("#f5a83a"),
+  endColor: color.default("#f7c65a"),
+});
+
 const designSchema = z
   .object({
     background: backgroundSchema.optional(),
@@ -46,11 +54,13 @@ const designSchema = z
     openLabel: z.string().min(1).max(8).default("Mở"),
     decorations: z.array(decorationSchema).max(40).default([]),
     effects: effectsSchema.optional(),
+    message: messageSchema.optional(),
   })
   .strict();
 
 const defaultBackground = { type: "solid", color: "#d93b30", colors: [] };
 const defaultEffects = { sparkles: false, float: false, pulse: false };
+const defaultMessage = { startColor: "#f5a83a", endColor: "#f7c65a" };
 
 function parseDesign(raw: unknown) {
   const value = designSchema.parse(raw);
@@ -58,12 +68,18 @@ function parseDesign(raw: unknown) {
     ...value,
     background: value.background ?? defaultBackground,
     effects: value.effects ?? defaultEffects,
+    message: value.message ?? defaultMessage,
   };
 }
 
 type DesignMedia = {
   background: { type: string; mediaId?: string };
   decorations?: { kind: string; value: string }[];
+  message?: {
+    imageId?: string;
+    startColor?: string;
+    endColor?: string;
+  };
 };
 
 async function validateMedia(userId: string, design: DesignMedia) {
@@ -80,6 +96,9 @@ async function validateMedia(userId: string, design: DesignMedia) {
     if (item.kind === "image" && item.value) {
       checks.push({ id: item.value, gif: false });
     }
+  }
+  if (design.message?.imageId) {
+    checks.push({ id: design.message.imageId, gif: false });
   }
   for (const check of checks) {
     const file = await db.media.findFirst({

@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qchat/core/design_system/media_widgets.dart';
 import 'package:qchat/features/chats/money_message.dart';
 import 'package:qchat/features/chats/red_packet_cover.dart';
 import 'package:qchat/features/chats/red_packet_design.dart';
@@ -113,5 +116,51 @@ void main() {
 
     expect(find.text('Hồng bao'), findsOneWidget);
     expect(find.text('Chúc mừng năm mới'), findsNothing);
+  });
+
+  testWidgets('a message wears its own gold design, not the cover photo', (
+    tester,
+  ) async {
+    const design = CoverDesign(
+      // The cover itself has a photo; the bubble must ignore it.
+      background: CoverBackground(type: 'image', mediaId: 'cover-photo'),
+      message: CoverMessage(
+        startColor: Color(0xfff2a63a),
+        endColor: Color(0xfff7c65a),
+      ),
+    );
+    await tester.pumpWidget(
+      qchatHarness(
+        MoneyMessageCard(
+          message: {
+            'kind': 'RED_PACKET',
+            'text': jsonEncode({
+              'amount': 1000,
+              'note': 'Lì xì',
+              'cover': design.toJson(),
+            }),
+          },
+          mine: false,
+          onTap: () {},
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const ValueKey('red-packet-message-backdrop')),
+      findsOneWidget,
+    );
+    // No message picture means no picture layer and no golden tail wash.
+    expect(find.byKey(const ValueKey('red-packet-message-tail')), findsNothing);
+    expect(find.byType(MediaImage), findsNothing);
+    expect(find.text('Lì xì'), findsOneWidget);
+
+    final backdrop = tester.widget<CoverMessageBackdrop>(
+      find.byType(CoverMessageBackdrop),
+    );
+    expect(backdrop.message.startColor, const Color(0xfff2a63a));
+    expect(backdrop.message.endColor, const Color(0xfff7c65a));
+    expect(backdrop.message.hasImage, isFalse);
   });
 }
