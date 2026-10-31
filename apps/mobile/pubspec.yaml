@@ -39,6 +39,9 @@ dependencies:
   flutter_js: 0.8.7
   archive: ^3.6.1
   crypto: ^3.0.7
+  # Pure-Dart decode/encode for the sticker studio: cutting a sheet into
+  # separate stickers and taking the background out are done on-device.
+  image: ^4.3.0
   path_provider: ^2.1.6
   path: ^1.9.1
 dev_dependencies:
@@ -48,6 +51,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 flutter:
+  # The WeChat emoji artwork is bundled so the emoji panel works offline.
+  assets:
+    - assets/emoji/wechat/
   # The photo picker page draws itself with Material widgets, so its icon font
   # has to ship. Everything else is still drawn by the QChat design system and
   # still uses the platform's own typeface, never Roboto.

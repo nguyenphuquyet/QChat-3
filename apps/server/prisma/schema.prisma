@@ -46,6 +46,9 @@ model User {
   miniAppMemberships MiniAppMember[]
   miniAppRecents UserRecentMiniApp[]
   miniAppFavorites UserFavoriteMiniApp[]
+  stickerPacks StickerPack[] @relation("StickerPackOwner")
+  stickerLibrary UserStickerPack[] @relation("StickerLibrary")
+  stickerRecents UserSticker[] @relation("StickerRecents")
 }
 model UserSession {
   id String @id @default(uuid()) @db.Uuid
@@ -250,6 +253,64 @@ model Media {
   messages Message[]
   moments MomentMedia[]
   wallpapers Conversation[] @relation("ConversationWallpaper")
+  stickerArtwork Sticker[] @relation("StickerArtwork")
+  stickerPackCovers StickerPack[] @relation("StickerPackCover")
+}
+/// A sticker album. A designer builds it in the studio and may publish it to
+/// the sticker market; anyone can add a published pack to their own library.
+model StickerPack {
+  id String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner User @relation("StickerPackOwner", fields:[ownerId],references:[id],onDelete:Cascade)
+  name String
+  description String @default("")
+  coverMediaId String? @db.Uuid
+  coverMedia Media? @relation("StickerPackCover", fields:[coverMediaId],references:[id],onDelete:SetNull)
+  published Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  stickers Sticker[]
+  members UserStickerPack[]
+  @@index([ownerId, updatedAt])
+  @@index([published, updatedAt])
+  @@index([coverMediaId])
+}
+/// One sticker artwork. `animated` is informational: GIF artwork is served as
+/// it was uploaded and animates in the client.
+model Sticker {
+  id String @id @default(uuid()) @db.Uuid
+  packId String @db.Uuid
+  pack StickerPack @relation(fields:[packId],references:[id],onDelete:Cascade)
+  mediaId String @db.Uuid
+  media Media @relation("StickerArtwork", fields:[mediaId],references:[id],onDelete:Cascade)
+  label String @default("")
+  animated Boolean @default(false)
+  position Int @default(0)
+  createdAt DateTime @default(now())
+  recents UserSticker[]
+  @@index([packId, position])
+  @@index([mediaId])
+}
+/// A pack the user added to their own sticker library.
+model UserStickerPack {
+  userId String @db.Uuid
+  user User @relation("StickerLibrary", fields:[userId],references:[id],onDelete:Cascade)
+  packId String @db.Uuid
+  pack StickerPack @relation(fields:[packId],references:[id],onDelete:Cascade)
+  addedAt DateTime @default(now())
+  @@id([userId, packId])
+  @@index([packId])
+}
+/// The user's recently sent stickers, newest first.
+model UserSticker {
+  userId String @db.Uuid
+  user User @relation("StickerRecents", fields:[userId],references:[id],onDelete:Cascade)
+  stickerId String @db.Uuid
+  sticker Sticker @relation(fields:[stickerId],references:[id],onDelete:Cascade)
+  usedAt DateTime @default(now())
+  uses Int @default(1)
+  @@id([userId, stickerId])
+  @@index([userId, usedAt])
 }
 model Moment {
   id String @id @default(uuid()) @db.Uuid

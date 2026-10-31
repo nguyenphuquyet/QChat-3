@@ -101,7 +101,32 @@ export async function sendMessage(userId: string, raw: MessageInput, forwardSour
           if (input.mediaId)
             requireCondition(
               await tx.media.findFirst({
-                where: { id: input.mediaId, ...(forwardSourceId ? {} : { ownerId: userId }), status: "READY" },
+                where: {
+                  id: input.mediaId,
+                  status: "READY",
+                  // A sticker from someone else's pack is owned by that pack's
+                  // designer, so sending it must not require owning the file.
+                  ...(forwardSourceId
+                    ? {}
+                    : {
+                        OR: [
+                          { ownerId: userId },
+                          {
+                            stickerArtwork: {
+                              some: {
+                                pack: {
+                                  OR: [
+                                    { ownerId: userId },
+                                    { members: { some: { userId } } },
+                                    { published: true },
+                                  ],
+                                },
+                              },
+                            },
+                          },
+                        ],
+                      }),
+                },
               }),
               400,
               "MEDIA_NOT_READY",

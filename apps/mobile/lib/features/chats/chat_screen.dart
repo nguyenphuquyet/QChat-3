@@ -29,6 +29,10 @@ import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/qchat_animations.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/network/media_upload.dart';
+import '../stickers/emoji_text.dart';
+import '../stickers/sticker_api.dart';
+import '../stickers/sticker_models.dart';
+import '../stickers/sticker_panel.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.id});
@@ -77,6 +81,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Timer? voiceHoldTimer;
   int voiceHoldToken = 0;
   final composerKey = GlobalKey();
+  final stickerPanel = GlobalKey<StickerPanelState>();
   double lastKeyboardInset = 0;
   double composerHeight = 56;
   Timer? panelTimer;
@@ -317,24 +322,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     setState(() {});
   }
 
-  static const emojis = [
-    '😀',
-    '😊',
-    '😂',
-    '🥰',
-    '😍',
-    '🤔',
-    '😢',
-    '😎',
-    '👍',
-    '👏',
-    '🙏',
-    '💚',
-    '❤️',
-    '🎉',
-    '🌻',
-    '☕',
-  ];
+  /// Sends a sticker as its own message kind: the bubble carries no canvas, so
+  /// the artwork floats over the chat like it does in the reference app.
+  Future<void> sendSticker(Sticker sticker) async {
+    final client = ref.read(clientProvider);
+    try {
+      await client.send(widget.id, '', kind: 'STICKER', mediaId: sticker.mediaId);
+      unawaited(
+        StickerApi(client).markUsed(sticker.id).catchError((_) {}),
+      );
+      scrollToEnd();
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  /// Opens the sticker studio from the panel. Returning refreshes the library,
+  /// so a pack created or published a moment ago is usable immediately.
+  Future<void> openStickerStudio({String? packId, bool create = false}) async {
+    final query = create ? '?create=1' : '';
+    await context.push<void>(
+      packId == null
+          ? '/red-packets/designer/stickers$query'
+          : '/red-packets/designer/stickers/$packId',
+    );
+    if (mounted) stickerPanel.currentState?.reload();
+  }
 
   void scrollToEnd() {
     if (locatingQuote) return;
@@ -394,8 +407,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (original['recalledAt'] != null) return tr(context, 'recalled');
     final kind = original['kind'];
     if (kind == 'TRANSFER' || kind == 'RED_PACKET') return moneySummary(original);
+    if (kind == 'STICKER') return tr(context, 'sticker');
     final text = original['text']?.toString() ?? '';
-    return text.isEmpty ? tr(context, 'reply') : text;
+    return text.isEmpty ? tr(context, 'reply') : emojiPlainText(text);
   }
 
   String quoteSender(String id) {
@@ -977,18 +991,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget emojiPanel(BuildContext c, double safeBottom) => GridView.count(
-    padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + safeBottom),
-    crossAxisCount: 8,
-    children: [
-      for (final e in emojis)
-        GestureDetector(
-          onTap: () => insertEmoji(e),
-          child: Center(child: Text(e, style: const TextStyle(fontSize: 26))),
-        ),
-    ],
-  );
-
   Widget _selectionAction(
     BuildContext c,
     String label,
@@ -1408,7 +1410,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               m['mediaId'] != null &&
                                               m['recalledAt'] == null &&
                                               (m['kind'] == 'IMAGE' ||
-                                                  m['kind'] == 'VIDEO') ||
+                                                  m['kind'] == 'VIDEO' ||
+                                                  m['kind'] == 'STICKER') ||
                                               money,
                                           bubbleWrapper: (bubble) => Builder(
                                             builder: (anchor) => GestureDetector(
@@ -1478,27 +1481,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             children: [
                                               if (m['mediaId'] != null &&
                                                   m['recalledAt'] == null)
-                                                GestureDetector(
-                                                  onTap: () => context.push(
-                                                    '/media/${m['mediaId']}',
-                                                    extra: "message-${m['id']}",
-                                                  ),
-                                                  child: MessageAttachment(
-                                                    sourceTag:
-                                                        "message-${m['id']}",
-                                                    key: ValueKey(m['mediaId']),
+                                                if (m['kind'] == 'STICKER')
+                                                  MessageAttachment(
+                                                    key: ValueKey(
+                                                      'sticker-message-${m['id']}',
+                                                    ),
                                                     id: m['mediaId'].toString(),
-                                                    kind: m['kind'] ?? 'FILE',
-                                                    name: m['text'] ?? '',
+                                                    kind: 'STICKER',
+                                                    name: '',
+                                                  )
+                                                else
+                                                  GestureDetector(
+                                                    onTap: () => context.push(
+                                                      '/media/${m['mediaId']}',
+                                                      extra: "message-${m['id']}",
+                                                    ),
+                                                    child: MessageAttachment(
+                                                      sourceTag:
+                                                          "message-${m['id']}",
+                                                      key: ValueKey(
+                                                        m['mediaId'],
+                                                      ),
+                                                      id: m['mediaId'].toString(),
+                                                      kind: m['kind'] ?? 'FILE',
+                                                      name: m['text'] ?? '',
+                                                    ),
                                                   ),
-                                                ),
-                                              if (m['mediaId'] == null ||
-                                                  m['recalledAt'] != null)
-                                                Text(
-                                                  m['recalledAt'] != null
-                                                      ? tr(c, 'recalled')
-                                                      : m['text'] ?? '',
-                                                ),
+                                              if (m['recalledAt'] != null)
+                                                Text(tr(c, 'recalled'))
+                                              else if (m['mediaId'] == null)
+                                                QChatEmojiText(m['text'] ?? ''),
                                             ],
                                           ),
                                         ),
@@ -1591,7 +1603,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               voice: voice,
                               hasText: input.text.trim().isNotEmpty,
                               voiceLabel: tr(c, 'voice'),
-                              emojiLabel: 'Emoji',
+                              emojiLabel: tr(c, 'stickerPanel'),
                               plusLabel: tr(c, 'file'),
                               sendLabel: tr(c, 'send'),
                               holdLabel: recordingVoice ? tr(c, 'recording') : tr(c, 'holdToTalk'),
@@ -1626,13 +1638,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   child: OverflowBox(
                                     alignment: Alignment.topCenter,
                                     minHeight: 0,
-                                    maxHeight: panelHeight,
-                                    child: SizedBox(
-                                      height: panelHeight,
-                                      child: emoji
-                                          ? emojiPanel(c, safeBottom)
-                                          : attachmentPanel(c, safeBottom),
-                                    ),
+                                    maxHeight: panelHeight,                                      child: SizedBox(
+                                        height: panelHeight,
+                                        child: emoji
+                                            ? StickerPanel(
+                                                key: stickerPanel,
+                                                safeBottom: safeBottom,
+                                                onEmoji: insertEmoji,
+                                                onSticker: sendSticker,
+                                                onOpenStudio: openStickerStudio,
+                                              )
+                                            : attachmentPanel(c, safeBottom),
+                                      ),
                                   ),
                                 )
                               : null,

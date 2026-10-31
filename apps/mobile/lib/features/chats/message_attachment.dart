@@ -11,6 +11,7 @@ import '../../core/network/video_meta.dart';
 import '../../core/network/cached_video.dart';
 import '../../core/network/cached_audio.dart';
 import '../../core/localization/strings.dart';
+import '../stickers/sticker_view.dart';
 import 'media_screen.dart';
 
 class MessageAttachment extends ConsumerStatefulWidget {
@@ -174,6 +175,18 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
 
   @override
   Widget build(BuildContext c) {
+    // A sticker has no bubble and no caption: just the artwork, animated when
+    // the pack holds a GIF.
+    if (widget.kind == 'STICKER') {
+      return Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: StickerView(
+          key: ValueKey('sticker-media-${widget.id}'),
+          mediaId: widget.id,
+          size: 126,
+        ),
+      );
+    }
     if (widget.kind == 'IMAGE') {
       return Hero(
         tag: widget.sourceTag ?? MediaScreen.heroTag(widget.id),

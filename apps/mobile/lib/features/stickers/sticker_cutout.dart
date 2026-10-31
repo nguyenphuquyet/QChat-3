@@ -1,0 +1,358 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart' show compute;
+import 'package:image/image.dart' as img;
+
+/// One sticker produced from a source picture or sheet.
+class ExtractedSticker {
+  const ExtractedSticker({
+    required this.bytes,
+    required this.animated,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List bytes;
+  final bool animated;
+  final int width;
+  final int height;
+
+  String get mime => animated ? 'image/gif' : 'image/png';
+}
+
+/// Turns one picked picture into sticker artwork.
+///
+/// The work runs in a background isolate: a 700 px sheet is about half a
+/// million pixels, which is far too much for the frame that opened the studio.
+///
+/// * [split] finds the separate drawings on a sticker sheet and crops each one.
+/// * [removeBackground] is opt-in. It floods the area connected to the picture's
+///   border that matches the border colour, so a picture on a plain sheet comes
+///   out transparent while the drawing keeps its own white details.
+///
+/// GIF frames are read as an animation. Every frame is cut with the same boxes,
+/// so an animated sticker stays animated.
+Future<List<ExtractedSticker>> extractStickers(
+  Uint8List source, {
+  bool split = true,
+  bool removeBackground = false,
+}) async {
+  if (source.isEmpty) return const [];
+  final result = await compute(_extract, {
+    'bytes': source,
+    'split': split,
+    'removeBackground': removeBackground,
+  });
+  return [
+    for (final row in result)
+      ExtractedSticker(
+        bytes: row['bytes'] as Uint8List,
+        animated: row['animated'] == true,
+        width: row['width'] as int,
+        height: row['height'] as int,
+      ),
+  ];
+}
+
+/// Artwork beyond this edge is scaled down before it is analysed. 720 px is
+/// larger than any sticker is drawn in the app, and it keeps the isolate fast.
+const _maxSide = 720;
+const _maxStickers = 40;
+const _minStickerSide = 24;
+const _minStickerArea = 260;
+const _backgroundTolerance = 36;
+const _backgroundAlpha = 16;
+
+List<Map<String, Object>> _extract(Map<String, Object?> args) {
+  final source = args['bytes']! as Uint8List;
+  final split = args['split'] == true;
+  final removeBackground = args['removeBackground'] == true;
+  final animated = _isGif(source);
+  final decoded = animated ? img.decodeGif(source) : img.decodeImage(source);
+  if (decoded == null) return const [];
+
+  final frames = animated
+      ? (decoded.frames.isEmpty ? <img.Image>[decoded] : decoded.frames)
+      : <img.Image>[decoded];
+  final working = [
+    for (final frame in frames.take(120))
+      _bounded(frame).convert(numChannels: 4),
+  ];
+  if (working.isEmpty) return const [];
+
+  final first = working.first;
+  final boxes = split
+      ? _regions(first)
+      : [_Box(0, 0, first.width, first.height, first.width * first.height)];
+  if (boxes.isEmpty) return const [];
+  // Removal happens on every frame, after the boxes were measured, so an
+  // animated sticker keeps its animation and the same crop on each frame.
+  if (removeBackground) {
+    for (final frame in working) {
+      _cutBackground(frame);
+    }
+  }
+
+  final result = <Map<String, Object>>[];
+  for (final box in boxes) {
+    final crops = <img.Image>[];
+    for (final frame in working) {
+      final crop = _crop(frame, box);
+      if (crop == null) break;
+      crops.add(crop);
+    }
+    if (crops.length != working.length) continue;
+    final bytes = _encode(crops);
+    final width = crops.first.width, height = crops.first.height;
+    result.add({
+      'bytes': bytes,
+      'animated': animated,
+      'width': width,
+      'height': height,
+    });
+  }
+  return result;
+}
+
+bool _isGif(Uint8List bytes) =>
+    bytes.length > 6 &&
+    bytes[0] == 0x47 &&
+    bytes[1] == 0x49 &&
+    bytes[2] == 0x46 &&
+    bytes[3] == 0x38;
+
+img.Image _bounded(img.Image frame) {
+  final longest = math.max(frame.width, frame.height);
+  if (longest <= _maxSide) return frame;
+  final scale = _maxSide / longest;
+  return img.copyResize(
+    frame,
+    width: (frame.width * scale).round(),
+    height: (frame.height * scale).round(),
+    interpolation: img.Interpolation.average,
+  );
+}
+
+/// A crop rectangle in source pixels.
+class _Box {
+  _Box(this.left, this.top, this.right, this.bottom, this.area)
+    : assert(right > left && bottom > top);
+
+  int left, top, right, bottom;
+  final int area;
+
+  int get width => right - left;
+  int get height => bottom - top;
+
+  bool touches(_Box other, int padding) =>
+      left - padding <= other.right &&
+      right + padding >= other.left &&
+      top - padding <= other.bottom &&
+      bottom + padding >= other.top;
+
+  void absorb(_Box other) {
+    left = math.min(left, other.left);
+    top = math.min(top, other.top);
+    right = math.max(right, other.right);
+    bottom = math.max(bottom, other.bottom);
+  }
+}
+
+/// 1 marks a pixel that belongs to a drawing; 0 is the sheet's background.
+Uint8List _backgroundMask(img.Image frame) {
+  final w = frame.width, h = frame.height;
+  final background = _borderColor(frame);
+  final mask = Uint8List(w * h);
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final pixel = frame.getPixel(x, y);
+      final isBackground = pixel.a < _backgroundAlpha ||
+          (background != null && _near(pixel, background));
+      mask[y * w + x] = isBackground ? 0 : 1;
+    }
+  }
+  return mask;
+}
+
+/// Finds the separate drawings on a sheet. When the background is opaque the
+/// border colour defines what is *not* part of a sticker, so a white sheet can
+/// be cut without also making it transparent.
+List<_Box> _regions(img.Image frame) {
+  final w = frame.width, h = frame.height;
+  final boxes = _components(_backgroundMask(frame), w, h);
+  if (boxes.isEmpty) return boxes;
+  return _merge(boxes, math.max(4, (math.min(w, h) * .05).round()));
+}
+
+void _cutBackground(img.Image frame) => _clearConnectedBackground(
+  frame,
+  _backgroundMask(frame),
+  frame.width,
+  frame.height,
+);
+
+/// The picture's background is whatever colour the corners share; a photo
+/// without a uniform border returns null and splitting falls back to alpha.
+img.Pixel? _borderColor(img.Image frame) {
+  final points = <img.Pixel>[
+    frame.getPixel(0, 0),
+    frame.getPixel(frame.width - 1, 0),
+    frame.getPixel(0, frame.height - 1),
+    frame.getPixel(frame.width - 1, frame.height - 1),
+  ];
+  final opaque = points.where((pixel) => pixel.a >= _backgroundAlpha);
+  if (opaque.length < 3) return null;
+  final first = opaque.first;
+  for (final pixel in opaque.skip(1)) {
+    if (!_near(pixel, first, tolerance: 24)) return null;
+  }
+  return first;
+}
+
+bool _near(img.Pixel pixel, img.Pixel other, {int tolerance = _backgroundTolerance}) {
+  final dr = (pixel.r - other.r).abs();
+  final dg = (pixel.g - other.g).abs();
+  final db = (pixel.b - other.b).abs();
+  return dr <= tolerance && dg <= tolerance && db <= tolerance;
+}
+
+/// Floods the background from the frame's border inwards. Only pixels connected
+/// to the edge lose their alpha, so white inside a drawing (eyes, teeth) stays.
+void _clearConnectedBackground(
+  img.Image frame,
+  Uint8List mask,
+  int w,
+  int h,
+) {
+  final pending = <int>[];
+  void consider(int index) {
+    if (mask[index] == 0) pending.add(index);
+  }
+
+  for (var x = 0; x < w; x++) {
+    consider(x);
+    consider((h - 1) * w + x);
+  }
+  for (var y = 0; y < h; y++) {
+    consider(y * w);
+    consider(y * w + w - 1);
+  }
+  while (pending.isNotEmpty) {
+    final index = pending.removeLast();
+    final x = index % w, y = index ~/ w;
+    final pixel = frame.getPixel(x, y);
+    frame.setPixelRgba(x, y, pixel.r, pixel.g, pixel.b, 0);
+    // A processed pixel becomes 2 so it is not queued again.
+    mask[index] = 2;
+    if (x > 0 && mask[index - 1] == 0) pending.add(index - 1);
+    if (x < w - 1 && mask[index + 1] == 0) pending.add(index + 1);
+    if (y > 0 && mask[index - w] == 0) pending.add(index - w);
+    if (y < h - 1 && mask[index + w] == 0) pending.add(index + w);
+  }
+}
+
+List<_Box> _components(Uint8List mask, int w, int h) {
+  final seen = Uint8List(w * h);
+  final boxes = <_Box>[];
+  final queue = <int>[];
+  for (var start = 0; start < mask.length; start++) {
+    if (mask[start] != 1 || seen[start] == 1) continue;
+    queue
+      ..clear()
+      ..add(start);
+    seen[start] = 1;
+    var left = w, top = h, right = 0, bottom = 0, area = 0;
+    while (queue.isNotEmpty) {
+      final index = queue.removeLast();
+      final x = index % w, y = index ~/ w;
+      area++;
+      if (x < left) left = x;
+      if (y < top) top = y;
+      if (x + 1 > right) right = x + 1;
+      if (y + 1 > bottom) bottom = y + 1;
+      void visit(int next) {
+        if (mask[next] == 1 && seen[next] == 0) {
+          seen[next] = 1;
+          queue.add(next);
+        }
+      }
+
+      if (x > 0) visit(index - 1);
+      if (x < w - 1) visit(index + 1);
+      if (y > 0) visit(index - w);
+      if (y < h - 1) visit(index + w);
+    }
+    if (area < _minStickerArea) continue;
+    if (right - left < _minStickerSide || bottom - top < _minStickerSide) {
+      continue;
+    }
+    boxes.add(_Box(left, top, right, bottom, area));
+  }
+  boxes.sort((a, b) => b.area.compareTo(a.area));
+  return boxes.take(_maxStickers).toList();
+}
+
+/// Joins drawings that belong together, such as a character and a detached
+/// sparkle. Bigger pieces claim smaller neighbours that fall within their
+/// padded rectangle.
+List<_Box> _merge(List<_Box> boxes, int padding) {
+  final merged = <_Box>[];
+  for (final box in boxes) {
+    final target = merged.where((other) => other.touches(box, padding));
+    if (target.isEmpty) {
+      merged.add(box);
+      continue;
+    }
+    final first = target.first;
+    first.absorb(box);
+    for (final other in target.skip(1)) {
+      first.absorb(other);
+      merged.remove(other);
+    }
+  }
+  return merged;
+}
+
+img.Image? _crop(img.Image frame, _Box box) {
+  final padding = math.max(2, (math.max(box.width, box.height) * .05).round());
+  final left = math.max(0, box.left - padding);
+  final top = math.max(0, box.top - padding);
+  final right = math.min(frame.width, box.right + padding);
+  final bottom = math.min(frame.height, box.bottom + padding);
+  if (right <= left || bottom <= top) return null;
+  final crop = img.copyCrop(
+    frame,
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  );
+  final longest = math.max(crop.width, crop.height);
+  const maxStickerSide = 512;
+  if (longest <= maxStickerSide) {
+    crop.frameDuration = frame.frameDuration;
+    return crop;
+  }
+  final scale = maxStickerSide / longest;
+  return img.copyResize(
+    crop,
+    width: math.max(1, (crop.width * scale).round()),
+    height: math.max(1, (crop.height * scale).round()),
+    interpolation: img.Interpolation.average,
+  )..frameDuration = frame.frameDuration;
+}
+
+Uint8List _encode(List<img.Image> frames) {
+  if (frames.length == 1) return img.encodePng(frames.first);
+  final base = img.Image.from(frames.first, noAnimation: true);
+  base.frameType = img.FrameType.animation;
+  base.frameDuration = frames.first.frameDuration;
+  for (final frame in frames.skip(1)) {
+    base.addFrame(
+      img.Image.from(frame, noAnimation: true)
+        ..frameDuration = frame.frameDuration,
+    );
+  }
+  return img.encodeGif(base, singleFrame: false);
+}

@@ -1,0 +1,136 @@
+// The WeChat built-in emoji set, taken from
+// https://github.com/airinghost/wechat-emoji (web.wechat.com/compressed-tinypng).
+// The pictures are bundled so the panel never touches the network, and a message
+// carries the bracketed code (for example [微笑]) instead of the artwork.
+// Regenerate the list when the assets change; keep the numeric order.
+
+class WeChatEmoji {
+  const WeChatEmoji({required this.code, required this.asset});
+
+  /// The code WeChat writes into the message text.
+  final String code;
+
+  /// Bundled artwork, declared as a directory in pubspec.yaml.
+  final String asset;
+
+  String get token => '[$code]';
+}
+
+const wechatEmojiSet = <WeChatEmoji>[
+  WeChatEmoji(code: '微笑', asset: 'assets/emoji/wechat/001.png'),
+  WeChatEmoji(code: '撇嘴', asset: 'assets/emoji/wechat/002.png'),
+  WeChatEmoji(code: '色', asset: 'assets/emoji/wechat/003.png'),
+  WeChatEmoji(code: '发呆', asset: 'assets/emoji/wechat/004.png'),
+  WeChatEmoji(code: '得意', asset: 'assets/emoji/wechat/005.png'),
+  WeChatEmoji(code: '流泪', asset: 'assets/emoji/wechat/006.png'),
+  WeChatEmoji(code: '害羞', asset: 'assets/emoji/wechat/007.png'),
+  WeChatEmoji(code: '闭嘴', asset: 'assets/emoji/wechat/008.png'),
+  WeChatEmoji(code: '睡', asset: 'assets/emoji/wechat/009.png'),
+  WeChatEmoji(code: '大哭', asset: 'assets/emoji/wechat/010.png'),
+  WeChatEmoji(code: '尴尬', asset: 'assets/emoji/wechat/011.png'),
+  WeChatEmoji(code: '发怒', asset: 'assets/emoji/wechat/012.png'),
+  WeChatEmoji(code: '调皮', asset: 'assets/emoji/wechat/013.png'),
+  WeChatEmoji(code: '呲牙', asset: 'assets/emoji/wechat/014.png'),
+  WeChatEmoji(code: '惊讶', asset: 'assets/emoji/wechat/015.png'),
+  WeChatEmoji(code: '难过', asset: 'assets/emoji/wechat/016.png'),
+  WeChatEmoji(code: '囧', asset: 'assets/emoji/wechat/017.png'),
+  WeChatEmoji(code: '抓狂', asset: 'assets/emoji/wechat/018.png'),
+  WeChatEmoji(code: '吐', asset: 'assets/emoji/wechat/019.png'),
+  WeChatEmoji(code: '偷笑', asset: 'assets/emoji/wechat/020.png'),
+  WeChatEmoji(code: '愉快', asset: 'assets/emoji/wechat/021.png'),
+  WeChatEmoji(code: '白眼', asset: 'assets/emoji/wechat/022.png'),
+  WeChatEmoji(code: '傲慢', asset: 'assets/emoji/wechat/023.png'),
+  WeChatEmoji(code: '困', asset: 'assets/emoji/wechat/024.png'),
+  WeChatEmoji(code: '惊恐', asset: 'assets/emoji/wechat/025.png'),
+  WeChatEmoji(code: '憨笑', asset: 'assets/emoji/wechat/026.png'),
+  WeChatEmoji(code: '悠闲', asset: 'assets/emoji/wechat/027.png'),
+  WeChatEmoji(code: '咒骂', asset: 'assets/emoji/wechat/028.png'),
+  WeChatEmoji(code: '疑问', asset: 'assets/emoji/wechat/029.png'),
+  WeChatEmoji(code: '嘘', asset: 'assets/emoji/wechat/030.png'),
+  WeChatEmoji(code: '晕', asset: 'assets/emoji/wechat/031.png'),
+  WeChatEmoji(code: '衰', asset: 'assets/emoji/wechat/032.png'),
+  WeChatEmoji(code: '骷髅', asset: 'assets/emoji/wechat/033.png'),
+  WeChatEmoji(code: '敲打', asset: 'assets/emoji/wechat/034.png'),
+  WeChatEmoji(code: '再见', asset: 'assets/emoji/wechat/035.png'),
+  WeChatEmoji(code: '擦汗', asset: 'assets/emoji/wechat/036.png'),
+  WeChatEmoji(code: '抠鼻', asset: 'assets/emoji/wechat/037.png'),
+  WeChatEmoji(code: '鼓掌', asset: 'assets/emoji/wechat/038.png'),
+  WeChatEmoji(code: '坏笑', asset: 'assets/emoji/wechat/039.png'),
+  WeChatEmoji(code: '右哼哼', asset: 'assets/emoji/wechat/040.png'),
+  WeChatEmoji(code: '鄙视', asset: 'assets/emoji/wechat/041.png'),
+  WeChatEmoji(code: '委屈', asset: 'assets/emoji/wechat/042.png'),
+  WeChatEmoji(code: '快哭了', asset: 'assets/emoji/wechat/043.png'),
+  WeChatEmoji(code: '阴险', asset: 'assets/emoji/wechat/044.png'),
+  WeChatEmoji(code: '亲亲', asset: 'assets/emoji/wechat/045.png'),
+  WeChatEmoji(code: '可怜', asset: 'assets/emoji/wechat/046.png'),
+  WeChatEmoji(code: '笑脸', asset: 'assets/emoji/wechat/047.png'),
+  WeChatEmoji(code: '生病', asset: 'assets/emoji/wechat/048.png'),
+  WeChatEmoji(code: '脸红', asset: 'assets/emoji/wechat/049.png'),
+  WeChatEmoji(code: '破涕为笑', asset: 'assets/emoji/wechat/050.png'),
+  WeChatEmoji(code: '恐惧', asset: 'assets/emoji/wechat/051.png'),
+  WeChatEmoji(code: '失望', asset: 'assets/emoji/wechat/052.png'),
+  WeChatEmoji(code: '无语', asset: 'assets/emoji/wechat/053.png'),
+  WeChatEmoji(code: '嘿哈', asset: 'assets/emoji/wechat/054.png'),
+  WeChatEmoji(code: '捂脸', asset: 'assets/emoji/wechat/055.png'),
+  WeChatEmoji(code: '奸笑', asset: 'assets/emoji/wechat/056.png'),
+  WeChatEmoji(code: '机智', asset: 'assets/emoji/wechat/057.png'),
+  WeChatEmoji(code: '皱眉', asset: 'assets/emoji/wechat/058.png'),
+  WeChatEmoji(code: '耶', asset: 'assets/emoji/wechat/059.png'),
+  WeChatEmoji(code: '吃瓜', asset: 'assets/emoji/wechat/060.png'),
+  WeChatEmoji(code: '加油', asset: 'assets/emoji/wechat/061.png'),
+  WeChatEmoji(code: '汗', asset: 'assets/emoji/wechat/062.png'),
+  WeChatEmoji(code: '天啊', asset: 'assets/emoji/wechat/063.png'),
+  WeChatEmoji(code: 'Emm', asset: 'assets/emoji/wechat/064.png'),
+  WeChatEmoji(code: '社会社会', asset: 'assets/emoji/wechat/065.png'),
+  WeChatEmoji(code: '旺柴', asset: 'assets/emoji/wechat/066.png'),
+  WeChatEmoji(code: '好的', asset: 'assets/emoji/wechat/067.png'),
+  WeChatEmoji(code: '打脸', asset: 'assets/emoji/wechat/068.png'),
+  WeChatEmoji(code: '哇', asset: 'assets/emoji/wechat/069.png'),
+  WeChatEmoji(code: '翻白眼', asset: 'assets/emoji/wechat/070.png'),
+  WeChatEmoji(code: '666', asset: 'assets/emoji/wechat/071.png'),
+  WeChatEmoji(code: '让我看看', asset: 'assets/emoji/wechat/072.png'),
+  WeChatEmoji(code: '叹气', asset: 'assets/emoji/wechat/073.png'),
+  WeChatEmoji(code: '苦涩', asset: 'assets/emoji/wechat/074.png'),
+  WeChatEmoji(code: '裂开', asset: 'assets/emoji/wechat/075.png'),
+  WeChatEmoji(code: '嘴唇', asset: 'assets/emoji/wechat/076.png'),
+  WeChatEmoji(code: '爱心', asset: 'assets/emoji/wechat/077.png'),
+  WeChatEmoji(code: '心碎', asset: 'assets/emoji/wechat/078.png'),
+  WeChatEmoji(code: '拥抱', asset: 'assets/emoji/wechat/079.png'),
+  WeChatEmoji(code: '强', asset: 'assets/emoji/wechat/080.png'),
+  WeChatEmoji(code: '弱', asset: 'assets/emoji/wechat/081.png'),
+  WeChatEmoji(code: '握手', asset: 'assets/emoji/wechat/082.png'),
+  WeChatEmoji(code: '胜利', asset: 'assets/emoji/wechat/083.png'),
+  WeChatEmoji(code: '抱拳', asset: 'assets/emoji/wechat/084.png'),
+  WeChatEmoji(code: '勾引', asset: 'assets/emoji/wechat/085.png'),
+  WeChatEmoji(code: '拳头', asset: 'assets/emoji/wechat/086.png'),
+  WeChatEmoji(code: 'OK', asset: 'assets/emoji/wechat/087.png'),
+  WeChatEmoji(code: '合十', asset: 'assets/emoji/wechat/088.png'),
+  WeChatEmoji(code: '啤酒', asset: 'assets/emoji/wechat/089.png'),
+  WeChatEmoji(code: '咖啡', asset: 'assets/emoji/wechat/090.png'),
+  WeChatEmoji(code: '蛋糕', asset: 'assets/emoji/wechat/091.png'),
+  WeChatEmoji(code: '玫瑰', asset: 'assets/emoji/wechat/092.png'),
+  WeChatEmoji(code: '凋谢', asset: 'assets/emoji/wechat/093.png'),
+  WeChatEmoji(code: '菜刀', asset: 'assets/emoji/wechat/094.png'),
+  WeChatEmoji(code: '炸弹', asset: 'assets/emoji/wechat/095.png'),
+  WeChatEmoji(code: '便便', asset: 'assets/emoji/wechat/096.png'),
+  WeChatEmoji(code: '月亮', asset: 'assets/emoji/wechat/097.png'),
+  WeChatEmoji(code: '太阳', asset: 'assets/emoji/wechat/098.png'),
+  WeChatEmoji(code: '庆祝', asset: 'assets/emoji/wechat/099.png'),
+  WeChatEmoji(code: '礼物', asset: 'assets/emoji/wechat/100.png'),
+  WeChatEmoji(code: '红包', asset: 'assets/emoji/wechat/101.png'),
+  WeChatEmoji(code: '發', asset: 'assets/emoji/wechat/102.png'),
+  WeChatEmoji(code: '福', asset: 'assets/emoji/wechat/103.png'),
+  WeChatEmoji(code: '烟花', asset: 'assets/emoji/wechat/104.png'),
+  WeChatEmoji(code: '爆竹', asset: 'assets/emoji/wechat/105.png'),
+  WeChatEmoji(code: '猪头', asset: 'assets/emoji/wechat/106.png'),
+  WeChatEmoji(code: '跳跳', asset: 'assets/emoji/wechat/107.png'),
+  WeChatEmoji(code: '发抖', asset: 'assets/emoji/wechat/108.png'),
+  WeChatEmoji(code: '转圈', asset: 'assets/emoji/wechat/109.png'),
+];
+
+final Map<String, WeChatEmoji> wechatEmojiByCode = {
+  for (final emoji in wechatEmojiSet) emoji.code: emoji,
+};
+
+/// Matches a WeChat emoji code inside message text, e.g. `[微笑]`.
+final RegExp weChatEmojiToken = RegExp(r'\[([^\[\]]{1,8})\]');

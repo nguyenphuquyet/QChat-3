@@ -247,6 +247,36 @@ export async function mediaRoute(
       `;
       allowed = rows.length > 0;
     }
+    // Sticker artwork travels with its pack: a published pack is readable by
+    // anyone browsing the market, and a pack the user owns or has added is
+    // theirs. Media used by a sent sticker stays readable through the message
+    // membership check above.
+    if (!allowed)
+      allowed = !!(await db.sticker.findFirst({
+        where: {
+          mediaId: file.id,
+          pack: {
+            OR: [
+              { ownerId: userId },
+              { members: { some: { userId } } },
+              { published: true },
+            ],
+          },
+        },
+        select: { id: true },
+      }));
+    if (!allowed)
+      allowed = !!(await db.stickerPack.findFirst({
+        where: {
+          coverMediaId: file.id,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } },
+            { published: true },
+          ],
+        },
+        select: { id: true },
+      }));
     requireCondition(allowed);
     return {
       mime: file.mime,

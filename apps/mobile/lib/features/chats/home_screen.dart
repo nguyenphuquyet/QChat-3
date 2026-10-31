@@ -12,6 +12,7 @@ import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/localization/strings.dart';
 import 'money_message.dart';
+import '../stickers/emoji_text.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -329,6 +330,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? ''
             : last['recalledAt'] != null
             ? tr(c, 'recalled')
+            : last['kind'] == 'STICKER'
+            ? tr(c, 'sticker')
             : (last['kind'] == 'IMAGE' || last['media']?['mime']?.toString().startsWith('image/') == true)
             ? 'Ảnh'
             : (last['kind'] == 'VIDEO' || last['media']?['mime']?.toString().startsWith('video/') == true)
@@ -338,7 +341,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : last['kind'] == 'TRANSFER' || last['kind'] == 'RED_PACKET'
             ? moneySummary(last)
             : last['text']?.toString().isNotEmpty == true
-            ? last['text']
+            ? emojiPlainText(last['text'].toString())
             : '[${last['kind']}]',
         time: time,
         unread: member?['markedUnread'] == true
@@ -660,7 +663,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
         },
       ),
-      const MenuRow('stickers', icon: 'emoji', color: Color(0xffeeb714)),
+      MenuRow(
+        'stickers',
+        icon: 'emoji',
+        color: const Color(0xffeeb714),
+        onTap: () => c.push('/red-packets/designer/stickers'),
+      ),
       sectionGap,
       MenuRow('settings', icon: 'settings', onTap: () => c.push('/settings')),
     ],
