@@ -412,7 +412,6 @@ class CoverBackdrop extends StatelessWidget {
         id: background.mediaId!,
         fit: BoxFit.cover,
         placeholder: background.color,
-        extension: background.videoExtension,
       );
     }
     if (background.isImage) {

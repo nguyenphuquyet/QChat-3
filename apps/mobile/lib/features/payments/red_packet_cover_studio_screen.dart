@@ -202,7 +202,7 @@ class _RedPacketCoverStudioScreenState
       }
       if (file == null || !mounted) return;
       final extension = _extension(file);
-      if (video && extension != 'webm' && extension != 'mp4') {
+      if (video && extension != 'mp4') {
         showQChatToast(context, tr(context, 'coverVideoOnly'));
         return;
       }
@@ -216,8 +216,7 @@ class _RedPacketCoverStudioScreenState
         _apply(
           design.copyWith(
             background: design.background.copyWith(
-              // WeChat-style covers ship H.264; WebM is kept for lighter files.
-              type: video ? extension : 'image',
+              type: video ? 'video' : 'image',
               mediaId: id,
             ),
           ),
@@ -238,17 +237,15 @@ class _RedPacketCoverStudioScreenState
     return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
-  /// Switches the flap background. A video cover only accepts a clip and a
-  /// photo only accepts an image, so moving between those forms drops a file the
+  /// Switches the flap background. A video cover only accepts an MP4 and a photo
+  /// only accepts an image, so moving between those forms drops the file the
   /// designer picked earlier instead of saving a clip as a still or the reverse.
-  /// Both video containers share the pill, so switching WebM ↔ MP4 keeps the
-  /// clip.
   void _setBackgroundType(String type) {
     final background = design.background;
     if (type == background.type) return;
     final compatible = type == 'image'
         ? background.type == 'image' || background.type == 'gif'
-        : type == 'mp4'
+        : type == 'video'
         ? background.isVideo
         : true;
     final next = compatible
@@ -715,7 +712,7 @@ class _RedPacketCoverStudioScreenState
                     ),
                   );
                 } else {
-                  _setBackgroundType(type == 'video' ? 'mp4' : type);
+                  _setBackgroundType(type);
                 }
               },
             ),
@@ -783,7 +780,6 @@ class _RedPacketCoverStudioScreenState
                             id: background.mediaId!,
                             fit: BoxFit.cover,
                             placeholder: background.color,
-                            extension: background.videoExtension,
                           ),
                           IgnorePointer(
                             child: Center(

@@ -335,16 +335,16 @@ const translations = <String, List<String>>{
   'coverImage': ['Photo', 'Ảnh', '图片'],
   'coverVideo': ['Video', 'Video', '视频'],
   'coverPickImage': ['Choose a photo', 'Chọn ảnh', '选择图片'],
-  'coverPickVideo': ['Choose a clip', 'Chọn clip', '选择视频'],
+  'coverPickVideo': ['Choose an MP4 video', 'Chọn video MP4', '选择 MP4 视频'],
   'coverVideoOnly': [
-    'Only an MP4 or WebM clip animates the cover.',
-    'Chỉ clip MP4 hoặc WebM mới làm vỏ hồng bao chuyển động.',
-    '只有 MP4 或 WebM 视频可以让封面动起来。',
+    'Only an MP4 (H.264) video animates the cover.',
+    'Chỉ video MP4 (H.264) mới làm vỏ hồng bao chuyển động.',
+    '只有 MP4（H.264）视频可以让封面动起来。',
   ],
   'coverMediaFillNote': [
-    'Photos fill the whole top; an MP4 or WebM clip loops automatically.',
-    'Ảnh tự lấp đầy phần trên; clip MP4 hoặc WebM tự phát lặp lại.',
-    '图片会铺满上半部分；MP4 或 WebM 视频自动循环播放。',
+    'Photos fill the whole top; an MP4 video loops automatically.',
+    'Ảnh tự lấp đầy phần trên; video MP4 tự phát lặp lại.',
+    '图片会铺满上半部分；MP4 视频自动循环播放。',
   ],
   'coverMessage': ['Message bubble', 'Tin nhắn hồng bao', '红包消息'],
   'coverMessageNote': [

@@ -75,7 +75,6 @@ String? mediaMime(String? extension) => const {
   'webp': 'image/webp',
   'mp4': 'video/mp4',
   'mov': 'video/quicktime',
-  'webm': 'video/webm',
 }[extension?.toLowerCase()];
 
 Future<String> uploadMedia(QChatClient client, PlatformFile file) async {

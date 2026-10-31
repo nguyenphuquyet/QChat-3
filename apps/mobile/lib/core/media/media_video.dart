@@ -19,15 +19,11 @@ class MediaVideo extends ConsumerStatefulWidget {
     this.loop = true,
     this.muted = true,
     this.placeholder,
-    this.extension = 'mp4',
   });
 
   final String id;
   final BoxFit fit;
   final bool loop, muted;
-
-  /// Container the bytes are decoded as. Covers ship WebM; chat clips are MP4.
-  final String extension;
 
   /// Colour shown while the clip loads, so a cover can keep its own palette
   /// instead of flashing a neutral box.
@@ -49,7 +45,7 @@ class _MediaVideoState extends ConsumerState<MediaVideo> {
   @override
   void didUpdateWidget(covariant MediaVideo oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.id != widget.id || oldWidget.extension != widget.extension) {
+    if (oldWidget.id != widget.id) {
       _video?.dispose();
       _video = null;
       _start();
@@ -59,11 +55,7 @@ class _MediaVideoState extends ConsumerState<MediaVideo> {
   Future<void> _start() async {
     CachedVideo? source;
     try {
-      source = await CachedVideo.load(
-        ref.read(clientProvider),
-        widget.id,
-        extension: widget.extension,
-      );
+      source = await CachedVideo.load(ref.read(clientProvider), widget.id);
       final controller = source.controller;
       await controller.initialize();
       await controller.setLooping(widget.loop);

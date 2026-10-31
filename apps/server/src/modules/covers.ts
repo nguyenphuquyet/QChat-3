@@ -8,11 +8,12 @@ const color = z
   .regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "INVALID_COLOR");
 
 const backgroundSchema = z.object({
-  // A cover animates through a video loop; stills use `image`. MP4/H.264 plays
-  // everywhere (WeChat uses it too), WebM is the lighter option. `gif` is kept
-  // readable for covers saved before the switch.
+  // A cover animates through one video form: MP4/H.264, the container WeChat
+  // uses and every platform decodes. Stills use `image`. `gif` is kept readable
+  // for covers saved before the switch, and `mp4` is accepted as the same
+  // design as `video` for older clients.
   type: z
-    .enum(["solid", "gradient", "image", "gif", "webm", "mp4"])
+    .enum(["solid", "gradient", "image", "gif", "video", "mp4"])
     .default("solid"),
   color: color.default("#d93b30"),
   colors: z.array(color).max(4).default([]),
@@ -68,9 +69,12 @@ const defaultMessage = { startColor: "#f5a83a", endColor: "#f7c65a" };
 
 function parseDesign(raw: unknown) {
   const value = designSchema.parse(raw);
+  const background = value.background ?? defaultBackground;
   return {
     ...value,
-    background: value.background ?? defaultBackground,
+    // Store one canonical name, so every reader only handles `video`.
+    background:
+      background.type === "mp4" ? { ...background, type: "video" } : background,
     effects: value.effects ?? defaultEffects,
     message: value.message ?? defaultMessage,
   };
@@ -92,7 +96,7 @@ async function validateMedia(userId: string, design: DesignMedia) {
   if (
     (design.background.type === "image" ||
       design.background.type === "gif" ||
-      design.background.type === "webm" ||
+      design.background.type === "video" ||
       design.background.type === "mp4") &&
     mediaId
   ) {
@@ -122,9 +126,7 @@ async function validateMedia(userId: string, design: DesignMedia) {
     requireCondition(file, 400, "MEDIA_NOT_READY");
     if (check.kind === "video") {
       requireCondition(
-        file.mime === "video/mp4" ||
-          file.mime === "video/webm" ||
-          file.mime === "video/quicktime",
+        file.mime === "video/mp4" || file.mime === "video/quicktime",
         400,
         "MEDIA_NOT_VIDEO",
       );
