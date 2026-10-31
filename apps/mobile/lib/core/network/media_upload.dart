@@ -8,7 +8,8 @@ import '../media/media_picker.dart';
 import 'client.dart';
 
 const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-const momentExtensions = [...imageExtensions, 'mp4', 'mov'];
+const videoExtensions = ['mp4', 'm4v', 'mov', 'webm', 'mkv', 'avi', '3gp'];
+const momentExtensions = [...imageExtensions, ...videoExtensions];
 const maxMediaBytes = 25 * 1024 * 1024;
 
 base class XFilePlatformFile extends PlatformFile {
@@ -74,8 +75,18 @@ String? mediaMime(String? extension) => const {
   'gif': 'image/gif',
   'webp': 'image/webp',
   'mp4': 'video/mp4',
+  'm4v': 'video/x-m4v',
   'mov': 'video/quicktime',
+  'webm': 'video/webm',
+  'mkv': 'video/x-matroska',
+  'avi': 'video/x-msvideo',
+  '3gp': 'video/3gpp',
 }[extension?.toLowerCase()];
+
+/// Whether a picked file is a clip a cover can play. The format is sniffed
+/// before playback, so any video container the platform offers is accepted.
+bool isVideoFile(String? extension) =>
+    mediaMime(extension)?.startsWith('video/') ?? false;
 
 Future<String> uploadMedia(QChatClient client, PlatformFile file) async {
   final mime = mediaMime(file.extension);

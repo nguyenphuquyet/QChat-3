@@ -37,10 +37,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // A selected video with no clip yet must still ask for a video, not a photo.
-    expect(find.text('Choose an MP4 video'), findsOneWidget);
+    expect(find.text('Choose a video'), findsOneWidget);
     expect(find.text('Choose a photo'), findsNothing);
     expect(
-      find.text('Photos fill the whole top; an MP4 video loops automatically.'),
+      find.text(
+        'Photos fill the whole top; a video loops automatically. MP4 plays on every device.',
+      ),
       findsOneWidget,
     );
   });

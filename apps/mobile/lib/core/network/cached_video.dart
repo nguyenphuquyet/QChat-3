@@ -1,6 +1,7 @@
 import 'package:video_player/video_player.dart';
 import '../design_system/media_widgets.dart';
 import 'client.dart';
+import 'video_format.dart';
 import 'video_source_web.dart'
     if (dart.library.io) 'video_source_native.dart'
     as platform;
@@ -17,7 +18,10 @@ class CachedVideo {
   static Future<CachedVideo> load(QChatClient client, String id) async {
     final bytes = await MediaCache.load(client, id);
     if (bytes == null) throw StateError('Media unavailable');
-    final source = await platform.createVideoSource(bytes);
+    final source = await platform.createVideoSource(
+      bytes,
+      VideoClipFormat.sniff(bytes),
+    );
     return CachedVideo(source.controller, source.release);
   }
 }

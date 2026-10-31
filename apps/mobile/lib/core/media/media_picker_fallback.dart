@@ -73,7 +73,15 @@ class _LocalMediaPickerState extends State<LocalMediaPicker> {
           'png',
           'gif',
           'webp',
-          if (!widget.imagesOnly) ...['mp4', 'mov'],
+          if (!widget.imagesOnly) ...[
+            'mp4',
+            'm4v',
+            'mov',
+            'webm',
+            'mkv',
+            'avi',
+            '3gp',
+          ],
         ],
       );
       if (!mounted) return;
@@ -335,7 +343,7 @@ class _LocalMediaState extends State<_LocalMedia> {
   void initState() {
     super.initState();
     if (RegExp(
-      r'\.(mp4|mov)$',
+      r'\.(mp4|m4v|mov|webm|mkv|avi|3gp)$',
       caseSensitive: false,
     ).hasMatch(widget.file.name)) {
       final player = previewVideoController(widget.file.path);

@@ -8,10 +8,10 @@ const color = z
   .regex(/^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/, "INVALID_COLOR");
 
 const backgroundSchema = z.object({
-  // A cover animates through one video form: MP4/H.264, the container WeChat
-  // uses and every platform decodes. Stills use `image`. `gif` is kept readable
-  // for covers saved before the switch, and `mp4` is accepted as the same
-  // design as `video` for older clients.
+  // A cover animates through a video. Any container the client can sniff is
+  // accepted; MP4/H.264 is the one every platform plays. Stills use `image`.
+  // `gif` is kept readable for covers saved before the switch, and `mp4` is
+  // accepted as the same design as `video` for older clients.
   type: z
     .enum(["solid", "gradient", "image", "gif", "video", "mp4"])
     .default("solid"),
@@ -125,11 +125,7 @@ async function validateMedia(userId: string, design: DesignMedia) {
     });
     requireCondition(file, 400, "MEDIA_NOT_READY");
     if (check.kind === "video") {
-      requireCondition(
-        file.mime === "video/mp4" || file.mime === "video/quicktime",
-        400,
-        "MEDIA_NOT_VIDEO",
-      );
+      requireCondition(file.mime.startsWith("video/"), 400, "MEDIA_NOT_VIDEO");
       continue;
     }
     requireCondition(file.mime.startsWith("image/"), 400, "MEDIA_NOT_IMAGE");

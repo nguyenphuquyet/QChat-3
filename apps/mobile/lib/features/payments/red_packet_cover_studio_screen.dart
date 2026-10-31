@@ -202,7 +202,7 @@ class _RedPacketCoverStudioScreenState
       }
       if (file == null || !mounted) return;
       final extension = _extension(file);
-      if (video && extension != 'mp4') {
+      if (video && !isVideoFile(extension)) {
         showQChatToast(context, tr(context, 'coverVideoOnly'));
         return;
       }
@@ -237,7 +237,7 @@ class _RedPacketCoverStudioScreenState
     return dot < 0 ? '' : file.name.substring(dot + 1).toLowerCase();
   }
 
-  /// Switches the flap background. A video cover only accepts an MP4 and a photo
+  /// Switches the flap background. A video cover only accepts a clip and a photo
   /// only accepts an image, so moving between those forms drops the file the
   /// designer picked earlier instead of saving a clip as a still or the reverse.
   void _setBackgroundType(String type) {

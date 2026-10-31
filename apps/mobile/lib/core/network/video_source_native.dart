@@ -1,11 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:video_player/video_player.dart';
+import 'video_format.dart';
 
 Future<({VideoPlayerController controller, Future<void> Function() release})>
-createVideoSource(Uint8List bytes) async {
+createVideoSource(Uint8List bytes, VideoClipFormat format) async {
   final directory = await Directory.systemTemp.createTemp('qchat-video-');
-  final file = File('${directory.path}/clip.mp4');
+  final file = File('${directory.path}/clip.${format.extension}');
   try {
     await file.writeAsBytes(bytes, flush: true);
     return (

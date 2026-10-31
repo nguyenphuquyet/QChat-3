@@ -31,6 +31,11 @@ const types = [
   "image/webp",
   "video/mp4",
   "video/quicktime",
+  "video/x-m4v",
+  "video/webm",
+  "video/x-matroska",
+  "video/x-msvideo",
+  "video/3gpp",
   "audio/mp4",
   "audio/mpeg",
   "application/pdf",
@@ -64,8 +69,19 @@ export function validSignature(mime: string, bytes: Uint8Array) {
       );
     case "video/mp4":
     case "video/quicktime":
+    case "video/x-m4v":
+    case "video/3gpp":
     case "audio/mp4":
       return b.toString("ascii", 4, 8) === "ftyp";
+    case "video/webm":
+    case "video/x-matroska":
+      // EBML magic shared by WebM and Matroska.
+      return b.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    case "video/x-msvideo":
+      return (
+        b.toString("ascii", 0, 4) === "RIFF" &&
+        b.toString("ascii", 8, 12) === "AVI "
+      );
     case "audio/mpeg":
       return (
         b.toString("ascii", 0, 3) === "ID3" ||

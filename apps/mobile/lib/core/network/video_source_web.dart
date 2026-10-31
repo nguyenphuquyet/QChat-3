@@ -2,11 +2,12 @@ import 'dart:js_interop';
 import 'dart:typed_data';
 import 'package:video_player/video_player.dart';
 import 'package:web/web.dart' as web;
+import 'video_format.dart';
 
 Future<({VideoPlayerController controller, Future<void> Function() release})>
-createVideoSource(Uint8List bytes) async {
+createVideoSource(Uint8List bytes, VideoClipFormat format) async {
   final url = web.URL.createObjectURL(
-    web.Blob([bytes.toJS].toJS, web.BlobPropertyBag(type: 'video/mp4')),
+    web.Blob([bytes.toJS].toJS, web.BlobPropertyBag(type: format.mime)),
   );
   return (
     controller: VideoPlayerController.networkUrl(Uri.parse(url)),
