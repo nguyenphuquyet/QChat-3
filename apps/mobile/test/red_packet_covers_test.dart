@@ -103,7 +103,8 @@ void main() {
 
     await tester.tap(find.byType(CoverThumb).last);
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 260));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 320));
 
     expect(find.byKey(const ValueKey('cover-preview-close')), findsOneWidget);
     expect(find.byType(BackdropFilter), findsOneWidget);

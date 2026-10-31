@@ -15,7 +15,8 @@ void main() {
 
   Future<void> open(WidgetTester tester) async {
     await tester.tap(find.byKey(const ValueKey('open-preview')));
-    await tester.pump();
+    await tester.pump(); // build the route; its post-frame callback starts the clock
+    await tester.pump(); // the controller's first tick lands at t = 0
   }
 
   Widget harness() => ProviderScope(
@@ -102,6 +103,7 @@ void main() {
     expect(find.byType(RedPacketCoverPreviewScreen), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 400));
+    await tester.pump(const Duration(milliseconds: 20));
     expect(find.byType(RedPacketCoverPreviewScreen), findsNothing);
   });
 }
