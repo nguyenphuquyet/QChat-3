@@ -490,7 +490,9 @@ class _ShareActionTile extends StatelessWidget {
     child: SizedBox(
       // The caption is allowed to run a little wider than the tile, as in the
       // reference panel; the tile itself keeps its fixed pitch so the row stays
-      // left-aligned and never stretches across the sheet.
+      // left-aligned and never stretches across the sheet. The caption is
+      // centred on the tile rather than on this wider column, so the extra
+      // width is shared between both sides (see [_TileCaption]).
       width: size + _tileGap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,30 +523,56 @@ class _ShareActionTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          SizedBox(
+          _TileCaption(
+            text: action.label,
             width: size + _tileGap,
-            child: Text(
-              action.label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, height: 1.22, color: label),
-            ),
+            maxLines: 2,
+            style: TextStyle(fontSize: 11, height: 1.2, color: label),
           ),
           if (action.note != null) ...[
             const SizedBox(height: 2),
-            SizedBox(
+            _TileCaption(
+              text: action.note!,
               width: size + _tileGap,
-              child: Text(
-                action.note!,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10.5, height: 1.2, color: note),
-              ),
+              style: TextStyle(fontSize: 10, height: 1.2, color: note),
             ),
           ],
         ],
+      ),
+    ),
+  );
+}
+
+/// One caption line under an action tile.
+///
+/// The box is a full tile pitch wide — labels may grow past their tile, like
+/// the reference panel — but it is shifted left by half a gap so it is centred
+/// on the 60pt tile instead of on the 72pt column. Without that shift a wrapped
+/// label drifts 6pt to the right of the icon above it.
+class _TileCaption extends StatelessWidget {
+  const _TileCaption({
+    required this.text,
+    required this.width,
+    required this.style,
+    this.maxLines = 1,
+  });
+
+  final String text;
+  final double width;
+  final TextStyle style;
+  final int maxLines;
+
+  @override
+  Widget build(BuildContext c) => Transform.translate(
+    offset: const Offset(-_tileGap / 2, 0),
+    child: SizedBox(
+      width: width,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        maxLines: maxLines,
+        overflow: TextOverflow.ellipsis,
+        style: style,
       ),
     ),
   );

@@ -44,7 +44,7 @@ class QChatSendPreview {
 
 /// How the user left the send sheet.
 enum QChatSendOutcome {
-  /// "Gửi Để Trò chuyện" was tapped; [QChatSendResult.message] may be empty.
+  /// "Gửi" was tapped; [QChatSendResult.message] may be empty.
   sent,
 
   /// "Hủy", the barrier or the back gesture.
@@ -62,7 +62,7 @@ class QChatSendResult {
 
 /// The last step before something leaves the app: a recipient that can be
 /// swapped, a preview of the content, a place to type a short note, and the
-/// grey "Hủy" / green "Gửi Để Trò chuyện" pair.
+/// grey "Hủy" / green "Gửi" pair, centred as one block under the note field.
 ///
 /// It always opens from the bottom of the screen, over the sheet that asked for
 /// a receiver, and it never sends anything itself: the caller gets
@@ -121,7 +121,7 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
   @override
   Widget build(BuildContext c) {
     final dark = qchatDark(c);
-    final backdrop = dark ? const Color(0xff1c1c1c) : const Color(0xfff2f2f2);
+    final backdrop = dark ? const Color(0xff1c1c1c) : QChatColors.background;
     final card = dark ? const Color(0xff2c2c2c) : QChatColors.white;
     final field = dark ? const Color(0xff2c2c2c) : QChatColors.white;
     final ink = qchatInk(c);
@@ -136,7 +136,7 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 26),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -159,41 +159,48 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
                 const SizedBox(height: 20),
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 230),
+                    // A Mini App card is a narrow portrait tile, not a banner:
+                    // it keeps the share panel's proportions.
+                    constraints: const BoxConstraints(maxWidth: 152),
                     child: _PreviewCard(preview: widget.preview, card: card),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 _Composer(
                   controller: _note,
                   hint: widget.hint ?? tr(c, 'sendMessageHint'),
                   background: field,
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: _SheetButton(
-                        label: tr(c, 'cancel'),
-                        color: ink,
-                        background: dark
-                            ? const Color(0xff2f2f2f)
-                            : const Color(0xffe3e3e3),
-                        onTap: _cancel,
-                      ),
+                const SizedBox(height: 22),
+                Center(
+                  child: ConstrainedBox(
+                    // "Hủy" and "Gửi" are one pair of equal buttons, centred
+                    // in the sheet instead of stretched edge to edge.
+                    constraints: const BoxConstraints(maxWidth: 234),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _SheetButton(
+                            label: tr(c, 'cancel'),
+                            color: ink,
+                            background: dark
+                                ? const Color(0xff2f2f2f)
+                                : const Color(0xffe3e3e3),
+                            onTap: _cancel,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _SheetButton(
+                            label: widget.sendLabel ?? tr(c, 'send'),
+                            color: QChatColors.white,
+                            background: QChatColors.green,
+                            onTap: _send,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      flex: 3,
-                      child: _SheetButton(
-                        label: widget.sendLabel ?? tr(c, 'sendToChatConfirm'),
-                        color: QChatColors.white,
-                        background: QChatColors.green,
-                        onTap: _send,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
@@ -224,16 +231,16 @@ class _RecipientRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: SizedBox.square(dimension: 48, child: recipient.avatar),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             recipient.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 18,
               height: 1.2,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w400,
               color: qchatInk(c),
             ),
           ),
@@ -267,7 +274,7 @@ class _PreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) => Container(
-    padding: const EdgeInsets.all(10),
+    padding: const EdgeInsets.all(9),
     decoration: BoxDecoration(
       color: card,
       borderRadius: BorderRadius.circular(10),
@@ -280,50 +287,50 @@ class _PreviewCard extends StatelessWidget {
             children: [
               if (preview.sourceIcon != null) ...[
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(3),
                   child: SizedBox.square(
-                    dimension: 14,
+                    dimension: 12,
                     child: preview.sourceIcon,
                   ),
                 ),
-                const SizedBox(width: 5),
+                const SizedBox(width: 4),
               ],
               Expanded(
                 child: Text(
                   preview.source!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: qchatMuted(c)),
+                  style: TextStyle(fontSize: 11, color: qchatMuted(c)),
                 ),
               ),
             ],
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 7),
         Text(
           preview.title,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 15, height: 1.3, color: qchatInk(c)),
+          style: TextStyle(fontSize: 14.5, height: 1.3, color: qchatInk(c)),
         ),
         if (preview.image != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: AspectRatio(aspectRatio: 1.1, child: preview.image!),
+            borderRadius: BorderRadius.circular(5),
+            child: AspectRatio(aspectRatio: 1.15, child: preview.image!),
           ),
         ],
         if (preview.footer != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 9),
           Row(
             children: [
-              QChatIcon(preview.footerIcon, size: 13, color: qchatMuted(c)),
+              QChatIcon(preview.footerIcon, size: 12, color: qchatMuted(c)),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   preview.footer!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12.5, color: qchatMuted(c)),
+                  style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
                 ),
               ),
             ],
@@ -349,10 +356,10 @@ class _Composer extends StatelessWidget {
     children: [
       Expanded(
         child: Container(
-          height: 48,
+          height: 46,
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
             children: [
@@ -403,10 +410,10 @@ class _SheetButton extends StatelessWidget {
   @override
   Widget build(BuildContext c) => QChatPressable(
     background: background,
-    radius: BorderRadius.circular(12),
+    radius: BorderRadius.circular(10),
     onTap: onTap,
     child: SizedBox(
-      height: 50,
+      height: 44,
       child: Center(
         child: Text(
           label,
@@ -415,7 +422,7 @@ class _SheetButton extends StatelessWidget {
           style: TextStyle(
             fontSize: 16,
             height: 1.2,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w500,
             color: color,
           ),
         ),

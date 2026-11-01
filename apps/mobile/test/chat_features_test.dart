@@ -375,7 +375,7 @@ void main() {
       ),
       'Kèm lời nhắn',
     );
-    await tester.tap(find.text('Gửi Để Trò chuyện'));
+    await tester.tap(find.text('Gửi'));
     await tester.pumpAndSettle();
     expect(client.calls, contains('/messages/message/forward'));
     expect(client.sent['chat2'], 'Kèm lời nhắn');
