@@ -222,6 +222,13 @@ class _StickerImportScreenState extends ConsumerState<StickerImportScreen> {
               style: TextStyle(fontSize: 12, color: qchatMuted(c)),
             ),
           ),
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            tr(c, 'stickerSquareNote'),
+            style: TextStyle(fontSize: 12, height: 1.4, color: qchatMuted(c)),
+          ),
+        ),
         const SizedBox(height: 18),
         QChatButton(
           tr(c, 'stickerExtract'),

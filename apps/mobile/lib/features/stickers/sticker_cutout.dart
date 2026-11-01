@@ -31,6 +31,10 @@ class ExtractedSticker {
 ///   border that matches the border colour, so a picture on a plain sheet comes
 ///   out transparent while the drawing keeps its own white details.
 ///
+/// Every sticker comes out as a square picture. A cut drawing is centred on a
+/// transparent square, so a tall or wide drawing is never clipped; a plain
+/// photo is centre-cropped to a square, the way a sticker maker crops one.
+///
 /// GIF frames are read as an animation. Every frame is cut with the same boxes,
 /// so an animated sticker stays animated.
 Future<List<ExtractedSticker>> extractStickers(
@@ -95,10 +99,15 @@ List<Map<String, Object>> _extract(Map<String, Object?> args) {
   }
 
   final result = <Map<String, Object>>[];
+  // A sheet is cut into drawings that must keep their outline, and cut-out
+  // artwork has transparent edges to preserve: both are padded to a square. A
+  // plain photo is content all the way to its border, so it is centre-cropped
+  // instead of gaining transparent bands.
+  final square = split || removeBackground ? _Square.pad : _Square.crop;
   for (final box in boxes) {
     final crops = <img.Image>[];
     for (final frame in working) {
-      final crop = _crop(frame, box);
+      final crop = _crop(frame, box, square);
       if (crop == null) break;
       crops.add(crop);
     }
@@ -314,7 +323,16 @@ List<_Box> _merge(List<_Box> boxes, int padding) {
   return merged;
 }
 
-img.Image? _crop(img.Image frame, _Box box) {
+/// How a crop becomes square.
+enum _Square {
+  /// Centre-crop to the shorter side, dropping the outer pixels.
+  crop,
+
+  /// Centre the crop on a transparent square, keeping every pixel.
+  pad,
+}
+
+img.Image? _crop(img.Image frame, _Box box, _Square square) {
   final padding = math.max(2, (math.max(box.width, box.height) * .05).round());
   final left = math.max(0, box.left - padding);
   final top = math.max(0, box.top - padding);
@@ -328,19 +346,42 @@ img.Image? _crop(img.Image frame, _Box box) {
     width: right - left,
     height: bottom - top,
   );
-  final longest = math.max(crop.width, crop.height);
+  final squared = switch (square) {
+    _Square.crop => _centreSquare(crop),
+    _Square.pad => _transparentSquare(crop),
+  }..frameDuration = frame.frameDuration;
+  final side = squared.width;
   const maxStickerSide = 512;
-  if (longest <= maxStickerSide) {
-    crop.frameDuration = frame.frameDuration;
-    return crop;
-  }
-  final scale = maxStickerSide / longest;
+  if (side <= maxStickerSide) return squared;
+  final scale = maxStickerSide / side;
   return img.copyResize(
-    crop,
-    width: math.max(1, (crop.width * scale).round()),
-    height: math.max(1, (crop.height * scale).round()),
+    squared,
+    width: math.max(1, (squared.width * scale).round()),
+    height: math.max(1, (squared.height * scale).round()),
     interpolation: img.Interpolation.average,
   )..frameDuration = frame.frameDuration;
+}
+
+/// Drops the outer pixels of a picture that has no transparent edge.
+img.Image _centreSquare(img.Image image) {
+  final side = math.min(image.width, image.height);
+  if (image.width == side && image.height == side) return image;
+  return img.copyCrop(
+    image,
+    x: (image.width - side) ~/ 2,
+    y: (image.height - side) ~/ 2,
+    width: side,
+    height: side,
+  );
+}
+
+/// Keeps the whole drawing on a transparent square, centred.
+img.Image _transparentSquare(img.Image image) {
+  final side = math.max(image.width, image.height);
+  if (image.width == side && image.height == side) return image;
+  final canvas = img.Image(width: side, height: side, numChannels: 4);
+  img.compositeImage(canvas, image, center: true);
+  return canvas;
 }
 
 Uint8List _encode(List<img.Image> frames) {

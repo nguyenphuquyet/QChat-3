@@ -1094,6 +1094,11 @@ const translations = <String, List<String>>{
     '这是 GIF。每一帧使用相同裁剪区域，贴纸保持动态。',
   ],
   'stickerExtract': ['Extract stickers', 'Tách nhãn dán', '提取贴纸'],
+  'stickerSquareNote': [
+    'Every sticker is saved as a square picture: a drawing keeps its whole outline, a photo is centre-cropped.',
+    'Mỗi nhãn dán được tự động cắt thành hình vuông: hình vẽ giữ nguyên đường nét, ảnh chụp được cắt giữa.',
+    '每个贴纸都会自动裁剪成正方形：图案保留完整轮廓，照片居中裁剪。',
+  ],
   'stickerExtractEmpty': [
     'No separate sticker found. Turn off splitting to use the whole picture.',
     'Không tìm thấy nhãn dán riêng. Tắt tách để dùng nguyên ảnh.',

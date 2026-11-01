@@ -30,33 +30,65 @@ img.Image sheet() {
 }
 
 void main() {
-  test('splits one sheet into the separate drawings', () async {
+  test('splits one sheet into square drawings', () async {
     final source = img.encodePng(sheet());
     final stickers = await extractStickers(source);
 
     expect(stickers, hasLength(2));
     for (final sticker in stickers) {
       expect(sticker.animated, isFalse);
+      expect(sticker.width, sticker.height);
       final artwork = img.decodePng(sticker.bytes);
       expect(artwork, isNotNull);
       // Each crop is the drawing plus a small margin, never the whole sheet.
       expect(artwork!.width, lessThan(100));
-      expect(artwork.height, lessThan(100));
+      expect(artwork.height, artwork.width);
     }
     // The opaque sheet stays opaque unless background removal is requested.
     final first = img.decodePng(stickers.first.bytes)!;
     expect(first.getPixel(0, 0).a, 255);
   });
 
-  test('keeps the whole picture when splitting is off', () async {
+  test('crops a plain picture to a square', () async {
     final stickers = await extractStickers(
       img.encodePng(sheet()),
       split: false,
     );
     expect(stickers, hasLength(1));
     final artwork = img.decodePng(stickers.single.bytes)!;
-    expect(artwork.width, 240);
+    // 240x120 becomes the centred 120x120 square.
+    expect(artwork.width, 120);
     expect(artwork.height, 120);
+    expect(stickers.single.width, 120);
+    expect(stickers.single.height, 120);
+  });
+
+  test('a tall drawing keeps its outline on a transparent square', () async {
+    final tall = img.Image(width: 120, height: 240, numChannels: 4);
+    img.fill(tall, color: img.ColorRgba8(255, 255, 255, 255));
+    img.fillRect(
+      tall,
+      x1: 50,
+      y1: 20,
+      x2: 69,
+      y2: 219,
+      color: img.ColorRgba8(220, 40, 40, 255),
+    );
+
+    final stickers = await extractStickers(
+      img.encodePng(tall),
+      split: false,
+      removeBackground: true,
+    );
+    final artwork = img.decodePng(stickers.single.bytes)!;
+    expect(artwork.width, artwork.height);
+    // The whole 240 px drawing is kept: the square pads the sides instead of
+    // cropping the top and bottom off.
+    expect(artwork.height, greaterThanOrEqualTo(240));
+    // The padded bands are transparent, not white.
+    expect(artwork.getPixel(0, 0).a, 0);
+    expect(artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2).r,
+        greaterThan(180));
   });
 
   test('background removal is opt-in and clears only the border', () async {
@@ -74,10 +106,13 @@ void main() {
       removeBackground: true,
     );
     final artwork = img.decodePng(cut.single.bytes)!;
+    expect(artwork.width, artwork.height);
     expect(artwork.getPixel(0, 0).a, 0);
-    // The red square is untouched by the flood from the border.
-    expect(artwork.getPixel(50, 60).a, 255);
-    expect(artwork.getPixel(50, 60).r, greaterThan(180));
+    // The red square is untouched by the flood from the border and sits in the
+    // middle of the transparent square.
+    final centre = artwork.getPixel(50, artwork.height ~/ 2);
+    expect(centre.a, 255);
+    expect(centre.r, greaterThan(180));
   });
 
   test('an animated GIF stays animated through a split', () async {
