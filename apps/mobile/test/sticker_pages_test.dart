@@ -341,6 +341,12 @@ void main() {
 
     // The row keeps its four fixed tabs and adds one icon per pack after them.
     expect(find.byKey(const ValueKey('sticker-tab-3')), findsOneWidget);
+    // The row stays pinned to the leading edge instead of drifting inward when
+    // a few packs leave room to spare.
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('sticker-tab-0'))).dx,
+      20,
+    );
     expect(find.byKey(const ValueKey('sticker-pack-tab-p1')), findsOneWidget);
     // The icon is the pack's own square picture, not a generic glyph.
     expect(

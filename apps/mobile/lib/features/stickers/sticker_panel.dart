@@ -473,24 +473,28 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
   Widget _iconRow(BuildContext c) {
     final packs = _packs;
     // The row scrolls sideways once the packs outgrow the width, so adding a
-    // pack never pushes the send button or the emoji tab out of reach.
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          _tabButton(c, 0, 'search', tr(c, 'stickerSearchHint')),
-          const SizedBox(width: 14),
-          _tabButton(c, 1, 'emoji', tr(c, 'stickerTabEmoji')),
-          const SizedBox(width: 14),
-          _tabButton(c, 2, 'heart', tr(c, 'stickerRecent')),
-          const SizedBox(width: 14),
-          _tabButton(c, 3, 'stickerV', tr(c, 'stickerCustom')),
-          for (var i = 0; i < packs.length; i++) ...[
+    // pack never pushes the emoji tab out of reach. It always spans the panel,
+    // so the first tab stays at the leading edge instead of drifting inward.
+    return SizedBox(
+      width: double.infinity,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        child: Row(
+          children: [
+            _tabButton(c, 0, 'search', tr(c, 'stickerSearchHint')),
             const SizedBox(width: 14),
-            _packButton(c, _packTabStart + i, packs[i]),
+            _tabButton(c, 1, 'emoji', tr(c, 'stickerTabEmoji')),
+            const SizedBox(width: 14),
+            _tabButton(c, 2, 'heart', tr(c, 'stickerRecent')),
+            const SizedBox(width: 14),
+            _tabButton(c, 3, 'stickerV', tr(c, 'stickerCustom')),
+            for (var i = 0; i < packs.length; i++) ...[
+              const SizedBox(width: 14),
+              _packButton(c, _packTabStart + i, packs[i]),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -509,8 +513,7 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
         key: ValueKey('sticker-pack-tab-${pack.id}'),
         behavior: HitTestBehavior.opaque,
         onTap: () => setState(() => tab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
+        child: Container(
           width: 46,
           height: 36,
           alignment: Alignment.center,
@@ -553,8 +556,10 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
         key: ValueKey('sticker-tab-$index'),
         behavior: HitTestBehavior.opaque,
         onTap: () => setState(() => tab = index),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
+        // The highlight switches at once: animating it fades the old tab out
+        // and the new one in at the same time, so a quick tap shows two grey
+        // pills before either settles.
+        child: Container(
           width: 46,
           height: 36,
           alignment: Alignment.center,
