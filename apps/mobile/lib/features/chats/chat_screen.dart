@@ -35,6 +35,12 @@ import '../stickers/sticker_models.dart';
 import '../stickers/sticker_panel.dart';
 import '../stickers/wechat_emoji.dart';
 
+/// Chiều cao bàn phím đã đứng yên gần nhất trong phiên chạy này, tính bằng
+/// đơn vị logic. Nhờ nó, một cuộc trò chuyện vừa mở (chưa từng thấy bàn phím)
+/// vẫn biết trước bàn phím sẽ dừng ở đâu khi nó thay chỗ cho panel, nên thanh
+/// nhập tụt xuống cùng lúc bàn phím trượt lên.
+double _keyboardRestInset = 0;
+
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.id});
   final String id;
@@ -86,7 +92,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   double lastKeyboardInset = 0;
   double composerHeight = 56;
   bool wasPanelOpen = false;
+  /// Panel đang nhường chỗ cho bàn phím: vùng đáy trượt ngay tới chỗ bàn phím
+  /// sẽ dừng, thay vì đứng yên chờ bàn phím lên hẳn.
+  bool panelSliding = false;
+  bool wasPanelSliding = false;
   Timer? panelTimer;
+  Timer? panelSlideTimer;
+  Timer? keyboardRestTimer;
   Timer? voiceLimitTimer;
   @override
   void initState() {
@@ -131,6 +143,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     messageUpdates?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     panelTimer?.cancel();
+    panelSlideTimer?.cancel();
+    keyboardRestTimer?.cancel();
     voiceHoldTimer?.cancel();
     voiceLimitTimer?.cancel();
     ++voiceHoldToken;
@@ -158,20 +172,81 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void didChangeMetrics() {
     if (!mounted) return;
+    rememberKeyboardRest();
     settlePanels();
   }
 
-  /// Khi người dùng bấm lại vào ô nhập lúc panel đang mở, đợi bàn phím lên hẳn
-  /// rồi mới đóng panel -> chiều cao vùng đáy luôn liên tục, không nhảy.
+  /// Bàn phím vừa đứng yên thì nhớ chiều cao của nó. Lần sau đóng panel giữa
+  /// lúc bàn phím đang lên, số này cho biết vùng đáy sẽ trượt tới đâu. Cũng
+  /// chính lúc đó panel đã nhường chỗ xong, nên vùng đáy trở lại bám bàn phím.
+  void rememberKeyboardRest() {
+    keyboardRestTimer?.cancel();
+    if ((emoji || attachments) && !panelSliding) return;
+    keyboardRestTimer = Timer(const Duration(milliseconds: 140), () {
+      if (!mounted) return;
+      if ((emoji || attachments) && !panelSliding) return;
+      final live = liveKeyboardInset();
+      if (live > 0) _keyboardRestInset = live;
+      if (panelSliding) endPanelSlide();
+    });
+  }
+
+  /// Bàn phím đang lên để thay chỗ cho panel.
+  ///
+  /// Nếu đã biết chiều cao bàn phím (nó đã từng lên trong cuộc trò chuyện này),
+  /// đóng panel ngay từ khung hình bàn phím đầu tiên: vùng đáy trượt từ chiều
+  /// cao panel xuống đúng chiều cao bàn phím, nên thanh nhập tụt xuống cùng lúc
+  /// bàn phím trượt lên thay vì đứng yên rồi tụt sau khi bàn phím lên hẳn.
+  ///
+  /// Chưa biết chiều cao (lần đầu mở bàn phím) thì đợi bàn phím lên hẳn rồi mới
+  /// đóng panel: vùng đáy vẫn liên tục, chỉ là bắt đầu trượt muộn hơn.
   void settlePanels() {
     panelTimer?.cancel();
+    panelTimer = null;
     if (!(emoji || attachments) || !inputFocus.hasFocus) return;
+    // Cú trượt đã bắt đầu thì nó tự dọn panel khi bàn phím đứng yên.
+    if (panelSliding) return;
+    if (_keyboardRestInset > 0 && liveKeyboardInset() > 0) {
+      slidePanelIntoKeyboard();
+      return;
+    }
     panelTimer = Timer(const Duration(milliseconds: 280), () {
       if (!mounted || !inputFocus.hasFocus) return;
       setState(() {
         emoji = false;
         attachments = false;
       });
+    });
+  }
+
+  /// Bàn phím đang lên đo bằng đơn vị logic, đọc thẳng từ view để có số của
+  /// khung hình này (MediaQuery mới chỉ cập nhật ở lần build sau).
+  double liveKeyboardInset() {
+    final view = View.of(context);
+    return view.viewInsets.bottom / view.devicePixelRatio;
+  }
+
+  /// Đóng panel ngay và để vùng đáy trượt tới chỗ bàn phím sẽ dừng, trong khi
+  /// bàn phím trượt lên che dần panel đang tụt xuống.
+  void slidePanelIntoKeyboard() {
+    panelTimer?.cancel();
+    panelTimer = null;
+    setState(() => panelSliding = true);
+    // Lưới an toàn: nếu không còn khung hình bàn phím nào để biết nó đã dừng,
+    // dọn panel sau khi cú trượt đã xong.
+    panelSlideTimer?.cancel();
+    panelSlideTimer = Timer(const Duration(milliseconds: 600), endPanelSlide);
+  }
+
+  /// Panel đã tụt hẳn xuống dưới bàn phím: bỏ nó khỏi cây và trả vùng đáy về
+  /// bám bàn phím.
+  void endPanelSlide() {
+    panelSlideTimer?.cancel();
+    if (!mounted || !panelSliding) return;
+    setState(() {
+      panelSliding = false;
+      emoji = false;
+      attachments = false;
     });
   }
 
@@ -186,6 +261,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       voice = !voice;
       emoji = false;
       attachments = false;
+      panelSliding = false;
     });
     voice ? inputFocus.unfocus() : inputFocus.requestFocus();
   }
@@ -280,10 +356,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       inputFocus.requestFocus();
       return;
     }
+    panelSlideTimer?.cancel();
     stickyState(() {
       emoji = true;
       attachments = false;
       voice = false;
+      panelSliding = false;
     });
     inputFocus.unfocus();
   }
@@ -293,21 +371,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       inputFocus.requestFocus();
       return;
     }
+    panelSlideTimer?.cancel();
     stickyState(() {
       attachments = true;
       emoji = false;
       voice = false;
       attachPage = 0;
+      panelSliding = false;
     });
     inputFocus.unfocus();
   }
 
   void dismissInput() {
     inputFocus.unfocus();
-    if (emoji || attachments) {
+    panelSlideTimer?.cancel();
+    if (emoji || attachments || panelSliding) {
       stickyState(() {
         emoji = false;
         attachments = false;
+        panelSliding = false;
       });
     }
   }
@@ -1278,7 +1360,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           message['recalledAt'] == null,
     );
     final keyboard = MediaQuery.viewInsetsOf(c).bottom;
-    final keyboardRising = keyboard > lastKeyboardInset;
+    final previousKeyboard = lastKeyboardInset;
+    final keyboardRising = keyboard > previousKeyboard;
+    final keyboardFalling = keyboard < previousKeyboard;
     lastKeyboardInset = keyboard;
     final safeBottom = MediaQuery.viewPaddingOf(c).bottom;
     // The glass bar floats over the list, so reserve its height at the top of
@@ -1291,20 +1375,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // phím chưa lên hết.
     final panelChanged = panelOpen != wasPanelOpen;
     wasPanelOpen = panelOpen;
-    // Panel luôn thấp, cố định; chỉ bàn phím thật mới đẩy thanh nhập lên cao.
-    // Không ghi nhớ chiều cao bàn phím trước đó, nếu không panel (khi bàn phím
-    // đã đóng) sẽ bị kéo cao bằng bàn phím và để lại một khoảng trống xấu.
+    final slidingChanged = panelSliding != wasPanelSliding;
+    wasPanelSliding = panelSliding;
+    // Nhớ chiều cao bàn phím khi nó đã đứng yên: đó là đích mà vùng đáy sẽ co
+    // tới trong lần bàn phím thay chỗ cho panel kế tiếp.
+    if (!panelOpen &&
+        !panelSliding &&
+        keyboard > 0 &&
+        !keyboardRising &&
+        !keyboardFalling) {
+      _keyboardRestInset = keyboard;
+    }
     // The sticker panel needs more room than the attachment grid, so the two
     // keep their own heights instead of sharing one reserved band.
     final panelHeight = (emoji ? 320 : 250) + safeBottom;
+    // Trong lúc bàn phím thay chỗ cho panel, vùng đáy nhắm thẳng tới chiều cao
+    // bàn phím đã dừng lần trước và trượt tới đó ngay từ khung hình đầu, cùng
+    // lúc với bàn phím đang lên. Panel vẫn còn trong cây nên nó tụt xuống theo
+    // thanh nhập và bị bàn phím che dần, thay vì biến mất rồi mới tụt.
+    final slideTarget = math.max(_keyboardRestInset, safeBottom);
+    final panelBand = panelOpen ? panelHeight : safeBottom;
+    final band = panelSliding ? slideTarget : panelBand;
     // Vùng đáy nằm trong lớp kính của thanh nhập: bàn phím | panel | safe area.
     // Dùng max() để khi bàn phím đóng dần, ô nhập vẫn nằm trên safe area chứ
-    // không tụt xuống sát đáy rồi bật ngược lên.
-    final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
+    // không tụt xuống sát đáy rồi bật ngược lên. Bàn phím đang lên cũng luôn
+    // được tính, để thanh nhập không bao giờ nằm dưới mép bàn phím.
+    final reserved = math.max(band, keyboard);
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
-    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc panel đóng/mở thì
-    // trượt có animation để thanh nhập không bị giật một phát.
-    final insetDuration = panelChanged
+    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc panel đóng/mở, và
+    // lúc panel nhường chỗ cho bàn phím, thì trượt có animation để thanh nhập
+    // không bị giật một phát.
+    final insetDuration = panelSliding || panelChanged || slidingChanged
         ? qchatDuration(c)
         : keyboardRising || (!panelOpen && keyboard > 0)
         ? Duration.zero
@@ -1676,7 +1777,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           duration: insetDuration,
                           curve: Curves.easeOut,
                           height: reserved,
-                          child: panelOpen
+                          child: panelOpen || panelSliding
                               ? ClipRect(
                                   child: OverflowBox(
                                     alignment: Alignment.topCenter,

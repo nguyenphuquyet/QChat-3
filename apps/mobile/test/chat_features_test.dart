@@ -451,32 +451,49 @@ void main() {
     expect(opened, '/moments?authorId=self');
     expect(tester.takeException(), isNull);
   });
-  testWidgets('the keyboard takes over the attachment panel with a slide', (
+  testWidgets('the keyboard takes over the attachment panel while it rises', (
     tester,
   ) async {
     await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+
+    // The keyboard has been up once, so the composer knows where it settles.
+    // That height is the target the band aims at when the panel steps aside.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+
     await tester.tap(find.byKey(const ValueKey('chat-plus')));
     await tester.pumpAndSettle();
     final open = tester.getRect(find.byType(ChatInputBar)).bottom;
+    expect(find.byType(PageView), findsOneWidget);
 
-    // Tapping "+" again asks for the keyboard. This keyboard is shorter than
-    // the 250 px panel, so closing the panel must slide the bar down instead
-    // of dropping it a whole band in one frame.
+    // Tapping "+" again asks for the keyboard to replace the panel.
     await tester.tap(find.byKey(const ValueKey('chat-plus')));
-    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
-    addTearDown(tester.view.resetViewInsets);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 300));
-    final start = tester.getRect(find.byType(ChatInputBar)).bottom;
-    await tester.pump(const Duration(milliseconds: 90));
+    await tester.pump(); // the tap's focus request lands this frame
+
+    // The keyboard rises over the panel, frame by frame. The panel must start
+    // sliding away on the first frame, so the bar is already on its way down
+    // while the keyboard is still rising, not after it has settled.
+    for (final bottom in [40.0, 90.0, 140.0, 200.0]) {
+      tester.view.viewInsets = FakeViewPadding(bottom: bottom);
+      await tester.pump(const Duration(milliseconds: 25));
+    }
     final middle = tester.getRect(find.byType(ChatInputBar)).bottom;
+    // The panel is still in the tree, sliding down behind the keyboard.
+    expect(find.byType(PageView), findsOneWidget);
     await tester.pumpAndSettle();
     final done = tester.getRect(find.byType(ChatInputBar)).bottom;
 
+    // The bar ends lower (the keyboard is shorter than the panel) and was
+    // already between the two positions before the keyboard had settled.
     expect(done, greaterThan(open));
-    expect(start, closeTo(open, .5));
-    expect(middle, greaterThan(start));
+    expect(middle, greaterThan(open));
     expect(middle, lessThan(done));
+    // Once the keyboard owns the space, the panel is gone from the tree.
+    expect(find.byType(PageView), findsNothing);
     expect(tester.takeException(), isNull);
   });
   test(
