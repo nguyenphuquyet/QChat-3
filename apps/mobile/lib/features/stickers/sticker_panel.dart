@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
+import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import 'sticker_api.dart';
 import 'sticker_models.dart';
@@ -12,10 +13,12 @@ import 'wechat_emoji.dart';
 
 /// The composer's emoji and sticker panel, laid out like the reference app.
 ///
-/// A row of four icons — search, emoji, recent stickers and custom stickers —
-/// sits under the composer, with the content below it. Backspace and send
-/// float over the bottom-right corner of the content, because the keyboard is
-/// closed while the panel is open.
+/// A row of icons — search, emoji, recent stickers, custom stickers — sits
+/// under the composer, and every pack in the library follows it with its own
+/// avatar, so a pack is one tap away instead of a trip through the library.
+/// The content sits below the row. Backspace and send float over the
+/// bottom-right corner of the content, because the keyboard is closed while the
+/// panel is open.
 class StickerPanel extends ConsumerStatefulWidget {
   const StickerPanel({
     super.key,
@@ -52,7 +55,10 @@ class StickerPanel extends ConsumerStatefulWidget {
 class StickerPanelState extends ConsumerState<StickerPanel> {
   static const _recentEmojiKey = 'sticker:recentEmoji';
 
-  /// 0 search, 1 emoji, 2 recent stickers, 3 custom stickers.
+  /// The four fixed tabs: 0 search, 1 emoji, 2 recent stickers, 3 custom
+  /// stickers. From here on each tab is one pack of the library, in order.
+  static const _packTabStart = 4;
+
   int tab = 1;
   StickerLibrary? library;
   bool loading = true;
@@ -60,6 +66,15 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
   String query = '';
   final search = TextEditingController();
   final recentEmoji = <String>[];
+
+  List<StickerPack> get _packs => library?.packs ?? const <StickerPack>[];
+
+  /// The pack whose tab is open, or null when the library has changed under it.
+  StickerPack? get _openPack {
+    final index = tab - _packTabStart;
+    final packs = _packs;
+    return index >= 0 && index < packs.length ? packs[index] : null;
+  }
 
   @override
   void initState() {
@@ -118,6 +133,9 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
         library = next;
         loading = false;
         failed = false;
+        // A pack can be removed while it is the open tab; fall back to the
+        // custom sticker tab rather than showing nothing.
+        if (tab >= _packTabStart + next.packs.length) tab = 3;
       });
     } catch (_) {
       if (!mounted) return;
@@ -162,16 +180,11 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
   );
 
   Widget _content(BuildContext c) {
-    switch (tab) {
-      case 0:
-        return _searchTab(c);
-      case 1:
-        return _emojiTab(c);
-      case 2:
-        return _recentTab(c);
-      default:
-        return _customTab(c);
-    }
+    if (tab == 0) return _searchTab(c);
+    if (tab == 1) return _emojiTab(c);
+    if (tab == 2) return _recentTab(c);
+    final pack = _openPack;
+    return pack == null ? _customTab(c) : _packTab(c, pack);
   }
 
   // ---------------------------------------------------------------------------
@@ -356,6 +369,66 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // One tab per sticker pack in the library
+  // ---------------------------------------------------------------------------
+
+  /// The stickers of [pack], shown under the pack's own icon in the row. A tap
+  /// sends the sticker straight away, like the custom sticker tab.
+  Widget _packTab(BuildContext c, StickerPack pack) {
+    if (loading && library == null) return const Center(child: QChatLoading());
+    if (failed && library == null) return _failure(c);
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 14, 2),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  pack.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 15.5, color: ink(c)),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _link(c, 'stickerMore', widget.onOpenLibrary, arrow: true),
+            ],
+          ),
+        ),
+        Expanded(
+          child: pack.stickers.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(24, 10, 24, _contentBottom),
+                    child: Text(
+                      tr(c, 'stickerEmpty'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.45,
+                        color: qchatMuted(c),
+                      ),
+                    ),
+                  ),
+                )
+              : ListView(
+                  padding: EdgeInsets.fromLTRB(14, 6, 14, _contentBottom),
+                  children: [
+                    _stickerGrid(
+                      pack.stickers,
+                      columns: 4,
+                      size: 62,
+                      keyPrefix: 'sticker-pack-sticker',
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+
   Widget _recordEmpty(BuildContext c) => Center(
     child: SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(24, 10, 24, _contentBottom),
@@ -397,20 +470,78 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
   // Icons and floating actions
   // ---------------------------------------------------------------------------
 
-  Widget _iconRow(BuildContext c) => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-    child: Row(
-      children: [
-        _tabButton(c, 0, 'search', tr(c, 'stickerSearchHint')),
-        const SizedBox(width: 14),
-        _tabButton(c, 1, 'emoji', tr(c, 'stickerTabEmoji')),
-        const SizedBox(width: 14),
-        _tabButton(c, 2, 'heart', tr(c, 'stickerRecent')),
-        const SizedBox(width: 14),
-        _tabButton(c, 3, 'stickerV', tr(c, 'stickerCustom')),
-      ],
-    ),
-  );
+  Widget _iconRow(BuildContext c) {
+    final packs = _packs;
+    // The row scrolls sideways once the packs outgrow the width, so adding a
+    // pack never pushes the send button or the emoji tab out of reach.
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Row(
+        children: [
+          _tabButton(c, 0, 'search', tr(c, 'stickerSearchHint')),
+          const SizedBox(width: 14),
+          _tabButton(c, 1, 'emoji', tr(c, 'stickerTabEmoji')),
+          const SizedBox(width: 14),
+          _tabButton(c, 2, 'heart', tr(c, 'stickerRecent')),
+          const SizedBox(width: 14),
+          _tabButton(c, 3, 'stickerV', tr(c, 'stickerCustom')),
+          for (var i = 0; i < packs.length; i++) ...[
+            const SizedBox(width: 14),
+            _packButton(c, _packTabStart + i, packs[i]),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// A library pack's own place in the row: its square picture, like the pack
+  /// icons the reference app puts after the emoji and favourite tabs.
+  Widget _packButton(BuildContext c, int index, StickerPack pack) {
+    final selected = tab == index;
+    final avatar = pack.avatarMediaId ?? pack.coverMediaId;
+    final fallback = _firstArtwork(pack);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: pack.name,
+      child: GestureDetector(
+        key: ValueKey('sticker-pack-tab-${pack.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => tab = index),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          width: 46,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected ? qchatSurface(c) : QChatColors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              width: 30,
+              height: 30,
+              child: avatar != null
+                  ? MediaImage(
+                      id: avatar,
+                      fit: BoxFit.cover,
+                      // A broken avatar must not eat the tap: the tab stays
+                      // usable and falls back to the emoji glyph.
+                      errorWidget: Center(
+                        child: QChatIcon('emoji', size: 20, color: ink(c)),
+                      ),
+                    )
+                  : fallback != null
+                  ? StickerView(mediaId: fallback, size: 30)
+                  : QChatIcon('emoji', size: 22, color: ink(c)),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _tabButton(BuildContext c, int index, String icon, String label) {
     final selected = tab == index;
@@ -509,6 +640,15 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
   // Shared pieces
   // ---------------------------------------------------------------------------
 
+  /// The first sticker that has artwork, so a pack with no avatar or cover still
+  /// shows something in the row.
+  String? _firstArtwork(StickerPack pack) {
+    for (final sticker in pack.stickers) {
+      if (sticker.mediaId.isNotEmpty) return sticker.mediaId;
+    }
+    return null;
+  }
+
   Widget _failure(BuildContext c) => Center(
     child: Column(
       mainAxisSize: MainAxisSize.min,
@@ -559,6 +699,7 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
     required int columns,
     required double size,
     Widget? leading,
+    String keyPrefix = 'sticker',
   }) => GridView.builder(
     shrinkWrap: true,
     physics: const NeverScrollableScrollPhysics(),
@@ -573,7 +714,7 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
       if (leading != null && index == 0) return Center(child: leading);
       final sticker = items[index - (leading == null ? 0 : 1)];
       return GestureDetector(
-        key: ValueKey('sticker-${sticker.id}'),
+        key: ValueKey('$keyPrefix-${sticker.id}'),
         behavior: HitTestBehavior.opaque,
         onTap: () => widget.onSticker(sticker),
         child: Center(

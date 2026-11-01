@@ -10,18 +10,25 @@ import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/features/stickers/sticker_library_screen.dart';
+import 'package:qchat/features/stickers/sticker_models.dart';
 import 'package:qchat/features/stickers/sticker_pack_screen.dart';
+import 'package:qchat/features/stickers/sticker_panel.dart';
+import 'package:qchat/features/stickers/sticker_view.dart';
 
 import 'test_app.dart';
 
 /// A pack with one wide cover, one square avatar and a handful of stickers, so
 /// the two screens render their real shapes without a server.
 class _StickerClient extends QChatClient {
-  _StickerClient({this.mine = false}) {
+  _StickerClient({this.mine = false, this.extraPacks = 0}) {
     userId = 'self';
   }
 
   final bool mine;
+
+  /// Extra packs in the library, so the panel row can be tested with more tabs
+  /// than fit on a phone screen.
+  final int extraPacks;
   String? sentTo;
   String? sentMedia;
   final posted = <String>[];
@@ -54,7 +61,32 @@ class _StickerClient extends QChatClient {
   Future<dynamic> get(String path, {bool cached = true}) async {
     if (path == '/stickers') {
       return {
-        'packs': [pack],
+        'packs': [
+          pack,
+          for (var i = 0; i < extraPacks; i++)
+            {
+              'id': 'x$i',
+              'name': 'Bộ phụ $i',
+              'description': '',
+              'coverMediaId': null,
+              'avatarMediaId': null,
+              'published': true,
+              'mine': false,
+              'added': true,
+              'ownerName': 'Mộc Hắc Hắc',
+              'stickers': [
+                {
+                  'id': 'x$i-s0',
+                  'mediaId': 's$i',
+                  'label': '',
+                  'animated': false,
+                  'packId': 'x$i',
+                  'packName': 'Bộ phụ $i',
+                  'position': 0,
+                },
+              ],
+            },
+        ],
         'market': [],
         'recent': [],
       };
@@ -136,7 +168,9 @@ class _RecordingTransport implements HttpClientAdapter {
 }
 
 void main() {
-  setUpAll(() async {
+  // Every test starts with the artwork in the cache: a missing picture swaps in
+  // a retry gesture, which would steal taps from the control under test.
+  setUp(() async {
     MediaCache.put('cover', await _art(const Color(0xfff4e3b2)));
     MediaCache.put('avatar', await _art(const Color(0xffffd166)));
     for (var i = 0; i < 8; i++) {
@@ -150,8 +184,9 @@ void main() {
     WidgetTester tester,
     Widget screen, {
     bool mine = false,
+    int extraPacks = 0,
   }) async {
-    final client = _StickerClient(mine: mine);
+    final client = _StickerClient(mine: mine, extraPacks: extraPacks);
     await tester.pumpWidget(
       ProviderScope(
         overrides: [clientProvider.overrideWithValue(client)],
@@ -228,7 +263,9 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.ensureVisible(find.byKey(const ValueKey('sticker-sheet-remove')));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('sticker-sheet-remove')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('sticker-sheet-remove')));
     await tester.pump();
@@ -269,11 +306,7 @@ void main() {
   });
 
   testWidgets('the owner sees the cover and avatar tools', (tester) async {
-    await mount(
-      tester,
-      const StickerPackScreen(packId: 'p1'),
-      mine: true,
-    );
+    await mount(tester, const StickerPackScreen(packId: 'p1'), mine: true);
 
     expect(find.text('Ảnh bìa'), findsWidgets);
     expect(find.text('Ảnh đại diện'), findsWidgets);
@@ -284,6 +317,97 @@ void main() {
     expect(
       find.byWidgetPredicate((w) => w is QChatIcon && w.name == 'camera'),
       findsWidgets,
+    );
+  });
+
+  testWidgets('a library pack gets its own icon in the emoji panel', (
+    tester,
+  ) async {
+    final sent = <Sticker>[];
+    await mount(
+      tester,
+      SizedBox(
+        height: 360,
+        child: StickerPanel(
+          safeBottom: 0,
+          onEmoji: (_) {},
+          onSticker: sent.add,
+          onOpenStudio: ({String? packId, bool create = false}) {},
+          onOpenLibrary: () {},
+        ),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+
+    // The row keeps its four fixed tabs and adds one icon per pack after them.
+    expect(find.byKey(const ValueKey('sticker-tab-3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sticker-pack-tab-p1')), findsOneWidget);
+    // The icon is the pack's own square picture, not a generic glyph.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('sticker-pack-tab-p1')),
+        matching: find.byType(MediaImage),
+      ),
+      findsOneWidget,
+    );
+    // The panel opens on the emoji tab, so the pack's stickers are not up yet.
+    expect(find.byKey(const ValueKey('sticker-pack-sticker-s0')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('sticker-pack-tab-p1')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(find.text('Bộ mèo lười'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('sticker-pack-sticker-s0')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('sticker-pack-sticker-s2')));
+    await tester.pump();
+    expect(sent.map((sticker) => sticker.id), ['s2']);
+  });
+
+  testWidgets('a long row of packs scrolls instead of overflowing', (
+    tester,
+  ) async {
+    await mount(
+      tester,
+      SizedBox(
+        height: 360,
+        child: StickerPanel(
+          safeBottom: 0,
+          onEmoji: (_) {},
+          onSticker: (_) {},
+          onOpenStudio: ({String? packId, bool create = false}) {},
+          onOpenLibrary: () {},
+        ),
+      ),
+      extraPacks: 8,
+    );
+    expect(tester.takeException(), isNull);
+
+    final last = find.byKey(const ValueKey('sticker-pack-tab-x7'));
+    expect(last, findsOneWidget);
+    await tester.ensureVisible(last);
+    await tester.pump();
+    await tester.tap(last);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Bộ phụ 7'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('sticker-pack-sticker-x7-s0')),
+      findsOneWidget,
+    );
+    // A pack with no avatar falls back to its first sticker.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('sticker-pack-tab-x7')),
+        matching: find.byType(StickerView),
+      ),
+      findsOneWidget,
     );
   });
 }
