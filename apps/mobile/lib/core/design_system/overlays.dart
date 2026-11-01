@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../localization/strings.dart';
 import 'qchat_colors.dart';
+import 'qchat_pressable.dart';
 import 'qchat_theme.dart';
 
 const qchatOverlayRadius = 16.0;
@@ -111,10 +112,9 @@ class QChatOverlayAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) => Semantics(
-    button: true,
     selected: selected,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    child: QChatPressable(
+      background: QChatColors.transparent,
       onTap: onTap,
       child: Container(
         width: double.infinity,

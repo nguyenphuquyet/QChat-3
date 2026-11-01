@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/core/design_system/components.dart';
+import 'package:qchat/core/design_system/dialogs.dart';
 
 import 'test_app.dart';
 
@@ -12,6 +13,17 @@ Color _rowColor(WidgetTester tester, Type row) {
     find
         .descendant(of: find.byType(row), matching: find.byType(DecoratedBox))
         .first,
+  );
+  return (box.decoration as BoxDecoration).color!;
+}
+
+/// Reads the colour painted by the [QChatPressable] around [label]. Overlay
+/// rows pass a transparent background, so the sheet or card surface shows
+/// through until the row is pressed.
+Color _pressableColor(WidgetTester tester, Finder label) {
+  final row = find.ancestor(of: label, matching: find.byType(QChatPressable));
+  final box = tester.widget<DecoratedBox>(
+    find.descendant(of: row, matching: find.byType(DecoratedBox)).first,
   );
   return (box.decoration as BoxDecoration).color!;
 }
@@ -144,5 +156,72 @@ void main() {
     await tester.pump();
     expect(_rowColor(tester, QChatListTile), const Color(0xff2c2c2c));
     await hold.up();
+  });
+
+  testWidgets('an action sheet row lights the sheet while held', (tester) async {
+    await tester.pumpWidget(
+      qchatHarness(
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              QChatOverlayAction(
+                label: 'Bỏ khỏi mục yêu thích',
+                onTap: () {},
+              ),
+              QChatOverlayAction(label: 'Hủy', onTap: () {}),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final row = find.text('Bỏ khỏi mục yêu thích');
+    expect(_pressableColor(tester, row), QChatColors.transparent);
+
+    final hold = await tester.startGesture(tester.getCenter(row));
+    await tester.pump();
+    expect(_pressableColor(tester, row), _press);
+
+    await hold.up();
+    await tester.pump();
+    expect(_pressableColor(tester, row), QChatColors.transparent);
+  });
+
+  testWidgets('a dialog button lights the card while held', (tester) async {
+    await tester.pumpWidget(
+      qchatHarness(
+        Builder(
+          builder: (c) => GestureDetector(
+            onTap: () => showQChatDialog<void>(
+              c,
+              message: 'Xoá cuộc trò chuyện này?',
+              actions: const [
+                QChatDialogAction(label: 'Hủy'),
+                QChatDialogAction(label: 'Xác nhận', primary: true),
+              ],
+            ),
+            behavior: HitTestBehavior.opaque,
+            child: const SizedBox.expand(child: Text('open')),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final confirm = find.text('Xác nhận');
+    expect(confirm, findsOneWidget);
+    expect(_pressableColor(tester, confirm), QChatColors.transparent);
+
+    final hold = await tester.startGesture(tester.getCenter(confirm));
+    await tester.pump();
+    expect(_pressableColor(tester, confirm), _press);
+
+    await hold.up();
+    await tester.pumpAndSettle();
+    expect(confirm, findsNothing);
   });
 }

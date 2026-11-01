@@ -134,8 +134,9 @@ Future<void> qchatTopMenu(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final a in actions)
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                    QChatPressable(
+                      background: QChatColors.transparent,
+                      highlight: const Color(0xff3d3d3d),
                       onTap: () {
                         Navigator.pop(c);
                         a.$3();

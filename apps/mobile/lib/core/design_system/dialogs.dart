@@ -229,8 +229,8 @@ class _DialogActionButton extends StatelessWidget {
         : ink(c);
     return Semantics(
       button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+      child: QChatPressable(
+        background: QChatColors.transparent,
         onTap: () {
           action.onPressed?.call();
           if (action.closeOnPressed) Navigator.pop(c, action.result);
