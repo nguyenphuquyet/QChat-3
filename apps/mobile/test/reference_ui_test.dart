@@ -226,28 +226,9 @@ class _ShareSheetPreview extends StatelessWidget {
               color: Color(0xfff0a020),
             ),
             QChatShareAction(
-              icon: 'quote',
-              label: 'Trích dẫn',
-              color: Color(0xff8a63d2),
-            ),
-            QChatShareAction(
               icon: 'copy',
               label: 'Sao chép',
               color: Color(0xff168fe5),
-            ),
-            QChatShareAction(
-              icon: 'search',
-              label: 'Tìm kiếm',
-              note: '2K lần sử dụng',
-            ),
-            QChatShareAction(
-              icon: 'select',
-              label: 'Chọn',
-            ),
-            QChatShareAction(
-              icon: 'delete',
-              label: 'Xóa phía tôi',
-              color: Color(0xffe0564f),
             ),
             QChatShareAction(
               icon: 'report',
