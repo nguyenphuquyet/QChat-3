@@ -41,44 +41,52 @@ class ExtractedSticker {
 ///
 /// A picture the `image` package refuses is re-encoded by Flutter's own decoder
 /// and cut again, so a sticker saved from another app (a WebP variant, a HEIC,
-/// a lightly damaged JPEG) is artwork like any other photo.
+/// a CMYK JPEG) is artwork like any other photo. When even that finds nothing
+/// to cut — a sheet with no clear background, a cut that swallows the drawing —
+/// the whole picture becomes one square sticker rather than an error.
 Future<List<ExtractedSticker>> extractStickers(
   Uint8List source, {
   bool split = true,
   bool removeBackground = false,
 }) async {
   if (source.isEmpty) return const [];
-  List<Map<String, Object>>? result;
   Object? failure;
-  try {
-    result = await _cut(source, split: split, removeBackground: removeBackground);
-  } catch (error) {
-    failure = error;
+  Future<List<Map<String, Object>>?> attempt(
+    Uint8List bytes, {
+    required bool separate,
+    required bool cut,
+  }) async {
+    try {
+      final rows = await _cut(bytes, split: separate, removeBackground: cut);
+      return rows.isEmpty ? null : rows;
+    } catch (error) {
+      failure ??= error;
+      return null;
+    }
   }
-  if (result == null || result.isEmpty) {
+
+  var rows = await attempt(source, separate: split, cut: removeBackground);
+  if (rows == null) {
     // The preview was drawn by Flutter, so when `image` comes back empty or
     // throws, Flutter can still read the picture: re-encode it as a bounded
-    // PNG and run the same cut on that.
+    // PNG — which also caps the memory the cut works in — and try again.
     final png = await _asPng(source);
     if (png != null) {
-      try {
-        result = await _cut(
-          png,
-          split: split,
-          removeBackground: removeBackground,
-        );
-        failure = null;
-      } catch (error) {
-        failure = error;
+      rows = await attempt(png, separate: split, cut: removeBackground);
+      if (rows == null && (split || removeBackground)) {
+        // Neither switch found a sticker. The picture itself still is one, and
+        // a square sticker beats "cannot process this picture".
+        rows = await attempt(png, separate: false, cut: false);
       }
     }
   }
-  if (result == null) {
-    if (failure != null) throw failure;
+  if (rows == null) {
+    final error = failure;
+    if (error != null) throw error;
     return const [];
   }
   return [
-    for (final row in result)
+    for (final row in rows)
       ExtractedSticker(
         bytes: row['bytes'] as Uint8List,
         animated: row['animated'] == true,
@@ -399,14 +407,20 @@ List<_Box> _components(Uint8List mask, int w, int h) {
 List<_Box> _merge(List<_Box> boxes, int padding) {
   final merged = <_Box>[];
   for (final box in boxes) {
-    final target = merged.where((other) => other.touches(box, padding));
-    if (target.isEmpty) {
+    // Claimed boxes are collected before the list is edited: a box can bridge
+    // two drawings at once, and folding them while walking `merged` would
+    // change the list under its own iterator.
+    final claimed = <_Box>[];
+    for (final other in merged) {
+      if (other.touches(box, padding)) claimed.add(other);
+    }
+    if (claimed.isEmpty) {
       merged.add(box);
       continue;
     }
-    final first = target.first;
+    final first = claimed.first;
     first.absorb(box);
-    for (final other in target.skip(1)) {
+    for (final other in claimed.skip(1)) {
       first.absorb(other);
       merged.remove(other);
     }

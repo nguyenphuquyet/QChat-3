@@ -47,6 +47,11 @@ class _StickerImportScreenState extends ConsumerState<StickerImportScreen> {
   bool saving = false;
   String progress = '';
   String? error;
+
+  /// What the cut complained about, when it complained at all. Shown under the
+  /// message so a picture that still fails can be reported with its reason
+  /// instead of "it did not work".
+  String? reason;
   List<ExtractedSticker> preview = const [];
   int found = 0;
 
@@ -89,6 +94,7 @@ class _StickerImportScreenState extends ConsumerState<StickerImportScreen> {
         preview = const [];
         found = 0;
         error = null;
+        reason = null;
       });
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'mediaUnavailable'));
@@ -107,6 +113,7 @@ class _StickerImportScreenState extends ConsumerState<StickerImportScreen> {
     setState(() {
       extracting = true;
       error = null;
+      reason = null;
     });
     try {
       final result = await extractStickers(
@@ -121,13 +128,21 @@ class _StickerImportScreenState extends ConsumerState<StickerImportScreen> {
         preview = result.take(remaining).toList();
         if (result.isEmpty) error = tr(context, 'stickerExtractEmpty');
       });
-    } catch (_) {
+    } catch (failure) {
       if (!mounted) return;
       setState(() {
         extracting = false;
         error = tr(context, 'stickerExtractFailed');
+        reason = _short(failure);
       });
     }
+  }
+
+  /// The failure as one readable line, so a picture that will not cut can be
+  /// reported with the reason the codec gave instead of "it did not work".
+  String _short(Object failure) {
+    final text = failure.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.length > 160 ? '${text.substring(0, 160)}…' : text;
   }
 
   Future<void> _save() async {
@@ -238,9 +253,27 @@ class _StickerImportScreenState extends ConsumerState<StickerImportScreen> {
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              error!,
-              style: const TextStyle(color: QChatColors.danger, fontSize: 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  error!,
+                  style: const TextStyle(
+                    color: QChatColors.danger,
+                    fontSize: 13,
+                  ),
+                ),
+                if (reason != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      reason!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: qchatMuted(c)),
+                    ),
+                  ),
+              ],
             ),
           ),
         if (preview.isNotEmpty) ...[

@@ -198,6 +198,38 @@ void main() {
     }
   });
 
+  test('a stroke that joins two drawings does not break the split', () async {
+    // Two drawings and a stroke between them: the stroke's padded box claims
+    // both, so the merge has to fold three boxes into one while it walks the
+    // list. Joining them by editing the list mid-walk used to throw.
+    final image = img.Image(width: 900, height: 900, numChannels: 4);
+    img.fill(image, color: img.ColorRgba8(255, 255, 255, 255));
+    final ink = img.ColorRgba8(20, 20, 20, 255);
+    img.fillRect(image, x1: 60, y1: 60, x2: 140, y2: 140, color: ink);
+    img.fillRect(image, x1: 280, y1: 60, x2: 360, y2: 140, color: ink);
+    // Close enough to both to be joined by the drawer's margin, far enough
+    // apart that the pixels never touch: three drawings, one sticker.
+    img.fillRect(image, x1: 180, y1: 100, x2: 240, y2: 130, color: ink);
+
+    final stickers = await extractStickers(img.encodePng(image));
+
+    expect(stickers, hasLength(1));
+    // One drawing, not the whole sheet: the fallback would hand back the 900 px
+    // sheet squared to 512.
+    expect(stickers.single.width, lessThan(450));
+  });
+
+  test('a picture that yields no drawing becomes the whole picture', () async {
+    // A plain photo with the switches on: nothing stands out from the border,
+    // so there is no drawing to cut. It is still a sticker.
+    final stickers = await extractStickers(
+      img.encodePng(sheet()),
+      removeBackground: true,
+    );
+
+    expect(stickers, isNotEmpty);
+  });
+
   test('a picture only Flutter can read is re-encoded and cut', () async {
     // A WBMP: Flutter's decoder shows it (that is how the studio's preview
     // draws the picked file), while the `image` package has no decoder for it
