@@ -1459,15 +1459,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // được tính, để thanh nhập không bao giờ nằm dưới mép bàn phím.
     final reserved = math.max(band, keyboard);
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
-    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc panel đóng/mở, và
-    // lúc panel nhường chỗ cho bàn phím, thì trượt có animation để thanh nhập
-    // không bị giật một phát. Chưa biết chiều cao bàn phím thì cũng bám từng
-    // khung hình, vì đích đến chính là bàn phím đang lên.
+    // khung hình, cả lúc nó đang lên lẫn lúc đang xuống — kể cả khung hình nó
+    // vừa đóng hẳn. Cho khung cuối đó thêm một cú animation 180ms thì thanh
+    // nhập tụt nốt sau khi bàn phím đã mất, nhìn như bị giật. Riêng lúc panel
+    // đóng/mở, và lúc panel nhường chỗ cho bàn phím, thì trượt có animation để
+    // thanh nhập không nhảy một phát. Chưa biết chiều cao bàn phím thì cũng bám
+    // từng khung hình, vì đích đến chính là bàn phím đang lên.
     final insetDuration = unknownRest
         ? Duration.zero
         : panelSliding || panelChanged || slidingChanged
         ? qchatDuration(c)
-        : keyboardRising || (!panelOpen && keyboard > 0)
+        : !panelOpen
         ? Duration.zero
         : qchatDuration(c);
     measureComposer();

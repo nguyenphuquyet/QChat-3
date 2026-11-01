@@ -554,6 +554,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('the composer stays on the keyboard edge until it is gone', (
+    tester,
+  ) async {
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+    final closed = tester.getRect(find.byType(ChatInputBar)).bottom;
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester.getRect(find.byType(ChatInputBar)).bottom,
+      closeTo(closed - 220, .5),
+    );
+
+    // Closing the keyboard is the same story: on every frame the bar sits on
+    // the keyboard's edge, including the frame where the keyboard has just
+    // gone. Animating that last frame glides the bar down for another beat and
+    // reads as a jolt.
+    for (final bottom in [170.0, 120.0, 60.0, 0.0]) {
+      tester.view.viewInsets = FakeViewPadding(bottom: bottom);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(
+        tester.getRect(find.byType(ChatInputBar)).bottom,
+        closeTo(closed - bottom, .5),
+        reason: 'keyboard at $bottom',
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'cleared messages cannot return from confirmed cache and newer messages survive',
     () async {
