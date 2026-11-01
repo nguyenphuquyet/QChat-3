@@ -555,15 +555,31 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       return true;
     }
     if (picked == null) return false;
-    await _sendShared(picked, body);
+    // A quick avatar is a receiver too: it opens the send sheet, not a
+    // straight send, so the note field and the swap arrow are always there.
+    await _confirmShare([picked], chats, body, title);
     return true;
   }
 
-  /// Pick a receiver, then confirm on the send sheet: it previews the mini
-  /// program card, lets the user add a note and swap the conversation before
-  /// the green button actually sends anything.
+  /// Pick a receiver from the full list, then hand over to the send sheet.
   Future<void> _shareToChat(String body, List chats, String title) async {
     if (!mounted) return;
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+    final picked = await _pickShares(chats, selfId);
+    if (!mounted || picked == null || picked.isEmpty) return;
+    await _confirmShare(picked, chats, body, title);
+  }
+
+  /// The send sheet, opened whether the receiver came from a quick avatar on
+  /// the panel or from the full picker. It previews the mini program card, lets
+  /// the user add a note and swap the conversation before anything is sent.
+  Future<void> _confirmShare(
+    List<String> first,
+    List chats,
+    String body,
+    String title,
+  ) async {
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
     final name = title.isEmpty ? _name : title;
@@ -575,25 +591,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       return null;
     }
 
-    Future<List<String>?> pick() => showQChatForwardPicker(
-      context,
-      title: tr(context, 'pickChatTitle'),
-      recent: [
-        for (final chat in chats.take(8))
-          conversationShareTarget(chat as Map, selfId),
-      ],
-      entries: [
-        for (final chat in chats)
-          QChatForwardEntry(
-            id: chat['id'] as String,
-            name: conversationShareName(chat as Map, selfId),
-            avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
-          ),
-      ],
-    );
-
-    final first = await pick();
-    if (!mounted || first == null || first.isEmpty) return;
     var ids = first;
     while (true) {
       if (!mounted) return;
@@ -614,7 +611,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       if (!mounted || result == null) return;
       if (result.outcome == QChatSendOutcome.cancelled) return;
       if (result.outcome == QChatSendOutcome.changeRecipient) {
-        final next = await pick();
+        final next = await _pickShares(chats, selfId);
         if (!mounted || next == null || next.isEmpty) return;
         ids = next;
         continue;
@@ -627,6 +624,24 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       return;
     }
   }
+
+  Future<List<String>?> _pickShares(List chats, String selfId) =>
+      showQChatForwardPicker(
+        context,
+        title: tr(context, 'pickChatTitle'),
+        recent: [
+          for (final chat in chats.take(8))
+            conversationShareTarget(chat as Map, selfId),
+        ],
+        entries: [
+          for (final chat in chats)
+            QChatForwardEntry(
+              id: chat['id'] as String,
+              name: conversationShareName(chat as Map, selfId),
+              avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
+            ),
+        ],
+      );
 
   Future<void> _sendShared(String chatId, String body) async {
     try {

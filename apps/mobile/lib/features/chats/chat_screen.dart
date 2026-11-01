@@ -1227,7 +1227,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         ],
       );
       if (passed == null) return;
-      await _forwardTo(passed, rows);
+      // A quick avatar on the panel is a receiver too: it opens the same send
+      // sheet instead of sending straight away.
+      await _confirmForward([passed], chats, rows);
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
     }
@@ -1256,6 +1258,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
 
+    final picked = await _pickChats(chats, selfId);
+    if (!mounted || picked == null) return;
+    // An empty result is the "Cuộc trò chuyện mới" link, not a forward.
+    if (picked.isEmpty) {
+      context.push('/groups/new');
+      return;
+    }
+    await _confirmForward(picked, chats, rows);
+  }
+
+  /// The send sheet, opened whichever way a receiver was chosen: a quick
+  /// avatar on the share panel, the dashed "add" tile, or the full picker.
+  /// Nothing leaves the chat until the green button is tapped.
+  Future<void> _confirmForward(
+    List<String> picked,
+    List chats,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+
     Map? chatById(String id) {
       for (final chat in chats) {
         if (chat is Map && chat['id'] == id) return chat;
@@ -1263,14 +1286,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return null;
     }
 
-    var picked = await _pickChats(chats, selfId);
-    if (!mounted || picked == null) return;
     var targets = picked;
-    // An empty result is the "Cuộc trò chuyện mới" link, not a forward.
-    if (targets.isEmpty) {
-      context.push('/groups/new');
-      return;
-    }
     while (true) {
       if (!mounted) return;
       final first = chatById(targets.first);

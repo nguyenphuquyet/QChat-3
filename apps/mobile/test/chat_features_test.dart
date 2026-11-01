@@ -362,7 +362,13 @@ void main() {
     };
     expect(tops, hasLength(1));
 
+    // A quick avatar is a receiver too, so it opens the same send sheet.
     await tester.tap(find.text('Linh').last);
+    await tester.pumpAndSettle();
+    expect(find.byType(QChatSendConfirmSheet), findsOneWidget);
+    expect(client.calls, isNot(contains('/messages/message/forward')));
+
+    await tester.tap(find.text('Gửi Để Trò chuyện'));
     await tester.pumpAndSettle();
     expect(client.calls, contains('/messages/message/forward'));
     expect(tester.takeException(), isNull);
