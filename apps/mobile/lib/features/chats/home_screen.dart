@@ -521,12 +521,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget discover(BuildContext c) => ListView(
     children: [
-      MenuRow(
-        'groups',
-        icon: 'groups',
-        color: QChatColors.green,
-        onTap: () => c.push('/groups'),
-      ),
       MenuRow('moments', icon: 'moments', onTap: () => c.push('/moments')),
       sectionGap,
       const MenuRow('channels', icon: 'channels', color: Color(0xfff5a33a)),

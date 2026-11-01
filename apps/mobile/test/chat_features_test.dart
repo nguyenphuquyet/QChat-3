@@ -496,7 +496,7 @@ void main() {
     expect(opened, '/moments?authorId=self');
     expect(tester.takeException(), isNull);
   });
-  testWidgets('group chats in Discover lists the groups already joined', (
+  testWidgets('group chats in Contacts lists the groups already joined', (
     tester,
   ) async {
     final client = GroupsClient();
@@ -534,7 +534,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Khám phá').last);
+    await tester.tap(find.text('Danh bạ').last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Trò chuyện nhóm'));
     await tester.pumpAndSettle();
