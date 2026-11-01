@@ -19,6 +19,7 @@ import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
 import '../../core/media/media_picker.dart';
+import '../chats/share_targets.dart';
 import 'miniapp_api.dart';
 import 'miniapp_bridge.dart';
 import 'miniapp_cache.dart';
@@ -493,52 +494,92 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     );
   }
 
+  /// Reserved sheet result so a copy can be told apart from a chat id.
+  static const _copyResult = 'share:copy';
+
+  /// `share`: the same share panel the chat uses. The text can go to a
+  /// conversation through the forward picker, or to the clipboard.
   Future<bool> _share(String text, String url, String title) async {
     if (!mounted) return false;
+    final client = ref.read(clientProvider);
     final body = [text, url].where((part) => part.isNotEmpty).join('\n');
-    final copied = await showQChatSheet<bool>(
+    var chats = <dynamic>[];
+    try {
+      chats = await client.get('/conversations', cached: false) as List;
+    } catch (_) {}
+    if (!mounted) return false;
+    final selfId = client.userId ?? '';
+    final picked = await showQChatShareSheet(
       context,
-      (sheet) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title.isEmpty ? tr(sheet, 'miniAppsShareTitle') : title,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: qchatFill(sheet),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(body, style: const TextStyle(fontSize: 14)),
-            ),
-            const SizedBox(height: 16),
-            QChatButton(
-              tr(sheet, 'miniAppsShareCopy'),
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: body));
-                if (sheet.mounted) Navigator.pop(sheet, true);
-              },
-            ),
-            const SizedBox(height: 8),
-            QChatButton(
-              tr(sheet, 'miniAppsDeny'),
-              secondary: true,
-              onTap: () => Navigator.pop(sheet, false),
-            ),
-          ],
+      title: title.isEmpty ? tr(context, 'miniAppsShareTitle') : title,
+      targets: [
+        for (final chat in chats.take(8))
+          conversationShareTarget(chat as Map, selfId),
+      ],
+      onAdd: () => _shareToChat(body, chats),
+      actions: [
+        QChatShareAction(
+          icon: 'share',
+          label: tr(context, 'sendToChat'),
+          color: QChatColors.green,
+          onTap: () => _shareToChat(body, chats),
         ),
-      ),
+        QChatShareAction(
+          icon: 'copy',
+          label: tr(context, 'miniAppsShareCopy'),
+          color: const Color(0xff168fe5),
+          result: _copyResult,
+        ),
+      ],
     );
-    if (copied == true && mounted) {
-      _showToast(tr(context, 'miniAppsCopied'), 'success');
+    if (!mounted) return false;
+    if (picked == _copyResult) {
+      await Clipboard.setData(ClipboardData(text: body));
+      if (mounted) _showToast(tr(context, 'miniAppsCopied'), 'success');
+      return true;
     }
-    return copied == true;
+    if (picked == null) return false;
+    await _sendShared(picked, body);
+    return true;
+  }
+
+  Future<void> _shareToChat(String body, List chats) async {
+    if (!mounted) return;
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+    final picked = await showQChatForwardPicker(
+      context,
+      title: tr(context, 'pickChatTitle'),
+      recent: [
+        for (final chat in chats.take(8))
+          conversationShareTarget(chat as Map, selfId),
+      ],
+      entries: [
+        for (final chat in chats)
+          QChatForwardEntry(
+            id: chat['id'] as String,
+            name: conversationShareName(chat as Map, selfId),
+            avatar: conversationShareTarget(
+              chat,
+              selfId,
+              size: 48,
+            ).avatar,
+          ),
+      ],
+    );
+    if (!mounted || picked == null || picked.isEmpty) return;
+    for (final id in picked) {
+      await _sendShared(id, body);
+    }
+  }
+
+  Future<void> _sendShared(String chatId, String body) async {
+    try {
+      await ref.read(clientProvider).send(chatId, body);
+      if (mounted) _showToast(tr(context, 'sent'), 'success');
+    } catch (_) {
+      if (mounted) _showToast(tr(context, 'networkError'), 'error');
+    }
   }
 
   /// `chooseImage`: opens the same WeChat-style picker as the chat, bounded by

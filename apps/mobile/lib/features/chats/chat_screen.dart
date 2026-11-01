@@ -18,6 +18,7 @@ import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 import 'message_status.dart';
+import 'share_targets.dart';
 import 'message_actions_menu.dart';
 import 'chat_composer.dart';
 import 'attachment_preview.dart';
@@ -1189,12 +1190,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final client = ref.read(clientProvider);
       final chats = await client.get('/conversations', cached: false) as List;
       if (!mounted) return;
+      final selfId = client.userId ?? '';
       final passed = await showQChatShareSheet(
         context,
         title: tr(context, 'forwardTo'),
         targets: [
-          for (final chat in chats.take(12))
-            _shareTarget(chat as Map<String, dynamic>),
+          for (final chat in chats.where((c) => c['id'] != widget.id).take(12))
+            conversationShareTarget(chat as Map, selfId),
         ],
         onAdd: () => _pickForwardTarget(rows, chats),
         actions: [
@@ -1230,42 +1232,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     }
   }
 
-  /// The chat name the share strip shows: the group title, or the other
-  /// member's nickname in a direct conversation.
-  String _shareTargetName(Map chat) {
-    if (chat['kind'] == 'GROUP') return chat['title']?.toString() ?? 'QChat';
-    final members = (chat['members'] as List).cast<dynamic>();
-    final other = members.where(
-      (m) => m['userId'] != ref.read(clientProvider).userId,
-    );
-    final user = other.isEmpty ? null : other.first['user'];
-    return user?['nickname']?.toString() ?? 'QChat';
-  }
-
-  QChatShareTarget _shareTarget(Map<String, dynamic> chat) {
-    final client = ref.read(clientProvider);
-    final members = (chat['members'] as List).cast<dynamic>();
-    if (chat['kind'] == 'GROUP') {
-      return QChatShareTarget(
-        id: chat['id'] as String,
-        name: _shareTargetName(chat),
-        avatar: GroupAvatar(chat, size: 66),
-      );
-    }
-    final other = members.where((m) => m['userId'] != client.userId);
-    final member = other.isEmpty
-        ? (members.isEmpty ? null : members.first)
-        : other.first;
-    return QChatShareTarget(
-      id: chat['id'] as String,
-      name: _shareTargetName(chat),
-      avatar: UserAvatar(
-        (member?['user'] as Map?) ?? const {'nickname': ''},
-        size: 66,
-      ),
-    );
-  }
-
   /// Full list for a receiver that is not in the strip: the sheet's "add"
   /// tile and the "Gửi đến Trò chuyện" action both open it.
   Future<void> _pickForwardTarget(
@@ -1273,26 +1239,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     List chats,
   ) async {
     if (!mounted) return;
-    final target = await showQChatDialog<String>(
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+    final current = tr(context, 'currentChat');
+    final picked = await showQChatForwardPicker(
       context,
-      title: tr(context, 'forward'),
-      content: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 320),
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            for (final chat in chats)
-              QChatCell(
-                title: Text(_shareTargetName(chat as Map<String, dynamic>)),
-                onTap: () => Navigator.pop(context, chat['id'] as String),
-              ),
-          ],
-        ),
-      ),
-      actions: [QChatDialogAction(label: tr(context, 'cancel'))],
+      title: tr(context, 'pickChatTitle'),
+      recent: [
+        for (final chat in chats.where((c) => c['id'] != widget.id).take(8))
+          conversationShareTarget(chat as Map, selfId),
+      ],
+      entries: [
+        for (final chat in chats)
+          QChatForwardEntry(
+            id: chat['id'] as String,
+            name: conversationShareName(chat as Map, selfId),
+            avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
+            note: chat['id'] == widget.id ? current : null,
+            disabled: chat['id'] == widget.id,
+          ),
+      ],
     );
-    if (target == null || !mounted) return;
-    await _forwardTo(target, rows);
+    if (!mounted || picked == null) return;
+    // An empty result is the "Cuộc trò chuyện mới" link, not a forward.
+    if (picked.isEmpty) {
+      context.push('/groups/new');
+      return;
+    }
+    for (final target in picked) {
+      await _forwardTo(target, rows);
+    }
   }
 
   Future<void> _forwardTo(

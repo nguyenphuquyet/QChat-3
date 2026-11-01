@@ -108,6 +108,31 @@ Future<void> mount(
   await tester.pumpAndSettle();
 }
 
+class ForwardClient extends FakeClient {
+  static const second = {
+    'id': 'chat2',
+    'kind': 'DIRECT',
+    'sequence': 0,
+    'members': [
+      {
+        'userId': 'self',
+        'user': {'id': 'self', 'nickname': 'Tôi'},
+      },
+      {
+        'userId': 'peer2',
+        'user': {'id': 'peer2', 'nickname': 'Linh'},
+      },
+    ],
+    'messages': <Map<String, dynamic>>[],
+  };
+
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async {
+    if (path == '/conversations') return [conversation, second];
+    return super.get(path, cached: cached);
+  }
+}
+
 class RequestsClient extends FakeClient {
   @override
   Future<dynamic> get(String path, {bool cached = true}) async {
@@ -293,7 +318,7 @@ void main() {
   testWidgets('forward opens the share sheet and sends to a recent chat', (
     tester,
   ) async {
-    final client = FakeClient();
+    final client = ForwardClient();
     await mount(tester, client, const ChatScreen(id: 'chat'));
     await tester.longPress(find.text('Xin chào'));
     await tester.pumpAndSettle();
@@ -306,7 +331,34 @@ void main() {
     expect(find.text('Sao chép'), findsOneWidget);
     expect(find.text('Báo cáo'), findsOneWidget);
 
-    await tester.tap(find.text('Quyết').last);
+    await tester.tap(find.text('Linh').last);
+    await tester.pumpAndSettle();
+    expect(client.calls, contains('/messages/message/forward'));
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('send in chat opens the full picker from the bottom', (
+    tester,
+  ) async {
+    final client = ForwardClient();
+    await mount(tester, client, const ChatScreen(id: 'chat'));
+    await tester.longPress(find.text('Xin chào'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('message-action-forward')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Gửi đến Trò chuyện'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QChatForwardPicker), findsOneWidget);
+    expect(find.text('Chọn cuộc trò chuyện'), findsOneWidget);
+    // The chat the user is already in cannot receive the forward.
+    expect(find.text('Trò chuyện hiện tại'), findsOneWidget);
+    // The picker is a sheet that climbs from the bottom, not a pushed page.
+    expect(
+      tester.getRect(find.byType(QChatForwardPicker)).top,
+      lessThan(120),
+    );
+
+    await tester.tap(find.text('Linh').last);
     await tester.pumpAndSettle();
     expect(client.calls, contains('/messages/message/forward'));
     expect(tester.takeException(), isNull);

@@ -20,6 +20,7 @@ export 'qchat_icons.dart';
 export 'qchat_keypad.dart';
 export 'qchat_pressable.dart';
 export 'qchat_theme.dart';
+export 'forward_picker.dart';
 export 'share_sheet.dart';
 
 Color surface(BuildContext context) => qchatSurface(context);

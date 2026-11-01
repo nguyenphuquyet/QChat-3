@@ -36,6 +36,7 @@ class QChatShareAction {
     this.color,
     this.note,
     this.badge,
+    this.result,
   });
 
   /// Name understood by [QChatIcon].
@@ -49,6 +50,11 @@ class QChatShareAction {
 
   /// Red pill pinned to the top-right corner of the tile, e.g. "Mới".
   final String? badge;
+
+  /// Value the sheet closes with when this action is tapped. A recipient id is
+  /// a conversation, so a caller that owns the action can use a reserved value
+  /// (such as `share:copy`) to tell its own actions apart from recipients.
+  final String? result;
 }
 
 const _tileSize = 66.0;
@@ -144,29 +150,13 @@ class QChatShareSheet extends StatelessWidget {
                   ),
                 if (hasTargets)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 18, 0, 20),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final target in targets) ...[
-                            _ShareTargetTile(
-                              target: target,
-                              label: label,
-                              onTap: () => Navigator.maybePop(c, target.id),
-                            ),
-                            const SizedBox(width: _tileGap),
-                          ],
-                          if (onAdd != null)
-                            _AddTargetTile(
-                              label: addLabel,
-                              caption: label,
-                              onTap: onAdd!,
-                            ),
-                          const SizedBox(width: 16),
-                        ],
-                      ),
+                    padding: const EdgeInsets.fromLTRB(0, 18, 0, 20),
+                    child: QChatRecentTargets(
+                      targets: targets,
+                      tileSize: _tileSize,
+                      onSelect: (target) => Navigator.maybePop(c, target.id),
+                      onAdd: onAdd,
+                      addLabel: addLabel,
                     ),
                   ),
                 if (hasTargets && (actions.isNotEmpty)) _Divider(color: line),
@@ -289,27 +279,69 @@ class _Divider extends StatelessWidget {
   Widget build(BuildContext c) => Container(height: .5, color: color);
 }
 
+/// The horizontally scrolling strip of recent recipients plus the dashed
+/// "more" tile. It is shared by [QChatShareSheet] and the full forward picker,
+/// so both screens show the same avatars at their own size.
+class QChatRecentTargets extends StatelessWidget {
+  const QChatRecentTargets({
+    super.key,
+    this.targets = const [],
+    this.tileSize = 66,
+    this.onSelect,
+    this.onAdd,
+    this.addLabel,
+  });
+
+  final List<QChatShareTarget> targets;
+  final double tileSize;
+  final ValueChanged<QChatShareTarget>? onSelect;
+  final VoidCallback? onAdd;
+  final String? addLabel;
+
+  @override
+  Widget build(BuildContext c) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.only(left: 16),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final target in targets) ...[
+          _ShareTargetTile(
+            target: target,
+            size: tileSize,
+            onTap: () => onSelect?.call(target),
+          ),
+          const SizedBox(width: _tileGap),
+        ],
+        if (onAdd != null)
+          _AddTargetTile(size: tileSize, label: addLabel, onTap: onAdd!),
+        const SizedBox(width: 16),
+      ],
+    ),
+  );
+}
+
 class _ShareTargetTile extends StatelessWidget {
   const _ShareTargetTile({
     required this.target,
-    required this.label,
+    required this.size,
     required this.onTap,
   });
   final QChatShareTarget target;
-  final Color label;
+  final double size;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext c) => QChatPressable(
     background: QChatColors.transparent,
     onTap: onTap,
     child: SizedBox(
-      width: _tileSize,
+      width: size,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: SizedBox.square(dimension: _tileSize, child: target.avatar),
+            child: SizedBox.square(dimension: size, child: target.avatar),
           ),
           const SizedBox(height: 8),
           Text(
@@ -317,7 +349,11 @@ class _ShareTargetTile extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12.5, height: 1.2, color: label),
+            style: TextStyle(
+              fontSize: 12.5,
+              height: 1.2,
+              color: qchatDark(c) ? const Color(0xffc9c9c9) : const Color(0xff4d4d4d),
+            ),
           ),
         ],
       ),
@@ -327,12 +363,12 @@ class _ShareTargetTile extends StatelessWidget {
 
 class _AddTargetTile extends StatelessWidget {
   const _AddTargetTile({
+    required this.size,
     required this.label,
-    required this.caption,
     required this.onTap,
   });
+  final double size;
   final String? label;
-  final Color caption;
   final VoidCallback onTap;
   @override
   Widget build(BuildContext c) => QChatPressable(
@@ -341,12 +377,12 @@ class _AddTargetTile extends StatelessWidget {
     child: Semantics(
       label: label ?? tr(c, 'sendToChat'),
       child: SizedBox(
-        width: _tileSize,
+        width: size,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox.square(
-              dimension: _tileSize,
+              dimension: size,
               child: CustomPaint(
                 painter: _DashedBorderPainter(
                   color: qchatDark(c)
@@ -372,7 +408,13 @@ class _AddTargetTile extends StatelessWidget {
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12.5, height: 1.2, color: caption),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  height: 1.2,
+                  color: qchatDark(c)
+                      ? const Color(0xffc9c9c9)
+                      : const Color(0xff4d4d4d),
+                ),
               ),
             ],
           ],
@@ -397,7 +439,7 @@ class _ShareActionTile extends StatelessWidget {
   Widget build(BuildContext c) => QChatPressable(
     background: QChatColors.transparent,
     onTap: () {
-      Navigator.maybePop(c);
+      Navigator.maybePop(c, action.result);
       final run = action.onTap;
       if (run == null) return;
       // Let the sheet route finish its exit before the action opens anything.

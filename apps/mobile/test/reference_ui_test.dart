@@ -181,6 +181,8 @@ void main() {
     await snapshot('attachments');
     await mount(const _ShareSheetPreview());
     await snapshot('share-sheet');
+    await mount(const _ForwardPickerPreview());
+    await snapshot('forward-picker');
     await tester.pumpWidget(const SizedBox());
     await client.changes.close();
     await client.messageChanges.close();
@@ -241,6 +243,46 @@ class _ShareSheetPreview extends StatelessWidget {
               label: 'Bìa Khoảnh khắc',
               color: Color(0xff168fe5),
               badge: 'Mới',
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _ForwardPickerPreview extends StatelessWidget {
+  const _ForwardPickerPreview();
+  @override
+  Widget build(BuildContext c) => Stack(
+    children: [
+      const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
+      Positioned.fill(
+        child: QChatForwardPicker(
+          recent: const [
+            QChatShareTarget(
+              id: 'a',
+              name: 'Quyết',
+              avatar: QChatAvatar('Quyết', size: 56),
+            ),
+          ],
+          entries: const [
+            QChatForwardEntry(
+              id: 'a',
+              name: 'Quyết',
+              avatar: QChatAvatar('Quyết', size: 48),
+              note: 'Trò chuyện hiện tại',
+              disabled: true,
+            ),
+            QChatForwardEntry(
+              id: 'b',
+              name: 'Linh',
+              avatar: QChatAvatar('Linh', size: 48),
+            ),
+            QChatForwardEntry(
+              id: 'c',
+              name: 'Minh',
+              avatar: QChatAvatar('Minh', size: 48),
             ),
           ],
         ),
