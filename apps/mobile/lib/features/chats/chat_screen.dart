@@ -1189,51 +1189,187 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final client = ref.read(clientProvider);
       final chats = await client.get('/conversations', cached: false) as List;
       if (!mounted) return;
-      final target = await showQChatDialog<String>(
+      final passed = await showQChatShareSheet(
         context,
-        title: tr(context, 'forward'),
-        content: Builder(
-          builder: (c) => ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 320),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final chat in chats)
-                  QChatCell(
-                    title: Text(
-                      chat['kind'] == 'GROUP'
-                          ? chat['title']
-                          : (chat['members'] as List)
-                                .where((m) => m['userId'] != client.userId)
-                                .map((m) => m['user']['nickname'])
-                                .join(', '),
-                    ),
-                    onTap: () => Navigator.pop(c, chat['id'] as String),
-                  ),
-              ],
-            ),
+        title: tr(context, 'forwardTo'),
+        targets: [
+          for (final chat in chats.take(12))
+            _shareTarget(chat as Map<String, dynamic>),
+        ],
+        onAdd: () => _pickForwardTarget(rows, chats),
+        actions: [
+          QChatShareAction(
+            icon: 'share',
+            label: tr(context, 'sendToChat'),
+            color: QChatColors.green,
+            onTap: () => _pickForwardTarget(rows, chats),
           ),
-        ),
-        actions: [QChatDialogAction(label: tr(context, 'cancel'))],
+          QChatShareAction(
+            icon: 'favorites',
+            label: tr(context, 'favorites'),
+            onTap: () => _favorite(rows),
+          ),
+          QChatShareAction(
+            icon: 'copy',
+            label: tr(context, 'copy'),
+            onTap: () => _copyMessages(rows),
+            color: const Color(0xff168fe5),
+          ),
+          QChatShareAction(
+            icon: 'report',
+            label: tr(context, 'report'),
+            color: const Color(0xffff9c38),
+            onTap: _reportChat,
+          ),
+        ],
       );
-      if (target == null) return;
-      for (final row in rows) {
-        // A money bubble cannot be copied as a real transfer: forward the
-        // receipt as text so the new chat still shows what was sent.
-        if (row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET') {
-          await client.send(target, moneySummary(row));
-        } else {
-          await client.post('/messages/${row['id']}/forward', {
-            'conversationId': target,
-            'clientId': const Uuid().v4(),
-          });
-        }
-      }
-      if (mounted) {
-        setState(() {
-          selecting = false;
-          selected.clear();
+      if (passed == null) return;
+      await _forwardTo(passed, rows);
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  /// The chat name the share strip shows: the group title, or the other
+  /// member's nickname in a direct conversation.
+  String _shareTargetName(Map chat) {
+    if (chat['kind'] == 'GROUP') return chat['title']?.toString() ?? 'QChat';
+    final members = (chat['members'] as List).cast<dynamic>();
+    final other = members.where(
+      (m) => m['userId'] != ref.read(clientProvider).userId,
+    );
+    final user = other.isEmpty ? null : other.first['user'];
+    return user?['nickname']?.toString() ?? 'QChat';
+  }
+
+  QChatShareTarget _shareTarget(Map<String, dynamic> chat) {
+    final client = ref.read(clientProvider);
+    final members = (chat['members'] as List).cast<dynamic>();
+    if (chat['kind'] == 'GROUP') {
+      return QChatShareTarget(
+        id: chat['id'] as String,
+        name: _shareTargetName(chat),
+        avatar: GroupAvatar(chat, size: 66),
+      );
+    }
+    final other = members.where((m) => m['userId'] != client.userId);
+    final member = other.isEmpty
+        ? (members.isEmpty ? null : members.first)
+        : other.first;
+    return QChatShareTarget(
+      id: chat['id'] as String,
+      name: _shareTargetName(chat),
+      avatar: UserAvatar(
+        (member?['user'] as Map?) ?? const {'nickname': ''},
+        size: 66,
+      ),
+    );
+  }
+
+  /// Full list for a receiver that is not in the strip: the sheet's "add"
+  /// tile and the "Gửi đến Trò chuyện" action both open it.
+  Future<void> _pickForwardTarget(
+    List<Map<String, dynamic>> rows,
+    List chats,
+  ) async {
+    if (!mounted) return;
+    final target = await showQChatDialog<String>(
+      context,
+      title: tr(context, 'forward'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 320),
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final chat in chats)
+              QChatCell(
+                title: Text(_shareTargetName(chat as Map<String, dynamic>)),
+                onTap: () => Navigator.pop(context, chat['id'] as String),
+              ),
+          ],
+        ),
+      ),
+      actions: [QChatDialogAction(label: tr(context, 'cancel'))],
+    );
+    if (target == null || !mounted) return;
+    await _forwardTo(target, rows);
+  }
+
+  Future<void> _forwardTo(
+    String target,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    final client = ref.read(clientProvider);
+    for (final row in rows) {
+      // A money bubble cannot be copied as a real transfer: forward the
+      // receipt as text so the new chat still shows what was sent.
+      if (row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET') {
+        await client.send(target, moneySummary(row));
+      } else {
+        await client.post('/messages/${row['id']}/forward', {
+          'conversationId': target,
+          'clientId': const Uuid().v4(),
         });
+      }
+    }
+    if (mounted) {
+      setState(() {
+        selecting = false;
+        selected.clear();
+      });
+    }
+  }
+
+  Future<void> _favorite(List<Map<String, dynamic>> rows) async {
+    final client = ref.read(clientProvider);
+    try {
+      for (final row in rows) {
+        await client.dio.patch(
+          '/messages/${row['id']}/favorite',
+          data: {'favorite': true},
+        );
+      }
+      if (mounted) showQChatToast(context, tr(context, 'favorites'));
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  void _copyMessages(List<Map<String, dynamic>> rows) {
+    final text = rows
+        .map(
+          (row) => row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET'
+              ? moneySummary(row)
+              : (row['text'] ?? '').toString().trim(),
+        )
+        .where((line) => line.isNotEmpty)
+        .join('\n');
+    if (text.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: text));
+    showQChatToast(context, tr(context, 'copied'));
+  }
+
+  Future<void> _reportChat() async {
+    final reason = await editText(
+      context,
+      tr(context, 'report'),
+      maxLength: 2000,
+      lines: 4,
+    );
+    if (reason == null || reason.trim().isEmpty) return;
+    try {
+      await ref.read(clientProvider).post('/reports', {
+        'targetId': widget.id,
+        'reason': reason,
+      });
+      if (mounted) {
+        await showQChatDialog<void>(
+          context,
+          message: tr(context, 'reportSent'),
+          actions: [
+            QChatDialogAction(label: tr(context, 'confirm'), primary: true),
+          ],
+        );
       }
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));

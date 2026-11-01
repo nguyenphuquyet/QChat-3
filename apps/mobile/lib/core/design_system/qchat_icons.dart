@@ -60,6 +60,8 @@ class QChatIcon extends StatelessWidget {
       'delete' => TIcons.delete,
       'heart' => filled ? TIcons.heart_filled : TIcons.heart,
       'star' => filled ? TIcons.star_filled : TIcons.star,
+      'copy' => LucideIcons.copy,
+      'report' => LucideIcons.triangleAlert,
       'eye' => LucideIcons.eye,
       'eyeOff' => LucideIcons.eyeOff,
       'refresh' => TIcons.refresh,

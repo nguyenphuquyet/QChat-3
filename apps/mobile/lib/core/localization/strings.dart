@@ -813,6 +813,8 @@ const translations = <String, List<String>>{
     '永久删除群聊及所有成员的消息？',
   ],
   'forward': ['Forward', 'Chuyển tiếp', '转发'],
+  'forwardTo': ['Forward to', 'Chuyển tiếp đến', '转发到'],
+  'sendToChat': ['Send in chat', 'Gửi đến Trò chuyện', '发送到聊天'],
   'selectMessages': ['Select', 'Chọn', '多选'],
   'quoteMessage': ['Quote', 'Trích dẫn', '引用'],
   'chatDetails': ['Details', 'Chi tiết', '详情'],

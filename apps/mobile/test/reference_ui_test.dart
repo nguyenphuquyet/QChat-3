@@ -179,8 +179,74 @@ void main() {
     // TODO: bật lại khi có tính năng Thẻ liên hệ
     // expect(find.text('Thẻ liên hệ'), findsOneWidget);
     await snapshot('attachments');
+    await mount(const _ShareSheetPreview());
+    await snapshot('share-sheet');
     await tester.pumpWidget(const SizedBox());
     await client.changes.close();
     await client.messageChanges.close();
   });
 }
+
+class _ShareSheetPreview extends StatelessWidget {
+  const _ShareSheetPreview();
+  @override
+  Widget build(BuildContext c) => Stack(
+    children: [
+      const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
+      Align(
+        alignment: Alignment.bottomCenter,
+        child: QChatShareSheet(
+          title: 'Chuyển tiếp đến',
+          targets: const [
+            QChatShareTarget(
+              id: 'a',
+              name: 'Quyết',
+              avatar: QChatAvatar('Quyết', size: 66),
+            ),
+            QChatShareTarget(
+              id: 'b',
+              name: 'Linh',
+              avatar: QChatAvatar('Linh', size: 66),
+            ),
+          ],
+          onAdd: _noop,
+          actions: const [
+            QChatShareAction(
+              icon: 'share',
+              label: 'Gửi đến Trò chuyện',
+              color: QChatColors.green,
+            ),
+            QChatShareAction(
+              icon: 'favorites',
+              label: 'Mục ưa thích',
+              note: '2K lần sử dụng',
+            ),
+            QChatShareAction(
+              icon: 'copy',
+              label: 'Sao chép',
+              color: Color(0xff168fe5),
+            ),
+            QChatShareAction(
+              icon: 'report',
+              label: 'Báo cáo',
+              color: Color(0xffff9c38),
+            ),
+            QChatShareAction(
+              icon: 'star',
+              label: 'Gắn sao',
+              color: Color(0xff168fe5),
+            ),
+            QChatShareAction(
+              icon: 'image',
+              label: 'Bìa Khoảnh khắc',
+              color: Color(0xff168fe5),
+              badge: 'Mới',
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+void _noop() {}

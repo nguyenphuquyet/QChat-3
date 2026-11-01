@@ -290,6 +290,27 @@ void main() {
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('forward opens the share sheet and sends to a recent chat', (
+    tester,
+  ) async {
+    final client = FakeClient();
+    await mount(tester, client, const ChatScreen(id: 'chat'));
+    await tester.longPress(find.text('Xin chào'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('message-action-forward')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(QChatShareSheet), findsOneWidget);
+    expect(find.text('Chuyển tiếp đến'), findsOneWidget);
+    expect(find.text('Gửi đến Trò chuyện'), findsOneWidget);
+    expect(find.text('Sao chép'), findsOneWidget);
+    expect(find.text('Báo cáo'), findsOneWidget);
+
+    await tester.tap(find.text('Quyết').last);
+    await tester.pumpAndSettle();
+    expect(client.calls, contains('/messages/message/forward'));
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('message action popover animates and keeps a screen margin', (
     tester,
   ) async {
