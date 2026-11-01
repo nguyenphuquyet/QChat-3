@@ -93,6 +93,7 @@ class _ContactNoteScreenState extends ConsumerState<ContactNoteScreen> {
     return QChatPage(
       title: '',
       glassHeader: false,
+      background: surface(c),
       statusBackground: surface(c),
       trailingWidth: 78,
       leading: Align(

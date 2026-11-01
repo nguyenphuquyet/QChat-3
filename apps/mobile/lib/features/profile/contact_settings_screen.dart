@@ -1,18 +1,90 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
+import '../../core/design_system/dialogs.dart';
 import '../../core/localization/strings.dart';
 
 /// WeChat's "Cài đặt" page for one contact, opened from the three dots on the
 /// profile.
 ///
-/// Only "Chỉnh sửa Ghi chú" is wired up. Permissions, sharing, starred,
-/// blocking, reporting and deleting the contact are drawn as wechat does but
-/// left as TODO, so they do not touch the account yet.
-class ContactSettingsScreen extends StatelessWidget {
+/// Every row talks to the account: the note editor opens the alias page, the
+/// block switch reads and writes `GET/POST/DELETE /blocks`, and "Xóa số liên
+/// lạc" removes the friendship after a confirmation.
+class ContactSettingsScreen extends ConsumerStatefulWidget {
   const ContactSettingsScreen({super.key, required this.userId});
   final String userId;
+
+  @override
+  ConsumerState<ContactSettingsScreen> createState() =>
+      _ContactSettingsScreenState();
+}
+
+class _ContactSettingsScreenState extends ConsumerState<ContactSettingsScreen> {
+  bool blocked = false, busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    loadBlocks();
+  }
+
+  Future<void> loadBlocks() async {
+    try {
+      final rows =
+          await ref.read(clientProvider).get('/blocks', cached: false) as List;
+      final isBlocked = rows.cast<Map>().any(
+        (row) => row['targetId'] == widget.userId,
+      );
+      if (mounted) setState(() => blocked = isBlocked);
+    } catch (_) {
+      // The switch stays off when the block list cannot be read.
+    }
+  }
+
+  Future<void> setBlocked(bool value) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      final client = ref.read(clientProvider);
+      if (value) {
+        await client.post('/blocks', {'targetId': widget.userId});
+      } else {
+        await client.dio.delete('/blocks/${widget.userId}');
+      }
+      client.changes.add(null);
+      if (mounted) setState(() => blocked = value);
+    } catch (_) {
+      if (mounted) showQChatToast(context, tr(context, 'operationFailed'));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> deleteContact() async {
+    if (busy) return;
+    final confirmed = await confirmAction(
+      context,
+      tr(context, 'deleteContact'),
+      tr(context, 'deleteContactNote'),
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => busy = true);
+    try {
+      final client = ref.read(clientProvider);
+      await client.dio.delete('/friends/${widget.userId}');
+      await client.local?.removeCache('/friends');
+      client.changes.add(null);
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => busy = false);
+      showQChatToast(context, tr(context, 'networkError'));
+    }
+  }
 
   @override
   Widget build(BuildContext c) => QChatPage(
@@ -31,40 +103,31 @@ class ContactSettingsScreen extends StatelessWidget {
           _row(
             c,
             tr(c, 'editNote'),
-            onTap: () => c.push('/user/$userId/note'),
+            onTap: () => c.push('/user/${widget.userId}/note'),
             chevron: true,
-          ),
-          // TODO(contact-settings): choose which details friends can see.
-          _row(c, tr(c, 'contactPermissions'), chevron: true, divider: false),
-        ]),
-        const SizedBox(height: 9),
-        _card(c, [
-          // TODO(contact-settings): share this contact's card in a chat.
-          _row(c, tr(c, 'shareContactCard'), chevron: true, divider: false),
-        ]),
-        const SizedBox(height: 9),
-        _card(c, [
-          // TODO(contact-settings): star a contact.
-          _row(c, tr(c, 'starred'), trailing: const QChatSwitch(value: false)),
-          // TODO(contact-settings): block a contact.
-          _row(
-            c,
-            tr(c, 'block'),
-            trailing: const QChatSwitch(value: false),
             divider: false,
           ),
         ]),
         const SizedBox(height: 9),
         _card(c, [
-          // TODO(contact-settings): report a contact.
-          _row(c, tr(c, 'report'), chevron: true, divider: false),
+          _row(
+            c,
+            tr(c, 'block'),
+            trailing: QChatSwitch(
+              key: const ValueKey('contact-settings-block'),
+              value: blocked,
+              onChanged: busy ? null : setBlocked,
+            ),
+            divider: false,
+          ),
         ]),
         const SizedBox(height: 9),
         _card(c, [
-          // TODO(contact-settings): delete the contact and its conversation.
           _row(
             c,
             tr(c, 'deleteContact'),
+            key: const ValueKey('contact-settings-delete'),
+            onTap: busy ? null : deleteContact,
             danger: true,
             centered: true,
             divider: false,
@@ -82,6 +145,7 @@ class ContactSettingsScreen extends StatelessWidget {
   Widget _row(
     BuildContext c,
     String label, {
+    Key? key,
     VoidCallback? onTap,
     Widget? trailing,
     bool chevron = false,
@@ -89,6 +153,7 @@ class ContactSettingsScreen extends StatelessWidget {
     bool centered = false,
     bool divider = true,
   }) => QChatPressable(
+    key: key,
     onTap: onTap,
     child: Container(
       height: 56,

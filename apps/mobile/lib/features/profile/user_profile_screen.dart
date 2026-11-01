@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
-import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 
@@ -103,23 +102,6 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       if (action == 'add' || action == 'addFriend') {
         await client.post('/friends/requests', {'recipientId': user!['id']});
         if (mounted) setState(() => sent = true);
-      } else if (action == 'deleteFriend') {
-        final confirmed = await confirmAction(
-          context,
-          tr(context, 'deleteFriend'),
-          tr(context, 'deleteFriendNote'),
-        );
-        if (!confirmed) return;
-        await client.dio.delete('/friends/${user!['id']}');
-        await client.local?.removeCache('/friends');
-        client.changes.add(null);
-        if (!mounted) return;
-        setState(() {
-          friend = false;
-          sent = false;
-          momentMedia = [];
-        });
-        await load();
       } else {
         final conversation = await client.post('/conversations', {
           'memberIds': [user!['id']],
@@ -139,13 +121,11 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     }
   }
 
-  Color body(BuildContext c) => qchatDark(c)
-      ? const Color(0xffb4b4b4)
-      : const Color(0xff4c4c4c);
+  Color body(BuildContext c) =>
+      qchatDark(c) ? const Color(0xffb4b4b4) : const Color(0xff4c4c4c);
 
-  Color line(BuildContext c) => qchatDark(c)
-      ? const Color(0xff2e2e2e)
-      : const Color(0xffe8e8e8);
+  Color line(BuildContext c) =>
+      qchatDark(c) ? const Color(0xff2e2e2e) : const Color(0xffe8e8e8);
 
   Widget header(Map u) {
     // A saved alias is the name WeChat shows for a contact; the account's own
@@ -303,12 +283,10 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       child: Center(
         child: Text(
           tr(context, label),
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: label == 'deleteFriend'
-                ? QChatColors.danger
-                : const Color(0xff576b95),
+            color: Color(0xff576b95),
           ),
         ),
       ),
@@ -476,12 +454,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
             if (!isSelf) ...[
               const SizedBox(height: 9),
               if (friend)
-                actionsCard([
-                  'messageUser',
-                  'voiceCall',
-                  'videoCall',
-                  'deleteFriend',
-                ])
+                actionsCard(['messageUser', 'voiceCall', 'videoCall'])
               else
                 actionsCard([sent ? 'friendRequestSent' : 'add']),
             ],

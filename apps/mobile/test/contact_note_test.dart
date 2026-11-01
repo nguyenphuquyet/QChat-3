@@ -1,10 +1,12 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/cupertino.dart' show CupertinoTextField;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qchat/app/providers.dart';
-import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/features/profile/contact_note_screen.dart';
 import 'package:qchat/features/profile/contact_settings_screen.dart';
@@ -48,6 +50,31 @@ class ContactClient extends QChatClient {
     patches[path] = data;
     return {'ok': true};
   }
+}
+
+/// Records the calls the contact controls send straight through `dio`, such as
+/// the block toggle and the DELETE that removes the friendship.
+class _RecordingTransport implements HttpClientAdapter {
+  final calls = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancelFuture,
+  ) async {
+    calls.add('${options.method} ${options.path}');
+    return ResponseBody.fromString(
+      '',
+      204,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 Future<void> mount(
@@ -156,6 +183,8 @@ void main() {
     expect(find.text('Sếp'), findsOneWidget);
     expect(find.byKey(const ValueKey('profile-note')), findsOneWidget);
     expect(find.byKey(const ValueKey('profile-more')), findsOneWidget);
+    // Deleting a contact lives in the three dots now, not on the profile.
+    expect(find.text('Xóa bạn bè'), findsNothing);
   });
 
   testWidgets('a stranger profile has neither contact control', (tester) async {
@@ -193,32 +222,45 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('profile-more')));
     await tester.pumpAndSettle();
-    expect(find.text('Chia sẻ Thẻ liên hệ'), findsOneWidget);
+    expect(find.text('Chặn'), findsOneWidget);
     expect(find.text('Xóa số liên lạc'), findsOneWidget);
   });
 
-  testWidgets('settings lists the wechat rows and leaves todos inert', (
+  testWidgets('the block switch blocks and unblocks the contact', (
     tester,
   ) async {
     final client = ContactClient(remark: 'Sếp');
+    final transport = _RecordingTransport();
+    client.dio.httpClientAdapter = transport;
     await mount(tester, client, const ContactSettingsScreen(userId: 'peer'));
 
-    for (final label in [
-      'Chỉnh sửa Ghi chú',
-      'Cài đặt quyền',
-      'Chia sẻ Thẻ liên hệ',
-      'Được gắn sao',
-      'Chặn',
-      'Báo cáo',
-      'Xóa số liên lạc',
-    ]) {
-      expect(find.text(label), findsOneWidget);
-    }
-    expect(find.byType(QChatSwitch), findsNWidgets(2));
+    final toggle = find.byKey(const ValueKey('contact-settings-block'));
+    expect(toggle, findsOneWidget);
 
-    await tester.tap(find.text('Chặn'));
-    await tester.pump();
-    expect(client.patches, isEmpty);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(transport.calls, ['POST /blocks']);
+
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(transport.calls.last, 'DELETE /blocks/peer');
+  });
+
+  testWidgets('deleting the contact confirms first and removes the friend', (
+    tester,
+  ) async {
+    final client = ContactClient(remark: 'Sếp');
+    final transport = _RecordingTransport();
+    client.dio.httpClientAdapter = transport;
+    await mount(tester, client, const ContactSettingsScreen(userId: 'peer'));
+
+    await tester.tap(find.byKey(const ValueKey('contact-settings-delete')));
+    await tester.pumpAndSettle();
+    expect(transport.calls, isEmpty);
+
+    await tester.tap(find.text('Xác nhận'));
+    await tester.pumpAndSettle();
+    expect(transport.calls, ['DELETE /friends/peer']);
   });
 
   testWidgets('the settings row opens the note editor', (tester) async {

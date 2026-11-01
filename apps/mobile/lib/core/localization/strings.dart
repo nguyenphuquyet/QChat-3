@@ -1202,6 +1202,11 @@ const translations = <String, List<String>>{
   'starred': ['Starred', 'Được gắn sao', '设为星标'],
   'block': ['Block', 'Chặn', '加入黑名单'],
   'deleteContact': ['Delete contact', 'Xóa số liên lạc', '删除联系人'],
+  'deleteContactNote': [
+    'Delete this contact? Your chat history stays on this device.',
+    'Xóa người này khỏi danh sách liên lạc? Lịch sử trò chuyện vẫn được giữ trên thiết bị.',
+    '删除该联系人？聊天记录仍保留在此设备。',
+  ],
   'contactPermissions': ['Permissions', 'Cài đặt quyền', '权限设置'],
 };
 String tr(BuildContext context, String key) {
