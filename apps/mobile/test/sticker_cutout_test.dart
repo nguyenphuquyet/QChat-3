@@ -318,27 +318,18 @@ void main() {
     expect(emojiPlainText('[微笑] nhé'), '微笑 nhé');
   });
 
-  testWidgets('a keyboard emoji is drawn in the artwork\'s square', (
-    tester,
-  ) async {
+  test('a keyboard emoji keeps the artwork\'s size on the line\'s baseline', () {
     for (final emoji in ['😎', '👨‍👩‍👧', '👍🏽', '🕺', '1️⃣']) {
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: QChatEmojiText(emoji, size: 20),
-        ),
+      final spans = emojiSpans(emoji, size: 20);
+      final run = spans.whereType<TextSpan>().firstWhere(
+        (span) => span.text == emoji,
       );
-      expect(
-        tester.getSize(
-          find.descendant(
-            of: find.byType(QChatEmojiText),
-            matching: find.byType(SizedBox),
-          ),
-        ),
-        const Size(20, 20),
-        reason: emoji,
-      );
+      expect(run.style?.fontSize, 20, reason: emoji);
+      // A text run, not a box: two emoji in one message share the line's
+      // baseline, so a pair never drifts apart.
+      expect(spans.whereType<WidgetSpan>(), isEmpty, reason: emoji);
     }
+    expect(emojiSpans('😁😂', size: 20).whereType<TextSpan>(), hasLength(2));
   });
 
   testWidgets('the composer paints a finished code as its picture', (

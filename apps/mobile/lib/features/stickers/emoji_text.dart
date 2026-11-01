@@ -46,16 +46,7 @@ List<InlineSpan> emojiSpans(String text, {double size = 20}) {
 
   void addText(int start, int end) {
     if (end <= start) return;
-    final run = text.substring(start, end);
-    var at = 0;
-    for (final match in systemEmoji.allMatches(run)) {
-      if (match.start > at) {
-        spans.add(TextSpan(text: run.substring(at, match.start)));
-      }
-      spans.add(_emojiBox(match[0]!, size));
-      at = match.end;
-    }
-    if (at < run.length) spans.add(TextSpan(text: run.substring(at)));
+    addPlatformEmoji(spans, text.substring(start, end), size);
   }
 
   for (final match in weChatEmojiToken.allMatches(text)) {
@@ -83,28 +74,28 @@ List<InlineSpan> emojiSpans(String text, {double size = 20}) {
   return spans.isEmpty ? [TextSpan(text: text)] : spans;
 }
 
-/// One platform emoji, drawn in the same square as a bundled picture.
+/// One platform emoji, drawn as text at the size of a bundled picture.
 ///
-/// The box is fixed so a system emoji cannot stretch the line: the same 20pt
-/// square that holds a WeChat picture holds the font's glyph.
-InlineSpan _emojiBox(String glyph, double size) => WidgetSpan(
-  alignment: PlaceholderAlignment.middle,
-  child: Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 1),
-    child: SizedBox.square(
-      dimension: size,
-      child: Center(
-        child: Text(
-          glyph,
-          maxLines: 1,
-          softWrap: false,
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: size, height: 1),
-        ),
-      ),
-    ),
-  ),
-);
+/// It stays a text run instead of a box of its own: every emoji on the line
+/// then shares that line's baseline, so a pair such as `😁😂` sits level even
+/// when the platform draws each glyph from a different fallback font. A box
+/// per emoji would give each glyph its own baseline and they would drift apart.
+InlineSpan _emojiRun(String glyph, double size) =>
+    TextSpan(text: glyph, style: TextStyle(fontSize: size, height: 1));
+
+/// Splits [run] so every platform emoji in it is drawn at [size] and the rest
+/// stays as it was typed.
+void addPlatformEmoji(List<InlineSpan> spans, String run, double size) {
+  var at = 0;
+  for (final match in systemEmoji.allMatches(run)) {
+    if (match.start > at) {
+      spans.add(TextSpan(text: run.substring(at, match.start)));
+    }
+    spans.add(_emojiRun(match[0]!, size));
+    at = match.end;
+  }
+  if (at < run.length) spans.add(TextSpan(text: run.substring(at)));
+}
 
 /// Platform emoji, as one grapheme each: a flag is two regional indicators, a
 /// skin tone and a zero-width joiner stay with the emoji they modify.
@@ -158,7 +149,11 @@ class EmojiTextEditingController extends TextEditingController {
       final emoji = wechatEmojiByCode[match.group(1)];
       if (emoji == null) continue;
       if (match.start > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+        addPlatformEmoji(
+          spans,
+          text.substring(cursor, match.start),
+          pictureSize,
+        );
       }
       spans.add(
         WidgetSpan(
@@ -186,7 +181,7 @@ class EmojiTextEditingController extends TextEditingController {
       cursor = match.end;
     }
     if (cursor < text.length) {
-      spans.add(TextSpan(text: text.substring(cursor)));
+      addPlatformEmoji(spans, text.substring(cursor), pictureSize);
     }
     return TextSpan(style: style, children: spans);
   }
