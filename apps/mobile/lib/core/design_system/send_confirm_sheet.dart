@@ -136,40 +136,40 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
                   widget.title ?? tr(c, 'sendTo'),
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 18,
                     height: 1.2,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -.2,
                     color: ink,
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 16),
                 _RecipientRow(
                   recipient: widget.recipient,
                   extra: widget.extra,
                   onChange: widget.changeable ? _change : null,
                 ),
-                const SizedBox(height: 26),
+                const SizedBox(height: 20),
                 Center(
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 260),
+                    constraints: const BoxConstraints(maxWidth: 230),
                     child: _PreviewCard(preview: widget.preview, card: card),
                   ),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 20),
                 _Composer(
                   controller: _note,
                   hint: widget.hint ?? tr(c, 'sendMessageHint'),
                   background: field,
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     Expanded(
@@ -221,17 +221,17 @@ class _RecipientRow extends StatelessWidget {
     child: Row(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: SizedBox.square(dimension: 56, child: recipient.avatar),
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox.square(dimension: 48, child: recipient.avatar),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: 14),
         Expanded(
           child: Text(
             recipient.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: 17,
               height: 1.2,
               fontWeight: FontWeight.w600,
               color: qchatInk(c),
@@ -243,7 +243,7 @@ class _RecipientRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 6),
             child: Text(
               '+$extra',
-              style: TextStyle(fontSize: 16, color: qchatMuted(c)),
+              style: TextStyle(fontSize: 14, color: qchatMuted(c)),
             ),
           ),
         if (onChange != null)
@@ -251,7 +251,7 @@ class _RecipientRow extends StatelessWidget {
             padding: EdgeInsets.only(left: 8),
             child: QChatIcon(
               'chevron',
-              size: 22,
+              size: 20,
               color: Color(0xffb2b2b2),
             ),
           ),
@@ -267,10 +267,10 @@ class _PreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) => Container(
-    padding: const EdgeInsets.all(12),
+    padding: const EdgeInsets.all(10),
     decoration: BoxDecoration(
       color: card,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(10),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -282,52 +282,48 @@ class _PreviewCard extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: SizedBox.square(
-                    dimension: 16,
+                    dimension: 14,
                     child: preview.sourceIcon,
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 5),
               ],
               Expanded(
                 child: Text(
                   preview.source!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 13, color: qchatMuted(c)),
+                  style: TextStyle(fontSize: 12, color: qchatMuted(c)),
                 ),
               ),
             ],
           ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         Text(
           preview.title,
           maxLines: 3,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontSize: 17,
-            height: 1.3,
-            color: qchatInk(c),
-          ),
+          style: TextStyle(fontSize: 15, height: 1.3, color: qchatInk(c)),
         ),
         if (preview.image != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: AspectRatio(aspectRatio: 1.1, child: preview.image!),
           ),
         ],
         if (preview.footer != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             children: [
-              QChatIcon(preview.footerIcon, size: 15, color: qchatMuted(c)),
-              const SizedBox(width: 6),
+              QChatIcon(preview.footerIcon, size: 13, color: qchatMuted(c)),
+              const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   preview.footer!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, color: qchatMuted(c)),
+                  style: TextStyle(fontSize: 12.5, color: qchatMuted(c)),
                 ),
               ),
             ],
@@ -353,41 +349,41 @@ class _Composer extends StatelessWidget {
     children: [
       Expanded(
         child: Container(
-          height: 56,
+          height: 48,
           decoration: BoxDecoration(
             color: background,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
             children: [
-              const SizedBox(width: 18),
+              const SizedBox(width: 16),
               Expanded(
                 child: CupertinoTextField(
                   controller: controller,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   placeholder: hint,
                   placeholderStyle: TextStyle(
-                    fontSize: 17,
+                    fontSize: 15,
                     color: qchatMuted(c),
                   ),
-                  style: TextStyle(fontSize: 17, color: qchatInk(c)),
+                  style: TextStyle(fontSize: 15, color: qchatInk(c)),
                   cursorColor: QChatColors.green,
                   decoration: null,
                 ),
               ),
               const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 14),
+                padding: EdgeInsets.symmetric(horizontal: 12),
                 child: ExcludeSemantics(
-                  child: QChatIcon('voice', size: 22, color: QChatColors.muted),
+                  child: QChatIcon('voice', size: 20, color: QChatColors.muted),
                 ),
               ),
             ],
           ),
         ),
       ),
-      const SizedBox(width: 14),
+      const SizedBox(width: 12),
       const ExcludeSemantics(
-        child: QChatIcon('emoji', size: 30, color: QChatColors.ink),
+        child: QChatIcon('emoji', size: 26, color: QChatColors.ink),
       ),
     ],
   );
@@ -410,14 +406,14 @@ class _SheetButton extends StatelessWidget {
     radius: BorderRadius.circular(12),
     onTap: onTap,
     child: SizedBox(
-      height: 56,
+      height: 50,
       child: Center(
         child: Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            fontSize: 17,
+            fontSize: 16,
             height: 1.2,
             fontWeight: FontWeight.w600,
             color: color,
@@ -446,23 +442,31 @@ Future<QChatSendResult?> showQChatSendConfirmSheet(
   transitionDuration: qchatOverlayDuration,
   pageBuilder: (c, _, _) {
     final media = MediaQuery.of(c);
-    final height = math.max(
+    // Hug the content instead of filling the screen: the sheet stays on the
+    // bottom edge, so a short card does not leave a grey void under the
+    // buttons. Very tall content scrolls inside the cap.
+    final maxHeight = math.max(
       320.0,
       media.size.height - media.padding.top - media.viewInsets.bottom,
     );
     return Align(
       alignment: Alignment.bottomCenter,
-      child: SizedBox(
-        width: media.size.width,
-        height: height,
-        child: QChatSendConfirmSheet(
-          title: title,
-          recipient: recipient,
-          extra: extra,
-          preview: preview,
-          hint: hint,
-          sendLabel: sendLabel,
-          changeable: changeable,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: media.size.width,
+          maxHeight: maxHeight,
+        ),
+        child: SizedBox(
+          width: media.size.width,
+          child: QChatSendConfirmSheet(
+            title: title,
+            recipient: recipient,
+            extra: extra,
+            preview: preview,
+            hint: hint,
+            sendLabel: sendLabel,
+            changeable: changeable,
+          ),
         ),
       ),
     );

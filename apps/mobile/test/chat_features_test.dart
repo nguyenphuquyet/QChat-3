@@ -362,6 +362,11 @@ void main() {
     expect(find.text('Gửi đến'), findsOneWidget);
     expect(find.text('Gửi tin nhắn'), findsOneWidget);
     expect(client.calls, isNot(contains('/messages/message/forward')));
+    // The sheet hugs its content on the bottom edge instead of filling the
+    // screen and leaving a grey void under the buttons.
+    final sheet = tester.getRect(find.byType(QChatSendConfirmSheet));
+    expect(sheet.bottom, tester.view.physicalSize.height);
+    expect(sheet.top, greaterThan(200));
 
     await tester.enterText(
       find.descendant(

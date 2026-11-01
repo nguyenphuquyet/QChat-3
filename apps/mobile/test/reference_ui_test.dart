@@ -205,12 +205,12 @@ class _ShareSheetPreview extends StatelessWidget {
             QChatShareTarget(
               id: 'a',
               name: 'Quyết',
-              avatar: QChatAvatar('Quyết', size: 66),
+              avatar: QChatAvatar('Quyết', size: 60),
             ),
             QChatShareTarget(
               id: 'b',
               name: 'Linh',
-              avatar: QChatAvatar('Linh', size: 66),
+              avatar: QChatAvatar('Linh', size: 60),
             ),
           ],
           onAdd: _noop,
@@ -290,16 +290,17 @@ class _SendConfirmPreview extends StatelessWidget {
   Widget build(BuildContext c) => Stack(
     children: [
       const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
-      Positioned.fill(
+      Align(
+        alignment: Alignment.bottomCenter,
         child: QChatSendConfirmSheet(
           recipient: const QChatShareTarget(
             id: 'a',
             name: 'Quyết',
-            avatar: QChatAvatar('Quyết', size: 56),
+            avatar: QChatAvatar('Quyết', size: 48),
           ),
           preview: const QChatSendPreview(
             source: '安徽省科技馆',
-            sourceIcon: QChatAvatar('安', size: 16),
+            sourceIcon: QChatAvatar('安', size: 14),
             title: '安徽省科技馆',
             image: ColoredBox(color: Color(0xff8899cc)),
             footer: 'Chương trình nhỏ',

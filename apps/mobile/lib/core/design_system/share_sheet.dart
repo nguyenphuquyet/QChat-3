@@ -57,8 +57,8 @@ class QChatShareAction {
   final String? result;
 }
 
-const _tileSize = 66.0;
-const _tileGap = 10.0;
+const _tileSize = 60.0;
+const _tileGap = 8.0;
 const _sheetRadius = 20.0;
 
 /// The share panel used across the app: recent recipients on top, app actions
@@ -130,13 +130,13 @@ class QChatShareSheet extends StatelessWidget {
               children: [
                 if (title != null)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                     child: Text(
                       title!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 21,
+                        fontSize: 18,
                         height: 1.2,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -.2,
@@ -146,7 +146,7 @@ class QChatShareSheet extends StatelessWidget {
                   ),
                 if (hasTargets)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 18, 0, 20),
+                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
                     child: QChatRecentTargets(
                       targets: targets,
                       tileSize: _tileSize,
@@ -158,7 +158,7 @@ class QChatShareSheet extends StatelessWidget {
                 if (hasTargets && (actions.isNotEmpty)) _Divider(color: line),
                 if (actions.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
                     child: LayoutBuilder(
                       builder: (c, box) {
                         // Four equal columns that shrink together on a narrow
@@ -211,12 +211,12 @@ class QChatShareSheet extends StatelessWidget {
                   background: QChatColors.transparent,
                   onTap: () => Navigator.maybePop(c),
                   child: SizedBox(
-                    height: 56,
+                    height: 50,
                     child: Center(
                       child: Text(
                         tr(c, 'cancel'),
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           height: 1.2,
                           fontWeight: FontWeight.w500,
                           color: cancelColor,
@@ -365,7 +365,7 @@ class _ShareTargetTile extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12.5,
+              fontSize: 11.5,
               height: 1.2,
               color: qchatDark(c) ? const Color(0xffc9c9c9) : const Color(0xff4d4d4d),
             ),
@@ -424,7 +424,7 @@ class _AddTargetTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: 11.5,
                   height: 1.2,
                   color: qchatDark(c)
                       ? const Color(0xffc9c9c9)
@@ -480,7 +480,7 @@ class _ShareActionTile extends StatelessWidget {
                 ),
                 child: QChatIcon(
                   action.icon,
-                  size: 32,
+                  size: 28,
                   color: action.color ?? qchatInk(c),
                 ),
               ),
@@ -498,7 +498,7 @@ class _ShareActionTile extends StatelessWidget {
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12.5, height: 1.22, color: label),
+            style: TextStyle(fontSize: 11.5, height: 1.22, color: label),
           ),
           if (action.note != null) ...[
             const SizedBox(height: 2),
@@ -507,7 +507,7 @@ class _ShareActionTile extends StatelessWidget {
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 11.5, height: 1.2, color: note),
+              style: TextStyle(fontSize: 10.5, height: 1.2, color: note),
             ),
           ],
         ],
@@ -526,12 +526,12 @@ class _Badge extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
     ),
     child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       child: Text(
         text,
         style: const TextStyle(
           color: QChatColors.white,
-          fontSize: 11.5,
+          fontSize: 10.5,
           height: 1.15,
           fontWeight: FontWeight.w600,
         ),
