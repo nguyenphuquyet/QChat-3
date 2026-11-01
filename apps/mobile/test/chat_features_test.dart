@@ -330,7 +330,7 @@ void main() {
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
-  testWidgets('forward opens the share sheet and sends to a recent chat', (
+  testWidgets('forward opens the recipient picker, then the send sheet', (
     tester,
   ) async {
     final client = ForwardClient();
@@ -340,51 +340,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('message-action-forward')));
     await tester.pumpAndSettle();
 
-    expect(find.byType(QChatShareSheet), findsOneWidget);
-    expect(find.text('Chuyển tiếp đến'), findsOneWidget);
-    expect(find.text('Gửi đến Trò chuyện'), findsOneWidget);
-    expect(find.text('Sao chép'), findsOneWidget);
-    expect(find.text('Báo cáo'), findsOneWidget);
-    expect(find.text('Mục ưa thích'), findsOneWidget);
-    // The tools that already live in the message menu stay out of the sheet.
-    for (final label in ['Trích dẫn', 'Tìm kiếm', 'Chọn', 'Xóa phía tôi']) {
-      expect(find.text(label), findsNothing);
-    }
-    // Four tiles share one line, all at the same height.
-    final tops = <double>{
-      for (final label in const [
-        'Gửi đến Trò chuyện',
-        'Mục ưa thích',
-        'Sao chép',
-        'Báo cáo',
-      ])
-        tester.getTopLeft(find.text(label)).dy,
-    };
-    expect(tops, hasLength(1));
-
-    // A quick avatar is a receiver too, so it opens the same send sheet.
-    await tester.tap(find.text('Linh').last);
-    await tester.pumpAndSettle();
-    expect(find.byType(QChatSendConfirmSheet), findsOneWidget);
-    expect(client.calls, isNot(contains('/messages/message/forward')));
-
-    await tester.tap(find.text('Gửi Để Trò chuyện'));
-    await tester.pumpAndSettle();
-    expect(client.calls, contains('/messages/message/forward'));
-    expect(tester.takeException(), isNull);
-  });
-  testWidgets('send in chat opens the full picker from the bottom', (
-    tester,
-  ) async {
-    final client = ForwardClient();
-    await mount(tester, client, const ChatScreen(id: 'chat'));
-    await tester.longPress(find.text('Xin chào'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('message-action-forward')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Gửi đến Trò chuyện'));
-    await tester.pumpAndSettle();
-
+    // Forwarding goes straight to the recipient list, not through the share
+    // panel: the panel is for sharing content such as Mini Apps and links.
+    expect(find.byType(QChatShareSheet), findsNothing);
     expect(find.byType(QChatForwardPicker), findsOneWidget);
     expect(find.text('Chọn cuộc trò chuyện'), findsOneWidget);
     // The chat the user is already in cannot receive the forward.

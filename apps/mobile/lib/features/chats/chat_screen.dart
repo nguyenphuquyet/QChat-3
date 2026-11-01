@@ -1185,51 +1185,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     ),
   );
 
+  /// "Chuyển tiếp": straight to the recipient picker, which hands over to the
+  /// send sheet. The share panel is for sharing content (Mini Apps, links);
+  /// favourite, copy, quote, search, select and delete already live in the
+  /// message menu, and reporting lives in the chat details page.
   Future<void> forward(List<Map<String, dynamic>> rows) async {
     try {
-      final client = ref.read(clientProvider);
-      final chats = await client.get('/conversations', cached: false) as List;
+      final chats =
+          await ref.read(clientProvider).get('/conversations', cached: false)
+              as List;
       if (!mounted) return;
-      final selfId = client.userId ?? '';
-      final passed = await showQChatShareSheet(
-        context,
-        title: tr(context, 'forwardTo'),
-        targets: [
-          for (final chat in chats.where((c) => c['id'] != widget.id).take(12))
-            conversationShareTarget(chat as Map, selfId),
-        ],
-        onAdd: () => _pickForwardTarget(rows, chats),
-        actions: [
-          QChatShareAction(
-            icon: 'share',
-            label: tr(context, 'sendToChat'),
-            color: QChatColors.green,
-            onTap: () => _pickForwardTarget(rows, chats),
-          ),
-          QChatShareAction(
-            icon: 'favorites',
-            label: tr(context, 'favorites'),
-            color: const Color(0xfff0a020),
-            onTap: () => _favorite(rows),
-          ),
-          QChatShareAction(
-            icon: 'copy',
-            label: tr(context, 'copy'),
-            color: const Color(0xff168fe5),
-            onTap: () => _copyMessages(rows),
-          ),
-          QChatShareAction(
-            icon: 'report',
-            label: tr(context, 'report'),
-            color: const Color(0xffff9c38),
-            onTap: _reportChat,
-          ),
-        ],
-      );
-      if (passed == null) return;
-      // A quick avatar on the panel is a receiver too: it opens the same send
-      // sheet instead of sending straight away.
-      await _confirmForward([passed], chats, rows);
+      await _pickForwardTarget(rows, chats);
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
     }
@@ -1248,8 +1214,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return '';
   }
 
-  /// Full list for a receiver that is not in the strip: the sheet's "add"
-  /// tile and the "Gửi đến Trò chuyện" action both open it.
+  /// Pick receivers, then confirm on the send sheet. Nothing leaves the chat
+  /// until the green button is tapped, and the chevron can swap receivers.
   Future<void> _pickForwardTarget(
     List<Map<String, dynamic>> rows,
     List chats,
@@ -1257,7 +1223,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (!mounted) return;
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
-
     final picked = await _pickChats(chats, selfId);
     if (!mounted || picked == null) return;
     // An empty result is the "Cuộc trò chuyện mới" link, not a forward.
@@ -1265,19 +1230,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       context.push('/groups/new');
       return;
     }
-    await _confirmForward(picked, chats, rows);
-  }
-
-  /// The send sheet, opened whichever way a receiver was chosen: a quick
-  /// avatar on the share panel, the dashed "add" tile, or the full picker.
-  /// Nothing leaves the chat until the green button is tapped.
-  Future<void> _confirmForward(
-    List<String> picked,
-    List chats,
-    List<Map<String, dynamic>> rows,
-  ) async {
-    final client = ref.read(clientProvider);
-    final selfId = client.userId ?? '';
 
     Map? chatById(String id) {
       for (final chat in chats) {
@@ -1375,62 +1327,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         selecting = false;
         selected.clear();
       });
-    }
-  }
-
-  Future<void> _favorite(List<Map<String, dynamic>> rows) async {
-    final client = ref.read(clientProvider);
-    try {
-      for (final row in rows) {
-        await client.dio.patch(
-          '/messages/${row['id']}/favorite',
-          data: {'favorite': true},
-        );
-      }
-      if (mounted) showQChatToast(context, tr(context, 'favorites'));
-    } catch (_) {
-      if (mounted) setState(() => error = tr(context, 'networkError'));
-    }
-  }
-
-  void _copyMessages(List<Map<String, dynamic>> rows) {
-    final text = rows
-        .map(
-          (row) => row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET'
-              ? moneySummary(row)
-              : (row['text'] ?? '').toString().trim(),
-        )
-        .where((line) => line.isNotEmpty)
-        .join('\n');
-    if (text.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: text));
-    showQChatToast(context, tr(context, 'copied'));
-  }
-
-  Future<void> _reportChat() async {
-    final reason = await editText(
-      context,
-      tr(context, 'report'),
-      maxLength: 2000,
-      lines: 4,
-    );
-    if (reason == null || reason.trim().isEmpty) return;
-    try {
-      await ref.read(clientProvider).post('/reports', {
-        'targetId': widget.id,
-        'reason': reason,
-      });
-      if (mounted) {
-        await showQChatDialog<void>(
-          context,
-          message: tr(context, 'reportSent'),
-          actions: [
-            QChatDialogAction(label: tr(context, 'confirm'), primary: true),
-          ],
-        );
-      }
-    } catch (_) {
-      if (mounted) setState(() => error = tr(context, 'networkError'));
     }
   }
 
