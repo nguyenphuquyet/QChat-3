@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -27,6 +29,42 @@ img.Image sheet() {
     color: img.ColorRgba8(40, 80, 220, 255),
   );
   return image;
+}
+
+/// A tiny monochrome WBMP: one square on a field. Only Flutter's decoder reads
+/// the format, which is what the re-encode fallback is for.
+Uint8List wbmp(int side) {
+  final rowBytes = (side + 7) ~/ 8;
+  final bytes = <int>[0, 0];
+  // WBMP sizes are seven bits per byte, the top bit meaning "more to come".
+  void put(int value) {
+    final parts = <int>[];
+    do {
+      parts.insert(0, value & 0x7f);
+      value >>= 7;
+    } while (value > 0);
+    for (var i = 0; i < parts.length - 1; i++) {
+      parts[i] |= 0x80;
+    }
+    bytes.addAll(parts);
+  }
+
+  put(side);
+  put(side);
+  for (var y = 0; y < side; y++) {
+    for (var b = 0; b < rowBytes; b++) {
+      var value = 0;
+      for (var bit = 0; bit < 8; bit++) {
+        final x = b * 8 + bit;
+        if (x >= side) continue;
+        final inside =
+            x > side * .2 && x < side * .8 && y > side * .2 && y < side * .8;
+        if (inside) value |= 0x80 >> bit;
+      }
+      bytes.add(value);
+    }
+  }
+  return Uint8List.fromList(bytes);
 }
 
 void main() {
@@ -158,6 +196,21 @@ void main() {
       expect(sticker.mime, 'image/png');
       expect(sticker.bytes.take(4), [0x89, 0x50, 0x4e, 0x47]);
     }
+  });
+
+  test('a picture only Flutter can read is re-encoded and cut', () async {
+    // A WBMP: Flutter's decoder shows it (that is how the studio's preview
+    // draws the picked file), while the `image` package has no decoder for it
+    // and reports no picture at all.
+    final bytes = wbmp(160);
+    expect(img.decodeImage(bytes), isNull);
+
+    final stickers = await extractStickers(bytes);
+
+    expect(stickers, hasLength(1));
+    final artwork = img.decodePng(stickers.single.bytes);
+    expect(artwork, isNotNull);
+    expect(artwork!.width, artwork.height);
   });
 
   test('every WeChat emoji code becomes an inline picture span', () {

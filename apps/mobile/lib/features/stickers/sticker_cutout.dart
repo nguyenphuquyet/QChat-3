@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show compute;
 import 'package:image/image.dart' as img;
@@ -37,17 +38,45 @@ class ExtractedSticker {
 ///
 /// GIF frames are read as an animation. Every frame is cut with the same boxes,
 /// so an animated sticker stays animated.
+///
+/// A picture the `image` package refuses is re-encoded by Flutter's own decoder
+/// and cut again, so a sticker saved from another app (a WebP variant, a HEIC,
+/// a lightly damaged JPEG) is artwork like any other photo.
 Future<List<ExtractedSticker>> extractStickers(
   Uint8List source, {
   bool split = true,
   bool removeBackground = false,
 }) async {
   if (source.isEmpty) return const [];
-  final result = await compute(_extract, {
-    'bytes': source,
-    'split': split,
-    'removeBackground': removeBackground,
-  });
+  List<Map<String, Object>>? result;
+  Object? failure;
+  try {
+    result = await _cut(source, split: split, removeBackground: removeBackground);
+  } catch (error) {
+    failure = error;
+  }
+  if (result == null || result.isEmpty) {
+    // The preview was drawn by Flutter, so when `image` comes back empty or
+    // throws, Flutter can still read the picture: re-encode it as a bounded
+    // PNG and run the same cut on that.
+    final png = await _asPng(source);
+    if (png != null) {
+      try {
+        result = await _cut(
+          png,
+          split: split,
+          removeBackground: removeBackground,
+        );
+        failure = null;
+      } catch (error) {
+        failure = error;
+      }
+    }
+  }
+  if (result == null) {
+    if (failure != null) throw failure;
+    return const [];
+  }
   return [
     for (final row in result)
       ExtractedSticker(
@@ -57,6 +86,66 @@ Future<List<ExtractedSticker>> extractStickers(
         height: row['height'] as int,
       ),
   ];
+}
+
+/// One extraction pass in the background isolate.
+Future<List<Map<String, Object>>> _cut(
+  Uint8List bytes, {
+  required bool split,
+  required bool removeBackground,
+}) => compute(_extract, {
+  'bytes': bytes,
+  'split': split,
+  'removeBackground': removeBackground,
+});
+
+/// [bytes] as a PNG no larger than [_maxSide], decoded by Flutter rather than by
+/// the `image` package, or null when not even Flutter can read the picture.
+///
+/// The codec is asked for the bounded size up front, so a 50-megapixel photo
+/// never becomes a full-size bitmap in the frame that asked for it. A codec
+/// that refuses to be sized (WBMP is one) is read whole instead.
+Future<Uint8List?> _asPng(Uint8List bytes) async =>
+    await _boundedPng(bytes) ?? await _plainPng(bytes);
+
+Future<Uint8List?> _boundedPng(Uint8List bytes) async {
+  ui.ImageDescriptor? descriptor;
+  ui.Codec? codec;
+  try {
+    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    descriptor = await ui.ImageDescriptor.encoded(buffer);
+    final longest = math.max(descriptor.width, descriptor.height);
+    final scale = longest > _maxSide ? _maxSide / longest : 1.0;
+    codec = await descriptor.instantiateCodec(
+      targetWidth: math.max(1, (descriptor.width * scale).round()),
+      targetHeight: math.max(1, (descriptor.height * scale).round()),
+    );
+    return await _pngOf(codec);
+  } catch (_) {
+    return null;
+  } finally {
+    codec?.dispose();
+    descriptor?.dispose();
+  }
+}
+
+Future<Uint8List?> _plainPng(Uint8List bytes) async {
+  ui.Codec? codec;
+  try {
+    codec = await ui.instantiateImageCodec(bytes);
+    return await _pngOf(codec);
+  } catch (_) {
+    return null;
+  } finally {
+    codec?.dispose();
+  }
+}
+
+Future<Uint8List?> _pngOf(ui.Codec codec) async {
+  final frame = await codec.getNextFrame();
+  final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+  frame.image.dispose();
+  return data?.buffer.asUint8List();
 }
 
 /// Artwork beyond this edge is scaled down before it is analysed. 720 px is
