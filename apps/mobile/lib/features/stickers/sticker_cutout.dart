@@ -116,7 +116,9 @@ List<Map<String, Object>> _extract(Map<String, Object?> args) {
     final width = crops.first.width, height = crops.first.height;
     result.add({
       'bytes': bytes,
-      'animated': animated,
+      // Only a sheet with more than one frame is encoded as a GIF. A GIF with a
+      // single frame comes out as a PNG, so it must not be declared as one.
+      'animated': crops.length > 1,
       'width': width,
       'height': height,
     });

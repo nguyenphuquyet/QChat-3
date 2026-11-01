@@ -147,6 +147,19 @@ void main() {
     expect(decoded!.frames.length, greaterThan(1));
   });
 
+  test('a GIF with one frame is a PNG, not a mislabelled GIF', () async {
+    final stickers = await extractStickers(img.encodeGif(sheet()));
+
+    expect(stickers, isNotEmpty);
+    for (final sticker in stickers) {
+      // The encoder writes a PNG for a single frame, so the artwork must be
+      // declared a PNG: the server compares the declared mime with the bytes.
+      expect(sticker.animated, isFalse);
+      expect(sticker.mime, 'image/png');
+      expect(sticker.bytes.take(4), [0x89, 0x50, 0x4e, 0x47]);
+    }
+  });
+
   test('every WeChat emoji code becomes an inline picture span', () {
     expect(wechatEmojiSet, hasLength(109));
     expect(wechatEmojiByCode['旺柴'], isNotNull);

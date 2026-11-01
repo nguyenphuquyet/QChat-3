@@ -136,12 +136,11 @@ Future<XFile> _fittedAsset(AssetEntity asset, MediaFit fit) async {
           ),
   );
   if (data == null) throw StateError('mediaUnavailable');
-  final fitted = await fitImageBytes(data, fit, 'image/jpeg');
-  final png = fitted.mimeType == 'image/png';
+  final fitted = await fitImageBytes(data, fit);
   return XFile.fromData(
     fitted.bytes,
     mimeType: fitted.mimeType,
-    name: png ? 'image.png' : 'image.jpg',
+    name: 'image.${imageExtension(fitted.mimeType)}',
   );
 }
 

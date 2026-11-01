@@ -168,8 +168,8 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
         const MediaFit(width: 1600, height: 1600, quality: .9),
       );
       final bytes = await fitted.readAsBytes();
-      final mime = fitted.mimeType ?? 'image/png';
-      final extension = mime == 'image/png' ? 'png' : 'jpg';
+      final mime = fitted.mimeType ?? 'image/jpeg';
+      final extension = imageExtension(mime);
       final client = ref.read(clientProvider);
       final mediaId = await uploadStickerArtwork(
         client,
