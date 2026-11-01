@@ -973,6 +973,7 @@ const translations = <String, List<String>>{
   'miniAppsCopied': ['Copied to clipboard', 'Đã sao chép', '已复制'],
   'miniAppsShareTitle': ['Share', 'Chia sẻ', '分享'],
   'miniAppsShareCopy': ['Copy text', 'Sao chép nội dung', '复制内容'],
+  'copyLink': ['Copy link', 'Sao chép liên kết', '复制链接'],
   'miniAppsFeatured': ['Featured', 'Nổi bật', '精选'],
   'miniAppsMore': ['More mini programs', 'Thêm chương trình nhỏ', '更多小程序'],
   'miniAppsCount': ['{n} mini programs', '{n} chương trình nhỏ', '{n} 个小程序'],

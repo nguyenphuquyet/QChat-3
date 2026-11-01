@@ -330,6 +330,33 @@ void main() {
     expect(find.text('Gửi đến Trò chuyện'), findsOneWidget);
     expect(find.text('Sao chép'), findsOneWidget);
     expect(find.text('Báo cáo'), findsOneWidget);
+    // Eight tiles fill two rows of four, so the grid never leaves a hole in
+    // the panel: send, favourite, quote and copy on top, then the tools.
+    for (final label in [
+      'Mục ưa thích',
+      'Trích dẫn',
+      'Tìm kiếm',
+      'Chọn',
+      'Xóa phía tôi',
+    ]) {
+      expect(find.text(label), findsOneWidget);
+    }
+    // Every tile sits on one of two lines, four to a line.
+    final perRow = <double, int>{};
+    for (final label in const [
+      'Gửi đến Trò chuyện',
+      'Mục ưa thích',
+      'Trích dẫn',
+      'Sao chép',
+      'Tìm kiếm',
+      'Chọn',
+      'Xóa phía tôi',
+      'Báo cáo',
+    ]) {
+      final y = tester.getTopLeft(find.text(label)).dy;
+      perRow[y] = (perRow[y] ?? 0) + 1;
+    }
+    expect(perRow.values.toList()..sort(), [4, 4]);
 
     await tester.tap(find.text('Linh').last);
     await tester.pumpAndSettle();

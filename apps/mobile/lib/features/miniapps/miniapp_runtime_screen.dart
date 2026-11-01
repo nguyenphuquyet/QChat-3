@@ -494,8 +494,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     );
   }
 
-  /// Reserved sheet result so a copy can be told apart from a chat id.
+  /// Reserved sheet results so a copy can be told apart from a chat id.
   static const _copyResult = 'share:copy';
+  static const _linkResult = 'share:link';
 
   /// `share`: the same share panel the chat uses. The text can go to a
   /// conversation through the forward picker, or to the clipboard.
@@ -530,11 +531,26 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
           color: const Color(0xff168fe5),
           result: _copyResult,
         ),
+        if (url.isNotEmpty)
+          QChatShareAction(
+            icon: 'miniApps',
+            label: tr(context, 'copyLink'),
+            color: const Color(0xff8a63d2),
+            result: _linkResult,
+          ),
+        QChatShareAction(
+          icon: 'heart',
+          label: tr(context, _favorite ? 'miniAppsUnfavorite' : 'miniAppsFavorite'),
+          color: const Color(0xfff0a020),
+          onTap: _toggleFavorite,
+        ),
       ],
     );
     if (!mounted) return false;
-    if (picked == _copyResult) {
-      await Clipboard.setData(ClipboardData(text: body));
+    if (picked == _copyResult || picked == _linkResult) {
+      await Clipboard.setData(
+        ClipboardData(text: picked == _linkResult ? url : body),
+      );
       if (mounted) _showToast(tr(context, 'miniAppsCopied'), 'success');
       return true;
     }

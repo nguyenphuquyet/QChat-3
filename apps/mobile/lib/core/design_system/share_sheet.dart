@@ -62,7 +62,7 @@ const _tileGap = 10.0;
 const _sheetRadius = 20.0;
 
 /// The share panel used across the app: recent recipients on top, app actions
-/// in a horizontal two-row grid, and a Cancel row at the bottom.
+/// in a four-column grid, and a Cancel row at the bottom.
 ///
 /// The look is the one the product approved: a soft grey sheet with white
 /// rounded action tiles, a dashed "add" tile beside the recent avatars and a
@@ -76,7 +76,7 @@ class QChatShareSheet extends StatelessWidget {
     this.actions = const [],
     this.onAdd,
     this.addLabel,
-    this.rows = 2,
+    this.columns = 4,
   });
 
   final String? title;
@@ -90,9 +90,10 @@ class QChatShareSheet extends StatelessWidget {
   /// empty, so it stays null unless a caller wants a hint.
   final String? addLabel;
 
-  /// Actions stacked in one column. Two rows match the reference design; one
-  /// row is a single strip of tiles.
-  final int rows;
+  /// Tiles per row. Four is the reference layout: eight actions land on two
+  /// full rows, and a shorter list keeps its tiles at the same four slots so
+  /// the grid never moves between callers.
+  final int columns;
 
   @override
   Widget build(BuildContext c) {
@@ -105,11 +106,6 @@ class QChatShareSheet extends StatelessWidget {
     final cancelColor = dark
         ? const Color(0xff9db0e0)
         : const Color(0xff5b6b9c);
-
-    final columns = <List<QChatShareAction>>[];
-    for (var i = 0; i < actions.length; i += rows) {
-      columns.add(actions.sublist(i, math.min(i + rows, actions.length)));
-    }
 
     final hasTargets = targets.isNotEmpty || onAdd != null;
 
@@ -162,33 +158,52 @@ class QChatShareSheet extends StatelessWidget {
                 if (hasTargets && (actions.isNotEmpty)) _Divider(color: line),
                 if (actions.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 26, 0, 26),
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (var i = 0; i < columns.length; i++) ...[
-                            Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                for (var j = 0; j < columns[i].length; j++) ...[
-                                  if (j > 0) const SizedBox(height: 20),
-                                  _ShareActionTile(
-                                    action: columns[i][j],
-                                    card: card,
-                                    label: label,
-                                    note: note,
-                                  ),
-                                ],
-                              ],
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                    child: LayoutBuilder(
+                      builder: (c, box) {
+                        // Four equal columns that shrink together on a narrow
+                        // phone, so the grid never needs a horizontal scroll.
+                        final size = math.min(
+                          _tileSize,
+                          (box.maxWidth - _tileGap * (columns - 1)) / columns,
+                        );
+                        final grid = <List<QChatShareAction>>[];
+                        for (var i = 0; i < actions.length; i += columns) {
+                          grid.add(
+                            actions.sublist(
+                              i,
+                              math.min(i + columns, actions.length),
                             ),
-                            if (i < columns.length - 1)
-                              const SizedBox(width: _tileGap),
+                          );
+                        }
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var r = 0; r < grid.length; r++) ...[
+                              if (r > 0) const SizedBox(height: 20),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  for (var i = 0; i < columns; i++)
+                                    SizedBox(
+                                      width: size,
+                                      child: i < grid[r].length
+                                          ? _ShareActionTile(
+                                              action: grid[r][i],
+                                              size: size,
+                                              card: card,
+                                              label: label,
+                                              note: note,
+                                            )
+                                          : null,
+                                    ),
+                                ],
+                              ),
+                            ],
                           ],
-                          const SizedBox(width: 16),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                   ),
                 _Divider(color: line),
@@ -227,7 +242,7 @@ Future<String?> showQChatShareSheet(
   String? title,
   List<QChatShareTarget> targets = const [],
   List<QChatShareAction> actions = const [],
-  int rows = 2,
+  int columns = 4,
   VoidCallback? onAdd,
   String? addLabel,
 }) => showGeneralDialog<String>(
@@ -249,7 +264,7 @@ Future<String?> showQChatShareSheet(
           title: title,
           targets: targets,
           actions: actions,
-          rows: rows,
+          columns: columns,
           onAdd: onAdd,
           addLabel: addLabel,
         ),
@@ -427,11 +442,13 @@ class _AddTargetTile extends StatelessWidget {
 class _ShareActionTile extends StatelessWidget {
   const _ShareActionTile({
     required this.action,
+    required this.size,
     required this.card,
     required this.label,
     required this.note,
   });
   final QChatShareAction action;
+  final double size;
   final Color card;
   final Color label;
   final Color note;
@@ -446,7 +463,7 @@ class _ShareActionTile extends StatelessWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) => run());
     },
     child: SizedBox(
-      width: _tileSize,
+      width: size,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -454,8 +471,8 @@ class _ShareActionTile extends StatelessWidget {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: _tileSize,
-                height: _tileSize,
+                width: size,
+                height: size,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: card,

@@ -1191,6 +1191,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       final chats = await client.get('/conversations', cached: false) as List;
       if (!mounted) return;
       final selfId = client.userId ?? '';
+      final ids = [for (final row in rows) row['id'].toString()];
       final passed = await showQChatShareSheet(
         context,
         title: tr(context, 'forwardTo'),
@@ -1209,13 +1210,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           QChatShareAction(
             icon: 'favorites',
             label: tr(context, 'favorites'),
+            color: const Color(0xfff0a020),
             onTap: () => _favorite(rows),
+          ),
+          QChatShareAction(
+            icon: 'quote',
+            label: tr(context, 'quoteMessage'),
+            color: const Color(0xff8a63d2),
+            onTap: () {
+              setState(() => reply = ids.last);
+              inputFocus.requestFocus();
+            },
           ),
           QChatShareAction(
             icon: 'copy',
             label: tr(context, 'copy'),
-            onTap: () => _copyMessages(rows),
             color: const Color(0xff168fe5),
+            onTap: () => _copyMessages(rows),
+          ),
+          QChatShareAction(
+            icon: 'search',
+            label: tr(context, 'search'),
+            onTap: () => Navigator.of(context).push(
+              CupertinoPageRoute<void>(
+                builder: (_) =>
+                    ChatHistoryScreen(id: widget.id, query: _forwardQuery(rows)),
+              ),
+            ),
+          ),
+          QChatShareAction(
+            icon: 'select',
+            label: tr(context, 'selectMessages'),
+            onTap: () => setState(() {
+              selecting = true;
+              selected.addAll(ids);
+            }),
+          ),
+          QChatShareAction(
+            icon: 'delete',
+            label: tr(context, 'delete'),
+            color: const Color(0xffe0564f),
+            onTap: () => deleteMessages(rows),
           ),
           QChatShareAction(
             icon: 'report',
@@ -1230,6 +1265,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
     }
+  }
+
+  /// A readable line for the "Tìm kiếm" action: the first message's text, or
+  /// the summary of a money bubble. An empty result still opens the history
+  /// page, which lets the user type their own query.
+  String _forwardQuery(List<Map<String, dynamic>> rows) {
+    for (final row in rows) {
+      final text =
+          row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET'
+          ? moneySummary(row)
+          : (row['text'] ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
   }
 
   /// Full list for a receiver that is not in the strip: the sheet's "add"
