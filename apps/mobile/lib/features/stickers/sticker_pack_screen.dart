@@ -168,7 +168,16 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
         const MediaFit(width: 1600, height: 1600, quality: .9),
       );
       final bytes = await fitted.readAsBytes();
-      final mime = fitted.mimeType ?? 'image/jpeg';
+      // A picture that is not one of the formats the server stores (a HEIC the
+      // platform decoder could not open, for one) is refused here, so the user
+      // sees what is wrong instead of a connection error.
+      final mime = fitted.mimeType ?? imageMimeFromBytes(bytes);
+      if (mime == null) {
+        if (!mounted) return;
+        setState(() => savingArtwork = false);
+        showQChatToast(context, tr(context, 'mediaUnavailable'));
+        return;
+      }
       final extension = imageExtension(mime);
       final client = ref.read(clientProvider);
       final mediaId = await uploadStickerArtwork(
