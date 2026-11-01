@@ -928,6 +928,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         : '${d.day}/${d.month} $time';
   }
 
+  /// A wallpaper puts a photo under the small grey labels, so the time and the
+  /// send status get a light plate behind them; a plain chat background leaves
+  /// them bare.
+  Widget timedLabel(Widget child) =>
+      chatBackgroundImage == null ? child : WallpaperPlate(child: child);
+
   bool showTime(int i) {
     if (i == 0) return true;
     final a = DateTime.tryParse(messages[i]['createdAt']?.toString() ?? '');
@@ -1586,11 +1592,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 16,
                                             ),
-                                            child: Text(
-                                              messageTime(m['createdAt']),
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: QChatColors.muted,
+                                            child: timedLabel(
+                                              Text(
+                                                messageTime(m['createdAt']),
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: QChatColors.muted,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -1728,6 +1736,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             onRetry: () => ref
                                                 .read(clientProvider)
                                                 .flush(),
+                                            plated: chatBackgroundImage != null,
                                           ),
                                       ],
                                     ),

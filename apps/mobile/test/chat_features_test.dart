@@ -13,6 +13,7 @@ import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
 import 'package:qchat/features/chats/chat_composer.dart';
 import 'package:qchat/features/chats/home_screen.dart';
+import 'package:qchat/features/chats/message_status.dart';
 import 'package:qchat/features/groups/groups_screen.dart';
 import 'package:qchat/features/chats/message_attachment.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
@@ -648,6 +649,27 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('only a chat wallpaper puts a plate behind the status', (
+    tester,
+  ) async {
+    void retry() {}
+    await mount(
+      tester,
+      FakeClient(),
+      MessageStatus(status: 'sent', onRetry: retry),
+    );
+    expect(find.text('Đã gửi'), findsOneWidget);
+    expect(find.byType(WallpaperPlate), findsNothing);
+
+    // Over a wallpaper the same label gets a light plate so it stays readable.
+    await mount(
+      tester,
+      FakeClient(),
+      MessageStatus(status: 'sent', onRetry: retry, plated: true),
+    );
+    expect(find.byType(WallpaperPlate), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('the composer stays on the keyboard edge until it is gone', (
     tester,
   ) async {
