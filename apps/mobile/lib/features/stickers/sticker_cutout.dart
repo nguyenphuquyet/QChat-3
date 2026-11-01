@@ -2,8 +2,16 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:image/image.dart' as img;
+
+import 'sticker_background.dart';
+
+/// Stands in for [cutStickerBackground] in tests, where there is no on-device
+/// runtime: give it a picture that already has its transparent edge and the
+/// studio's measuring, cropping and squaring run for real.
+@visibleForTesting
+Future<Uint8List?> Function(Uint8List source)? debugStickerCutter;
 
 /// One sticker produced from a source picture or sheet.
 class ExtractedSticker {
@@ -28,9 +36,11 @@ class ExtractedSticker {
 /// million pixels, which is far too much for the frame that opened the studio.
 ///
 /// * [split] finds the separate drawings on a sticker sheet and crops each one.
-/// * [removeBackground] is opt-in. It floods the area connected to the picture's
-///   border that matches the border colour, so a picture on a plain sheet comes
-///   out transparent while the drawing keeps its own white details.
+/// * [removeBackground] is opt-in. The on-device segmentation model finds the
+///   subject and clears only the background reachable from the border, so a
+///   picture comes out transparent while the drawing keeps its own white
+///   details. Without the model (or with a GIF) it falls back to flooding the
+///   area connected to the border that matches the border colour.
 ///
 /// Every sticker comes out as a square picture. A cut drawing is centred on a
 /// transparent square, so a tall or wide drawing is never clipped; a plain
@@ -44,6 +54,11 @@ class ExtractedSticker {
 /// a CMYK JPEG) is artwork like any other photo. When even that finds nothing
 /// to cut — a sheet with no clear background, a cut that swallows the drawing —
 /// the whole picture becomes one square sticker rather than an error.
+///
+/// With [removeBackground] the model's cut is then measured on what is left, so
+/// the sticker is cropped tightly around the subject and padded to a square. An
+/// animated GIF skips the model — one frame would lose the animation — and uses
+/// the plain cut on every frame, which is measured the same way.
 Future<List<ExtractedSticker>> extractStickers(
   Uint8List source, {
   bool split = true,
@@ -55,9 +70,15 @@ Future<List<ExtractedSticker>> extractStickers(
     Uint8List bytes, {
     required bool separate,
     required bool cut,
+    bool trimmed = false,
   }) async {
     try {
-      final rows = await _cut(bytes, split: separate, removeBackground: cut);
+      final rows = await _cut(
+        bytes,
+        split: separate,
+        removeBackground: cut,
+        trimmed: trimmed,
+      );
       return rows.isEmpty ? null : rows;
     } catch (error) {
       failure ??= error;
@@ -65,7 +86,16 @@ Future<List<ExtractedSticker>> extractStickers(
     }
   }
 
-  var rows = await attempt(source, separate: split, cut: removeBackground);
+  // The model owns its own runtime and cannot run in the isolate `_cut` uses,
+  // so it works on the frame first and the pure-Dart pass then only measures
+  // and squares the result. Its PNG already has the transparent edge, so that
+  // pass must not cut again — but it should still crop to what is left.
+  final modelled = removeBackground && !_isGif(source)
+      ? await (debugStickerCutter ?? cutStickerBackground)(source)
+      : null;
+  var rows = modelled != null
+      ? await attempt(modelled, separate: split, cut: false, trimmed: true)
+      : await attempt(source, separate: split, cut: removeBackground);
   if (rows == null) {
     // The preview was drawn by Flutter, so when `image` comes back empty or
     // throws, Flutter can still read the picture: re-encode it as a bounded
@@ -101,10 +131,12 @@ Future<List<Map<String, Object>>> _cut(
   Uint8List bytes, {
   required bool split,
   required bool removeBackground,
+  bool trimmed = false,
 }) => compute(_extract, {
   'bytes': bytes,
   'split': split,
   'removeBackground': removeBackground,
+  'trimmed': trimmed,
 });
 
 /// [bytes] as a PNG no larger than [_maxSide], decoded by Flutter rather than by
@@ -169,6 +201,9 @@ List<Map<String, Object>> _extract(Map<String, Object?> args) {
   final source = args['bytes']! as Uint8List;
   final split = args['split'] == true;
   final removeBackground = args['removeBackground'] == true;
+  // The picture already lost its background elsewhere and carries a
+  // transparent edge: measure what is left instead of the whole canvas.
+  final trimmed = args['trimmed'] == true;
   final animated = _isGif(source);
   final decoded = animated ? img.decodeGif(source) : img.decodeImage(source);
   if (decoded == null) return const [];
@@ -183,10 +218,10 @@ List<Map<String, Object>> _extract(Map<String, Object?> args) {
   if (working.isEmpty) return const [];
 
   final first = working.first;
-  final boxes = split
-      ? _regions(first)
-      : [_Box(0, 0, first.width, first.height, first.width * first.height)];
-  if (boxes.isEmpty) return const [];
+  // A sheet is measured before the background goes, so every drawing keeps its
+  // own box; anything else is measured afterwards, on what is left.
+  final sheet = split ? _regions(first) : null;
+  if (sheet != null && sheet.isEmpty) return const [];
   // Removal happens on every frame, after the boxes were measured, so an
   // animated sticker keeps its animation and the same crop on each frame.
   if (removeBackground) {
@@ -195,12 +230,28 @@ List<Map<String, Object>> _extract(Map<String, Object?> args) {
     }
   }
 
+  // A picture whose background is gone — cut here or by the model — is measured
+  // on what is left, so the sticker fills its square instead of keeping the
+  // canvas the photo came in.
+  final List<_Box> boxes;
+  if (sheet != null) {
+    boxes = sheet;
+  } else if (removeBackground || trimmed) {
+    final subject = _alphaBounds(first);
+    boxes = subject == null ? const [] : [subject];
+  } else {
+    boxes = [_Box(0, 0, first.width, first.height, first.width * first.height)];
+  }
+  if (boxes.isEmpty) return const [];
+
   final result = <Map<String, Object>>[];
   // A sheet is cut into drawings that must keep their outline, and cut-out
   // artwork has transparent edges to preserve: both are padded to a square. A
   // plain photo is content all the way to its border, so it is centre-cropped
   // instead of gaining transparent bands.
-  final square = split || removeBackground ? _Square.pad : _Square.crop;
+  final square = split || removeBackground || trimmed
+      ? _Square.pad
+      : _Square.crop;
   for (final box in boxes) {
     final crops = <img.Image>[];
     for (final frame in working) {
@@ -426,6 +477,28 @@ List<_Box> _merge(List<_Box> boxes, int padding) {
     }
   }
   return merged;
+}
+
+/// The rectangle that still holds something opaque, or null when the picture
+/// is empty. Used after the model took the background out: it is what makes a
+/// sticker fill its square instead of keeping the canvas the photo came in.
+_Box? _alphaBounds(img.Image frame) {
+  final w = frame.width, h = frame.height;
+  var left = w, top = h, right = 0, bottom = 0;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      if (frame.getPixel(x, y).a < _backgroundAlpha) continue;
+      if (x < left) left = x;
+      if (y < top) top = y;
+      if (x + 1 > right) right = x + 1;
+      if (y + 1 > bottom) bottom = y + 1;
+    }
+  }
+  // No minimum side here: the subject of a photo can be a thin object, and a
+  // sliver of it is still what the sticker should show. An empty cut is what
+  // sends extraction back to the whole picture.
+  if (right - left < 2 || bottom - top < 2) return null;
+  return _Box(left, top, right, bottom, (right - left) * (bottom - top));
 }
 
 /// How a crop becomes square.

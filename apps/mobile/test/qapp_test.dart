@@ -87,7 +87,7 @@ List<int> zipFiles(Map<String, List<int>> files) {
   for (final file in files.entries) {
     archive.addFile(ArchiveFile(file.key, file.value.length, file.value));
   }
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encode(archive);
 }
 
 MiniAppBuild qappBuild(

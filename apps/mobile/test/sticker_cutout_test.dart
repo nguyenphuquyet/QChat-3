@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:qchat/features/stickers/emoji_text.dart';
+import 'package:qchat/features/stickers/sticker_background.dart';
 import 'package:qchat/features/stickers/sticker_cutout.dart';
 import 'package:qchat/features/stickers/wechat_emoji.dart';
 
@@ -120,9 +121,10 @@ void main() {
     );
     final artwork = img.decodePng(stickers.single.bytes)!;
     expect(artwork.width, artwork.height);
-    // The whole 240 px drawing is kept: the square pads the sides instead of
-    // cropping the top and bottom off.
-    expect(artwork.height, greaterThanOrEqualTo(240));
+    // The 200 px drawing is kept whole: the square pads the sides instead of
+    // cropping the top and bottom off. It is cropped to the drawing, though, not
+    // left on the 240 px canvas.
+    expect(artwork.height, inInclusiveRange(200, 235));
     // The padded bands are transparent, not white.
     expect(artwork.getPixel(0, 0).a, 0);
     expect(artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2).r,
@@ -228,6 +230,61 @@ void main() {
     );
 
     expect(stickers, isNotEmpty);
+  });
+
+  test('the model keeps a hole its border cannot reach', () {
+    // A ring of subject with a hollow centre. The segmenter called the centre
+    // background — deliberately, to be sure the reach decides, not the model.
+    const side = 9;
+    final alpha = Uint8List(side * side);
+    for (var y = 2; y <= 6; y++) {
+      for (var x = 2; x <= 6; x++) {
+        if (x == 2 || x == 6 || y == 2 || y == 6) alpha[y * side + x] = 255;
+      }
+    }
+
+    final outside = outsideMask(alpha, side, side);
+
+    expect(outside[0], 1, reason: 'the picture border is background');
+    expect(outside[2 * side + 2], 0, reason: 'the ring is the subject');
+    expect(outside[4 * side + 4], 0, reason: 'the enclosed hole stays');
+  });
+
+  test('a model cut is cropped tightly to a square around the subject', () async {
+    // What the segmenter hands back: the subject, and transparent everywhere
+    // the background used to be. The canvas is far wider than the subject, and
+    // keeping the canvas would leave a sticker floating in empty space.
+    final cut = img.Image(width: 200, height: 140, numChannels: 4);
+    img.fill(cut, color: img.ColorRgba8(0, 0, 0, 0));
+    img.fillRect(
+      cut,
+      x1: 80,
+      y1: 40,
+      x2: 159,
+      y2: 99,
+      color: img.ColorRgba8(220, 40, 40, 255),
+    );
+    final png = img.encodePng(cut);
+    debugStickerCutter = (_) async => png;
+    addTearDown(() => debugStickerCutter = null);
+
+    final stickers = await extractStickers(
+      png,
+      split: false,
+      removeBackground: true,
+    );
+
+    expect(stickers, hasLength(1));
+    final sticker = stickers.single;
+    expect(sticker.width, sticker.height);
+    // The 80x60 subject plus its margin, not the 200x140 canvas.
+    expect(sticker.width, lessThan(140));
+    expect(sticker.width, greaterThan(60));
+    final artwork = img.decodePng(sticker.bytes)!;
+    expect(artwork.getPixel(0, 0).a, 0);
+    final centre = artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2);
+    expect(centre.a, 255);
+    expect(centre.r, greaterThan(180));
   });
 
   test('a picture only Flutter can read is re-encoded and cut', () async {

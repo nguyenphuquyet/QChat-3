@@ -261,5 +261,24 @@ system lost that behaviour, so the package stays — behind one file.
   behaviour means a `QChat*` widget or a config flag on `AssetPicker`, never a
   Material widget in the chat, the shell or another screen.
 
+## 9. Sticker background removal: one file, no widgets
+
+Taking the background out of a sticker uses an on-device segmentation model,
+`image_background_remover` (with `flutter_onnxruntime`). The package re-exports
+`package:flutter/material.dart` for its `Color` helper, so it is behind the same
+kind of boundary as the picker:
+
+- `lib/features/stickers/sticker_background.dart` is the **only** file allowed
+  to import `image_background_remover`. It exposes `cutStickerBackground` and
+  nothing else to the studio.
+- It draws no UI at all: the package's widgets never enter the tree, so the
+  Material scan stays clean and the app keeps its own design language.
+- `sticker_cutout.dart` only calls it by name; its own work stays pure Dart in a
+  background isolate, where the model cannot run.
+- The model is ~4 MB of weights plus the ONNX Runtime native library, it needs
+  iOS 16 (`IPHONEOS_DEPLOYMENT_TARGET`), and `flutter test` cannot load it: tests
+  inject `debugStickerCutter` instead, and the studio falls back to its
+  border-colour cut whenever the model is unavailable.
+
 > Note for this machine: the repository owner may ask you not to run the full test
 > suite locally. Ask before running long builds or tests; `flutter analyze` is cheap.

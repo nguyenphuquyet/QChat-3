@@ -37,13 +37,15 @@ dependencies:
   video_player: ^2.14.1
   web: 1.1.1
   flutter_js: 0.8.7
-  archive: ^3.6.1
+  archive: ^4.0.2
   crypto: ^3.0.7
   # Pure-Dart decode/encode for the sticker studio: cutting a sheet into
   # separate stickers and taking the background out are done on-device.
   image: ^4.3.0
   path_provider: ^2.1.6
   path: ^1.9.1
+  # On-device segmentation for the sticker studio: see sticker_background.dart.
+  image_background_remover: ^2.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
