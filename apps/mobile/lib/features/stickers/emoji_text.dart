@@ -123,3 +123,71 @@ String emojiPlainText(String text) => text.replaceAllMapped(
   weChatEmojiToken,
   (match) => wechatEmojiByCode[match.group(1)] == null ? match[0]! : match[1]!,
 );
+
+/// The composer's controller: it paints a finished code such as `[微笑]` as the
+/// emoji picture, the way the reference app shows emotion inside the input box.
+///
+/// The controller's text keeps the code, because that is what a message sends.
+/// Only the drawing changes: the picture replaces the code and the rest of it
+/// stays as zero-width characters, so every caret offset still lines up with
+/// [TextEditingController.text] and sending needs no decoding.
+class EmojiTextEditingController extends TextEditingController {
+  EmojiTextEditingController({super.text});
+
+  /// Drawn height of an emoji in the field.
+  static const double pictureSize = 20;
+
+  @override
+  TextSpan buildTextSpan({
+    required BuildContext context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    // An input method owns the spans while it composes, so its underline and
+    // candidate state stay visible.
+    if (value.composing.isValid && !value.composing.isCollapsed) {
+      return super.buildTextSpan(
+        context: context,
+        style: style,
+        withComposing: withComposing,
+      );
+    }
+    final spans = <InlineSpan>[];
+    var cursor = 0;
+    for (final match in weChatEmojiToken.allMatches(text)) {
+      final emoji = wechatEmojiByCode[match.group(1)];
+      if (emoji == null) continue;
+      if (match.start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, match.start)));
+      }
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 1),
+            child: Image.asset(
+              emoji.asset,
+              width: pictureSize,
+              height: pictureSize,
+              filterQuality: FilterQuality.medium,
+              excludeFromSemantics: true,
+            ),
+          ),
+        ),
+      );
+      // A placeholder is one character: the rest of the code is drawn as
+      // nothing so the text keeps exactly the length the caret indexes into.
+      spans.add(
+        TextSpan(
+          text: '\u200b' * (match.end - match.start - 1),
+          style: const TextStyle(fontSize: 0),
+        ),
+      );
+      cursor = match.end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(style: style, children: spans);
+  }
+}

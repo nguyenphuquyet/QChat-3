@@ -340,4 +340,47 @@ void main() {
       );
     }
   });
+
+  testWidgets('the composer paints a finished code as its picture', (
+    tester,
+  ) async {
+    late BuildContext context;
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Builder(
+          builder: (c) {
+            context = c;
+            return const SizedBox();
+          },
+        ),
+      ),
+    );
+
+    late TextSpan span;
+
+    TextSpan spansFor(String text) {
+      final controller = EmojiTextEditingController(text: text);
+      final built = controller.buildTextSpan(
+        context: context,
+        style: const TextStyle(fontSize: 16),
+        withComposing: false,
+      );
+      // The drawn text keeps the length of the controller's text, so a caret
+      // offset means the same thing before and after the picture replaced it.
+      expect(built.toPlainText().length, text.length, reason: text);
+      return built;
+    }
+
+    span = spansFor('chào [微笑] bạn');
+    expect(
+      span.children!.whereType<WidgetSpan>(),
+      hasLength(1),
+      reason: 'a finished code is one picture',
+    );
+
+    // A half-typed code is still text, so it can be finished by hand.
+    expect(spansFor('[微笑').children!.whereType<WidgetSpan>(), isEmpty);
+    expect(spansFor('[không có]').children!.whereType<WidgetSpan>(), isEmpty);
+  });
 }

@@ -101,7 +101,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
-  final input = TextEditingController(), scroll = ScrollController();
+  final input = EmojiTextEditingController(), scroll = ScrollController();
   List<Map<String, dynamic>> messages = [];
   final selected = <String>{};
   final recalling = <String>{};

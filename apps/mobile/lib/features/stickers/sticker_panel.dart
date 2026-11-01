@@ -250,7 +250,9 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
       children: [
         if (recent.isNotEmpty) ...[
           _sectionTitle(c, 'stickerRecent'),
-          _emojiGrid(recent, size: 36),
+          // One row only: the strip is a shortcut, and a second row would push
+          // the whole set down every time one more emoji is used.
+          _emojiGrid(recent.take(7).toList(), size: 36),
           const SizedBox(height: 18),
         ],
         _sectionTitle(c, 'stickerAll'),
