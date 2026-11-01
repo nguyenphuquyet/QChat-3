@@ -127,8 +127,10 @@ void main() {
     expect(artwork.height, inInclusiveRange(200, 235));
     // The padded bands are transparent, not white.
     expect(artwork.getPixel(0, 0).a, 0);
-    expect(artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2).r,
-        greaterThan(180));
+    expect(
+      artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2).r,
+      greaterThan(180),
+    );
   });
 
   test('background removal is opt-in and clears only the border', () async {
@@ -250,42 +252,45 @@ void main() {
     expect(outside[4 * side + 4], 0, reason: 'the enclosed hole stays');
   });
 
-  test('a model cut is cropped tightly to a square around the subject', () async {
-    // What the segmenter hands back: the subject, and transparent everywhere
-    // the background used to be. The canvas is far wider than the subject, and
-    // keeping the canvas would leave a sticker floating in empty space.
-    final cut = img.Image(width: 200, height: 140, numChannels: 4);
-    img.fill(cut, color: img.ColorRgba8(0, 0, 0, 0));
-    img.fillRect(
-      cut,
-      x1: 80,
-      y1: 40,
-      x2: 159,
-      y2: 99,
-      color: img.ColorRgba8(220, 40, 40, 255),
-    );
-    final png = img.encodePng(cut);
-    debugStickerCutter = (_) async => png;
-    addTearDown(() => debugStickerCutter = null);
+  test(
+    'a model cut is cropped tightly to a square around the subject',
+    () async {
+      // What the segmenter hands back: the subject, and transparent everywhere
+      // the background used to be. The canvas is far wider than the subject, and
+      // keeping the canvas would leave a sticker floating in empty space.
+      final cut = img.Image(width: 200, height: 140, numChannels: 4);
+      img.fill(cut, color: img.ColorRgba8(0, 0, 0, 0));
+      img.fillRect(
+        cut,
+        x1: 80,
+        y1: 40,
+        x2: 159,
+        y2: 99,
+        color: img.ColorRgba8(220, 40, 40, 255),
+      );
+      final png = img.encodePng(cut);
+      debugStickerCutter = (_) async => png;
+      addTearDown(() => debugStickerCutter = null);
 
-    final stickers = await extractStickers(
-      png,
-      split: false,
-      removeBackground: true,
-    );
+      final stickers = await extractStickers(
+        png,
+        split: false,
+        removeBackground: true,
+      );
 
-    expect(stickers, hasLength(1));
-    final sticker = stickers.single;
-    expect(sticker.width, sticker.height);
-    // The 80x60 subject plus its margin, not the 200x140 canvas.
-    expect(sticker.width, lessThan(140));
-    expect(sticker.width, greaterThan(60));
-    final artwork = img.decodePng(sticker.bytes)!;
-    expect(artwork.getPixel(0, 0).a, 0);
-    final centre = artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2);
-    expect(centre.a, 255);
-    expect(centre.r, greaterThan(180));
-  });
+      expect(stickers, hasLength(1));
+      final sticker = stickers.single;
+      expect(sticker.width, sticker.height);
+      // The 80x60 subject plus its margin, not the 200x140 canvas.
+      expect(sticker.width, lessThan(140));
+      expect(sticker.width, greaterThan(60));
+      final artwork = img.decodePng(sticker.bytes)!;
+      expect(artwork.getPixel(0, 0).a, 0);
+      final centre = artwork.getPixel(artwork.width ~/ 2, artwork.height ~/ 2);
+      expect(centre.a, 255);
+      expect(centre.r, greaterThan(180));
+    },
+  );
 
   test('a picture only Flutter can read is re-encoded and cut', () async {
     // A WBMP: Flutter's decoder shows it (that is how the studio's preview
@@ -311,5 +316,28 @@ void main() {
     // Unknown brackets are not emoji: the text is left alone.
     expect(emojiSpans('[không tồn tại]'), hasLength(1));
     expect(emojiPlainText('[微笑] nhé'), '微笑 nhé');
+  });
+
+  testWidgets('a keyboard emoji is drawn in the artwork\'s square', (
+    tester,
+  ) async {
+    for (final emoji in ['😎', '👨‍👩‍👧', '👍🏽', '🕺', '1️⃣']) {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: QChatEmojiText(emoji, size: 20),
+        ),
+      );
+      expect(
+        tester.getSize(
+          find.descendant(
+            of: find.byType(QChatEmojiText),
+            matching: find.byType(SizedBox),
+          ),
+        ),
+        const Size(20, 20),
+        reason: emoji,
+      );
+    }
   });
 }

@@ -36,15 +36,32 @@ class QChatEmojiText extends StatelessWidget {
 
 /// Splits [text] into plain runs and emoji pictures. Unknown bracketed codes
 /// stay as text, so a link or a tag is never swallowed by the pattern.
+///
+/// Emoji typed on the system keyboard are boxes too: they are drawn at [size]
+/// like the bundled artwork, so a message looks the same whichever emoji the
+/// user picked.
 List<InlineSpan> emojiSpans(String text, {double size = 20}) {
   final spans = <InlineSpan>[];
   var cursor = 0;
+
+  void addText(int start, int end) {
+    if (end <= start) return;
+    final run = text.substring(start, end);
+    var at = 0;
+    for (final match in systemEmoji.allMatches(run)) {
+      if (match.start > at) {
+        spans.add(TextSpan(text: run.substring(at, match.start)));
+      }
+      spans.add(_emojiBox(match[0]!, size));
+      at = match.end;
+    }
+    if (at < run.length) spans.add(TextSpan(text: run.substring(at)));
+  }
+
   for (final match in weChatEmojiToken.allMatches(text)) {
     final emoji = wechatEmojiByCode[match.group(1)];
     if (emoji == null) continue;
-    if (match.start > cursor) {
-      spans.add(TextSpan(text: text.substring(cursor, match.start)));
-    }
+    addText(cursor, match.start);
     spans.add(
       WidgetSpan(
         alignment: PlaceholderAlignment.middle,
@@ -62,12 +79,43 @@ List<InlineSpan> emojiSpans(String text, {double size = 20}) {
     );
     cursor = match.end;
   }
-  if (spans.isEmpty) return [TextSpan(text: text)];
-  if (cursor < text.length) {
-    spans.add(TextSpan(text: text.substring(cursor)));
-  }
-  return spans;
+  addText(cursor, text.length);
+  return spans.isEmpty ? [TextSpan(text: text)] : spans;
 }
+
+/// One platform emoji, drawn in the same square as a bundled picture.
+///
+/// The box is fixed so a system emoji cannot stretch the line: the same 20pt
+/// square that holds a WeChat picture holds the font's glyph.
+InlineSpan _emojiBox(String glyph, double size) => WidgetSpan(
+  alignment: PlaceholderAlignment.middle,
+  child: Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 1),
+    child: SizedBox.square(
+      dimension: size,
+      child: Center(
+        child: Text(
+          glyph,
+          maxLines: 1,
+          softWrap: false,
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: size, height: 1),
+        ),
+      ),
+    ),
+  ),
+);
+
+/// Platform emoji, as one grapheme each: a flag is two regional indicators, a
+/// skin tone and a zero-width joiner stay with the emoji they modify.
+final RegExp systemEmoji = RegExp(
+  r'(?:[\u{1F1E6}-\u{1F1FF}]{2})'
+  r'|[0-9#*]\uFE0F?\u20E3'
+  r'|[\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{1F300}-\u{1F5FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}'
+  r'\u{1F780}-\u{1F7FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]'
+  r'(?:\uFE0F|\u200D[\u{1F300}-\u{1FAFF}]|[\u{1F3FB}-\u{1F3FF}])*',
+  unicode: true,
+);
 
 /// A one-line hint for a message preview: emoji codes become their picture name
 /// instead of showing raw brackets.
