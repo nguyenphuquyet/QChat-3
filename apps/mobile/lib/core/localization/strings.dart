@@ -480,6 +480,12 @@ const translations = <String, List<String>>{
   'designerDisplayName': ['Designer name', 'Tên nhà thiết kế', '设计师名称'],
   'designerBio': ['Designer bio', 'Giới thiệu nhà thiết kế', '设计师简介'],
   'designerLinkedTo': ['Linked to QChat', 'Liên kết với QChat', '关联 QChat'],
+  'designerAvatar': ['Designer photo', 'Ảnh đại diện nhà thiết kế', '设计师头像'],
+  'designerAvatarFailed': [
+    'Could not change the photo',
+    'Không đổi được ảnh đại diện',
+    '无法更换头像',
+  ],
   'designerCovers': ['Covers', 'Vỏ đã tạo', '封面'],
   'designerStickerPacks': ['Sticker packs', 'Bộ nhãn dán', '贴纸专辑'],
   'designerClaims': ['Claims', 'Lượt nhận', '领取次数'],

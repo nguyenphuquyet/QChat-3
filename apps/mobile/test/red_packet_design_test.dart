@@ -145,10 +145,24 @@ void main() {
     expect(cover!.designerName, 'Lan');
     expect(cover.designerId, 'designer-1');
     expect(cover.designerQchatId, 'lan01');
+    // Without a designer picture the card borrows the QChat avatar.
+    expect(cover.designerAvatar, 'avatar-1');
     expect(cover.selected, isTrue);
     expect(cover.owned, isTrue);
     expect(cover.published, isTrue);
     expect(cover.design.topHeight, .7);
+
+    // A designer's own picture wins over the linked account avatar.
+    final branded = RedPacketCoverData.fromJson({
+      'id': 'cover-2',
+      'designer': {
+        'userId': 'designer-1',
+        'displayName': 'Lan',
+        'avatarId': 'designer-pic',
+        'user': {'qchatId': 'lan01', 'avatarId': 'avatar-1'},
+      },
+    });
+    expect(branded!.designerAvatar, 'designer-pic');
   });
 
   test(

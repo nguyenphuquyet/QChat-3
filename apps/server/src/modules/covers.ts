@@ -150,6 +150,7 @@ const designerSelect = {
   userId: true,
   displayName: true,
   bio: true,
+  avatarId: true,
   user: {
     select: { qchatId: true, nickname: true, avatarId: true },
   },
@@ -427,9 +428,24 @@ export async function coversRoute(
       .object({
         displayName: z.string().trim().min(1).max(40).optional(),
         bio: z.string().trim().max(200).optional(),
+        avatarId: uuid.nullable().optional(),
       })
       .strict()
       .parse(body);
+    if (input.avatarId) {
+      // The designer picture is its own upload, so it must be an image this
+      // account owns and has finished uploading.
+      const file = await db.media.findFirst({
+        where: {
+          id: input.avatarId,
+          ownerId: userId,
+          status: "READY",
+          mime: { startsWith: "image/" },
+        },
+        select: { id: true },
+      });
+      requireCondition(file, 400, "MEDIA_NOT_READY");
+    }
     const updated = await db.redPacketDesigner.updateMany({
       where: { userId },
       data: {
@@ -437,6 +453,7 @@ export async function coversRoute(
           ? {}
           : { displayName: input.displayName }),
         ...(input.bio === undefined ? {} : { bio: input.bio }),
+        ...(input.avatarId === undefined ? {} : { avatarId: input.avatarId }),
       },
     });
     requireCondition(updated.count === 1, 404, "DESIGNER_NOT_FOUND");

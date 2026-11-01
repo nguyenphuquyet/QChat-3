@@ -201,6 +201,13 @@ export async function mediaRoute(
         where: { avatarId: file.id, disabled: false },
         select: { id: true },
       }));
+    // A designer picture is public with the designer's market profile, exactly
+    // like a user avatar.
+    if (!allowed)
+      allowed = !!(await db.redPacketDesigner.findFirst({
+        where: { avatarId: file.id },
+        select: { userId: true },
+      }));
     if (!allowed)
       allowed = !!(await db.conversationMember.findFirst({
         where: {

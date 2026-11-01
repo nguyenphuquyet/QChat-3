@@ -197,10 +197,14 @@ model RedPacketDesigner {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   displayName String
   bio String @default("")
+  /// The designer's own picture, separate from the QChat account avatar.
+  avatarId String? @db.Uuid
+  avatar Media? @relation("RedPacketDesignerAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
   status String @default("ACTIVE")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   covers RedPacketCover[]
+  @@index([avatarId])
 }
 
 model RedPacketCover {
@@ -256,6 +260,7 @@ model Media {
   stickerArtwork Sticker[] @relation("StickerArtwork")
   stickerPackCovers StickerPack[] @relation("StickerPackCover")
   stickerPackAvatars StickerPack[] @relation("StickerPackAvatar")
+  redPacketDesignerAvatars RedPacketDesigner[] @relation("RedPacketDesignerAvatar")
 }
 /// A sticker album. A designer builds it in the studio and may publish it to
 /// the sticker market; anyone can add a published pack to their own library.

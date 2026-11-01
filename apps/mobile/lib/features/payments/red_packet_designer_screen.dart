@@ -7,6 +7,7 @@ import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../../core/network/media_upload.dart';
 import '../chats/red_packet_design.dart';
 import '../stickers/sticker_models.dart';
 import '../stickers/sticker_workshop.dart';
@@ -107,6 +108,29 @@ class _RedPacketDesignerScreenState
           error = tr(context, 'networkError');
         });
       }
+    }
+  }
+
+  /// Replaces the designer's own picture. It is uploaded under this account
+  /// and stored on the designer row, so changing the QChat avatar later leaves
+  /// the market profile untouched.
+  Future<void> _changeAvatar() async {
+    if (busy) return;
+    try {
+      final file = await pickImageWithSource(context);
+      if (file == null || !mounted) return;
+      setState(() => busy = true);
+      final client = ref.read(clientProvider);
+      final id = await uploadMedia(client, file);
+      await client.dio.patch('/wallet/designer', data: {'avatarId': id});
+      client.changes.add(null);
+      if (!mounted) return;
+      showQChatToast(context, tr(context, 'saved'));
+      setState(_reload);
+    } catch (_) {
+      if (mounted) showQChatToast(context, tr(context, 'designerAvatarFailed'));
+    } finally {
+      if (mounted) setState(() => busy = false);
     }
   }
 
@@ -316,6 +340,11 @@ class _RedPacketDesignerScreenState
     final published = covers.where((cover) => cover.published).length;
     final name = designer['displayName']?.toString() ?? '';
     final linkedName = user['nickname']?.toString() ?? '';
+    final designerAvatar = designer['avatarId']?.toString() ?? '';
+    // The designer's own picture, or the linked QChat avatar until they set one.
+    final avatar = designerAvatar.isNotEmpty
+        ? designerAvatar
+        : user['avatarId']?.toString() ?? '';
     final designerId = designer['userId']?.toString() ?? '';
     return CustomScrollView(
       controller: scroll,
@@ -332,19 +361,57 @@ class _RedPacketDesignerScreenState
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(9),
-                              border: Border.all(color: coverCoral, width: 1.5),
+                          GestureDetector(
+                            key: const ValueKey('designer-avatar'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: busy ? null : () => _changeAvatar(),
+                            child: Semantics(
+                              image: true,
+                              label: tr(c, 'designerAvatar'),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(9),
+                                      border: Border.all(
+                                        color: coverCoral,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: UserAvatar({
+                                      'nickname': name,
+                                      if (avatar.isNotEmpty) 'avatarId': avatar,
+                                    }, size: 54),
+                                  ),
+                                  // A camera badge says the picture is the
+                                  // designer's own and can be replaced.
+                                  Positioned(
+                                    right: -3,
+                                    bottom: -3,
+                                    child: Container(
+                                      width: 21,
+                                      height: 21,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: coverCoral,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: qchatSurface(c),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: const QChatIcon(
+                                        'camera',
+                                        size: 11,
+                                        color: QChatColors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            child: UserAvatar({
-                              'nickname': name,
-                              if ((user['avatarId'] ?? '')
-                                  .toString()
-                                  .isNotEmpty)
-                                'avatarId': user['avatarId'],
-                            }, size: 54),
                           ),
                           const SizedBox(width: 13),
                           Expanded(
@@ -831,6 +898,10 @@ class _RedPacketDesignerProfileScreenState
         final user = designer['user'] is Map
             ? Map<String, dynamic>.from(designer['user'] as Map)
             : const <String, dynamic>{};
+        final ownAvatar = designer['avatarId']?.toString() ?? '';
+        final avatar = ownAvatar.isNotEmpty
+            ? ownAvatar
+            : user['avatarId']?.toString() ?? '';
         final covers = [
           for (final item
               in (designer['covers'] is List
@@ -857,8 +928,7 @@ class _RedPacketDesignerProfileScreenState
                   children: [
                     UserAvatar({
                       'nickname': designer['displayName'],
-                      if ((user['avatarId'] ?? '').toString().isNotEmpty)
-                        'avatarId': user['avatarId'],
+                      if (avatar.isNotEmpty) 'avatarId': avatar,
                     }, size: 58),
                     const SizedBox(width: 14),
                     Expanded(

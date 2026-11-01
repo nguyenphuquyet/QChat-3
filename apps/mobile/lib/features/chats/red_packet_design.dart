@@ -528,6 +528,7 @@ class RedPacketCoverData {
     final user = designer['user'] is Map
         ? Map<String, dynamic>.from(designer['user'] as Map)
         : const <String, dynamic>{};
+    final designerAvatar = designer['avatarId']?.toString();
     return RedPacketCoverData(
       id: raw['id']?.toString() ?? '',
       name: raw['name']?.toString() ?? '',
@@ -541,7 +542,11 @@ class RedPacketCoverData {
           designer['displayName']?.toString() ??
           user['nickname']?.toString() ??
           '',
-      designerAvatar: user['avatarId']?.toString(),
+      // The designer's own picture wins; an older designer without one still
+      // shows the linked QChat avatar.
+      designerAvatar: designerAvatar != null && designerAvatar.isNotEmpty
+          ? designerAvatar
+          : user['avatarId']?.toString(),
       designerQchatId: user['qchatId']?.toString() ?? '',
       selected: raw['selected'] == true,
       mine: raw['mine'] == true,

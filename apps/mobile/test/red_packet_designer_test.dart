@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/app/providers.dart';
+import 'package:qchat/core/design_system/media_widgets.dart';
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/features/payments/red_packet_designer_screen.dart';
 
@@ -24,9 +25,11 @@ class _StudioClient extends QChatClient {
           'userId': 'self',
           'displayName': 'Mộc Studio',
           'bio': 'Phong bì đỏ vẽ tay, tối giản.',
+          // The designer's own picture, separate from the QChat avatar.
+          'avatarId': 'studio-avatar',
           'user': {
             'nickname': 'Nguyễn Phú Quyết Minh Anh',
-            'avatarId': '',
+            'avatarId': 'account-avatar',
             'qchatId': 'qchat',
           },
           'covers': [
@@ -48,6 +51,7 @@ class _StudioClient extends QChatClient {
           'userId': 'd1',
           'displayName': 'Mộc Studio',
           'bio': 'Phong bì đỏ vẽ tay, tối giản.',
+          'avatarId': 'designer-pic',
           'user': {'nickname': 'Minh Anh', 'avatarId': '', 'qchatId': 'qchat'},
           'covers': [
             {
@@ -144,6 +148,19 @@ void main() {
     expect(tester.takeException(), isNull);
 
     expect(find.text('Mộc Studio'), findsOneWidget);
+    // The studio header shows the designer's own picture; the linked QChat
+    // account keeps its own avatar on the link row below.
+    expect(find.byKey(const ValueKey('designer-avatar')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate((w) => w is MediaImage && w.id == 'studio-avatar'),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (w) => w is MediaImage && w.id == 'account-avatar',
+      ),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const ValueKey('designer-cover-menu-c0')),
       findsOneWidget,
@@ -204,6 +221,12 @@ void main() {
     expect(tester.takeException(), isNull);
 
     expect(find.text('Mộc Studio'), findsOneWidget);
+    // The public profile wears the designer's own picture, not the empty
+    // QChat avatar of the account behind it.
+    expect(
+      find.byWidgetPredicate((w) => w is MediaImage && w.id == 'designer-pic'),
+      findsOneWidget,
+    );
     // Covers are the first category; the packs are one tap away.
     expect(find.byKey(const ValueKey('designer-pack-p0')), findsNothing);
     await tester.tap(find.text('Bộ nhãn dán (1)'));
