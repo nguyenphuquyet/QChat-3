@@ -10,6 +10,7 @@ import 'package:qchat/core/network/client.dart';
 import 'package:qchat/core/network/video_meta.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
+import 'package:qchat/features/chats/chat_composer.dart';
 import 'package:qchat/features/chats/home_screen.dart';
 import 'package:qchat/features/chats/message_attachment.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
@@ -448,6 +449,34 @@ void main() {
     await tester.tap(find.text('Khoảnh khắc'));
     await tester.pumpAndSettle();
     expect(opened, '/moments?authorId=self');
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('the keyboard takes over the attachment panel with a slide', (
+    tester,
+  ) async {
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pumpAndSettle();
+    final open = tester.getRect(find.byType(ChatInputBar)).bottom;
+
+    // Tapping "+" again asks for the keyboard. This keyboard is shorter than
+    // the 250 px panel, so closing the panel must slide the bar down instead
+    // of dropping it a whole band in one frame.
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    final start = tester.getRect(find.byType(ChatInputBar)).bottom;
+    await tester.pump(const Duration(milliseconds: 90));
+    final middle = tester.getRect(find.byType(ChatInputBar)).bottom;
+    await tester.pumpAndSettle();
+    final done = tester.getRect(find.byType(ChatInputBar)).bottom;
+
+    expect(done, greaterThan(open));
+    expect(start, closeTo(open, .5));
+    expect(middle, greaterThan(start));
+    expect(middle, lessThan(done));
     expect(tester.takeException(), isNull);
   });
   test(

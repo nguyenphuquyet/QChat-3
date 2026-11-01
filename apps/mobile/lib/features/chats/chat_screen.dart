@@ -85,6 +85,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   final stickerPanel = GlobalKey<StickerPanelState>();
   double lastKeyboardInset = 0;
   double composerHeight = 56;
+  bool wasPanelOpen = false;
   Timer? panelTimer;
   Timer? voiceLimitTimer;
   @override
@@ -1284,6 +1285,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // the content instead of letting the newest messages sit under the blur.
     final headerInset = MediaQuery.paddingOf(c).top + 54;
     final panelOpen = emoji || attachments;
+    // Một lần đóng/mở panel đổi hẳn vùng đáy (panel cao hơn bàn phím), nên nó
+    // phải trượt có animation. Chỉ những khung hình bàn phím đang chạy mới bám
+    // theo tức thời, nếu không thanh nhập tụt một phát khi panel đóng lúc bàn
+    // phím chưa lên hết.
+    final panelChanged = panelOpen != wasPanelOpen;
+    wasPanelOpen = panelOpen;
     // Panel luôn thấp, cố định; chỉ bàn phím thật mới đẩy thanh nhập lên cao.
     // Không ghi nhớ chiều cao bàn phím trước đó, nếu không panel (khi bàn phím
     // đã đóng) sẽ bị kéo cao bằng bàn phím và để lại một khoảng trống xấu.
@@ -1295,10 +1302,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // không tụt xuống sát đáy rồi bật ngược lên.
     final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
-    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc chuyển từ bàn phím
-    // sang panel (panel thấp hơn bàn phím) thì trượt xuống có animation để
-    // thanh nhập không bị giật một phát.
-    final insetDuration = keyboardRising || (!panelOpen && keyboard > 0)
+    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc panel đóng/mở thì
+    // trượt có animation để thanh nhập không bị giật một phát.
+    final insetDuration = panelChanged
+        ? qchatDuration(c)
+        : keyboardRising || (!panelOpen && keyboard > 0)
         ? Duration.zero
         : qchatDuration(c);
     measureComposer();
