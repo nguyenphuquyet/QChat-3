@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "../services/db";
 import { requireCondition } from "../security/errors";
 import { uuid } from "../../../../packages/contracts";
+import { publishedStickerPacks } from "./stickers";
 
 const color = z
   .string()
@@ -460,10 +461,13 @@ export async function coversRoute(
       },
     });
     requireCondition(designer, 404, "DESIGNER_NOT_FOUND");
+    // The published sticker packs the designer sells next to their covers.
+    const stickerPacks = await publishedStickerPacks(designer.userId, userId);
     return {
       designer: {
         ...designer,
         covers: designer.covers.map((cover) => presentCover(cover, userId)),
+        stickerPacks,
       },
     };
   }

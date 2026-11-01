@@ -42,6 +42,43 @@ class _StudioClient extends QChatClient {
         },
       };
     }
+    if (path == '/wallet/designers/d1') {
+      return {
+        'designer': {
+          'userId': 'd1',
+          'displayName': 'Mộc Studio',
+          'bio': 'Phong bì đỏ vẽ tay, tối giản.',
+          'user': {'nickname': 'Minh Anh', 'avatarId': '', 'qchatId': 'qchat'},
+          'covers': [
+            {
+              'id': 'c0',
+              'name': 'Phong bì số 1',
+              'status': 'PUBLISHED',
+              'claimCount': 7,
+              'design': <String, dynamic>{},
+            },
+          ],
+          'stickerPacks': [
+            {
+              'id': 'p0',
+              'name': 'Bộ mèo lười',
+              'mine': false,
+              'added': false,
+              'published': true,
+              'stickers': [
+                {
+                  'id': 'p0-s0',
+                  'mediaId': '',
+                  'label': '',
+                  'packId': 'p0',
+                  'position': 0,
+                },
+              ],
+            },
+          ],
+        },
+      };
+    }
     if (path == '/stickers') {
       return {
         'packs': [
@@ -79,7 +116,11 @@ class _StudioClient extends QChatClient {
   }
 }
 
-Future<void> _mount(WidgetTester tester, {int covers = 2}) async {
+Future<void> _mount(
+  WidgetTester tester, {
+  int covers = 2,
+  Widget screen = const RedPacketDesignerScreen(),
+}) async {
   final client = _StudioClient(covers: covers);
   tester.view.physicalSize = const Size(390, 844);
   tester.view.devicePixelRatio = 1;
@@ -88,10 +129,7 @@ Future<void> _mount(WidgetTester tester, {int covers = 2}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [clientProvider.overrideWithValue(client)],
-      child: qchatHarness(
-        const RedPacketDesignerScreen(),
-        locale: const Locale('vi'),
-      ),
+      child: qchatHarness(screen, locale: const Locale('vi')),
     ),
   );
   await tester.pump();
@@ -115,16 +153,16 @@ void main() {
       findsOneWidget,
     );
 
-    // The packs live further down, in a rail after the covers.
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('sticker-workshop-create')),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pump();
+    // The packs live in the second category, one tap away.
+    await tester.tap(find.text('Bộ nhãn dán'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.byKey(const ValueKey('workshop-pack-p0')), findsOneWidget);
     expect(find.byKey(const ValueKey('workshop-pack-p1')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('sticker-workshop-create')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a cover menu publishes, edits and deletes it', (tester) async {
@@ -147,12 +185,31 @@ void main() {
     expect(tester.takeException(), isNull);
 
     expect(find.text('Chưa có vỏ nào. Hãy tạo vỏ đầu tiên.'), findsOneWidget);
-    await tester.scrollUntilVisible(
-      find.byKey(const ValueKey('sticker-workshop-create')),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await tester.pump();
+    await tester.tap(find.text('Bộ nhãn dán'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    expect(
+      find.byKey(const ValueKey('sticker-workshop-create')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('a designer profile lists their published sticker packs', (
+    tester,
+  ) async {
+    await _mount(
+      tester,
+      screen: const RedPacketDesignerProfileScreen(designerId: 'd1'),
+    );
+    expect(tester.takeException(), isNull);
+
+    expect(find.text('Mộc Studio'), findsOneWidget);
+    // Covers are the first category; the packs are one tap away.
+    expect(find.byKey(const ValueKey('designer-pack-p0')), findsNothing);
+    await tester.tap(find.text('Bộ nhãn dán (1)'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const ValueKey('designer-pack-p0')), findsOneWidget);
+    expect(find.text('Bộ mèo lười'), findsOneWidget);
   });
 }

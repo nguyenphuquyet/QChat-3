@@ -148,7 +148,11 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   for (final pack in packs) ...[
-                    _packTile(c, pack),
+                    StickerPackTile(
+                      key: ValueKey('workshop-pack-${pack.id}'),
+                      pack: pack,
+                      onTap: () => _open(pack),
+                    ),
                     const SizedBox(width: 10),
                   ],
                   _createTile(c),
@@ -176,13 +180,60 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
   /// One pack in the rail: artwork, its sticker count and its name. The rail
   /// keeps the packs in one swipeable line instead of pushing the covers off
   /// the screen with a tall list.
-  Widget _packTile(BuildContext c, StickerPack pack) {
+  Widget _createTile(BuildContext c) => GestureDetector(
+    key: const ValueKey('sticker-workshop-create'),
+    behavior: HitTestBehavior.opaque,
+    onTap: creating ? null : _create,
+    child: SizedBox(
+      width: 68,
+      child: Column(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.accent.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: widget.accent.withValues(alpha: .45),
+                width: 1,
+              ),
+            ),
+            child: creating
+                ? QChatLoading(size: 18, color: widget.accent)
+                : QChatIcon('plus', size: 24, color: widget.accent),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            tr(c, 'stickerNewPackShort'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: widget.accent),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// A pack in a horizontal rail: artwork, its sticker count and its name. The
+/// studio puts a create tile next to it, and a designer's public page shows the
+/// same tile so a pack looks the same wherever it is found.
+class StickerPackTile extends StatelessWidget {
+  const StickerPackTile({super.key, required this.pack, required this.onTap});
+
+  final StickerPack pack;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext c) {
     final avatar = pack.avatarMediaId ?? pack.coverMediaId;
     final fallback = _firstArtwork(pack);
     return GestureDetector(
-      key: ValueKey('workshop-pack-${pack.id}'),
       behavior: HitTestBehavior.opaque,
-      onTap: () => _open(pack),
+      onTap: onTap,
       child: SizedBox(
         width: 68,
         child: Column(
@@ -252,48 +303,11 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
       ),
     );
   }
+}
 
-  Widget _createTile(BuildContext c) => GestureDetector(
-    key: const ValueKey('sticker-workshop-create'),
-    behavior: HitTestBehavior.opaque,
-    onTap: creating ? null : _create,
-    child: SizedBox(
-      width: 68,
-      child: Column(
-        children: [
-          Container(
-            width: 68,
-            height: 68,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: widget.accent.withValues(alpha: .08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: widget.accent.withValues(alpha: .45),
-                width: 1,
-              ),
-            ),
-            child: creating
-                ? QChatLoading(size: 18, color: widget.accent)
-                : QChatIcon('plus', size: 24, color: widget.accent),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            tr(c, 'stickerNewPackShort'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: widget.accent),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  String? _firstArtwork(StickerPack pack) {
-    for (final sticker in pack.stickers) {
-      if (sticker.mediaId.isNotEmpty) return sticker.mediaId;
-    }
-    return null;
+String? _firstArtwork(StickerPack pack) {
+  for (final sticker in pack.stickers) {
+    if (sticker.mediaId.isNotEmpty) return sticker.mediaId;
   }
+  return null;
 }

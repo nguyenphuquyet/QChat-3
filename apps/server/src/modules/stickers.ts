@@ -104,6 +104,19 @@ async function ownedPack(userId: string, id: string) {
   return pack;
 }
 
+/// The published packs of another account, for the sticker shelf on a
+/// designer's public page. Only published packs are exposed: a draft stays
+/// between its owner and the studio.
+export async function publishedStickerPacks(ownerId: string, viewerId: string) {
+  const packs = await db.stickerPack.findMany({
+    where: { ownerId, published: true },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+    include: packInclude(viewerId),
+  });
+  return packs.map((pack) => packJson(pack, viewerId));
+}
+
 export async function stickersRoute(
   userId: string,
   method: string,

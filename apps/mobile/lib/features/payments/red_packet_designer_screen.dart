@@ -8,6 +8,7 @@ import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import '../chats/red_packet_design.dart';
+import '../stickers/sticker_models.dart';
 import '../stickers/sticker_workshop.dart';
 import 'red_packet_cover_preview_screen.dart';
 import 'red_packet_cover_ui.dart';
@@ -30,8 +31,10 @@ class _RedPacketDesignerScreenState
   late Future<dynamic> data;
   final displayName = TextEditingController();
   final bio = TextEditingController();
+  final scroll = ScrollController();
   bool editing = false;
   bool busy = false;
+  int tab = 0;
   String? error;
 
   @override
@@ -44,7 +47,16 @@ class _RedPacketDesignerScreenState
   void dispose() {
     displayName.dispose();
     bio.dispose();
+    scroll.dispose();
     super.dispose();
+  }
+
+  /// Switching category starts at the top of the new list, so a long cover
+  /// gallery never leaves the sticker tab half-scrolled.
+  void _selectTab(int next) {
+    if (next == tab) return;
+    if (scroll.hasClients) scroll.jumpTo(0);
+    setState(() => tab = next);
   }
 
   void _reload() {
@@ -305,176 +317,232 @@ class _RedPacketDesignerScreenState
     final name = designer['displayName']?.toString() ?? '';
     final linkedName = user['nickname']?.toString() ?? '';
     final designerId = designer['userId']?.toString() ?? '';
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
-      children: [
-        CoverSurface(
-          padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
-          child: Column(
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: coverCoral, width: 1.5),
-                    ),
-                    child: UserAvatar({
-                      'nickname': name,
-                      if ((user['avatarId'] ?? '').toString().isNotEmpty)
-                        'avatarId': user['avatarId'],
-                    }, size: 54),
-                  ),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w600,
-                            color: ink(c),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          designer['bio']?.toString().isNotEmpty == true
-                              ? designer['bio'].toString()
-                              : tr(c, 'coverDesigner'),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            height: 1.45,
-                            color: qchatMuted(c),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  _iconChip(
-                    c,
-                    'pencil',
-                    tr(c, 'edit'),
-                    () => _startEditing(designer),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _statCell(
-                      c,
-                      '${covers.length}',
-                      tr(c, 'designerCovers'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _statCell(c, '$claims', tr(c, 'designerClaims')),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _statCell(c, '$published', tr(c, 'coverStatusLive')),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: designerId.isEmpty
-                    ? null
-                    : () => c.push('/red-packets/designers/$designerId'),
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
-                  decoration: BoxDecoration(
-                    color: qchatFill(c),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
+    return CustomScrollView(
+      controller: scroll,
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              children: [
+                CoverSurface(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
+                  child: Column(
                     children: [
-                      UserAvatar(user, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          linkedName.isEmpty
-                              ? tr(c, 'designerLinkedTo')
-                              : '${tr(c, 'designerLinkedTo')} · $linkedName',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12, color: qchatMuted(c)),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(9),
+                              border: Border.all(color: coverCoral, width: 1.5),
+                            ),
+                            child: UserAvatar({
+                              'nickname': name,
+                              if ((user['avatarId'] ?? '')
+                                  .toString()
+                                  .isNotEmpty)
+                                'avatarId': user['avatarId'],
+                            }, size: 54),
+                          ),
+                          const SizedBox(width: 13),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.w600,
+                                    color: ink(c),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  designer['bio']?.toString().isNotEmpty == true
+                                      ? designer['bio'].toString()
+                                      : tr(c, 'coverDesigner'),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    height: 1.45,
+                                    color: qchatMuted(c),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          _iconChip(
+                            c,
+                            'pencil',
+                            tr(c, 'edit'),
+                            () => _startEditing(designer),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _statCell(
+                              c,
+                              '${covers.length}',
+                              tr(c, 'designerCovers'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _statCell(
+                              c,
+                              '$claims',
+                              tr(c, 'designerClaims'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _statCell(
+                              c,
+                              '$published',
+                              tr(c, 'coverStatusLive'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: designerId.isEmpty
+                            ? null
+                            : () =>
+                                  c.push('/red-packets/designers/$designerId'),
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                          decoration: BoxDecoration(
+                            color: qchatFill(c),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              UserAvatar(user, size: 20),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  linkedName.isEmpty
+                                      ? tr(c, 'designerLinkedTo')
+                                      : '${tr(c, 'designerLinkedTo')} · $linkedName',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: qchatMuted(c),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const QChatIcon(
+                                'chevron',
+                                size: 14,
+                                color: QChatColors.muted,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 4),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                CoralButton(
+                  tr(c, 'designerNewCover'),
+                  height: 48,
+                  icon: 'plus',
+                  onTap: () async {
+                    final saved = await c.push<bool>(
+                      '/red-packets/designer/cover',
+                    );
+                    if (saved == true) setState(_reload);
+                  },
+                ),
+                const SizedBox(height: 8),
+                CoralButton(
+                  tr(c, 'designerOpenMarket'),
+                  height: 44,
+                  secondary: true,
+                  icon: 'grid',
+                  onTap: () => c.push('/red-packets/covers/market'),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // The category switch stays pinned under the app bar while a long
+        // cover gallery scrolls, so the sticker shelf is always one tap away.
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _DesignerTabsDelegate(
+            labels: [
+              '${tr(c, 'designerCovers')} (${covers.length})',
+              tr(c, 'designerStickerPacks'),
+            ],
+            index: tab,
+            onChanged: _selectTab,
+          ),
+        ),
+        if (tab == 0) ...[
+          if (covers.isEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: CoverSurface(
+                  padding: const EdgeInsets.symmetric(vertical: 30),
+                  child: Column(
+                    children: [
                       const QChatIcon(
-                        'chevron',
-                        size: 14,
+                        'palette',
+                        size: 34,
                         color: QChatColors.muted,
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        tr(c, 'designerNoCovers'),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 13, color: qchatMuted(c)),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        CoralButton(
-          tr(c, 'designerNewCover'),
-          height: 48,
-          icon: 'plus',
-          onTap: () async {
-            final saved = await c.push<bool>('/red-packets/designer/cover');
-            if (saved == true) setState(_reload);
-          },
-        ),
-        const SizedBox(height: 8),
-        CoralButton(
-          tr(c, 'designerOpenMarket'),
-          height: 44,
-          secondary: true,
-          icon: 'grid',
-          onTap: () => c.push('/red-packets/covers/market'),
-        ),
-        const SizedBox(height: 24),
-        _sectionTitle(c, tr(c, 'designerCovers'), '${covers.length}'),
-        const SizedBox(height: 10),
-        if (covers.isEmpty)
-          CoverSurface(
-            padding: const EdgeInsets.symmetric(vertical: 30),
-            child: Column(
-              children: [
-                const QChatIcon('palette', size: 34, color: QChatColors.muted),
-                const SizedBox(height: 10),
-                Text(
-                  tr(c, 'designerNoCovers'),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: qchatMuted(c)),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                  childAspectRatio: .62,
                 ),
-              ],
+                delegate: SliverChildBuilderDelegate(
+                  (c, i) => _coverCard(c, covers[i]),
+                  childCount: covers.length,
+                ),
+              ),
             ),
-          )
-        else
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            childAspectRatio: .62,
-            children: [for (final cover in covers) _coverCard(c, cover)],
+        ] else
+          const SliverPadding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: StickerWorkshop(accent: coverCoral),
+            ),
           ),
-        const SizedBox(height: 24),
-        const StickerWorkshop(accent: coverCoral),
+        const SliverToBoxAdapter(child: SizedBox(height: 40)),
       ],
     );
   }
@@ -507,31 +575,6 @@ class _RedPacketDesignerScreenState
         ),
       ],
     ),
-  );
-
-  Widget _sectionTitle(BuildContext c, String title, String count) => Row(
-    children: [
-      Text(
-        title,
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: ink(c),
-        ),
-      ),
-      const SizedBox(width: 7),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-        decoration: BoxDecoration(
-          color: qchatFill(c),
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: Text(
-          count,
-          style: TextStyle(fontSize: 11, color: qchatMuted(c)),
-        ),
-      ),
-    ],
   );
 
   Widget _iconChip(
@@ -673,8 +716,52 @@ class _RedPacketDesignerScreenState
       );
 }
 
+/// The category switch shared by the studio and a designer's public page.
+/// It is pinned while the list scrolls so a long cover gallery never hides the
+/// sticker shelf.
+class _DesignerTabsDelegate extends SliverPersistentHeaderDelegate {
+  _DesignerTabsDelegate({
+    required this.labels,
+    required this.index,
+    required this.onChanged,
+  });
+
+  final List<String> labels;
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  @override
+  double get minExtent => 54;
+
+  @override
+  double get maxExtent => 54;
+
+  @override
+  Widget build(BuildContext c, double shrinkOffset, bool overlapsContent) =>
+      SizedBox.expand(
+        child: ColoredBox(
+          color: qchatBackground(c),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+            child: QChatTabBar(
+              labels: labels,
+              index: index,
+              onChanged: onChanged,
+              accent: coverCoral,
+            ),
+          ),
+        ),
+      );
+
+  @override
+  bool shouldRebuild(covariant _DesignerTabsDelegate old) =>
+      old.index != index ||
+      old.onChanged != onChanged ||
+      old.labels.join('|') != labels.join('|');
+}
+
 /// Public page of a designer, opened from a cover card. It shows only the
-/// public identity and the published covers.
+/// public identity, the published covers and the published sticker packs.
 class RedPacketDesignerProfileScreen extends ConsumerStatefulWidget {
   const RedPacketDesignerProfileScreen({super.key, required this.designerId});
 
@@ -688,11 +775,25 @@ class RedPacketDesignerProfileScreen extends ConsumerStatefulWidget {
 class _RedPacketDesignerProfileScreenState
     extends ConsumerState<RedPacketDesignerProfileScreen> {
   late Future<dynamic> data;
+  final scroll = ScrollController();
+  int tab = 0;
 
   @override
   void initState() {
     super.initState();
     _reload();
+  }
+
+  @override
+  void dispose() {
+    scroll.dispose();
+    super.dispose();
+  }
+
+  void _selectTab(int next) {
+    if (next == tab) return;
+    if (scroll.hasClients) scroll.jumpTo(0);
+    setState(() => tab = next);
   }
 
   void _reload() {
@@ -738,91 +839,163 @@ class _RedPacketDesignerProfileScreenState
             if (RedPacketCoverData.fromJson(item) != null)
               RedPacketCoverData.fromJson(item)!,
         ];
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 40),
-          children: [
-            Row(
-              children: [
-                UserAvatar({
-                  'nickname': designer['displayName'],
-                  if ((user['avatarId'] ?? '').toString().isNotEmpty)
-                    'avatarId': user['avatarId'],
-                }, size: 58),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        designer['displayName']?.toString() ?? '',
-                        style: TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w600,
-                          color: ink(c),
+        final packs = [
+          for (final item
+              in (designer['stickerPacks'] is List
+                  ? designer['stickerPacks'] as List
+                  : const []))
+            if (StickerPack.fromJson(item).id.isNotEmpty)
+              StickerPack.fromJson(item),
+        ];
+        return CustomScrollView(
+          controller: scroll,
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  children: [
+                    UserAvatar({
+                      'nickname': designer['displayName'],
+                      if ((user['avatarId'] ?? '').toString().isNotEmpty)
+                        'avatarId': user['avatarId'],
+                    }, size: 58),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            designer['displayName']?.toString() ?? '',
+                            style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w600,
+                              color: ink(c),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            designer['bio']?.toString().isNotEmpty == true
+                                ? designer['bio'].toString()
+                                : tr(c, 'coverDesigner'),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              height: 1.4,
+                              color: qchatMuted(c),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SliverPersistentHeader(
+              pinned: true,
+              delegate: _DesignerTabsDelegate(
+                labels: [
+                  '${tr(c, 'designerCovers')} (${covers.length})',
+                  '${tr(c, 'designerStickerPacks')} (${packs.length})',
+                ],
+                index: tab,
+                onChanged: _selectTab,
+              ),
+            ),
+            if (tab == 0) ...[
+              if (covers.isEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 26),
+                      child: QChatEmptyState(
+                        tr(c, 'designerNoCovers'),
+                        icon: 'palette',
+                      ),
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: .56,
+                        ),
+                    delegate: SliverChildBuilderDelegate(
+                      (c, i) => CoverSurface(
+                        padding: const EdgeInsets.all(9),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => showRedPacketCoverPreview(c, covers[i]),
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: Center(
+                                  child: CoverThumb(
+                                    design: covers[i].design,
+                                    showOpen: false,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                covers[i].name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 13, color: ink(c)),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        designer['bio']?.toString().isNotEmpty == true
-                            ? designer['bio'].toString()
-                            : tr(c, 'coverDesigner'),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          height: 1.4,
-                          color: qchatMuted(c),
-                        ),
-                      ),
-                    ],
+                      childCount: covers.length,
+                    ),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            if (covers.isEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 30),
-                child: QChatEmptyState(
-                  tr(c, 'designerNoCovers'),
-                  icon: 'palette',
+            ] else if (packs.isEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 26),
+                    child: QChatEmptyState(
+                      tr(c, 'designerNoStickerPacks'),
+                      icon: 'stickerV',
+                    ),
+                  ),
                 ),
               )
             else
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: .56,
-                children: [
-                  for (final cover in covers)
-                    CoverSurface(
-                      padding: const EdgeInsets.all(9),
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => showRedPacketCoverPreview(c, cover),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: Center(
-                                child: CoverThumb(design: cover.design),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              cover.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 13, color: ink(c)),
-                            ),
-                          ],
-                        ),
-                      ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                sliver: SliverToBoxAdapter(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final pack in packs) ...[
+                          StickerPackTile(
+                            key: ValueKey('designer-pack-${pack.id}'),
+                            pack: pack,
+                            onTap: () => c.push('/stickers/${pack.id}'),
+                          ),
+                          const SizedBox(width: 10),
+                        ],
+                      ],
                     ),
-                ],
+                  ),
+                ),
               ),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         );
       },

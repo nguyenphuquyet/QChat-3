@@ -1635,10 +1635,15 @@ class QChatTabBar extends StatelessWidget {
     required this.labels,
     required this.index,
     required this.onChanged,
+    this.accent = QChatColors.primary,
   });
   final List<String> labels;
   final int index;
   final ValueChanged<int> onChanged;
+
+  /// Colour of the selected label and its underline. The design studio passes
+  /// its coral so its tabs belong to the cover family, not to the green app.
+  final Color accent;
 
   @override
   Widget build(BuildContext c) => Row(
@@ -1662,9 +1667,7 @@ class QChatTabBar extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 14,
-                        color: i == index
-                            ? QChatColors.primary
-                            : QChatColors.muted,
+                        color: i == index ? accent : QChatColors.muted,
                         fontWeight: i == index
                             ? FontWeight.w500
                             : FontWeight.w400,
@@ -1675,9 +1678,7 @@ class QChatTabBar extends StatelessWidget {
                     duration: const Duration(milliseconds: 160),
                     height: 2.5,
                     width: 34,
-                    color: i == index
-                        ? QChatColors.primary
-                        : QChatColors.transparent,
+                    color: i == index ? accent : QChatColors.transparent,
                   ),
                 ],
               ),
