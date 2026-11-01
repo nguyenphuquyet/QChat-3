@@ -183,25 +183,38 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
           child: CupertinoTextField(
             controller: search,
             onChanged: (value) => setState(() => query = value),
-            textAlign: TextAlign.center,
-            padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 11),
+            textAlign: TextAlign.start,
+            padding: const EdgeInsets.only(
+              left: 40,
+              right: 42,
+              top: 11,
+              bottom: 11,
+            ),
             decoration: const BoxDecoration(),
             cursorColor: QChatColors.green,
             style: TextStyle(fontSize: 15, color: ink(c)),
           ),
         ),
-        if (query.isEmpty)
-          const IgnorePointer(
+        // The magnifier stays put while typing, so the query starts exactly
+        // where the hint did instead of jumping to the left edge.
+        Positioned(
+          left: 14,
+          top: 0,
+          bottom: 0,
+          child: IgnorePointer(
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                QChatIcon('search', size: 19, color: QChatColors.muted),
-                SizedBox(width: 7),
-                _SearchHint(),
+                const QChatIcon('search', size: 19, color: QChatColors.muted),
+                if (query.isEmpty) ...[
+                  const SizedBox(width: 7),
+                  const _SearchHint(),
+                ],
               ],
             ),
-          )
-        else
+          ),
+        ),
+        if (query.isNotEmpty)
           Positioned(
             right: 4,
             child: GestureDetector(

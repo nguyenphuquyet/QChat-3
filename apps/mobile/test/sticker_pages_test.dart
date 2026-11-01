@@ -231,6 +231,12 @@ void main() {
   ) async {
     await mount(tester, const StickerLibraryScreen(), extraPacks: 3);
     expect(find.byKey(const ValueKey('sticker-pack-x2')), findsOneWidget);
+    // The field reads from the leading edge, like the rest of the list.
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).textAlign,
+      TextAlign.start,
+    );
+    expect(tester.getTopLeft(find.text('Tìm kiếm')).dx, lessThan(60));
 
     // "meo" has no marks but still finds the pack named "Bộ mèo lười".
     await tester.enterText(find.byType(EditableText), 'meo');
