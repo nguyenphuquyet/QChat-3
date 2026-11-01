@@ -1014,6 +1014,7 @@ const translations = <String, List<String>>{
   ],
   'stickerCreatePack': ['Create a pack', 'Tạo bộ nhãn dán', '创建贴纸专辑'],
   'stickerNewPack': ['New sticker pack', 'Bộ nhãn dán mới', '新建贴纸专辑'],
+  'stickerNewPackShort': ['New pack', 'Bộ mới', '新建'],
   'stickerMyPacks': ['My packs', 'Bộ nhãn dán của tôi', '我的专辑'],
   'stickerMarket': ['Sticker market', 'Chợ nhãn dán', '贴纸市场'],
   'stickerMarketEmpty': [

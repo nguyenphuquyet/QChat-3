@@ -17,12 +17,16 @@ class CoralButton extends StatelessWidget {
     this.loading = false,
     this.secondary = false,
     this.height = 44,
+    this.icon,
   });
 
   final String text;
   final VoidCallback? onTap;
   final bool loading, secondary;
   final double height;
+
+  /// Optional leading glyph, e.g. `plus` on "Tạo vỏ mới".
+  final String? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -49,16 +53,31 @@ class CoralButton extends StatelessWidget {
             ),
             child: loading
                 ? const QChatLoading(size: 18)
-                : Text(
-                    text,
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: secondary ? ink(context) : QChatColors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (icon != null) ...[
+                        QChatIcon(
+                          icon!,
+                          size: 18,
+                          color: secondary ? ink(context) : QChatColors.white,
+                        ),
+                        const SizedBox(width: 7),
+                      ],
+                      Flexible(
+                        child: Text(
+                          text,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: secondary ? ink(context) : QChatColors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ),

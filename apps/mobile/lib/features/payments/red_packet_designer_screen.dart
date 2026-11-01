@@ -71,10 +71,10 @@ class _RedPacketDesignerScreenState
     try {
       final client = ref.read(clientProvider);
       if (existing) {
-        await client.dio.patch('/wallet/designer', data: {
-          'displayName': name,
-          'bio': bio.text.trim(),
-        });
+        await client.dio.patch(
+          '/wallet/designer',
+          data: {'displayName': name, 'bio': bio.text.trim()},
+        );
       } else {
         await client.post('/wallet/designer', {
           'displayName': name,
@@ -124,7 +124,7 @@ class _RedPacketDesignerScreenState
   Future<void> _delete(RedPacketCoverData cover) async {
     final ok = await confirmAction(
       context,
-      tr(context, 'delete'),
+      tr(context, 'coverRemove'),
       tr(context, 'coverDeleteConfirm'),
     );
     if (!ok || !mounted) return;
@@ -193,9 +193,7 @@ class _RedPacketDesignerScreenState
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
       children: [
-        const Center(
-          child: QChatIcon('palette', size: 52, color: coverCoral),
-        ),
+        const Center(child: QChatIcon('palette', size: 52, color: coverCoral)),
         const SizedBox(height: 16),
         Text(
           tr(c, designer == null ? 'designerCreate' : 'coverDesigner'),
@@ -295,32 +293,41 @@ class _RedPacketDesignerScreenState
         ? Map<String, dynamic>.from(designer['user'] as Map)
         : const <String, dynamic>{};
     final covers = [
-      for (final item in (designer['covers'] is List
-          ? designer['covers'] as List
-          : const []))
+      for (final item
+          in (designer['covers'] is List
+              ? designer['covers'] as List
+              : const []))
         if (RedPacketCoverData.fromJson(item) != null)
           RedPacketCoverData.fromJson(item)!,
     ];
     final claims = covers.fold<int>(0, (sum, cover) => sum + cover.claimCount);
+    final published = covers.where((cover) => cover.published).length;
     final name = designer['displayName']?.toString() ?? '';
+    final linkedName = user['nickname']?.toString() ?? '';
+    final designerId = designer['userId']?.toString() ?? '';
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 40),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 40),
       children: [
         CoverSurface(
-          padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 12, 14),
           child: Column(
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  UserAvatar(
-                    {
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: coverCoral, width: 1.5),
+                    ),
+                    child: UserAvatar({
                       'nickname': name,
                       if ((user['avatarId'] ?? '').toString().isNotEmpty)
                         'avatarId': user['avatarId'],
-                    },
-                    size: 52,
+                    }, size: 54),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 13),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,7 +337,7 @@ class _RedPacketDesignerScreenState
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 19,
                             fontWeight: FontWeight.w600,
                             color: ink(c),
                           ),
@@ -344,12 +351,19 @@ class _RedPacketDesignerScreenState
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12.5,
-                            height: 1.4,
+                            height: 1.45,
                             color: qchatMuted(c),
                           ),
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 4),
+                  _iconChip(
+                    c,
+                    'pencil',
+                    tr(c, 'edit'),
+                    () => _startEditing(designer),
                   ),
                 ],
               ),
@@ -357,240 +371,304 @@ class _RedPacketDesignerScreenState
               Row(
                 children: [
                   Expanded(
-                    child: _stat(c, '${covers.length}', tr(c, 'designerCovers')),
+                    child: _statCell(
+                      c,
+                      '${covers.length}',
+                      tr(c, 'designerCovers'),
+                    ),
                   ),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: _stat(c, '$claims', tr(c, 'designerClaims')),
+                    child: _statCell(c, '$claims', tr(c, 'designerClaims')),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _statCell(c, '$published', tr(c, 'coverStatusLive')),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  final id = designer['userId']?.toString() ?? '';
-                  if (id.isNotEmpty) {
-                    c.push('/red-packets/designers/$id');
-                  }
-                },
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    UserAvatar(user, size: 18),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${tr(c, 'designerLinkedTo')} · ${user['nickname'] ?? ''}',
-                      style: TextStyle(fontSize: 12, color: qchatMuted(c)),
-                    ),
-                    const SizedBox(width: 2),
-                    QChatIcon('chevron', size: 13, color: QChatColors.muted),
-                  ],
+                onTap: designerId.isEmpty
+                    ? null
+                    : () => c.push('/red-packets/designers/$designerId'),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                  decoration: BoxDecoration(
+                    color: qchatFill(c),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      UserAvatar(user, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          linkedName.isEmpty
+                              ? tr(c, 'designerLinkedTo')
+                              : '${tr(c, 'designerLinkedTo')} · $linkedName',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: qchatMuted(c)),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const QChatIcon(
+                        'chevron',
+                        size: 14,
+                        color: QChatColors.muted,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: CoralButton(
-                tr(c, 'designerNewCover'),
-                height: 44,
-                onTap: () async {
-                  final saved = await c.push<bool>('/red-packets/designer/cover');
-                  if (saved == true) setState(_reload);
-                },
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: CoralButton(
-                tr(c, 'designerOpenMarket'),
-                height: 44,
-                secondary: true,
-                onTap: () => c.push('/red-packets/covers/market'),
-              ),
-            ),
-          ],
+        const SizedBox(height: 14),
+        CoralButton(
+          tr(c, 'designerNewCover'),
+          height: 48,
+          icon: 'plus',
+          onTap: () async {
+            final saved = await c.push<bool>('/red-packets/designer/cover');
+            if (saved == true) setState(_reload);
+          },
         ),
-        const SizedBox(height: 10),
-        const StickerWorkshop(accent: coverCoral),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Text(
-              tr(c, 'designerCovers'),
-              style: TextStyle(
-                fontSize: 14.5,
-                fontWeight: FontWeight.w600,
-                color: ink(c),
-              ),
-            ),
-            const Spacer(),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _startEditing(designer),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(
-                  children: [
-                    QChatIcon('pencil', size: 14, color: coverCoral),
-                    const SizedBox(width: 4),
-                    Text(
-                      tr(c, 'edit'),
-                      style: const TextStyle(fontSize: 13, color: coverCoral),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+        const SizedBox(height: 8),
+        CoralButton(
+          tr(c, 'designerOpenMarket'),
+          height: 44,
+          secondary: true,
+          icon: 'grid',
+          onTap: () => c.push('/red-packets/covers/market'),
         ),
+        const SizedBox(height: 24),
+        _sectionTitle(c, tr(c, 'designerCovers'), '${covers.length}'),
         const SizedBox(height: 10),
         if (covers.isEmpty)
           CoverSurface(
             padding: const EdgeInsets.symmetric(vertical: 30),
             child: Column(
               children: [
-                const QChatIcon(
-                  'palette',
-                  size: 34,
-                  color: QChatColors.muted,
-                ),
+                const QChatIcon('palette', size: 34, color: QChatColors.muted),
                 const SizedBox(height: 10),
                 Text(
                   tr(c, 'designerNoCovers'),
+                  textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: qchatMuted(c)),
                 ),
               ],
             ),
           )
         else
-          for (final cover in covers) _coverRow(c, cover),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: .62,
+            children: [for (final cover in covers) _coverCard(c, cover)],
+          ),
+        const SizedBox(height: 24),
+        const StickerWorkshop(accent: coverCoral),
       ],
     );
   }
 
-  Widget _stat(BuildContext c, String value, String label) => Column(
+  Widget _statCell(BuildContext c, String value, String label) => Container(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      color: qchatFill(c),
+      borderRadius: BorderRadius.circular(8),
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          maxLines: 1,
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: ink(c),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 11, color: qchatMuted(c)),
+        ),
+      ],
+    ),
+  );
+
+  Widget _sectionTitle(BuildContext c, String title, String count) => Row(
     children: [
       Text(
-        value,
+        title,
         style: TextStyle(
-          fontSize: 20,
+          fontSize: 15,
           fontWeight: FontWeight.w600,
           color: ink(c),
         ),
       ),
-      const SizedBox(height: 2),
-      Text(label, style: TextStyle(fontSize: 12, color: qchatMuted(c))),
+      const SizedBox(width: 7),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+        decoration: BoxDecoration(
+          color: qchatFill(c),
+          borderRadius: BorderRadius.circular(9),
+        ),
+        child: Text(
+          count,
+          style: TextStyle(fontSize: 11, color: qchatMuted(c)),
+        ),
+      ),
     ],
   );
 
-  Widget _coverRow(BuildContext c, RedPacketCoverData cover) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: CoverSurface(
-      padding: const EdgeInsets.all(10),
-      child: Row(
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => showRedPacketCoverPreview(c, cover),
-            child: SizedBox(
-              width: 62,
-              height: 62 * 4 / 3,
-              child: CoverThumb(design: cover.design, showOpen: false),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  cover.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14.5,
-                    fontWeight: FontWeight.w500,
-                    color: ink(c),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: cover.published
-                            ? const Color(0x1fd93b30)
-                            : qchatFill(c),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        tr(
-                          c,
-                          cover.published ? 'coverStatusLive' : 'coverStatusDraft',
-                        ),
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          color: cover.published ? coverCoral : qchatMuted(c),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${cover.claimCount} ${tr(c, 'designerClaims')}',
-                      style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _miniAction(
-                      c,
-                      cover.published ? 'coverUnpublish' : 'coverPublishShort',
-                      () => _togglePublish(cover),
-                    ),
-                    const SizedBox(width: 14),
-                    _miniAction(
-                      c,
-                      'edit',
-                      () async {
-                        final saved = await c.push<bool>(
-                          '/red-packets/designer/cover',
-                          extra: cover,
-                        );
-                        if (saved == true) setState(_reload);
-                      },
-                    ),
-                    const SizedBox(width: 14),
-                    _miniAction(c, 'coverRemove', () => _delete(cover)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+  Widget _iconChip(
+    BuildContext c,
+    String icon,
+    String label,
+    VoidCallback onTap,
+  ) => Semantics(
+    button: true,
+    label: label,
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: qchatFill(c), shape: BoxShape.circle),
+        child: QChatIcon(icon, size: 16, color: qchatMuted(c)),
       ),
     ),
   );
 
-  Widget _miniAction(BuildContext c, String label, VoidCallback onTap) =>
-      GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: busy ? null : onTap,
-        child: Text(
-          tr(c, label),
-          style: TextStyle(
-            fontSize: 12,
-            color: label == 'coverRemove' ? QChatColors.danger : coverCoral,
+  /// One cover in the two-column gallery. The artwork opens the preview; the
+  /// pill in the corner opens publish / edit / delete, so the card itself stays
+  /// clean instead of stacking a row of text links under every cover.
+  Widget _coverCard(BuildContext c, RedPacketCoverData cover) => CoverSurface(
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => showRedPacketCoverPreview(c, cover),
+                child: CoverThumb(
+                  design: cover.design,
+                  showOpen: false,
+                  radius: 0,
+                ),
+              ),
+              Positioned(
+                left: 8,
+                bottom: 8,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cover.published
+                          ? coverCoral
+                          : const Color(0x99000000),
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                    child: Text(
+                      tr(
+                        c,
+                        cover.published
+                            ? 'coverStatusLive'
+                            : 'coverStatusDraft',
+                      ),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: QChatColors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(top: 5, right: 5, child: _coverMenuButton(c, cover)),
+            ],
           ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(10, 7, 10, 9),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                cover.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w500,
+                  color: ink(c),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${cover.claimCount} ${tr(c, 'designerClaims')}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: qchatMuted(c)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+
+  Widget _coverMenuButton(BuildContext c, RedPacketCoverData cover) =>
+      GestureDetector(
+        key: ValueKey('designer-cover-menu-${cover.id}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => qchatSheet(c, [
+          (
+            tr(c, cover.published ? 'coverUnpublish' : 'coverPublishShort'),
+            () => _togglePublish(cover),
+          ),
+          (
+            tr(c, 'edit'),
+            () async {
+              final saved = await c.push<bool>(
+                '/red-packets/designer/cover',
+                extra: cover,
+              );
+              if (saved == true && mounted) setState(_reload);
+            },
+          ),
+          (tr(c, 'coverRemove'), () => _delete(cover)),
+        ]),
+        child: Container(
+          width: 26,
+          height: 26,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: Color(0xcc000000),
+            shape: BoxShape.circle,
+          ),
+          child: const QChatIcon('more', size: 14, color: QChatColors.white),
         ),
       );
 }
@@ -647,18 +725,16 @@ class _RedPacketDesignerProfileScreenState
             ? Map<String, dynamic>.from(snapshot.data['designer'] as Map)
             : null;
         if (designer == null) {
-          return QChatEmptyState(
-            tr(c, 'coverNotFound'),
-            icon: 'palette',
-          );
+          return QChatEmptyState(tr(c, 'coverNotFound'), icon: 'palette');
         }
         final user = designer['user'] is Map
             ? Map<String, dynamic>.from(designer['user'] as Map)
             : const <String, dynamic>{};
         final covers = [
-          for (final item in (designer['covers'] is List
-              ? designer['covers'] as List
-              : const []))
+          for (final item
+              in (designer['covers'] is List
+                  ? designer['covers'] as List
+                  : const []))
             if (RedPacketCoverData.fromJson(item) != null)
               RedPacketCoverData.fromJson(item)!,
         ];
@@ -667,14 +743,11 @@ class _RedPacketDesignerProfileScreenState
           children: [
             Row(
               children: [
-                UserAvatar(
-                  {
-                    'nickname': designer['displayName'],
-                    if ((user['avatarId'] ?? '').toString().isNotEmpty)
-                      'avatarId': user['avatarId'],
-                  },
-                  size: 58,
-                ),
+                UserAvatar({
+                  'nickname': designer['displayName'],
+                  if ((user['avatarId'] ?? '').toString().isNotEmpty)
+                    'avatarId': user['avatarId'],
+                }, size: 58),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

@@ -95,13 +95,15 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
         children: [
           Row(
             children: [
-              QChatIcon('stickerV', size: 22, color: ink(c)),
+              QChatIcon('stickerV', size: 20, color: widget.accent),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   tr(c, 'stickerStudio'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w600,
                     color: ink(c),
                   ),
@@ -129,108 +131,164 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
           const SizedBox(height: 4),
           Text(
             tr(c, 'stickerStudioShort'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 11.5, height: 1.4, color: qchatMuted(c)),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           if (loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
+            const SizedBox(
+              height: 84,
               child: Center(child: QChatLoading(size: 18)),
             )
-          else if (packs.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Text(
-                tr(c, 'stickerEmpty'),
-                style: TextStyle(
-                  fontSize: 12.5,
-                  height: 1.45,
-                  color: qchatMuted(c),
-                ),
-              ),
-            )
           else
-            for (final pack in packs) _packRow(c, pack),
-          const SizedBox(height: 8),
-          GestureDetector(
-            key: const ValueKey('sticker-workshop-create'),
-            behavior: HitTestBehavior.opaque,
-            onTap: creating ? null : _create,
-            child: Container(
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: widget.accent,
-                borderRadius: BorderRadius.circular(6),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final pack in packs) ...[
+                    _packTile(c, pack),
+                    const SizedBox(width: 10),
+                  ],
+                  _createTile(c),
+                ],
               ),
-              child: creating
-                  ? const QChatLoading(size: 17, color: QChatColors.white)
-                  : Text(
-                      tr(c, 'stickerNewPack'),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: QChatColors.white,
-                      ),
-                    ),
             ),
-          ),
+          if (!loading && packs.isEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              tr(c, 'stickerEmpty'),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.4,
+                color: qchatMuted(c),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _packRow(BuildContext c, StickerPack pack) {
+  /// One pack in the rail: artwork, its sticker count and its name. The rail
+  /// keeps the packs in one swipeable line instead of pushing the covers off
+  /// the screen with a tall list.
+  Widget _packTile(BuildContext c, StickerPack pack) {
     final avatar = pack.avatarMediaId ?? pack.coverMediaId;
     final fallback = _firstArtwork(pack);
     return GestureDetector(
       key: ValueKey('workshop-pack-${pack.id}'),
       behavior: HitTestBehavior.opaque,
       onTap: () => _open(pack),
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Row(
+      child: SizedBox(
+        width: 68,
+        child: Column(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                color: qchatFill(c),
-                child: avatar != null
-                    ? MediaImage(id: avatar, fit: BoxFit.cover)
-                    : fallback != null
-                    ? StickerView(mediaId: fallback, size: 34)
-                    : QChatIcon('emoji', size: 22, color: ink(c)),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pack.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13.5, color: ink(c)),
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: 68,
+                    height: 68,
+                    alignment: Alignment.center,
+                    color: qchatFill(c),
+                    child: avatar != null
+                        ? MediaImage(id: avatar, fit: BoxFit.cover)
+                        : fallback != null
+                        ? StickerView(mediaId: fallback, size: 58)
+                        : QChatIcon('emoji', size: 26, color: ink(c)),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${pack.stickers.length} ${tr(c, 'stickerCount')} · '
-                    '${tr(c, pack.published ? 'stickerPublished' : 'stickerDraft')}',
-                    style: TextStyle(fontSize: 11, color: qchatMuted(c)),
+                ),
+                Positioned(
+                  right: 4,
+                  bottom: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0x99000000),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${pack.stickers.length}',
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        color: QChatColors.white,
+                      ),
+                    ),
                   ),
-                ],
-              ),
+                ),
+                if (pack.published)
+                  Positioned(
+                    left: 5,
+                    top: 5,
+                    child: Container(
+                      width: 7,
+                      height: 7,
+                      decoration: const BoxDecoration(
+                        color: QChatColors.green,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            QChatIcon('chevron', size: 15, color: QChatColors.muted),
+            const SizedBox(height: 5),
+            Text(
+              pack.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: ink(c)),
+            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _createTile(BuildContext c) => GestureDetector(
+    key: const ValueKey('sticker-workshop-create'),
+    behavior: HitTestBehavior.opaque,
+    onTap: creating ? null : _create,
+    child: SizedBox(
+      width: 68,
+      child: Column(
+        children: [
+          Container(
+            width: 68,
+            height: 68,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.accent.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: widget.accent.withValues(alpha: .45),
+                width: 1,
+              ),
+            ),
+            child: creating
+                ? QChatLoading(size: 18, color: widget.accent)
+                : QChatIcon('plus', size: 24, color: widget.accent),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            tr(c, 'stickerNewPackShort'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: widget.accent),
+          ),
+        ],
+      ),
+    ),
+  );
 
   String? _firstArtwork(StickerPack pack) {
     for (final sticker in pack.stickers) {
