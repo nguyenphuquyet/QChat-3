@@ -1290,34 +1290,86 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (!mounted) return;
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
-    final current = tr(context, 'currentChat');
-    final picked = await showQChatForwardPicker(
-      context,
-      title: tr(context, 'pickChatTitle'),
-      recent: [
-        for (final chat in chats.where((c) => c['id'] != widget.id).take(8))
-          conversationShareTarget(chat as Map, selfId),
-      ],
-      entries: [
-        for (final chat in chats)
-          QChatForwardEntry(
-            id: chat['id'] as String,
-            name: conversationShareName(chat as Map, selfId),
-            avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
-            note: chat['id'] == widget.id ? current : null,
-            disabled: chat['id'] == widget.id,
-          ),
-      ],
-    );
+
+    Map? chatById(String id) {
+      for (final chat in chats) {
+        if (chat is Map && chat['id'] == id) return chat;
+      }
+      return null;
+    }
+
+    var picked = await _pickChats(chats, selfId);
     if (!mounted || picked == null) return;
+    var targets = picked;
     // An empty result is the "Cuộc trò chuyện mới" link, not a forward.
-    if (picked.isEmpty) {
+    if (targets.isEmpty) {
       context.push('/groups/new');
       return;
     }
-    for (final target in picked) {
-      await _forwardTo(target, rows);
+    while (true) {
+      if (!mounted) return;
+      final first = chatById(targets.first);
+      if (first == null) return;
+      final result = await showQChatSendConfirmSheet(
+        context,
+        recipient: conversationShareTarget(first, selfId),
+        extra: targets.length - 1,
+        preview: QChatSendPreview(
+          source: title,
+          title: _forwardPreview(rows),
+          footer: tr(context, 'forward'),
+          footerIcon: 'share',
+        ),
+      );
+      if (!mounted || result == null) return;
+      if (result.outcome == QChatSendOutcome.cancelled) return;
+      if (result.outcome == QChatSendOutcome.changeRecipient) {
+        final next = await _pickChats(chats, selfId);
+        if (!mounted || next == null) return;
+        if (next.isEmpty) {
+          context.push('/groups/new');
+          return;
+        }
+        targets = next;
+        continue;
+      }
+      final note = result.message.trim();
+      for (final target in targets) {
+        await _forwardTo(target, rows);
+        if (note.isNotEmpty) await client.send(target, note);
+      }
+      return;
     }
+  }
+
+  Future<List<String>?> _pickChats(List chats, String selfId) =>
+      showQChatForwardPicker(
+        context,
+        title: tr(context, 'pickChatTitle'),
+        recent: [
+          for (final chat in chats.where((c) => c['id'] != widget.id).take(8))
+            conversationShareTarget(chat as Map, selfId),
+        ],
+        entries: [
+          for (final chat in chats)
+            QChatForwardEntry(
+              id: chat['id'] as String,
+              name: conversationShareName(chat as Map, selfId),
+              avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
+              note: chat['id'] == widget.id ? tr(context, 'currentChat') : null,
+              disabled: chat['id'] == widget.id,
+            ),
+        ],
+      );
+
+  /// The headline of the confirm card: the message itself, or how many are
+  /// travelling when the user forwarded a selection.
+  String _forwardPreview(List<Map<String, dynamic>> rows) {
+    if (rows.length > 1) {
+      return tr(context, 'forwardCount').replaceAll('{n}', '${rows.length}');
+    }
+    final text = _forwardQuery(rows);
+    return text.isEmpty ? tr(context, 'forward') : text;
   }
 
   Future<void> _forwardTo(

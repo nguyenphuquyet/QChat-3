@@ -517,13 +517,13 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         for (final chat in chats.take(8))
           conversationShareTarget(chat as Map, selfId),
       ],
-      onAdd: () => _shareToChat(body, chats),
+      onAdd: () => _shareToChat(body, chats, title),
       actions: [
         QChatShareAction(
           icon: 'share',
           label: tr(context, 'sendToChat'),
           color: QChatColors.green,
-          onTap: () => _shareToChat(body, chats),
+          onTap: () => _shareToChat(body, chats, title),
         ),
         QChatShareAction(
           icon: 'copy',
@@ -559,11 +559,23 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     return true;
   }
 
-  Future<void> _shareToChat(String body, List chats) async {
+  /// Pick a receiver, then confirm on the send sheet: it previews the mini
+  /// program card, lets the user add a note and swap the conversation before
+  /// the green button actually sends anything.
+  Future<void> _shareToChat(String body, List chats, String title) async {
     if (!mounted) return;
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
-    final picked = await showQChatForwardPicker(
+    final name = title.isEmpty ? _name : title;
+
+    Map? chatById(String id) {
+      for (final chat in chats) {
+        if (chat is Map && chat['id'] == id) return chat;
+      }
+      return null;
+    }
+
+    Future<List<String>?> pick() => showQChatForwardPicker(
       context,
       title: tr(context, 'pickChatTitle'),
       recent: [
@@ -575,17 +587,44 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
           QChatForwardEntry(
             id: chat['id'] as String,
             name: conversationShareName(chat as Map, selfId),
-            avatar: conversationShareTarget(
-              chat,
-              selfId,
-              size: 48,
-            ).avatar,
+            avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
           ),
       ],
     );
-    if (!mounted || picked == null || picked.isEmpty) return;
-    for (final id in picked) {
-      await _sendShared(id, body);
+
+    final first = await pick();
+    if (!mounted || first == null || first.isEmpty) return;
+    var ids = first;
+    while (true) {
+      if (!mounted) return;
+      final chat = chatById(ids.first);
+      if (chat == null) return;
+      final result = await showQChatSendConfirmSheet(
+        context,
+        recipient: conversationShareTarget(chat, selfId),
+        extra: ids.length - 1,
+        preview: QChatSendPreview(
+          source: _name,
+          sourceIcon: _ShareCover(iconUrl: _iconUrl, name: _name, size: 16),
+          title: name,
+          image: _ShareCover(iconUrl: _iconUrl, name: _name),
+          footer: tr(context, 'miniProgram'),
+        ),
+      );
+      if (!mounted || result == null) return;
+      if (result.outcome == QChatSendOutcome.cancelled) return;
+      if (result.outcome == QChatSendOutcome.changeRecipient) {
+        final next = await pick();
+        if (!mounted || next == null || next.isEmpty) return;
+        ids = next;
+        continue;
+      }
+      final note = result.message.trim();
+      final text = [if (note.isNotEmpty) note, body].join('\n');
+      for (final id in ids) {
+        await _sendShared(id, text);
+      }
+      return;
     }
   }
 
@@ -1042,8 +1081,49 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
         );
 }
 
-int _compareVersion(String a, String b) {
-  final left = a.split('-').first.split('.').map(int.tryParse).toList();
+/// The mini program artwork on the send card: its icon when the store has one,
+/// otherwise a quiet gradient with the first letter of its name.
+class _ShareCover extends StatelessWidget {
+  const _ShareCover({required this.iconUrl, required this.name, this.size});
+
+  final String iconUrl;
+  final String name;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xff3fbf74), Color(0xff0d8a46)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          name.isEmpty ? 'Q' : name.characters.first.toUpperCase(),
+          style: TextStyle(
+            fontSize: (size ?? 40) * .45,
+            height: 1,
+            fontWeight: FontWeight.w600,
+            color: QChatColors.white,
+          ),
+        ),
+      ),
+    );
+    final art = iconUrl.isEmpty
+        ? fallback
+        : Image.network(
+            iconUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => fallback,
+          );
+    return size == null ? art : SizedBox.square(dimension: size, child: art);
+  }
+}
+
+int _compareVersion(String a, String b) {  final left = a.split('-').first.split('.').map(int.tryParse).toList();
   final right = b.split('-').first.split('.').map(int.tryParse).toList();
   for (var i = 0; i < 3; i++) {
     final x = i < left.length ? (left[i] ?? 0) : 0;

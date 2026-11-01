@@ -131,6 +131,21 @@ class ForwardClient extends FakeClient {
     if (path == '/conversations') return [conversation, second];
     return super.get(path, cached: cached);
   }
+
+  /// The note typed on the send sheet, per conversation.
+  final sent = <String, String>{};
+
+  @override
+  Future<void> send(
+    String conversation,
+    String text, {
+    String kind = 'TEXT',
+    String? mediaId,
+    String? replyToId,
+  }) async {
+    sent[conversation] = text;
+    calls.add('/messages/$conversation');
+  }
 }
 
 class RequestsClient extends FakeClient {
@@ -387,7 +402,25 @@ void main() {
 
     await tester.tap(find.text('Linh').last);
     await tester.pumpAndSettle();
+
+    // The picker hands over to the send sheet, which previews the message and
+    // waits for the green button before anything leaves the chat.
+    expect(find.byType(QChatSendConfirmSheet), findsOneWidget);
+    expect(find.text('Gửi đến'), findsOneWidget);
+    expect(find.text('Gửi tin nhắn'), findsOneWidget);
+    expect(client.calls, isNot(contains('/messages/message/forward')));
+
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(QChatSendConfirmSheet),
+        matching: find.byType(CupertinoTextField),
+      ),
+      'Kèm lời nhắn',
+    );
+    await tester.tap(find.text('Gửi Để Trò chuyện'));
+    await tester.pumpAndSettle();
     expect(client.calls, contains('/messages/message/forward'));
+    expect(client.sent['chat2'], 'Kèm lời nhắn');
     expect(tester.takeException(), isNull);
   });
   testWidgets('message action popover animates and keeps a screen margin', (

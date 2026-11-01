@@ -183,6 +183,8 @@ void main() {
     await snapshot('share-sheet');
     await mount(const _ForwardPickerPreview());
     await snapshot('forward-picker');
+    await mount(const _SendConfirmPreview());
+    await snapshot('send-confirm');
     await tester.pumpWidget(const SizedBox());
     await client.changes.close();
     await client.messageChanges.close();
@@ -294,6 +296,33 @@ class _ForwardPickerPreview extends StatelessWidget {
               avatar: QChatAvatar('Minh', size: 48),
             ),
           ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// The send sheet: recipient, preview card, note field and the two buttons.
+class _SendConfirmPreview extends StatelessWidget {
+  const _SendConfirmPreview();
+  @override
+  Widget build(BuildContext c) => Stack(
+    children: [
+      const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
+      Positioned.fill(
+        child: QChatSendConfirmSheet(
+          recipient: const QChatShareTarget(
+            id: 'a',
+            name: 'Quyết',
+            avatar: QChatAvatar('Quyết', size: 56),
+          ),
+          preview: const QChatSendPreview(
+            source: '安徽省科技馆',
+            sourceIcon: QChatAvatar('安', size: 16),
+            title: '安徽省科技馆',
+            image: ColoredBox(color: Color(0xff8899cc)),
+            footer: 'Chương trình nhỏ',
+          ),
         ),
       ),
     ],
