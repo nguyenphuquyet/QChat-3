@@ -1061,6 +1061,7 @@ const translations = <String, List<String>>{
     '删除此专辑及其所有贴纸？',
   ],
   'stickerDeleted': ['Pack deleted', 'Đã xoá bộ nhãn dán', '专辑已删除'],
+  'stickerRemoved': ['Sticker removed', 'Đã xoá nhãn dán', '已移除贴纸'],
   'stickerRemove': ['Remove sticker', 'Xoá nhãn dán', '移除贴纸'],
   'stickerRemoveConfirm': [
     'Remove this sticker from the pack?',

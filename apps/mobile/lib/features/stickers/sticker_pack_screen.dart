@@ -117,18 +117,21 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
     }
   }
 
-  Future<void> _removeSticker(Sticker sticker) async {
+  Future<bool> _removeSticker(Sticker sticker) async {
     final ok = await confirmAction(
       context,
       tr(context, 'stickerRemove'),
       tr(context, 'stickerRemoveConfirm'),
     );
-    if (!ok || !mounted) return;
+    if (!ok || !mounted) return false;
     try {
       await _api.removeSticker(widget.packId, sticker.id);
       await _load();
+      if (mounted) showQChatToast(context, tr(context, 'stickerRemoved'));
+      return true;
     } catch (_) {
       if (mounted) showQChatToast(context, tr(context, 'networkError'));
+      return false;
     }
   }
 
@@ -263,6 +266,9 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
         sticker: sticker,
         onAdd: () => _addStickerToLibrary(sticker),
         onSend: () => _sendSticker(sticker),
+        // Only the owner may take a piece out of the pack; long-press still
+        // offers the same action, but a button is what people look for.
+        onRemove: data.mine ? () => _removeSticker(sticker) : null,
       ),
       showCancel: false,
       maxHeightFactor: .78,
@@ -712,18 +718,23 @@ class _StickerPackScreenState extends ConsumerState<StickerPackScreen> {
   }
 }
 
-/// The preview sheet of one sticker: artwork, its label, then "Thêm" and
-/// "Gửi đến Trò chuyện".
+/// The preview sheet of one sticker: artwork, its label, then "Thêm",
+/// "Gửi đến Trò chuyện" and — for the owner — "Xoá nhãn dán".
 class _StickerSheet extends StatefulWidget {
   const _StickerSheet({
     required this.sticker,
     required this.onAdd,
     required this.onSend,
+    this.onRemove,
   });
 
   final Sticker sticker;
   final Future<bool> Function() onAdd;
   final Future<void> Function() onSend;
+
+  /// Null when the pack is not the viewer's: someone else's artwork is not
+  /// theirs to take out.
+  final Future<bool> Function()? onRemove;
 
   @override
   State<_StickerSheet> createState() => _StickerSheetState();
@@ -731,6 +742,7 @@ class _StickerSheet extends StatefulWidget {
 
 class _StickerSheetState extends State<_StickerSheet> {
   bool adding = false;
+  bool removing = false;
 
   Future<void> _add() async {
     if (adding) return;
@@ -744,6 +756,19 @@ class _StickerSheetState extends State<_StickerSheet> {
     }
   }
 
+  Future<void> _remove() async {
+    final remove = widget.onRemove;
+    if (remove == null || removing || adding) return;
+    setState(() => removing = true);
+    final ok = await remove();
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() => removing = false);
+    }
+  }
+
   void _send() {
     Navigator.of(context).pop();
     widget.onSend();
@@ -753,7 +778,9 @@ class _StickerSheetState extends State<_StickerSheet> {
   Widget build(BuildContext c) {
     final size = math.min(MediaQuery.sizeOf(c).width * .52, 240.0);
     final label = widget.sticker.label.trim();
-    return Padding(
+    // A short screen (or a sticker with a label) must still reach the buttons:
+    // scroll rather than clip the last one out of the sheet.
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -799,6 +826,17 @@ class _StickerSheetState extends State<_StickerSheet> {
             foreground: ink(c),
             onTap: _send,
           ),
+          if (widget.onRemove != null) ...[
+            const SizedBox(height: 12),
+            _SheetButton(
+              key: const ValueKey('sticker-sheet-remove'),
+              label: tr(c, 'stickerRemove'),
+              background: qchatFill(c),
+              foreground: QChatColors.danger,
+              loading: removing,
+              onTap: _remove,
+            ),
+          ],
           const SizedBox(height: 10),
         ],
       ),

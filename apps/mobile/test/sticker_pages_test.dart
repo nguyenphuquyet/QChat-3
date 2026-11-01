@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -109,6 +110,31 @@ Future<Uint8List> _art(Color color) async {
   return data!.buffer.asUint8List();
 }
 
+/// Records the requests the screen sends straight through `dio`, such as the
+/// DELETE that takes one sticker out of a pack.
+class _RecordingTransport implements HttpClientAdapter {
+  final calls = <String>[];
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? stream,
+    Future<void>? cancelFuture,
+  ) async {
+    calls.add('${options.method} ${options.path}');
+    return ResponseBody.fromString(
+      '',
+      204,
+      headers: {
+        Headers.contentTypeHeader: [Headers.jsonContentType],
+      },
+    );
+  }
+
+  @override
+  void close({bool force = false}) {}
+}
+
 void main() {
   setUpAll(() async {
     MediaCache.put('cover', await _art(const Color(0xfff4e3b2)));
@@ -183,6 +209,40 @@ void main() {
     expect(find.byKey(const ValueKey('sticker-sheet-add')), findsOneWidget);
     expect(find.byKey(const ValueKey('sticker-sheet-send')), findsOneWidget);
     expect(find.text('Gửi đến Trò chuyện'), findsOneWidget);
+    // Someone else's pack: the artwork is not the viewer's to take out.
+    expect(find.byKey(const ValueKey('sticker-sheet-remove')), findsNothing);
+  });
+
+  testWidgets('the owner can remove a sticker from its preview sheet', (
+    tester,
+  ) async {
+    final client = await mount(
+      tester,
+      const StickerPackScreen(packId: 'p1'),
+      mine: true,
+    );
+    final transport = _RecordingTransport();
+    client.dio.httpClientAdapter = transport;
+
+    await tester.tap(find.byKey(const ValueKey('studio-sticker-s2')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    await tester.ensureVisible(find.byKey(const ValueKey('sticker-sheet-remove')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('sticker-sheet-remove')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Xoá nhãn dán này khỏi bộ?'), findsOneWidget);
+
+    await tester.tap(find.text('Xác nhận'));
+    await tester.pumpAndSettle();
+
+    expect(transport.calls, ['DELETE /stickers/packs/p1/stickers/s2']);
+    // The sheet is gone with the sticker it showed.
+    expect(find.byKey(const ValueKey('sticker-sheet-remove')), findsNothing);
+    // Let the confirmation toast expire before the tree is torn down.
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('the sheet sends a sticker to the picked conversation', (
