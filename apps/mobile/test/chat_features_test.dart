@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -496,6 +497,63 @@ void main() {
     expect(find.byType(PageView), findsNothing);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('a keyboard measured once is ready for the next app start', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    forgetKeyboardRest();
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 210);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final saved = await SharedPreferences.getInstance();
+    expect(
+      saved.getDouble('chat.keyboardRest'),
+      closeTo(210 / tester.view.devicePixelRatio, 0.01),
+    );    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a new app start knows where the keyboard will stop', (
+    tester,
+  ) async {
+    // What the last run left behind: the keyboard's resting height, in logical
+    // pixels (the harness mounts at a pixel ratio of 1).
+    tester.view.devicePixelRatio = 1;
+    SharedPreferences.setMockInitialValues({'chat.keyboardRest': 210.0});
+    forgetKeyboardRest();
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pumpAndSettle();
+    final open = tester.getRect(find.byType(ChatInputBar)).bottom;
+    expect(find.byType(PageView), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pump();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 210);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+
+    // The bar is already sliding on the first keyboard frame: nothing waits for
+    // the keyboard to settle before the panel steps out of the way.
+    final sliding = tester.getRect(find.byType(ChatInputBar)).bottom;
+    expect(sliding, greaterThan(open));
+
+    await tester.pumpAndSettle();
+    final done = tester.getRect(find.byType(ChatInputBar)).bottom;
+    // The keyboard is 210 px, the panel 250: the bar ends 40 px lower, and it
+    // was already between the two positions before the keyboard had settled.
+    expect(done, closeTo(open + 40, 0.5));
+    expect(done, greaterThan(sliding));
+    expect(find.byType(PageView), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'cleared messages cannot return from confirmed cache and newer messages survive',
     () async {
@@ -520,3 +578,7 @@ void main() {
     },
   );
 }
+
+
+
+

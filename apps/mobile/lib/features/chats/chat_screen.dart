@@ -13,6 +13,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
@@ -39,7 +40,57 @@ import '../stickers/wechat_emoji.dart';
 /// đơn vị logic. Nhờ nó, một cuộc trò chuyện vừa mở (chưa từng thấy bàn phím)
 /// vẫn biết trước bàn phím sẽ dừng ở đâu khi nó thay chỗ cho panel, nên thanh
 /// nhập tụt xuống cùng lúc bàn phím trượt lên.
+///
+/// Số này còn được ghi lại trên máy: mở app lần sau, ngay lần bấm bàn phím đầu
+/// tiên đã biết đích đến, nên không còn cảnh bàn phím lên xong thanh nhập mới
+/// tụt xuống.
 double _keyboardRestInset = 0;
+
+const _keyboardRestKey = 'chat.keyboardRest';
+
+/// Đã hỏi bộ nhớ của máy chưa.
+bool _keyboardRestLoaded = false;
+
+Future<void> _loadKeyboardRest() async {
+  if (_keyboardRestLoaded) return;
+  _keyboardRestLoaded = true;
+  try {
+    final saved = await SharedPreferences.getInstance();
+    final stored = saved.getDouble(_keyboardRestKey);
+    if (stored != null && stored > 0 && _keyboardRestInset <= 0) {
+      _keyboardRestInset = stored;
+    }
+  } catch (_) {
+    // Không đọc được thì lần bàn phím đầu tiên của phiên chạy này đi theo
+    // bàn phím từng khung hình; lần sau thì đã học được.
+  }
+}
+
+/// Nhớ chiều cao bàn phím vừa đứng yên, và giữ nó lại cho lần mở app sau.
+void _rememberKeyboardHeight(double height) {
+  if (height <= 0) return;
+  final changed = (height - _keyboardRestInset).abs() > .5;
+  _keyboardRestInset = height;
+  if (!changed) return;
+  unawaited(
+    () async {
+      try {
+        final saved = await SharedPreferences.getInstance();
+        await saved.setDouble(_keyboardRestKey, height);
+      } catch (_) {
+        // Ghi không được cũng chỉ là lần mở app sau chậm hơn một nhịp.
+      }
+    }(),
+  );
+}
+
+/// Quên chiều cao bàn phím đã học, để trạng thái "lần đầu mở bàn phím trong
+/// app" kiểm tra được trong test.
+@visibleForTesting
+void forgetKeyboardRest() {
+  _keyboardRestInset = 0;
+  _keyboardRestLoaded = false;
+}
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.id});
@@ -104,6 +155,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadKeyboardRest());
     inputFocus.addListener(() {
       if (mounted) setState(() {});
       settlePanels();
@@ -186,27 +238,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       if (!mounted) return;
       if ((emoji || attachments) && !panelSliding) return;
       final live = liveKeyboardInset();
-      if (live > 0) _keyboardRestInset = live;
+      if (live > 0) _rememberKeyboardHeight(live);
       if (panelSliding) endPanelSlide();
     });
   }
 
   /// Bàn phím đang lên để thay chỗ cho panel.
   ///
-  /// Nếu đã biết chiều cao bàn phím (nó đã từng lên trong cuộc trò chuyện này),
-  /// đóng panel ngay từ khung hình bàn phím đầu tiên: vùng đáy trượt từ chiều
-  /// cao panel xuống đúng chiều cao bàn phím, nên thanh nhập tụt xuống cùng lúc
-  /// bàn phím trượt lên thay vì đứng yên rồi tụt sau khi bàn phím lên hẳn.
-  ///
-  /// Chưa biết chiều cao (lần đầu mở bàn phím) thì đợi bàn phím lên hẳn rồi mới
-  /// đóng panel: vùng đáy vẫn liên tục, chỉ là bắt đầu trượt muộn hơn.
+  /// Đóng panel ngay từ khung hình bàn phím đầu tiên: vùng đáy trượt xuống
+  /// cùng lúc bàn phím trượt lên thay vì đứng yên rồi tụt sau khi bàn phím lên
+  /// hẳn. Biết chiều cao bàn phím (đã học, hoặc đã lưu từ lần mở app trước) thì
+  /// trượt thẳng tới đó; chưa biết thì panel đứng yên cho bàn phím che dần
+  /// (xem `build`).
   void settlePanels() {
     panelTimer?.cancel();
     panelTimer = null;
     if (!(emoji || attachments) || !inputFocus.hasFocus) return;
     // Cú trượt đã bắt đầu thì nó tự dọn panel khi bàn phím đứng yên.
     if (panelSliding) return;
-    if (_keyboardRestInset > 0 && liveKeyboardInset() > 0) {
+    if (liveKeyboardInset() > 0) {
       slidePanelIntoKeyboard();
       return;
     }
@@ -1394,8 +1444,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // lúc với bàn phím đang lên. Panel vẫn còn trong cây nên nó tụt xuống theo
     // thanh nhập và bị bàn phím che dần, thay vì biến mất rồi mới tụt.
     final slideTarget = math.max(_keyboardRestInset, safeBottom);
+    // Lần đầu mở app mà chưa có số nào lưu lại: chưa biết bàn phím cao bao
+    // nhiêu, nên panel giữ nguyên chỗ cũ và bị bàn phím che dần; nếu bàn phím
+    // cao hơn panel thì thanh nhập đi lên cùng bàn phím. Phần chênh lệch còn
+    // lại (panel cao hơn bàn phím) trượt nốt khi bàn phím đứng yên.
+    final unknownRest = panelSliding && _keyboardRestInset <= 0;
     final panelBand = panelOpen ? panelHeight : safeBottom;
-    final band = panelSliding ? slideTarget : panelBand;
+    final band = panelSliding
+        ? (unknownRest ? panelHeight : slideTarget)
+        : panelBand;
     // Vùng đáy nằm trong lớp kính của thanh nhập: bàn phím | panel | safe area.
     // Dùng max() để khi bàn phím đóng dần, ô nhập vẫn nằm trên safe area chứ
     // không tụt xuống sát đáy rồi bật ngược lên. Bàn phím đang lên cũng luôn
@@ -1404,8 +1461,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
     // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc panel đóng/mở, và
     // lúc panel nhường chỗ cho bàn phím, thì trượt có animation để thanh nhập
-    // không bị giật một phát.
-    final insetDuration = panelSliding || panelChanged || slidingChanged
+    // không bị giật một phát. Chưa biết chiều cao bàn phím thì cũng bám từng
+    // khung hình, vì đích đến chính là bàn phím đang lên.
+    final insetDuration = unknownRest
+        ? Duration.zero
+        : panelSliding || panelChanged || slidingChanged
         ? qchatDuration(c)
         : keyboardRising || (!panelOpen && keyboard > 0)
         ? Duration.zero
