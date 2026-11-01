@@ -292,10 +292,13 @@ class _TabBar extends StatelessWidget {
           for (final tab in [false, true])
             Expanded(
               child: GestureDetector(
+                key: ValueKey(tab ? 'wallet-tab-history' : 'wallet-tab-balance'),
                 behavior: HitTestBehavior.opaque,
                 onTap: () => onChanged(tab),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
+                // No fade: lerping the pill from the surface colour to
+                // transparent passes through grey, so a quick switch showed
+                // two grey pills before either tab settled.
+                child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   decoration: BoxDecoration(
                     color: history == tab ? surface(c) : QChatColors.transparent,
