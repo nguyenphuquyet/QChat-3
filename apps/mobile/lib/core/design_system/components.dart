@@ -34,6 +34,7 @@ class QChatPage extends StatelessWidget {
     this.title,
     this.leading,
     this.trailing,
+    this.trailingWidth = 64,
     this.bottom,
     this.background,
     this.backgroundImage,
@@ -47,6 +48,7 @@ class QChatPage extends StatelessWidget {
   final String? title;
   final Color? titleColor;
   final Widget? leading, trailing, bottom;
+  final double trailingWidth;
   final Color? background, statusBackground, navigationBackground;
   final ImageProvider? backgroundImage;
   final bool edgeToEdge;
@@ -65,6 +67,7 @@ class QChatPage extends StatelessWidget {
             title: title!,
             leading: leading,
             trailing: trailing,
+            trailingWidth: trailingWidth,
             color: titleColor,
           );
     final glassBar = appBar != null && glassHeader;
@@ -162,10 +165,12 @@ class QChatAppBar extends StatelessWidget {
     required this.title,
     this.leading,
     this.trailing,
+    this.trailingWidth = 64,
     this.color,
   });
   final String title;
   final Widget? leading, trailing;
+  final double trailingWidth;
   final Color? color;
   @override
   Widget build(BuildContext c) => SizedBox(
@@ -182,7 +187,7 @@ class QChatAppBar extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        SizedBox(width: 64, child: trailing),
+        SizedBox(width: trailingWidth, child: trailing),
       ],
     ),
   );

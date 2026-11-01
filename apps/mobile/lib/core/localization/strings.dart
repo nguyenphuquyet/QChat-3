@@ -1178,6 +1178,31 @@ const translations = <String, List<String>>{
     'Chưa có cuộc trò chuyện nào.',
     '暂无会话。',
   ],
+  // A contact's note: WeChat calls the alias a "note", and only the alias is
+  // wired up for now. Phone, labels, description and the picture are TODO.
+  'editNote': ['Edit Note', 'Chỉnh sửa Ghi chú', '编辑备注'],
+  'alias': ['Alias', 'Bí danh', '别名'],
+  'addNote': ['Add a note', 'Thêm ghi chú', '添加备注'],
+  'mobilePhone': ['Mobile phone', 'Số điện thoại di động', '手机号'],
+  'addMobilePhone': [
+    'Add mobile phone',
+    'Thêm số điện thoại di động',
+    '添加手机号',
+  ],
+  'addLabel': ['Add label', 'Thêm nhãn', '添加标签'],
+  'description': ['Description', 'Mô tả', '描述'],
+  'enterText': ['Enter text', 'Nhập văn bản', '输入文本'],
+  'imageDescription': ['Image description', 'Mô tả hình ảnh', '图片描述'],
+  'addImage': ['Add image', 'Thêm hình ảnh', '添加图片'],
+  'shareContactCard': [
+    'Share contact card',
+    'Chia sẻ Thẻ liên hệ',
+    '分享名片',
+  ],
+  'starred': ['Starred', 'Được gắn sao', '设为星标'],
+  'block': ['Block', 'Chặn', '加入黑名单'],
+  'deleteContact': ['Delete contact', 'Xóa số liên lạc', '删除联系人'],
+  'contactPermissions': ['Permissions', 'Cài đặt quyền', '权限设置'],
 };
 String tr(BuildContext context, String key) {
   final language = Localizations.localeOf(context).languageCode;

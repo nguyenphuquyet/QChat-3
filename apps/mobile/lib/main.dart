@@ -19,6 +19,8 @@ import 'features/groups/group_screen.dart';
 import 'features/moments/moments_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/profile/user_profile_screen.dart';
+import 'features/profile/contact_note_screen.dart';
+import 'features/profile/contact_settings_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
 import 'features/payments/payments_screen.dart';
@@ -125,6 +127,16 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         qchatRoute(
           path: '/user/:id',
           builder: (_, s) => UserProfileScreen(id: s.pathParameters['id']),
+        ),
+        qchatRoute(
+          path: '/user/:id/note',
+          builder: (_, s) =>
+              ContactNoteScreen(userId: s.pathParameters['id']!),
+        ),
+        qchatRoute(
+          path: '/user/:id/settings',
+          builder: (_, s) =>
+              ContactSettingsScreen(userId: s.pathParameters['id']!),
         ),
         qchatRoute(
           path: '/qr',

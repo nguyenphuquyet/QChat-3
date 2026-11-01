@@ -519,6 +519,9 @@ class QChatClient {
   Future<dynamic> post(String path, Object data) async =>
       (await dio.post(path, data: data)).data;
 
+  Future<dynamic> patch(String path, Object data) async =>
+      (await dio.patch(path, data: data)).data;
+
   Future<void> sendFeedback(String content) async {
     await post('/feedback', {'content': content});
   }

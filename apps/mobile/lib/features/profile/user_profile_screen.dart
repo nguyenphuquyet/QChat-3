@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
-import '../../core/design_system/detail_page.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
@@ -21,6 +20,7 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
   List momentMedia = [];
   bool friend = false, sent = false, busy = false;
   bool expanded = true;
+  String remark = '';
   String? error;
   StreamSubscription<void>? updates;
   int revision = 0;
@@ -54,10 +54,13 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         found = matches.isEmpty ? null : matches.first as Map;
       }
       final friends = await client.get('/friends', cached: false) as List;
-      final isFriend =
-          found != null && friends.any((f) => f['friendId'] == found!['id']);
+      final match = friends
+          .cast<Map>()
+          .where((f) => f['friendId'] == found?['id'])
+          .firstOrNull;
+      final isFriend = match != null;
       List previews = [];
-      if (isFriend) {
+      if (found != null && isFriend) {
         try {
           final posts =
               await client.get(
@@ -77,9 +80,8 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
         setState(() {
           user = found;
           momentMedia = previews;
-          friend =
-              found != null &&
-              friends.any((f) => f['friendId'] == found!['id']);
+          friend = isFriend;
+          remark = (match?['remark'] ?? '').toString();
           error = found == null ? tr(context, 'userNotFound') : null;
         });
       }
@@ -145,89 +147,94 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
       ? const Color(0xff2e2e2e)
       : const Color(0xffe8e8e8);
 
-  Widget header(Map u) => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        UserAvatar(u, size: 76),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      u['nickname'] ?? '',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 24,
-                        height: 1.25,
-                        fontWeight: FontWeight.w600,
-                        color: ink(context),
+  Widget header(Map u) {
+    // A saved alias is the name WeChat shows for a contact; the account's own
+    // nickname stays the fallback.
+    final name = remark.isNotEmpty ? remark : (u['nickname'] ?? '').toString();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 22),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          UserAvatar(u, size: 76),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 24,
+                          height: 1.25,
+                          fontWeight: FontWeight.w600,
+                          color: ink(context),
+                        ),
                       ),
                     ),
-                  ),
-                  if (u['gender'] == 'female' || u['gender'] == 'male') ...[
-                    const SizedBox(width: 6),
-                    QChatIcon(
-                      u['gender'] == 'female' ? 'female' : 'male',
-                      size: 19,
-                      color: u['gender'] == 'female'
-                          ? const Color(0xfff2749a)
-                          : const Color(0xff5a9be8),
-                    ),
+                    if (u['gender'] == 'female' || u['gender'] == 'male') ...[
+                      const SizedBox(width: 6),
+                      QChatIcon(
+                        u['gender'] == 'female' ? 'female' : 'male',
+                        size: 19,
+                        color: u['gender'] == 'female'
+                            ? const Color(0xfff2749a)
+                            : const Color(0xff5a9be8),
+                      ),
+                    ],
                   ],
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (friend) ...[
-                Text(
-                  'QChat ID: ${u['qchatId'] ?? ''}',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: QChatColors.muted,
-                  ),
                 ),
-                const SizedBox(height: 6),
-              ],
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                const SizedBox(height: 10),
+                if (friend) ...[
                   Text(
-                    '${tr(context, 'region')}:',
+                    'QChat ID: ${u['qchatId'] ?? ''}',
                     style: const TextStyle(
                       fontSize: 16,
-                      height: 1.35,
                       color: QChatColors.muted,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      (u['region'] ?? '').toString().isEmpty
-                          ? tr(context, 'notSet')
-                          : u['region'].toString(),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                  const SizedBox(height: 6),
+                ],
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${tr(context, 'region')}:',
+                      style: const TextStyle(
                         fontSize: 16,
                         height: 1.35,
-                        color: body(context),
+                        color: QChatColors.muted,
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        (u['region'] ?? '').toString().isEmpty
+                            ? tr(context, 'notSet')
+                            : u['region'].toString(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 1.35,
+                          color: body(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 
   Widget sectionTitle() => GestureDetector(
     behavior: HitTestBehavior.opaque,
@@ -328,14 +335,53 @@ class _UserProfileScreenState extends ConsumerState<UserProfileScreen> {
     ),
   );
 
+  Future<void> openNote(String id) async {
+    await context.push('/user/$id/note');
+    if (mounted) await load();
+  }
+
+  Future<void> openSettings(String id) async {
+    await context.push('/user/$id/settings');
+    if (mounted) await load();
+  }
+
   @override
   Widget build(BuildContext c) {
     final u = user;
     final isSelf = u != null && u['id'] == ref.read(clientProvider).userId;
     final bio = (u?['bio'] ?? '').toString();
-    return DetailPage(
-      whiteHeader: true,
+    final id = u?['id']?.toString();
+    return QChatPage(
+      title: '',
       glassHeader: false,
+      statusBackground: surface(c),
+      trailingWidth: 96,
+      leading: QChatIconButton(
+        'back',
+        label: tr(c, 'back'),
+        onTap: () => Navigator.maybePop(c),
+      ),
+      // WeChat shows the note and overflow controls on a contact's profile,
+      // not on a stranger's and not on your own.
+      trailing: u != null && friend && !isSelf && id != null
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                QChatIconButton(
+                  'editUser',
+                  key: const ValueKey('profile-note'),
+                  label: tr(c, 'editNote'),
+                  onTap: () => openNote(id),
+                ),
+                QChatIconButton(
+                  'more',
+                  key: const ValueKey('profile-more'),
+                  label: tr(c, 'more'),
+                  onTap: () => openSettings(id),
+                ),
+              ],
+            )
+          : null,
       child: ListView(
         children: [
           if (u != null) ...[
