@@ -58,16 +58,22 @@ class QChatShareAction {
 }
 
 const _tileSize = 60.0;
-const _tileGap = 8.0;
+const _tileGap = 12.0;
+const _rowGap = 18.0;
 const _sheetRadius = 20.0;
 
 /// The share panel used across the app: recent recipients on top, app actions
-/// in a four-column grid, and a Cancel row at the bottom.
+/// in left-aligned scrolling rows, and a Cancel row at the bottom.
 ///
 /// The look is the one the product approved: a soft grey sheet with white
 /// rounded action tiles, a dashed "add" tile beside the recent avatars and a
 /// muted indigo Cancel label. Everything is drawn with QChat primitives, so no
 /// Material sheet, ripple or drag handle is involved.
+///
+/// The tile pitch is fixed, so every element starts at the same 16pt left
+/// margin and the labels may grow a little wider than their tile, exactly like
+/// the reference panel. Once a row holds more tiles than fit, it scrolls
+/// sideways instead of squeezing the tiles together.
 class QChatShareSheet extends StatelessWidget {
   const QChatShareSheet({
     super.key,
@@ -91,8 +97,8 @@ class QChatShareSheet extends StatelessWidget {
   final String? addLabel;
 
   /// Tiles per row. Four is the reference layout: eight actions land on two
-  /// full rows, and a shorter list keeps its tiles at the same four slots so
-  /// the grid never moves between callers.
+  /// full rows, and a shorter list keeps its tiles on the left instead of
+  /// stretching them across the sheet.
   final int columns;
 
   @override
@@ -109,123 +115,105 @@ class QChatShareSheet extends StatelessWidget {
 
     final hasTargets = targets.isNotEmpty || onAdd != null;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backdrop,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(_sheetRadius),
+    // The panel always spans the screen: its children scroll sideways and have
+    // no intrinsic width of their own, so an unconstrained parent would shrink
+    // the sheet to the title.
+    return SizedBox(
+      width: double.infinity,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: backdrop,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(_sheetRadius),
+          ),
         ),
-      ),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(_sheetRadius),
-        ),
-        child: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.zero,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (title != null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                    child: Text(
-                      title!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 18,
-                        height: 1.2,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -.2,
-                        color: qchatInk(c),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(_sheetRadius),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (title != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                      child: Text(
+                        title!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 18,
+                          height: 1.2,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -.2,
+                          color: qchatInk(c),
+                        ),
                       ),
                     ),
-                  ),
-                if (hasTargets)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
-                    child: QChatRecentTargets(
-                      targets: targets,
-                      tileSize: _tileSize,
-                      onSelect: (target) => Navigator.maybePop(c, target.id),
-                      onAdd: onAdd,
-                      addLabel: addLabel,
+                  if (hasTargets)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
+                      child: QChatRecentTargets(
+                        targets: targets,
+                        tileSize: _tileSize,
+                        onSelect: (target) => Navigator.maybePop(c, target.id),
+                        onAdd: onAdd,
+                        addLabel: addLabel,
+                      ),
                     ),
-                  ),
-                if (hasTargets && (actions.isNotEmpty)) _Divider(color: line),
-                if (actions.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-                    child: LayoutBuilder(
-                      builder: (c, box) {
-                        // Four equal columns that shrink together on a narrow
-                        // phone, so the grid never needs a horizontal scroll.
-                        final size = math.min(
-                          _tileSize,
-                          (box.maxWidth - _tileGap * (columns - 1)) / columns,
-                        );
-                        final grid = <List<QChatShareAction>>[];
-                        for (var i = 0; i < actions.length; i += columns) {
-                          grid.add(
-                            actions.sublist(
-                              i,
-                              math.min(i + columns, actions.length),
-                            ),
-                          );
-                        }
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var r = 0; r < grid.length; r++) ...[
-                              if (r > 0) const SizedBox(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  for (var i = 0; i < columns; i++)
-                                    SizedBox(
-                                      width: size,
-                                      child: i < grid[r].length
-                                          ? _ShareActionTile(
-                                              action: grid[r][i],
-                                              size: size,
-                                              card: card,
-                                              label: label,
-                                              note: note,
-                                            )
-                                          : null,
-                                    ),
-                                ],
+                  if (hasTargets && (actions.isNotEmpty)) _Divider(color: line),
+                  if (actions.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 20),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          for (
+                            var start = 0;
+                            start < actions.length;
+                            start += columns
+                          ) ...[
+                            if (start > 0) const SizedBox(height: _rowGap),
+                            _ActionRow(
+                              actions: actions.sublist(
+                                start,
+                                math.min(start + columns, actions.length),
                               ),
-                            ],
+                              card: card,
+                              label: label,
+                              note: note,
+                            ),
                           ],
-                        );
-                      },
+                        ],
+                      ),
                     ),
-                  ),
-                _Divider(color: line),
-                QChatPressable(
-                  background: QChatColors.transparent,
-                  onTap: () => Navigator.maybePop(c),
-                  child: SizedBox(
-                    height: 50,
-                    child: Center(
-                      child: Text(
-                        tr(c, 'cancel'),
-                        style: TextStyle(
-                          fontSize: 16,
-                          height: 1.2,
-                          fontWeight: FontWeight.w500,
-                          color: cancelColor,
+                  _Divider(color: line),
+                  QChatPressable(
+                    background: QChatColors.transparent,
+                    onTap: () => Navigator.maybePop(c),
+                    child: SizedBox(
+                      height: 50,
+                      child: Center(
+                        child: Text(
+                          tr(c, 'cancel'),
+                          style: TextStyle(
+                            fontSize: 16,
+                            height: 1.2,
+                            fontWeight: FontWeight.w500,
+                            color: cancelColor,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -294,6 +282,41 @@ class _Divider extends StatelessWidget {
   Widget build(BuildContext c) => Container(height: .5, color: color);
 }
 
+/// One row of action tiles: fixed pitch, starting at the sheet's 16pt margin.
+/// When the row is wider than the screen it scrolls sideways, so the tiles are
+/// never stretched or squeezed.
+class _ActionRow extends StatelessWidget {
+  const _ActionRow({
+    required this.actions,
+    required this.card,
+    required this.label,
+    required this.note,
+  });
+  final List<QChatShareAction> actions;
+  final Color card;
+  final Color label;
+  final Color note;
+
+  @override
+  Widget build(BuildContext c) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    padding: const EdgeInsets.only(left: 16),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final action in actions)
+          _ShareActionTile(
+            action: action,
+            size: _tileSize,
+            card: card,
+            label: label,
+            note: note,
+          ),
+      ],
+    ),
+  );
+}
+
 /// The horizontally scrolling strip of recent recipients plus the dashed
 /// "more" tile. It is shared by [QChatShareSheet] and the full forward picker,
 /// so both screens show the same avatars at their own size.
@@ -355,7 +378,7 @@ class _ShareTargetTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(10),
             child: SizedBox.square(dimension: size, child: target.avatar),
           ),
           const SizedBox(height: 8),
@@ -367,7 +390,9 @@ class _ShareTargetTile extends StatelessWidget {
             style: TextStyle(
               fontSize: 11.5,
               height: 1.2,
-              color: qchatDark(c) ? const Color(0xffc9c9c9) : const Color(0xff4d4d4d),
+              color: qchatDark(c)
+                  ? const Color(0xffc9c9c9)
+                  : const Color(0xff4d4d4d),
             ),
           ),
         ],
@@ -403,7 +428,7 @@ class _AddTargetTile extends StatelessWidget {
                   color: qchatDark(c)
                       ? const Color(0xff4a4a4a)
                       : const Color(0xffbdbdbd),
-                  radius: 8,
+                  radius: 10,
                 ),
                 child: Center(
                   child: Container(
@@ -463,9 +488,12 @@ class _ShareActionTile extends StatelessWidget {
       WidgetsBinding.instance.addPostFrameCallback((_) => run());
     },
     child: SizedBox(
-      width: size,
+      // The caption is allowed to run a little wider than the tile, as in the
+      // reference panel; the tile itself keeps its fixed pitch so the row stays
+      // left-aligned and never stretches across the sheet.
+      width: size + _tileGap,
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
             clipBehavior: Clip.none,
@@ -476,11 +504,11 @@ class _ShareActionTile extends StatelessWidget {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: card,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 child: QChatIcon(
                   action.icon,
-                  size: 28,
+                  size: 30,
                   color: action.color ?? qchatInk(c),
                 ),
               ),
@@ -493,21 +521,27 @@ class _ShareActionTile extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            action.label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 11.5, height: 1.22, color: label),
+          SizedBox(
+            width: size + _tileGap,
+            child: Text(
+              action.label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, height: 1.22, color: label),
+            ),
           ),
           if (action.note != null) ...[
             const SizedBox(height: 2),
-            Text(
-              action.note!,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 10.5, height: 1.2, color: note),
+            SizedBox(
+              width: size + _tileGap,
+              child: Text(
+                action.note!,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 10.5, height: 1.2, color: note),
+              ),
             ),
           ],
         ],
