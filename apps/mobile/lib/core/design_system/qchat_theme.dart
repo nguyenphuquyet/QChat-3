@@ -80,6 +80,11 @@ Color qchatSurface(BuildContext context) =>
 Color qchatFill(BuildContext context) =>
     qchatDark(context) ? QChatColors.darkFill : const Color(0xfff2f2f2);
 
+/// The flat grey a tappable row turns while it is pressed or hovered. It is a
+/// background, like WeChat's row highlight, not a ripple or an ink splash.
+Color qchatPress(BuildContext context) =>
+    qchatDark(context) ? QChatColors.darkFill : const Color(0xffe5e5e5);
+
 Color qchatInk(BuildContext context) =>
     qchatDark(context) ? QChatColors.darkInk : QChatColors.ink;
 

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/services.dart';
 
 import '../localization/strings.dart';
@@ -573,6 +574,100 @@ class QChatUnreadBadge extends StatelessWidget {
   }
 }
 
+/// Gives a tappable row WeChat's flat highlight: the surface turns grey while
+/// the row is held down, and on a mouse-capable platform while it is hovered.
+///
+/// The highlight is painted behind the row instead of over it, so text and
+/// icons keep their colours and the row needs no ink splash. Rows on something
+/// other than a surface pass their own [background].
+class QChatPressable extends StatefulWidget {
+  const QChatPressable({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.background,
+    this.highlight,
+    this.radius,
+  });
+  final Widget child;
+  final VoidCallback? onTap;
+  final Color? background, highlight;
+  final BorderRadius? radius;
+
+  @override
+  State<QChatPressable> createState() => _QChatPressableState();
+}
+
+class _QChatPressableState extends State<QChatPressable> {
+  bool _pressed = false;
+  bool _hovered = false;
+  Offset? _downAt;
+
+  bool get _enabled => widget.onTap != null;
+
+  void _press(bool value) {
+    if (_pressed == value || !mounted) return;
+    setState(() => _pressed = value);
+  }
+
+  void _hover(bool value) {
+    if (_hovered == value || !mounted) return;
+    setState(() => _hovered = value);
+  }
+
+  // The highlight follows the raw pointer instead of the tap recogniser so it
+  // lights up on touch-down, not after the tap timeout. A drag past the touch
+  // slop is a scroll, so it clears the highlight before the finger lifts.
+  void _pointerDown(PointerDownEvent event) {
+    _downAt = event.position;
+    _press(true);
+  }
+
+  void _pointerMove(PointerMoveEvent event) {
+    final origin = _downAt;
+    if (origin != null && (event.position - origin).distance > kTouchSlop) {
+      _press(false);
+    }
+  }
+
+  void _pointerEnd() {
+    _downAt = null;
+    _press(false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final active = _enabled && (_pressed || _hovered);
+    return Semantics(
+      button: _enabled,
+      child: MouseRegion(
+        cursor: _enabled ? SystemMouseCursors.click : MouseCursor.defer,
+        onEnter: _enabled ? (_) => _hover(true) : null,
+        onExit: _enabled ? (_) => _hover(false) : null,
+        child: Listener(
+          onPointerDown: _enabled ? _pointerDown : null,
+          onPointerMove: _enabled ? _pointerMove : null,
+          onPointerUp: _enabled ? (_) => _pointerEnd() : null,
+          onPointerCancel: _enabled ? (_) => _pointerEnd() : null,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: widget.onTap,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: active
+                    ? widget.highlight ?? qchatPress(context)
+                    : widget.background ?? qchatSurface(context),
+                borderRadius: widget.radius,
+              ),
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class QChatListTile extends StatelessWidget {
   const QChatListTile({
     super.key,
@@ -589,69 +684,67 @@ class QChatListTile extends StatelessWidget {
   final VoidCallback? onTap;
   final int titleLines;
   @override
-  Widget build(BuildContext c) => Semantics(
-    button: onTap != null,
-    child: GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        color: surface(c),
-        padding: const EdgeInsets.only(left: 16),
-        child: Row(
-          children: [
-            if (leading != null) ...[leading!, const SizedBox(width: 18)],
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(0, 17, 16, 17),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: ink(c).withValues(alpha: .07),
-                      width: .5,
-                    ),
+  Widget build(BuildContext c) => QChatPressable(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.only(left: 16),
+      child: Row(
+        children: [
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: 18),
+          ],
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(0, 17, 16, 17),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: ink(c).withValues(alpha: .07),
+                    width: .5,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(fontSize: 17),
+                          maxLines: titleLines,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 5),
                           Text(
-                            title,
-                            style: const TextStyle(fontSize: 17),
-                            maxLines: titleLines,
+                            subtitle!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: QChatColors.muted,
+                            ),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 5),
-                            Text(
-                              subtitle!,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: QChatColors.muted,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
                         ],
-                      ),
+                      ],
                     ),
-                    if (trailing != null)
-                      trailing!
-                    else if (onTap != null)
-                      const QChatIcon(
-                        'chevron',
-                        size: 18,
-                        color: Color(0xffb8b8b8),
-                      ),
-                  ],
-                ),
+                  ),
+                  if (trailing != null)
+                    trailing!
+                  else if (onTap != null)
+                    const QChatIcon(
+                      'chevron',
+                      size: 18,
+                      color: Color(0xffb8b8b8),
+                    ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );
@@ -674,87 +767,79 @@ class QChatCell extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext c) => Semantics(
-    button: onTap != null,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        color: surface(c),
-        padding: const EdgeInsets.only(left: 16),
-        child: Row(
-          children: [
-            if (image != null) ...[
-              SizedBox.square(dimension: 42, child: image),
-              const SizedBox(width: 14),
-            ],
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 52),
-                padding: const EdgeInsets.fromLTRB(0, 12, 16, 12),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: ink(c).withValues(alpha: .07),
-                      width: .5,
-                    ),
+  Widget build(BuildContext c) => QChatPressable(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.only(left: 16),
+      child: Row(
+        children: [
+          if (image != null) ...[
+            SizedBox.square(dimension: 42, child: image),
+            const SizedBox(width: 14),
+          ],
+          Expanded(
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 52),
+              padding: const EdgeInsets.fromLTRB(0, 12, 16, 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: ink(c).withValues(alpha: .07),
+                    width: .5,
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (title != null)
-                            DefaultTextStyle(
-                              style: TextStyle(
-                                fontSize: 16,
-                                color: ink(c),
-                              ),
-                              child: title!,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (title != null)
+                          DefaultTextStyle(
+                            style: TextStyle(fontSize: 16, color: ink(c)),
+                            child: title!,
+                          ),
+                        if (subtitle != null) ...[
+                          const SizedBox(height: 3),
+                          DefaultTextStyle(
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: QChatColors.muted,
                             ),
-                          if (subtitle != null) ...[
-                            const SizedBox(height: 3),
-                            DefaultTextStyle(
-                              style: const TextStyle(
-                                fontSize: 12.5,
-                                color: QChatColors.muted,
-                              ),
-                              child: subtitle!,
-                            ),
-                          ],
+                            child: subtitle!,
+                          ),
                         ],
-                      ),
+                      ],
                     ),
-                    if (note != null) ...[
-                      const SizedBox(width: 8),
-                      DefaultTextStyle(
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: QChatColors.muted,
-                        ),
-                        child: note!,
+                  ),
+                  if (note != null) ...[
+                    const SizedBox(width: 8),
+                    DefaultTextStyle(
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: QChatColors.muted,
                       ),
-                    ],
-                    if (trailing != null) ...[
-                      const SizedBox(width: 8),
-                      trailing!,
-                    ] else if (arrow) ...[
-                      const SizedBox(width: 8),
-                      const QChatIcon(
-                        'chevron',
-                        size: 18,
-                        color: Color(0xffb8b8b8),
-                      ),
-                    ],
+                      child: note!,
+                    ),
                   ],
-                ),
+                  if (trailing != null) ...[
+                    const SizedBox(width: 8),
+                    trailing!,
+                  ] else if (arrow) ...[
+                    const SizedBox(width: 8),
+                    const QChatIcon(
+                      'chevron',
+                      size: 18,
+                      color: Color(0xffb8b8b8),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );
@@ -776,87 +861,82 @@ class QChatConversationTile extends StatelessWidget {
   final int unread;
   final VoidCallback onTap;
   @override
-  Widget build(BuildContext c) => Semantics(
-    button: true,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        color: surface(c),
-        padding: const EdgeInsets.only(left: 16),
-        child: Row(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                avatar ?? QChatAvatar(name),
-                if (unread > 0)
-                  Positioned(
-                    right: -5,
-                    top: -5,
-                    child: QChatUnreadBadge(unread),
-                  ),
-              ],
-            ),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(0, 17, 16, 17),
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: ink(c).withValues(alpha: .07),
-                      width: .5,
-                    ),
-                  ),
+  Widget build(BuildContext c) => QChatPressable(
+    onTap: onTap,
+    child: Container(
+      padding: const EdgeInsets.only(left: 16),
+      child: Row(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              avatar ?? QChatAvatar(name),
+              if (unread > 0)
+                Positioned(
+                  right: -5,
+                  top: -5,
+                  child: QChatUnreadBadge(unread),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 17),
-                          ),
-                        ),
-                        if (time.isNotEmpty) ...[
-                          const SizedBox(width: 12),
-                          Text(
-                            time,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: qchatDark(c)
-                                  ? const Color(0xff929895)
-                                  : const Color(0xffb2b2b2),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (preview.isNotEmpty) ...[
-                      const SizedBox(height: 5),
-                      Text(
-                        preview,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: QChatColors.muted,
-                        ),
-                      ),
-                    ],
-                  ],
+            ],
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(0, 17, 16, 17),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: ink(c).withValues(alpha: .07),
+                    width: .5,
+                  ),
                 ),
               ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 17),
+                        ),
+                      ),
+                      if (time.isNotEmpty) ...[
+                        const SizedBox(width: 12),
+                        Text(
+                          time,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: qchatDark(c)
+                                ? const Color(0xff929895)
+                                : const Color(0xffb2b2b2),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (preview.isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      preview,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: QChatColors.muted,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     ),
   );

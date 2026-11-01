@@ -266,6 +266,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
         else
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 12),
+            clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: qchatSurface(c),
               borderRadius: BorderRadius.circular(10),
@@ -385,9 +386,9 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
     final fallback = _firstArtwork(pack);
     final busy = busyPack == pack.id;
     final added = pack.mine || pack.added;
-    return GestureDetector(
+    return QChatPressable(
       key: ValueKey('sticker-pack-${pack.id}'),
-      behavior: HitTestBehavior.opaque,
+      background: QChatColors.transparent,
       onTap: () => _open(pack),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
