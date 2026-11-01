@@ -444,7 +444,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               icon: 'groups',
               boxed: true,
               color: QChatColors.green,
-              onTap: () => c.push('/groups/new'),
+              onTap: () => c.push('/groups'),
             ),
             const MenuRow('tags', icon: 'tag', boxed: true),
             const MenuRow(
@@ -521,6 +521,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget discover(BuildContext c) => ListView(
     children: [
+      MenuRow(
+        'groups',
+        icon: 'groups',
+        color: QChatColors.green,
+        onTap: () => c.push('/groups'),
+      ),
       MenuRow('moments', icon: 'moments', onTap: () => c.push('/moments')),
       sectionGap,
       const MenuRow('channels', icon: 'channels', color: Color(0xfff5a33a)),

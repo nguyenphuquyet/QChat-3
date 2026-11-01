@@ -13,6 +13,7 @@ import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
 import 'package:qchat/features/chats/chat_composer.dart';
 import 'package:qchat/features/chats/home_screen.dart';
+import 'package:qchat/features/groups/groups_screen.dart';
 import 'package:qchat/features/chats/message_attachment.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
 import 'package:qchat/features/moments/moments_screen.dart';
@@ -114,6 +115,48 @@ class RequestsClient extends FakeClient {
       return [
         {'id': 'request-1', 'sender': peer},
         {'id': 'request-2', 'sender': peer},
+      ];
+    }
+    return super.get(path, cached: cached);
+  }
+}
+
+class GroupsClient extends FakeClient {
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async {
+    if (path == '/conversations') {
+      calls.add(path);
+      return [
+        {
+          'id': 'g1',
+          'kind': 'GROUP',
+          'title': 'Nhóm cũ',
+          'sequence': 1,
+          'messages': [],
+          'members': [
+            {
+              'userId': 'self',
+              'role': 'MEMBER',
+              'readSequence': 1,
+              'user': {'id': 'self', 'nickname': 'Tôi'},
+            },
+          ],
+        },
+        {
+          'id': 'd1',
+          'kind': 'DIRECT',
+          'sequence': 1,
+          'messages': [],
+          'members': [
+            {
+              'userId': 'self',
+              'role': 'MEMBER',
+              'readSequence': 1,
+              'user': {'id': 'self', 'nickname': 'Tôi'},
+            },
+            {'userId': 'peer', 'role': 'MEMBER', 'readSequence': 0, 'user': peer},
+          ],
+        },
       ];
     }
     return super.get(path, cached: cached);
@@ -450,6 +493,57 @@ void main() {
     await tester.tap(find.text('Khoảnh khắc'));
     await tester.pumpAndSettle();
     expect(opened, '/moments?authorId=self');
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('group chats in Discover lists the groups already joined', (
+    tester,
+  ) async {
+    final client = GroupsClient();
+    String? opened;
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) =>
+              const ColoredBox(color: QChatColors.background, child: HomeScreen()),
+        ),
+        GoRoute(path: '/groups', builder: (_, _) => const GroupsScreen()),
+        GoRoute(
+          path: '/chat/:id',
+          builder: (_, s) {
+            opened = s.pathParameters['id'];
+            return const SizedBox();
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [clientProvider.overrideWithValue(client)],
+        child: qchatRouterHarness(
+          routerConfig: router,
+          locale: const Locale('vi'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Khám phá').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trò chuyện nhóm'));
+    await tester.pumpAndSettle();
+
+    // Only groups this account joined: direct chats stay in the Chats tab.
+    expect(find.text('Nhóm cũ'), findsOneWidget);
+    expect(find.byType(QChatListTile), findsOneWidget);
+    await tester.tap(find.text('Nhóm cũ'));
+    await tester.pumpAndSettle();
+    expect(opened, 'g1');
     expect(tester.takeException(), isNull);
   });
   testWidgets('the keyboard takes over the attachment panel while it rises', (

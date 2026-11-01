@@ -16,6 +16,7 @@ import 'features/chats/chat_screen.dart';
 import 'features/chats/media_screen.dart';
 import 'features/contacts/friends_screen.dart';
 import 'features/groups/group_screen.dart';
+import 'features/groups/groups_screen.dart';
 import 'features/moments/moments_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/profile/user_profile_screen.dart';
@@ -111,6 +112,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => const FriendsScreen(requestsOnly: true),
         ),
         qchatRoute(path: '/groups/new', builder: (_, s) => const GroupScreen()),
+        qchatRoute(path: '/groups', builder: (_, s) => const GroupsScreen()),
         qchatRoute(
           path: '/moments',
           builder: (_, s) =>
