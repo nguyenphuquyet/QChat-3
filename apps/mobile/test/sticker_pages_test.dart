@@ -199,15 +199,18 @@ void main() {
     return client;
   }
 
-  testWidgets('library tabs share one text size and show the pack avatar', (
+  testWidgets('the library header shows the selection title and the avatar', (
     tester,
   ) async {
     await mount(tester, const StickerLibraryScreen());
 
-    final selected = tester.widget<Text>(find.text('Những nhãn dán đã chọn'));
-    final gallery = tester.widget<Text>(find.text('Nhãn dán khéo'));
-    expect(selected.style?.fontSize, 17);
-    expect(gallery.style?.fontSize, selected.style?.fontSize);
+    // One static title replaces the two-tab switcher.
+    final title = tester.widget<Text>(find.text('Những nhãn dán đã chọn'));
+    expect(title.style?.fontSize, 17);
+    expect(title.style?.fontWeight, FontWeight.w600);
+    expect(find.byKey(const ValueKey('library-tab-0')), findsNothing);
+    expect(find.byKey(const ValueKey('library-tab-1')), findsNothing);
+    expect(find.text('Nhãn dán khéo'), findsNothing);
 
     expect(find.byKey(const ValueKey('sticker-pack-p1')), findsOneWidget);
     expect(
@@ -220,6 +223,34 @@ void main() {
         matching: find.text('Mộc Hắc Hắc'),
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('library search folds accents and matches sticker labels', (
+    tester,
+  ) async {
+    await mount(tester, const StickerLibraryScreen(), extraPacks: 3);
+    expect(find.byKey(const ValueKey('sticker-pack-x2')), findsOneWidget);
+
+    // "meo" has no marks but still finds the pack named "Bộ mèo lười".
+    await tester.enterText(find.byType(EditableText), 'meo');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('sticker-pack-p1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sticker-pack-x2')), findsNothing);
+
+    // A sticker label is enough to find its pack: "Giận" lives inside p1.
+    await tester.enterText(find.byType(EditableText), 'gian');
+    await tester.pump();
+    expect(find.byKey(const ValueKey('sticker-pack-p1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('sticker-pack-x0')), findsNothing);
+
+    // The clear button restores the whole library.
+    await tester.tap(find.byKey(const ValueKey('sticker-search-clear')));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('sticker-pack-x2')), findsOneWidget);
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+      isEmpty,
     );
   });
 

@@ -178,9 +178,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         ),
         qchatRoute(
           path: '/stickers',
-          builder: (_, s) => StickerLibraryScreen(
-            start: s.uri.queryParameters['tab'] == 'gallery' ? 1 : 0,
-          ),
+          builder: (_, _) => const StickerLibraryScreen(),
         ),
         qchatRoute(
           path: '/stickers/:id',

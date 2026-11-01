@@ -12,15 +12,12 @@ import 'sticker_view.dart';
 
 /// "Thư viện nhãn dán": the sticker gallery reached from the composer.
 ///
-/// It lists sticker packs only — the bundled WeChat emoji stay in the panel.
-/// Tab 0 is the user's own selection plus recommendations; tab 1 is the full
-/// market. A pack opens in [StickerPackScreen]; "Thêm" copies it into the
-/// user's library.
+/// It lists sticker packs under one heading — the user's own selection first,
+/// then the market — with no tab switcher. The bundled WeChat emoji stay in the
+/// panel. A pack opens in [StickerPackScreen]; "Thêm" copies it into the user's
+/// library.
 class StickerLibraryScreen extends ConsumerStatefulWidget {
-  const StickerLibraryScreen({super.key, this.start = 0});
-
-  /// Which tab opens first: 0 selected, 1 gallery.
-  final int start;
+  const StickerLibraryScreen({super.key});
 
   @override
   ConsumerState<StickerLibraryScreen> createState() =>
@@ -33,7 +30,6 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
   bool failed = false;
   String? busyPack;
   String query = '';
-  late int tab = widget.start == 1 ? 1 : 0;
   final search = TextEditingController();
 
   StickerApi get _api => StickerApi(ref.read(clientProvider));
@@ -87,14 +83,27 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
     final data = library;
     if (data == null) return const [];
     final seen = <String>{};
-    final all = tab == 0 ? [...data.packs, ...data.market] : data.market;
-    final needle = query.trim().toLowerCase();
+    final all = [...data.packs, ...data.market];
+    final needle = _fold(query.trim());
     return [
       for (final pack in all)
-        if (seen.add(pack.id) &&
-            (needle.isEmpty || pack.name.toLowerCase().contains(needle)))
-          pack,
+        if (seen.add(pack.id) && _matches(pack, needle)) pack,
     ];
+  }
+
+  /// A pack answers to its name, its owner and the labels on its stickers, so
+  /// "cười" finds a pack whose stickers are named that even when the pack name
+  /// does not mention it. Both sides are folded, so typing "meo" still finds
+  /// "Mèo".
+  bool _matches(StickerPack pack, String needle) {
+    if (needle.isEmpty) return true;
+    if (_fold(pack.name).contains(needle) ||
+        _fold(pack.ownerName).contains(needle)) {
+      return true;
+    }
+    return pack.stickers.any(
+      (sticker) => _fold(sticker.label).contains(needle),
+    );
   }
 
   @override
@@ -116,7 +125,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
   );
 
   // ---------------------------------------------------------------------------
-  // Header: back chevron, two tabs and the centred search field
+  // Header: back chevron, the section title and the centred search field
   // ---------------------------------------------------------------------------
 
   Widget _header(BuildContext c) => Container(
@@ -134,17 +143,17 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
             Expanded(
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      _tab(c, 0, 'stickerTabSelected'),
-                      const SizedBox(width: 22),
-                      _tab(c, 1, 'stickerTabGallery'),
-                    ],
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 2),
+                  child: Text(
+                    tr(c, 'stickerTabSelected'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: ink(c),
+                    ),
                   ),
                 ),
               ),
@@ -159,52 +168,8 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
     ),
   );
 
-  /// One header tab. The underline is as wide as the label instead of half the
-  /// row, and both labels keep the same size: the pair is scaled together by
-  /// the enclosing [FittedBox] only when the row would overflow.
-  Widget _tab(BuildContext c, int index, String key) {
-    final selected = tab == index;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: GestureDetector(
-        key: ValueKey('library-tab-$index'),
-        behavior: HitTestBehavior.opaque,
-        onTap: () => setState(() => tab = index),
-        child: Padding(
-          padding: const EdgeInsets.only(top: 10),
-          child: IntrinsicWidth(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(1, 0, 1, 12),
-                  child: Text(
-                    tr(c, key),
-                    maxLines: 1,
-                    softWrap: false,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                      color: selected ? ink(c) : qchatMuted(c),
-                    ),
-                  ),
-                ),
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  height: 2.5,
-                  color: selected ? ink(c) : QChatColors.transparent,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _searchField(BuildContext c) => Container(
+    width: double.infinity,
     height: 46,
     decoration: BoxDecoration(
       color: qchatSurface(c),
@@ -213,14 +178,17 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
     child: Stack(
       alignment: Alignment.center,
       children: [
-        CupertinoTextField(
-          controller: search,
-          onChanged: (value) => setState(() => query = value),
-          textAlign: TextAlign.center,
-          padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 11),
-          decoration: const BoxDecoration(),
-          cursorColor: QChatColors.green,
-          style: TextStyle(fontSize: 15, color: ink(c)),
+        // The field fills the pill, so a tap on its edge focuses it too.
+        Positioned.fill(
+          child: CupertinoTextField(
+            controller: search,
+            onChanged: (value) => setState(() => query = value),
+            textAlign: TextAlign.center,
+            padding: const EdgeInsets.symmetric(horizontal: 42, vertical: 11),
+            decoration: const BoxDecoration(),
+            cursorColor: QChatColors.green,
+            style: TextStyle(fontSize: 15, color: ink(c)),
+          ),
         ),
         if (query.isEmpty)
           const IgnorePointer(
@@ -232,10 +200,28 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
                 _SearchHint(),
               ],
             ),
+          )
+        else
+          Positioned(
+            right: 4,
+            child: GestureDetector(
+              key: const ValueKey('sticker-search-clear'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _clearSearch,
+              child: const Padding(
+                padding: EdgeInsets.all(9),
+                child: QChatIcon('close', size: 17, color: QChatColors.muted),
+              ),
+            ),
           ),
       ],
     ),
   );
+
+  void _clearSearch() {
+    search.clear();
+    setState(() => query = '');
+  }
 
   // ---------------------------------------------------------------------------
   // Body: banner carousel and the pack rows
@@ -494,4 +480,30 @@ class _SearchHint extends StatelessWidget {
     tr(context, 'stickerSearchHint'),
     style: const TextStyle(fontSize: 15, color: QChatColors.muted),
   );
+}
+
+/// Vietnamese letters without their marks. Search folds both the query and the
+/// pack text through this, because people type "meo" far more often than "mèo".
+const _accents = <String, String>{
+  'a': 'àáạảãâầấậẩẫăằắặẳẵ',
+  'd': 'đ',
+  'e': 'èéẹẻẽêềếệểễ',
+  'i': 'ìíịỉĩ',
+  'o': 'òóọỏõôồốộổỗơờớợởỡ',
+  'u': 'ùúụủũưừứựửữ',
+  'y': 'ỳýỵỷỹ',
+};
+
+final Map<String, String> _plainLetters = {
+  for (final entry in _accents.entries)
+    for (final rune in entry.value.runes) String.fromCharCode(rune): entry.key,
+};
+
+String _fold(String value) {
+  final buffer = StringBuffer();
+  for (final rune in value.toLowerCase().runes) {
+    final char = String.fromCharCode(rune);
+    buffer.write(_plainLetters[char] ?? char);
+  }
+  return buffer.toString();
 }
