@@ -132,14 +132,23 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
               onTap: () => c.pop(),
             ),
             Expanded(
-              child: Row(
-                children: [
-                  _tab(c, 0, 'stickerTabSelected'),
-                  _tab(c, 1, 'stickerTabGallery'),
-                ],
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      _tab(c, 0, 'stickerTabSelected'),
+                      const SizedBox(width: 22),
+                      _tab(c, 1, 'stickerTabGallery'),
+                    ],
+                  ),
+                ),
               ),
             ),
-            const SizedBox(width: 48),
           ],
         ),
         Padding(
@@ -150,29 +159,31 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
     ),
   );
 
+  /// One header tab. The underline is as wide as the label instead of half the
+  /// row, and both labels keep the same size: the pair is scaled together by
+  /// the enclosing [FittedBox] only when the row would overflow.
   Widget _tab(BuildContext c, int index, String key) {
     final selected = tab == index;
-    return Expanded(
-      child: Semantics(
-        button: true,
-        selected: selected,
-        child: GestureDetector(
-          key: ValueKey('library-tab-$index'),
-          behavior: HitTestBehavior.opaque,
-          onTap: () => setState(() => tab = index),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 12,
-                  horizontal: 4,
-                ),
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: GestureDetector(
+        key: ValueKey('library-tab-$index'),
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => tab = index),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: IntrinsicWidth(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(1, 0, 1, 12),
                   child: Text(
                     tr(c, key),
                     maxLines: 1,
+                    softWrap: false,
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
@@ -180,13 +191,13 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
                     ),
                   ),
                 ),
-              ),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                height: 2.5,
-                color: selected ? ink(c) : QChatColors.transparent,
-              ),
-            ],
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  height: 2.5,
+                  color: selected ? ink(c) : QChatColors.transparent,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -233,7 +244,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
   Widget _body(BuildContext c) {
     final packs = _packs;
     final banners = packs
-        .where((pack) => _artworkOf(pack) != null)
+        .where((pack) => _coverOf(pack) != null)
         .take(8)
         .toList();
     return ListView(
@@ -267,7 +278,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
                   if (i < packs.length - 1)
                     Container(
                       height: .5,
-                      margin: const EdgeInsets.only(left: 82, right: 12),
+                      margin: const EdgeInsets.only(left: 90, right: 12),
                       color: qchatLine(c),
                     ),
                 ],
@@ -287,7 +298,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
       separatorBuilder: (_, _) => const SizedBox(width: 10),
       itemBuilder: (c, index) {
         final pack = packs[index];
-        final artwork = _artworkOf(pack);
+        final artwork = _coverOf(pack);
         return GestureDetector(
           key: ValueKey('sticker-banner-${pack.id}'),
           behavior: HitTestBehavior.opaque,
@@ -371,7 +382,8 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
   );
 
   Widget _row(BuildContext c, StickerPack pack) {
-    final artwork = _artworkOf(pack);
+    final avatar = pack.avatarMediaId ?? pack.coverMediaId;
+    final fallback = _firstArtwork(pack);
     final busy = busyPack == pack.id;
     final added = pack.mine || pack.added;
     return GestureDetector(
@@ -379,22 +391,24 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
       behavior: HitTestBehavior.opaque,
       onTap: () => _open(pack),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
         child: Row(
           children: [
-            Container(
-              width: 58,
-              height: 58,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(9),
+              child: Container(
+                width: 64,
+                height: 64,
+                alignment: Alignment.center,
                 color: qchatFill(c),
-                borderRadius: BorderRadius.circular(9),
+                child: avatar != null
+                    ? MediaImage(id: avatar, fit: BoxFit.cover)
+                    : fallback != null
+                    ? StickerView(mediaId: fallback, size: 54)
+                    : QChatIcon('emoji', size: 30, color: ink(c)),
               ),
-              child: artwork == null
-                  ? QChatIcon('emoji', size: 28, color: ink(c))
-                  : StickerView(mediaId: artwork, size: 50),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -403,15 +417,15 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
                     pack.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 15.5, color: ink(c)),
+                    style: TextStyle(fontSize: 16.5, color: ink(c)),
                   ),
                   if (!pack.mine && pack.ownerName.isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 4),
                     Text(
                       pack.ownerName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11.5, color: qchatMuted(c)),
+                      style: TextStyle(fontSize: 12, color: qchatMuted(c)),
                     ),
                   ],
                 ],
@@ -420,10 +434,10 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
             const SizedBox(width: 10),
             if (added)
               Padding(
-                padding: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.only(right: 6),
                 child: Text(
                   tr(c, 'stickerAdded'),
-                  style: TextStyle(fontSize: 13, color: qchatMuted(c)),
+                  style: TextStyle(fontSize: 15, color: qchatMuted(c)),
                 ),
               )
             else
@@ -432,8 +446,8 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
                 behavior: HitTestBehavior.opaque,
                 onTap: busyPack == null ? () => _add(pack) : null,
                 child: Container(
-                  width: 74,
-                  height: 38,
+                  width: 78,
+                  height: 40,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: qchatFill(c),
@@ -443,7 +457,7 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
                       ? const QChatLoading(size: 15, color: QChatColors.green)
                       : Text(
                           tr(c, 'stickerAdd'),
-                          style: TextStyle(fontSize: 14, color: ink(c)),
+                          style: TextStyle(fontSize: 15, color: ink(c)),
                         ),
                 ),
               ),
@@ -453,8 +467,12 @@ class _StickerLibraryScreenState extends ConsumerState<StickerLibraryScreen> {
     );
   }
 
-  String? _artworkOf(StickerPack pack) {
-    if (pack.coverMediaId != null) return pack.coverMediaId;
+  /// The wide banner of a pack: its cover, then its avatar, then its first
+  /// sticker so a fresh pack still shows something.
+  String? _coverOf(StickerPack pack) =>
+      pack.coverMediaId ?? pack.avatarMediaId ?? _firstArtwork(pack);
+
+  String? _firstArtwork(StickerPack pack) {
     for (final sticker in pack.stickers) {
       if (sticker.mediaId.isNotEmpty) return sticker.mediaId;
     }

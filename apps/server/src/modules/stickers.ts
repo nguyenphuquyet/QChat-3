@@ -29,6 +29,7 @@ type PackRow = {
   name: string;
   description: string;
   coverMediaId: string | null;
+  avatarMediaId: string | null;
   published: boolean;
   updatedAt: Date;
   owner?: { nickname: string } | null;
@@ -52,6 +53,7 @@ function packJson(pack: PackRow, userId: string) {
     name: pack.name,
     description: pack.description,
     coverMediaId: pack.coverMediaId,
+    avatarMediaId: pack.avatarMediaId,
     published: pack.published,
     mine,
     added: mine || (pack.members?.length ?? 0) > 0,
@@ -81,6 +83,16 @@ async function accessiblePack(userId: string, id: string) {
   });
   requireCondition(pack, 404, "NOT_FOUND");
   return pack;
+}
+
+/// Artwork the pack may point at: a media row this user uploaded and that is
+/// already processed, so the client can render it immediately.
+async function requireOwnedMedia(userId: string, mediaId: string) {
+  const media = await db.media.findFirst({
+    where: { id: mediaId, ownerId: userId, status: "READY" },
+    select: { id: true },
+  });
+  requireCondition(media, 400, "MEDIA_NOT_READY");
 }
 
 async function ownedPack(userId: string, id: string) {
@@ -212,7 +224,8 @@ export async function stickersRoute(
   if (!id) return undefined;
 
   if (!sub) {
-    if (method === "GET") return packJson(await accessiblePack(userId, id), userId);
+    if (method === "GET")
+      return packJson(await accessiblePack(userId, id), userId);
     if (method === "DELETE") {
       const pack = await ownedPack(userId, id);
       await db.stickerPack.delete({ where: { id: pack.id } });
@@ -225,6 +238,7 @@ export async function stickersRoute(
           description: description.optional(),
           published: z.boolean().optional(),
           coverMediaId: uuid.nullable().optional(),
+          avatarMediaId: uuid.nullable().optional(),
         })
         .strict()
         .parse(body);
@@ -232,18 +246,14 @@ export async function stickersRoute(
         v.name !== undefined ||
           v.description !== undefined ||
           v.published !== undefined ||
-          v.coverMediaId !== undefined,
+          v.coverMediaId !== undefined ||
+          v.avatarMediaId !== undefined,
         400,
         "NOTHING_TO_UPDATE",
       );
       const pack = await ownedPack(userId, id);
-      if (v.coverMediaId) {
-        const cover = await db.media.findFirst({
-          where: { id: v.coverMediaId, ownerId: userId, status: "READY" },
-          select: { id: true },
-        });
-        requireCondition(cover, 400, "MEDIA_NOT_READY");
-      }
+      if (v.coverMediaId) await requireOwnedMedia(userId, v.coverMediaId);
+      if (v.avatarMediaId) await requireOwnedMedia(userId, v.avatarMediaId);
       const updated = await db.stickerPack.update({
         where: { id: pack.id },
         data: v,
@@ -265,11 +275,7 @@ export async function stickersRoute(
         .strict()
         .parse(body);
       const pack = await ownedPack(userId, id);
-      requireCondition(
-        pack.stickers.length < maxStickers,
-        409,
-        "PACK_FULL",
-      );
+      requireCondition(pack.stickers.length < maxStickers, 409, "PACK_FULL");
       const media = await db.media.findFirst({
         where: { id: v.mediaId, ownerId: userId, status: "READY" },
         select: { id: true },
@@ -283,10 +289,13 @@ export async function stickersRoute(
         data: { ...v, packId: pack.id, position },
         select: artwork,
       });
-      if (!pack.coverMediaId)
+      if (!pack.coverMediaId || !pack.avatarMediaId)
         await db.stickerPack.update({
           where: { id: pack.id },
-          data: { coverMediaId: v.mediaId },
+          data: {
+            ...(pack.coverMediaId ? {} : { coverMediaId: v.mediaId }),
+            ...(pack.avatarMediaId ? {} : { avatarMediaId: v.mediaId }),
+          },
         });
       return { ...sticker, packId: pack.id, packName: pack.name };
     }

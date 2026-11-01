@@ -49,6 +49,7 @@ class StickerPack {
     required this.name,
     required this.description,
     required this.coverMediaId,
+    required this.avatarMediaId,
     required this.published,
     required this.mine,
     required this.added,
@@ -60,6 +61,10 @@ class StickerPack {
   final String name;
   final String description;
   final String? coverMediaId;
+
+  /// The square picture shown in the library list. Falls back to [coverMediaId]
+  /// and then to the first sticker when the owner has not picked one.
+  final String? avatarMediaId;
   final bool published;
   final bool mine;
   final bool added;
@@ -69,17 +74,20 @@ class StickerPack {
   factory StickerPack.fromJson(Object? raw) {
     final json = raw is Map ? raw : const {};
     final cover = json['coverMediaId']?.toString() ?? '';
+    final avatar = json['avatarMediaId']?.toString() ?? '';
     return StickerPack(
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
       coverMediaId: cover.isEmpty ? null : cover,
+      avatarMediaId: avatar.isEmpty ? null : avatar,
       published: json['published'] == true,
       mine: json['mine'] == true,
       added: json['added'] == true,
       ownerName: json['ownerName']?.toString() ?? '',
       stickers: [
-        for (final item in (json['stickers'] is List ? json['stickers'] as List : const []))
+        for (final item
+            in (json['stickers'] is List ? json['stickers'] as List : const []))
           Sticker.fromJson(item),
       ],
     );
@@ -90,6 +98,7 @@ class StickerPack {
     name: name,
     description: description,
     coverMediaId: coverMediaId,
+    avatarMediaId: avatarMediaId,
     published: published ?? this.published,
     mine: mine,
     added: added,

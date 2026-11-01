@@ -255,6 +255,7 @@ model Media {
   wallpapers Conversation[] @relation("ConversationWallpaper")
   stickerArtwork Sticker[] @relation("StickerArtwork")
   stickerPackCovers StickerPack[] @relation("StickerPackCover")
+  stickerPackAvatars StickerPack[] @relation("StickerPackAvatar")
 }
 /// A sticker album. A designer builds it in the studio and may publish it to
 /// the sticker market; anyone can add a published pack to their own library.
@@ -266,6 +267,8 @@ model StickerPack {
   description String @default("")
   coverMediaId String? @db.Uuid
   coverMedia Media? @relation("StickerPackCover", fields:[coverMediaId],references:[id],onDelete:SetNull)
+  avatarMediaId String? @db.Uuid
+  avatarMedia Media? @relation("StickerPackAvatar", fields:[avatarMediaId],references:[id],onDelete:SetNull)
   published Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -274,6 +277,7 @@ model StickerPack {
   @@index([ownerId, updatedAt])
   @@index([published, updatedAt])
   @@index([coverMediaId])
+  @@index([avatarMediaId])
 }
 /// One sticker artwork. `animated` is informational: GIF artwork is served as
 /// it was uploaded and animates in the client.

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
+import '../../core/design_system/media_widgets.dart';
 import '../../core/localization/strings.dart';
 import 'sticker_api.dart';
 import 'sticker_models.dart';
@@ -180,7 +181,8 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
   }
 
   Widget _packRow(BuildContext c, StickerPack pack) {
-    final cover = pack.coverMediaId ?? _firstArtwork(pack);
+    final avatar = pack.avatarMediaId ?? pack.coverMediaId;
+    final fallback = _firstArtwork(pack);
     return GestureDetector(
       key: ValueKey('workshop-pack-${pack.id}'),
       behavior: HitTestBehavior.opaque,
@@ -189,17 +191,19 @@ class StickerWorkshopState extends ConsumerState<StickerWorkshop> {
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           children: [
-            Container(
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
                 color: qchatFill(c),
-                borderRadius: BorderRadius.circular(8),
+                child: avatar != null
+                    ? MediaImage(id: avatar, fit: BoxFit.cover)
+                    : fallback != null
+                    ? StickerView(mediaId: fallback, size: 34)
+                    : QChatIcon('emoji', size: 22, color: ink(c)),
               ),
-              child: cover == null
-                  ? QChatIcon('emoji', size: 22, color: ink(c))
-                  : StickerView(mediaId: cover, size: 34),
             ),
             const SizedBox(width: 10),
             Expanded(

@@ -11,16 +11,19 @@ class StickerApi {
   Future<StickerLibrary> library() async =>
       StickerLibrary.fromJson(await client.get('/stickers', cached: false));
 
-  Future<StickerPack> pack(String id) async =>
-      StickerPack.fromJson(await client.get('/stickers/packs/$id', cached: false));
+  Future<StickerPack> pack(String id) async => StickerPack.fromJson(
+    await client.get('/stickers/packs/$id', cached: false),
+  );
 
-  Future<StickerPack> createPack(String name, {String description = ''}) async =>
-      StickerPack.fromJson(
-        await client.post('/stickers/packs', {
-          'name': name,
-          'description': description,
-        }),
-      );
+  Future<StickerPack> createPack(
+    String name, {
+    String description = '',
+  }) async => StickerPack.fromJson(
+    await client.post('/stickers/packs', {
+      'name': name,
+      'description': description,
+    }),
+  );
 
   Future<StickerPack> updatePack(
     String id, {
@@ -28,14 +31,38 @@ class StickerApi {
     String? description,
     bool? published,
     String? coverMediaId,
+    String? avatarMediaId,
   }) async => StickerPack.fromJson(
-    (await client.dio.patch('/stickers/packs/$id', data: {
-      'name': ?name,
-      'description': ?description,
-      'published': ?published,
-      'coverMediaId': ?coverMediaId,
-    })).data,
+    (await client.dio.patch(
+      '/stickers/packs/$id',
+      data: {
+        'name': ?name,
+        'description': ?description,
+        'published': ?published,
+        'coverMediaId': ?coverMediaId,
+        'avatarMediaId': ?avatarMediaId,
+      },
+    )).data,
   );
+
+  /// Sets (or clears, with a null [mediaId]) the wide banner of the pack.
+  Future<StickerPack> setPackCover(String id, String? mediaId) async =>
+      StickerPack.fromJson(
+        (await client.dio.patch(
+          '/stickers/packs/$id',
+          data: {'coverMediaId': mediaId},
+        )).data,
+      );
+
+  /// Sets (or clears, with a null [mediaId]) the square picture the library
+  /// list shows for the pack.
+  Future<StickerPack> setPackAvatar(String id, String? mediaId) async =>
+      StickerPack.fromJson(
+        (await client.dio.patch(
+          '/stickers/packs/$id',
+          data: {'avatarMediaId': mediaId},
+        )).data,
+      );
 
   Future<void> deletePack(String id) async =>
       client.dio.delete('/stickers/packs/$id');
@@ -56,10 +83,9 @@ class StickerApi {
   Future<void> removeSticker(String packId, String stickerId) async =>
       client.dio.delete('/stickers/packs/$packId/stickers/$stickerId');
 
-  Future<StickerPack> addToLibrary(String packId) async =>
-      StickerPack.fromJson(
-        await client.post('/stickers/packs/$packId/add', const {}),
-      );
+  Future<StickerPack> addToLibrary(String packId) async => StickerPack.fromJson(
+    await client.post('/stickers/packs/$packId/add', const {}),
+  );
 
   Future<void> removeFromLibrary(String packId) =>
       client.post('/stickers/packs/$packId/remove', const {});
