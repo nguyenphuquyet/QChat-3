@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -415,5 +416,52 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('the panel lets the composer glass show through', (tester) async {
+    tester.view.physicalSize = const Size(390, 360);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const capture = Key('panel-capture');
+    await mount(
+      tester,
+      RepaintBoundary(
+        key: capture,
+        // A red wallpaper stands in for the chat behind the composer's glass.
+        child: ColoredBox(
+          color: const Color(0xffff0000),
+          child: SizedBox(
+            width: 390,
+            height: 360,
+            child: StickerPanel(
+              safeBottom: 0,
+              onEmoji: (_) {},
+              onSticker: (_) {},
+              onOpenStudio: ({String? packId, bool create = false}) {},
+              onOpenLibrary: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // The gap between the first two icons is background only: if the panel
+    // painted its own fill, this pixel would be the panel colour instead of
+    // the wallpaper behind it.
+    final pixel = await tester.runAsync(() async {
+      final boundary = tester.renderObject<RenderRepaintBoundary>(
+        find.byKey(capture),
+      );
+      final image = await boundary.toImage();
+      final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      final offset = (26 * image.width + 10) * 4;
+      return (
+        data!.getUint8(offset),
+        data.getUint8(offset + 1),
+        data.getUint8(offset + 2),
+      );
+    });
+    expect(pixel, (255, 0, 0));
   });
 }

@@ -149,34 +149,34 @@ class StickerPanelState extends ConsumerState<StickerPanel> {
   double get _contentBottom => 66 + widget.safeBottom;
 
   @override
-  Widget build(BuildContext c) => ColoredBox(
-    color: qchatBackground(c),
-    child: Column(
-      children: [
-        _iconRow(c),
-        Container(height: .5, color: qchatLine(c)),
-        Expanded(
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Column(
-                  children: [
-                    const _DragHandle(),
-                    Expanded(child: _content(c)),
-                  ],
-                ),
+  // The panel paints no surface of its own: in the chat it sits inside the
+  // composer's QChatGlass, and an opaque fill here would hide the blur and the
+  // messages sliding under it.
+  Widget build(BuildContext c) => Column(
+    children: [
+      _iconRow(c),
+      Container(height: .5, color: qchatLine(c)),
+      Expanded(
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Column(
+                children: [
+                  const _DragHandle(),
+                  Expanded(child: _content(c)),
+                ],
               ),
-              if (tab == 1)
-                Positioned(
-                  right: 14,
-                  bottom: 10 + widget.safeBottom,
-                  child: _floatingActions(c),
-                ),
-            ],
-          ),
+            ),
+            if (tab == 1)
+              Positioned(
+                right: 14,
+                bottom: 10 + widget.safeBottom,
+                child: _floatingActions(c),
+              ),
+          ],
         ),
-      ],
-    ),
+      ),
+    ],
   );
 
   Widget _content(BuildContext c) {
