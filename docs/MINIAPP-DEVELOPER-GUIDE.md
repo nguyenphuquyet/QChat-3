@@ -1685,6 +1685,10 @@ const shared = await share({
 - `share` trả `true` nếu người dùng thực sự chia sẻ; `false` nếu huỷ.
 - Giới hạn `share`: `text` ≤ 2000, `url` ≤ 2048, `title` ≤ 200 ký tự; phải có
   ít nhất `text` hoặc `url`, nếu không → `INVALID_ARGUMENT`.
+- Thẻ xem trước trong bảng gửi hiện đúng nội dung chia sẻ chứ không phải một
+  thẻ chương trình cố định: `text` là dòng chính của thẻ, `url` (nếu có) là
+  dòng chân thẻ kèm biểu tượng liên kết. Chỉ khi chia sẻ mỗi `url`, thẻ mới
+  dùng ảnh bìa của chương trình, và `title` khi đó là dòng chính.
 
 ### 13.6 `request` — QChat API
 

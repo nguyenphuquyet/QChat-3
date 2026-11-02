@@ -107,8 +107,10 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
     super.dispose();
   }
 
-  void _send() =>
-      Navigator.pop(context, QChatSendResult(QChatSendOutcome.sent, _note.text));
+  void _send() => Navigator.pop(
+    context,
+    QChatSendResult(QChatSendOutcome.sent, _note.text),
+  );
 
   void _cancel() =>
       Navigator.pop(context, const QChatSendResult(QChatSendOutcome.cancelled));
@@ -160,8 +162,12 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
                 Center(
                   child: ConstrainedBox(
                     // A Mini App card is a narrow portrait tile, not a banner:
-                    // it keeps the share panel's proportions.
-                    constraints: const BoxConstraints(maxWidth: 152),
+                    // it keeps the share panel's proportions. A card with no
+                    // picture is the shared text itself, so it may run wider
+                    // to stay readable.
+                    constraints: BoxConstraints(
+                      maxWidth: widget.preview.image == null ? 262 : 152,
+                    ),
                     child: _PreviewCard(preview: widget.preview, card: card),
                   ),
                 ),
@@ -256,11 +262,7 @@ class _RecipientRow extends StatelessWidget {
         if (onChange != null)
           const Padding(
             padding: EdgeInsets.only(left: 8),
-            child: QChatIcon(
-              'chevron',
-              size: 20,
-              color: Color(0xffb2b2b2),
-            ),
+            child: QChatIcon('chevron', size: 20, color: Color(0xffb2b2b2)),
           ),
       ],
     ),

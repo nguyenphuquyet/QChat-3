@@ -308,8 +308,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     setState(() {
       _qappController = controller;
       _qappDirectory = cached.directory;
-      _qappKey =
-          '${cached.appId}@${cached.version}#${++_qappEpoch}';
+      _qappKey = '${cached.appId}@${cached.version}#${++_qappEpoch}';
     });
     _revealTimer?.cancel();
     // The native runtime normally paints within a few frames. The timeout only
@@ -503,7 +502,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   Future<bool> _share(String text, String url, String title) async {
     if (!mounted) return false;
     final client = ref.read(clientProvider);
-    final body = [text, url].where((part) => part.isNotEmpty).join('\n');
+    final content = _ShareContent(text: text, url: url, title: title);
     var chats = <dynamic>[];
     try {
       chats = await client.get('/conversations', cached: false) as List;
@@ -517,13 +516,13 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         for (final chat in chats.take(8))
           conversationShareTarget(chat as Map, selfId),
       ],
-      onAdd: () => _shareToChat(body, chats, title),
+      onAdd: () => _shareToChat(content, chats),
       actions: [
         QChatShareAction(
           icon: 'share',
           label: tr(context, 'sendToChat'),
           color: QChatColors.green,
-          onTap: () => _shareToChat(body, chats, title),
+          onTap: () => _shareToChat(content, chats),
         ),
         QChatShareAction(
           icon: 'copy',
@@ -540,7 +539,10 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
           ),
         QChatShareAction(
           icon: 'heart',
-          label: tr(context, _favorite ? 'miniAppsUnfavorite' : 'miniAppsFavorite'),
+          label: tr(
+            context,
+            _favorite ? 'miniAppsUnfavorite' : 'miniAppsFavorite',
+          ),
           color: const Color(0xfff0a020),
           onTap: _toggleFavorite,
         ),
@@ -549,7 +551,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     if (!mounted) return false;
     if (picked == _copyResult || picked == _linkResult) {
       await Clipboard.setData(
-        ClipboardData(text: picked == _linkResult ? url : body),
+        ClipboardData(text: picked == _linkResult ? url : content.body),
       );
       if (mounted) _showToast(tr(context, 'miniAppsCopied'), 'success');
       return true;
@@ -557,32 +559,32 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     if (picked == null) return false;
     // A quick avatar is a receiver too: it opens the send sheet, not a
     // straight send, so the note field and the swap arrow are always there.
-    await _confirmShare([picked], chats, body, title);
+    await _confirmShare([picked], chats, content);
     return true;
   }
 
   /// Pick a receiver from the full list, then hand over to the send sheet.
-  Future<void> _shareToChat(String body, List chats, String title) async {
+  Future<void> _shareToChat(_ShareContent content, List chats) async {
     if (!mounted) return;
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
     final picked = await _pickShares(chats, selfId);
     if (!mounted || picked == null || picked.isEmpty) return;
-    await _confirmShare(picked, chats, body, title);
+    await _confirmShare(picked, chats, content);
   }
 
   /// The send sheet, opened whether the receiver came from a quick avatar on
-  /// the panel or from the full picker. It previews the mini program card, lets
-  /// the user add a note and swap the conversation before anything is sent.
+  /// the panel or from the full picker. Its card shows what the Mini App
+  /// actually shared — the text and the link — not a fixed program card, so
+  /// two shares from the same app no longer look identical. The user can add a
+  /// note and swap the conversation before anything is sent.
   Future<void> _confirmShare(
     List<String> first,
     List chats,
-    String body,
-    String title,
+    _ShareContent content,
   ) async {
     final client = ref.read(clientProvider);
     final selfId = client.userId ?? '';
-    final name = title.isEmpty ? _name : title;
 
     Map? chatById(String id) {
       for (final chat in chats) {
@@ -602,10 +604,16 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         extra: ids.length - 1,
         preview: QChatSendPreview(
           source: _name,
-          sourceIcon: _ShareCover(iconUrl: _iconUrl, name: _name, size: 16),
-          title: name,
-          image: _ShareCover(iconUrl: _iconUrl, name: _name),
-          footer: tr(context, 'miniProgram'),
+          sourceIcon: _ShareCover(iconUrl: _iconUrl, name: _name, size: 12),
+          // The shared text is the card. Only a link without text still gets
+          // the program artwork, because then the link is all there is.
+          title: content.headline,
+          image: content.hasText
+              ? null
+              : _ShareCover(iconUrl: _iconUrl, name: _name),
+          footer: content.url.isEmpty
+              ? tr(context, 'miniProgram')
+              : content.url,
         ),
       );
       if (!mounted || result == null) return;
@@ -617,7 +625,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         continue;
       }
       final note = result.message.trim();
-      final text = [if (note.isNotEmpty) note, body].join('\n');
+      final text = [if (note.isNotEmpty) note, content.body].join('\n');
       for (final id in ids) {
         await _sendShared(id, text);
       }
@@ -679,9 +687,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'appVersion': '1.1.0',
       'runtimeVersion': miniAppRuntimeVersion,
       'locale': ref.read(preferencesProvider).locale,
-      'theme': qchatDark(context)
-          ? 'dark'
-          : 'light',
+      'theme': qchatDark(context) ? 'dark' : 'light',
       'screenWidth': size.width,
       'screenHeight': size.height,
       'pixelRatio': MediaQuery.devicePixelRatioOf(context),
@@ -924,10 +930,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
               Text(
                 reason,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: QChatColors.muted,
-                ),
+                style: const TextStyle(fontSize: 11, color: QChatColors.muted),
               ),
             ],
             const SizedBox(height: 18),
@@ -1096,6 +1099,33 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
         );
 }
 
+/// What a Mini App handed to `share({text, url, title})`, kept apart so the
+/// confirm card can show the content instead of a fixed program card.
+class _ShareContent {
+  const _ShareContent({
+    required this.text,
+    required this.url,
+    required this.title,
+  });
+
+  final String text;
+  final String url;
+  final String title;
+
+  bool get hasText => text.isNotEmpty;
+
+  /// What the conversation receives: the text, then its link on a new line.
+  String get body => [text, url].where((part) => part.isNotEmpty).join('\n');
+
+  /// The line the confirm card leads with: the shared text, or the app's own
+  /// title when the share is only a link, or the link as a last resort.
+  String get headline {
+    if (hasText) return text;
+    if (title.isNotEmpty) return title;
+    return url;
+  }
+}
+
 /// The mini program artwork on the send card: its icon when the store has one,
 /// otherwise a quiet gradient with the first letter of its name.
 class _ShareCover extends StatelessWidget {
@@ -1138,7 +1168,8 @@ class _ShareCover extends StatelessWidget {
   }
 }
 
-int _compareVersion(String a, String b) {  final left = a.split('-').first.split('.').map(int.tryParse).toList();
+int _compareVersion(String a, String b) {
+  final left = a.split('-').first.split('.').map(int.tryParse).toList();
   final right = b.split('-').first.split('.').map(int.tryParse).toList();
   for (var i = 0; i < 3; i++) {
     final x = i < left.length ? (left[i] ?? 0) : 0;
