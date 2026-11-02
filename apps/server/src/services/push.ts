@@ -14,11 +14,6 @@ import { db } from "./db";
  * key this module is a no-op: the server, the realtime worker and the app all
  * keep working as before, and adding a key switches push on.
  */
-const defaultKey = new URL(
-  "../../secrets/firebase-service-account.json",
-  import.meta.url,
-);
-
 let client: Messaging | null | undefined;
 
 /** The parsed service account, or null when no key is available at all. */
