@@ -102,28 +102,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 40),
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      QrImageView(
-                        data: 'qchat://user/${u['qchatId']}',
-                        size: qrSize,
-                        padding: EdgeInsets.zero,
-                        backgroundColor: QChatColors.white,
-                        errorCorrectionLevel: QrErrorCorrectLevel.H,
-                        eyeStyle: QrEyeStyle(
-                          eyeShape: QrEyeShape.square,
-                          color: qrStyles[qrStyle],
-                        ),
-                        dataModuleStyle: QrDataModuleStyle(
-                          dataModuleShape: QrDataModuleShape.square,
-                          color: qrStyles[qrStyle],
-                        ),
-                      ),
-                      QChatQrMark(
-                        size: (qrSize * .27).clamp(44.0, 58.0).toDouble(),
-                      ),
-                    ],
+                  QrImageView(
+                    data: 'qchat://user/${u['qchatId']}',
+                    size: qrSize,
+                    padding: EdgeInsets.zero,
+                    backgroundColor: QChatColors.white,
+                    errorCorrectionLevel: QrErrorCorrectLevel.H,
+                    eyeStyle: QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: qrStyles[qrStyle],
+                    ),
+                    dataModuleStyle: QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: qrStyles[qrStyle],
+                    ),
                   ),
                   const SizedBox(height: 20),
                   ConstrainedBox(
@@ -624,73 +616,6 @@ class QChatQrAction extends StatelessWidget {
       ),
     ),
   );
-}
-
-class QChatQrMark extends StatelessWidget {
-  const QChatQrMark({super.key, required this.size});
-  final double size;
-  @override
-  Widget build(BuildContext c) => Container(
-    width: size,
-    height: size,
-    decoration: BoxDecoration(
-      color: const Color(0xff1c1c1c),
-      borderRadius: BorderRadius.circular(size * .2),
-    ),
-    child: CustomPaint(painter: _QrMarkPainter()),
-  );
-}
-
-class _QrMarkPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 100, size.height / 100);
-    final white = Paint()
-      ..color = QChatColors.white
-      ..style = PaintingStyle.fill;
-    final black = Paint()
-      ..color = const Color(0xff1c1c1c)
-      ..style = PaintingStyle.fill;
-
-    // Smaller bubble, upper right.
-    canvas.drawPath(
-      Path()
-        ..addRRect(
-          RRect.fromRectAndRadius(
-            const Rect.fromLTWH(44, 14, 40, 32),
-            const Radius.circular(15),
-          ),
-        )
-        ..moveTo(72, 41)
-        ..lineTo(80, 56)
-        ..lineTo(61, 44)
-        ..close(),
-      white,
-    );
-    canvas.drawCircle(const Offset(56, 29), 3.4, black);
-    canvas.drawCircle(const Offset(71, 29), 3.4, black);
-
-    // Bigger bubble, lower left.
-    canvas.drawPath(
-      Path()
-        ..addRRect(
-          RRect.fromRectAndRadius(
-            const Rect.fromLTWH(10, 30, 50, 38),
-            const Radius.circular(17),
-          ),
-        )
-        ..moveTo(21, 66)
-        ..lineTo(14, 82)
-        ..lineTo(34, 68)
-        ..close(),
-      white,
-    );
-    canvas.drawCircle(const Offset(27, 48), 4, black);
-    canvas.drawCircle(const Offset(45, 48), 4, black);
-  }
-
-  @override
-  bool shouldRepaint(_QrMarkPainter old) => false;
 }
 
 class ScanScreen extends StatefulWidget {
