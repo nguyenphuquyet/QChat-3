@@ -5,7 +5,7 @@ const { createRequire } = require('node:module');
 const sharp = createRequire(require.resolve('next/package.json'))('sharp');
 
 const root = path.resolve(__dirname, '../apps/mobile');
-const green = '#10cf1e';
+const green = '#25cc60';
 // PNG is lossless, so spend the time: effort 10 shrinks the 1024 px render from
 // 1.4 MB to 350 kB with the same pixels.
 const png = { compressionLevel: 9, effort: 10 };
@@ -90,8 +90,8 @@ async function main() {
     outputs.set(`web/icons/Icon-maskable-${size}.png`, size);
   }
   for (const [file, size] of outputs) {
-    // Preserve the supplied artwork. Maskable icons need extra room so
-    // launchers do not clip the wordmark when applying circular masks.
+    // Preserve the supplied artwork. Maskable icons need extra room so a
+    // launcher mask does not clip the artwork when applying circular shapes.
     const inset = file.includes('maskable') ? Math.round(size * 0.12) : 0;
     await write(file, await composeIcon(plate, source, size, inset));
     const metadata = await sharp(path.join(root, file)).metadata();
