@@ -763,6 +763,16 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
                 ),
               ),
             ),
+            // The runtime opens as a task layer with a vertical slide, so the
+            // Cupertino route never gets the iOS edge-swipe back gesture. This
+            // strip restores it, closing the current mini program page first
+            // and then the runtime, exactly like the system back button.
+            Positioned(
+              top: 0,
+              left: 0,
+              bottom: 0,
+              child: QChatEdgeBack(onBack: () => unawaited(_handleBack())),
+            ),
           ],
         ),
       ),
