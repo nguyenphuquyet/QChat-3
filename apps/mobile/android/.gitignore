@@ -13,7 +13,5 @@ key.properties
 **/*.keystore
 **/*.jks
 
-# Firebase project configuration belongs to one project and is downloaded from
-# the console. google-services.json.example shows the shape; copy it in only
-# after filling in the real values.
-app/google-services.json
+# Firebase project configuration is committed so CI and fresh checkouts build
+# with push support. google-services.json.example documents the shape.
