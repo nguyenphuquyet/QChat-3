@@ -232,9 +232,6 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           path: '/miniApps/:appId',
           pageBuilder: (context, state) => CustomTransitionPage<void>(
             key: state.pageKey,
-            // Transparent, so the chat stays painted behind the runtime and
-            // shows through while the edge swipe carries the page to the right.
-            opaque: false,
             child: MiniAppRuntimeScreen(
               appId: state.pathParameters['appId']!,
               preview: state.extra is MiniAppSummary

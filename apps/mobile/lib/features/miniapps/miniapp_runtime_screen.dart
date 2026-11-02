@@ -728,54 +728,44 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   }
 
   /// Back leaves the page the mini program is on, and only leaves the mini
-  /// program itself when it has nowhere left to go. Returns true while the
-  /// runtime stays on screen.
-  bool _handleBack() {
+  /// program itself when it has nowhere left to go.
+  void _handleBack() {
     final qapp = _qappController;
-    if (qapp != null && qapp.back()) return true;
+    if (qapp != null && qapp.back()) return;
     _close();
-    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    // The runtime opens as a task layer with a vertical slide, so the Cupertino
-    // route never gets the iOS edge-swipe back gesture. This wrapper restores
-    // that gesture — the page follows the finger, and back runs the same
-    // handler as the system back button — while the page is not a
-    // `CupertinoPage` and so has no system gesture of its own.
-    return QChatBackSwipe(
-      onBack: _handleBack,
-      child: PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _handleBack();
-        },
-        // The mini program owns the whole screen; the host floats the standard
-        // transparent header over it, which is only the capsule in this case.
-        child: QChatPage(
-          edgeToEdge: true,
-          child: Stack(
-            children: [
-              Positioned.fill(child: _body(context)),
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: QChatHeader(
-                  transparent: true,
-                  reserveLeading: 0,
-                  reserveTrailing: kQChatCapsuleWidth + 14,
-                  trailing: QChatCapsule(
-                    menuLabel: tr(context, 'more'),
-                    closeLabel: tr(context, 'miniAppsClose'),
-                    onMenu: () => _openMenu(context),
-                    onClose: _close,
-                  ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBack();
+      },
+      // The mini program owns the whole screen; the host floats the standard
+      // transparent header over it, which is only the capsule in this case.
+      child: QChatPage(
+        edgeToEdge: true,
+        child: Stack(
+          children: [
+            Positioned.fill(child: _body(context)),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: QChatHeader(
+                transparent: true,
+                reserveLeading: 0,
+                reserveTrailing: kQChatCapsuleWidth + 14,
+                trailing: QChatCapsule(
+                  menuLabel: tr(context, 'more'),
+                  closeLabel: tr(context, 'miniAppsClose'),
+                  onMenu: () => _openMenu(context),
+                  onClose: _close,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
