@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
+import '../../core/media/media_picker.dart';
 
 /// The colours the scanner draws its controls with. They are fixed rather than
 /// taken from the app palette because the page is always the camera preview,
@@ -75,15 +75,18 @@ class _ScanScreenState extends State<ScanScreen> {
     if (_reading) return;
     setState(() => _reading = true);
     try {
-      final picture = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
+      // The same WeChat-style picker as the rest of the app: the album grid on
+      // a phone, the file chooser on desktop.
+      final picked = await pickQChatMedia(
+        context,
+        imagesOnly: true,
+        maxAssets: 1,
       );
-      if (picture == null) return;
-      final capture = await _scanner.analyzeImage(picture.path);
-      final found = capture?.barcodes.isNotEmpty ?? false;
+      if (!mounted || picked.isEmpty) return;
+      final capture = await _scanner.analyzeImage(picked.first.path);
       if (!mounted) return;
-      if (found) {
-        _scan(capture!);
+      if (capture != null && capture.barcodes.isNotEmpty) {
+        _scan(capture);
       } else {
         showQChatToast(context, tr(context, 'scanNoCode'));
       }
