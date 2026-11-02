@@ -7,6 +7,7 @@ import { authenticate } from "../../server/src/security/auth";
 import { ApiError, requireCondition } from "../../server/src/security/errors";
 import { rateLimit } from "../../server/src/security/rate-limit";
 import { db } from "../../server/src/services/db";
+import { sendMessagePush } from "../../server/src/services/push";
 import {
   membership,
   sendMessage,
@@ -198,6 +199,13 @@ const timer = setInterval(async () => {
         where: { id: e.id },
         data: { deliveredAt: new Date() },
       });
+      // The row is marked delivered first, so a slow FCM call cannot make the
+      // next pass send the same notification twice.
+      if (e.event === "message:new" && e.room.startsWith("user:"))
+        void sendMessagePush(
+          e.room.slice("user:".length),
+          e.payload as Record<string, unknown>,
+        ).catch(() => {});
     }
     const expired = await db.callSession.findMany({
       where: {

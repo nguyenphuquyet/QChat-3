@@ -34,6 +34,15 @@ class QChatClient {
     ),
   );
   final sessionExpired = ValueNotifier<bool>(false);
+
+  /// The signed-in account id, or null. Push registration listens to this to
+  /// upload the FCM token exactly when a session becomes usable.
+  final session = ValueNotifier<String?>(null);
+
+  /// Called before [clearSession] while the request can still be authorized,
+  /// so push can unregister the device token of the account being left.
+  Future<void> Function()? onBeforeLogout;
+
   final changes = StreamController<void>.broadcast();
   final messageChanges = StreamController<void>.broadcast(sync: true);
   final recalls = StreamController<String>.broadcast();
@@ -168,6 +177,7 @@ class QChatClient {
     await storage.write(key: 'refreshToken', value: data['refreshToken']);
     await storage.write(key: 'userId', value: userId);
     sessionExpired.value = false;
+    session.value = userId;
   }
 
   Future<void> refresh() async {
@@ -205,6 +215,7 @@ class QChatClient {
     socket = null;
     token = null;
     offline.value = false;
+    session.value = null;
     // Preserve the account's local history and outbox for reauthentication.
     sessionExpired.value = true;
   }
@@ -518,6 +529,8 @@ class QChatClient {
 
   Future<dynamic> post(String path, Object data) async =>
       (await dio.post(path, data: data)).data;
+  Future<dynamic> delete(String path, Object data) async =>
+      (await dio.delete(path, data: data)).data;
 
   Future<dynamic> patch(String path, Object data) async =>
       (await dio.patch(path, data: data)).data;
@@ -830,6 +843,10 @@ class QChatClient {
   }
 
   Future<void> logout() async {
+    // Unregister push while the token can still authenticate the request.
+    try {
+      await onBeforeLogout?.call();
+    } catch (_) {}
     try {
       await post('/auth/logout', {});
     } on DioException catch (e) {
@@ -857,6 +874,7 @@ class QChatClient {
     await storage.deleteAll();
     token = null;
     userId = null;
+    session.value = null;
     outgoing.clear();
     confirmed.clear();
     _moneyTransfers.clear();

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -85,6 +87,7 @@ class QChatApp extends ConsumerStatefulWidget {
 
 class _QChatAppState extends ConsumerState<QChatApp> {
   late final GoRouter router;
+  String? _pendingConversation;
   @override
   void initState() {
     super.initState();
@@ -287,13 +290,38 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         ),
       ],
     );
+    final client = ref.read(clientProvider);
+    final push = ref.read(pushProvider);
+    push.openConversation = _openFromPush;
+    push.isConversationOpen = (id) =>
+        router.routerDelegate.currentConfiguration.uri.path == '/chat/$id';
+    client.onBeforeLogout = push.unregister;
+    // A tap that happened while the sign-in screen was up opens once the
+    // account is usable.
+    client.session.addListener(_flushPushRoute);
+    unawaited(push.start());
     restore();
+  }
+
+  /// A notification tapped before the saved session finished restoring is
+  /// remembered and opened as soon as the app knows who is signed in.
+  void _openFromPush(String conversationId) {
+    _pendingConversation = conversationId;
+    _flushPushRoute();
+  }
+
+  void _flushPushRoute() {
+    final id = _pendingConversation;
+    if (id == null || ref.read(clientProvider).userId == null) return;
+    _pendingConversation = null;
+    router.go('/chat/$id');
   }
 
   Future<void> restore() async {
     try {
       if (await ref.read(clientProvider).restore() && mounted) {
         router.go('/home');
+        _flushPushRoute();
       }
     } catch (_) {}
   }

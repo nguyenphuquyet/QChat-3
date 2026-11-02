@@ -1,11 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/network/client.dart';
+import '../core/notifications/push_notifications.dart';
 
 final clientProvider = Provider<QChatClient>((ref) {
   final client = QChatClient();
   ref.onDispose(client.dispose);
   return client;
+});
+
+/// Firebase Cloud Messaging, wired to the signed-in session. Desktop builds
+/// never touch Firebase: [PushNotifications.start] returns immediately.
+final pushProvider = Provider<PushNotifications>((ref) {
+  final push = PushNotifications(ref.read(clientProvider));
+  ref.onDispose(push.dispose);
+  return push;
 });
 
 typedef AppPreferences = ({String locale, bool dark, bool startMuted});

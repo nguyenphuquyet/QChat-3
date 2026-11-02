@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Notification accent: the QChat green, not Material's default. -->
+    <color name="notification_accent">#FF07C160</color>
+</resources>

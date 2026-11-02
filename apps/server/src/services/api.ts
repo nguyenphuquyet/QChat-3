@@ -206,6 +206,18 @@ export async function handle(request: Request) {
             update: { userId, platform: v.platform },
           });
         }
+        // Signing out drops the token while the session can still authorize it,
+        // so the device stops receiving the account's messages.
+        if (method === "DELETE") {
+          const v = z
+            .object({ token: z.string().min(16).max(4096) })
+            .strict()
+            .parse(body);
+          await db.pushDevice.deleteMany({
+            where: { token: v.token, userId },
+          });
+          result = { ok: true };
+        }
         break;
       case "calls":
         if (method === "GET")
