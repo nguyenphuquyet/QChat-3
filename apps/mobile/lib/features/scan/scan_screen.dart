@@ -11,7 +11,12 @@ import '../../core/localization/strings.dart';
 /// The colours the scanner draws its controls with. They are fixed rather than
 /// taken from the app palette because the page is always the camera preview,
 /// in light and dark mode alike.
-const _controlFill = Color(0xff1f1f1f);
+/// The scanner's controls float over a live camera, so their fill is smoked
+/// glass: a translucent tint over a blur of whatever the preview shows, not an
+/// opaque grey. The white back disc is the only solid control.
+const _controlTint = Color(0xff1f1f1f);
+const _controlOpacity = .74;
+const _controlBlur = 22.0;
 const _noteInk = Color(0xff9c9c9c);
 const _newRed = Color(0xfffb4d4e);
 
@@ -186,7 +191,8 @@ class ScanChrome extends StatelessWidget {
               label: tr(context, 'scanMyQr'),
               onTap: onMyQr,
               iconSize: 27,
-              background: _controlFill,
+              background: _controlTint.withValues(alpha: _controlOpacity),
+              blur: _controlBlur,
             ),
             const SizedBox(width: 12),
             Expanded(child: _FeaturePill(onTap: onFeature)),
@@ -196,7 +202,8 @@ class ScanChrome extends StatelessWidget {
               label: tr(context, 'scanGallery'),
               onTap: onGallery,
               iconSize: 27,
-              background: _controlFill,
+              background: _controlTint.withValues(alpha: _controlOpacity),
+              blur: _controlBlur,
             ),
           ],
         ),
@@ -219,68 +226,71 @@ class _FeaturePill extends StatelessWidget {
     child: GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        height: 57,
-        padding: const EdgeInsets.fromLTRB(20, 0, 17, 0),
-        decoration: const BoxDecoration(
-          color: _controlFill,
-          borderRadius: BorderRadius.all(Radius.circular(28.5)),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                for (var index = 0; index < 2; index++) ...[
-                  if (index > 0) const SizedBox(width: 4.5),
-                  Container(
-                    width: 4.5,
-                    height: 4.5,
-                    decoration: const BoxDecoration(
-                      color: QChatColors.white,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 9),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      tr(context, 'scanFeatureTitle'),
-                      maxLines: 1,
-                      style: const TextStyle(
-                        fontSize: 17,
-                        height: 1.15,
-                        fontWeight: FontWeight.w600,
+      child: QChatGlass(
+        color: _controlTint,
+        opacity: _controlOpacity,
+        border: false,
+        blur: _controlBlur,
+        radius: const BorderRadius.all(Radius.circular(28.5)),
+        child: Container(
+          height: 57,
+          padding: const EdgeInsets.fromLTRB(20, 0, 17, 0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  for (var index = 0; index < 2; index++) ...[
+                    if (index > 0) const SizedBox(width: 4.5),
+                    Container(
+                      width: 4.5,
+                      height: 4.5,
+                      decoration: const BoxDecoration(
                         color: QChatColors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(width: 9),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        tr(context, 'scanFeatureTitle'),
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          height: 1.15,
+                          fontWeight: FontWeight.w600,
+                          color: QChatColors.white,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                const _NewBadge(),
-              ],
-            ),
-            const SizedBox(height: 2),
-            // The reference keeps the note on one line, so the line shrinks
-            // rather than losing its tail when a translation runs long.
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                tr(context, 'scanFeatureNote'),
-                maxLines: 1,
-                style: const TextStyle(
-                  fontSize: 13,
-                  height: 1.15,
-                  color: _noteInk,
+                  const SizedBox(width: 8),
+                  const _NewBadge(),
+                ],
+              ),
+              const SizedBox(height: 2),
+              // The reference keeps the note on one line, so the line shrinks
+              // rather than losing its tail when a translation runs long.
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  tr(context, 'scanFeatureNote'),
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.15,
+                    color: _noteInk,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),

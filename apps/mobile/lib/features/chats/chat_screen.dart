@@ -1,4 +1,3 @@
-import '../../core/design_system/qchat_glass.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:async';
 import 'dart:io';

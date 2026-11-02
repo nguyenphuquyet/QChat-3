@@ -15,6 +15,7 @@ import 'overlays.dart';
 
 export 'overlays.dart';
 export 'qchat_colors.dart';
+export 'qchat_glass.dart';
 export 'qchat_header.dart';
 export 'qchat_icons.dart';
 export 'qchat_keypad.dart';
@@ -233,7 +234,8 @@ class QChatIconButton extends StatelessWidget {
 ///
 /// The disc is flat — no ink, no elevation — and only a 120 ms colour fade marks
 /// the press, matching [QChatCapsule]. [hitSize] keeps the touch target larger
-/// than the drawn circle when the artwork is small.
+/// than the drawn circle when the artwork is small, and [blur] frosts the fill
+/// over whatever is behind it.
 class QChatCircleButton extends StatefulWidget {
   const QChatCircleButton(
     this.icon, {
@@ -245,6 +247,7 @@ class QChatCircleButton extends StatefulWidget {
     this.iconSize = 26,
     this.background = QChatColors.darkFill,
     this.color = QChatColors.white,
+    this.blur = 0,
   });
   final String icon, label;
   final VoidCallback? onTap;
@@ -252,6 +255,11 @@ class QChatCircleButton extends StatefulWidget {
   final double? hitSize;
   final double iconSize;
   final Color background, color;
+
+  /// Blur of the glass behind the disc. Zero draws the fill flat, for a button
+  /// that sits on a page; the scanner passes a strength so the camera shows
+  /// through.
+  final double blur;
   @override
   State<QChatCircleButton> createState() => _QChatCircleButtonState();
 }
@@ -266,6 +274,40 @@ class _QChatCircleButtonState extends State<QChatCircleButton> {
   @override
   Widget build(BuildContext context) {
     final target = widget.hitSize ?? widget.size;
+    final fill = _pressed
+        ? Color.alphaBlend(
+            QChatColors.white.withValues(alpha: .16),
+            widget.background,
+          )
+        : widget.background;
+    Widget disc = AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        // A frosted disc takes its colour from the glass instead, so the
+        // camera shows through the fill.
+        color: widget.blur > 0 ? null : fill,
+      ),
+      alignment: Alignment.center,
+      child: QChatIcon(
+        widget.icon,
+        color: widget.color,
+        size: widget.iconSize,
+      ),
+    );
+    if (widget.blur > 0) {
+      disc = QChatGlass(
+        color: fill,
+        opacity: fill.a,
+        border: false,
+        blur: widget.blur,
+        radius: BorderRadius.circular(widget.size / 2),
+        child: disc,
+      );
+    }
     return Semantics(
       button: true,
       label: widget.label,
@@ -278,29 +320,7 @@ class _QChatCircleButtonState extends State<QChatCircleButton> {
         child: SizedBox(
           width: target,
           height: target,
-          child: Center(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 120),
-              curve: Curves.easeOutCubic,
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _pressed
-                    ? Color.alphaBlend(
-                        QChatColors.white.withValues(alpha: .16),
-                        widget.background,
-                      )
-                    : widget.background,
-              ),
-              alignment: Alignment.center,
-              child: QChatIcon(
-                widget.icon,
-                color: widget.color,
-                size: widget.iconSize,
-              ),
-            ),
-          ),
+          child: Center(child: disc),
         ),
       ),
     );

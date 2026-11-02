@@ -6,7 +6,6 @@ import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
-import '../../core/design_system/qchat_glass.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
