@@ -691,7 +691,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Future<void> load() async {
+  Future<void> load({bool fresh = false}) async {
     if (fetching) {
       reload = true;
       return;
@@ -701,6 +701,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         !locatingQuote && (!scroll.hasClients || scroll.offset < 100);
     try {
       final client = ref.read(clientProvider);
+      if (fresh) {
+        // A sync that started before a send can still be in flight; `messages`
+        // below would hand back its stale page instead of the new row.
+        final running = client.syncing[widget.id];
+        if (running != null) {
+          try {
+            await running;
+          } catch (_) {}
+        }
+      }
       if (!wallpaperLoaded) {
         final cachedConversation = await client.local?.read(
           '/conversations/${widget.id}',
@@ -963,12 +973,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return null;
   }
 
-  void openMoney(BuildContext c, {bool redPacket = false}) {
+  Future<void> openMoney(BuildContext c, {bool redPacket = false}) async {
     final peer = peerQchatId;
     final user = peerUser;
     final name = user?['nickname']?.toString() ?? '';
     final avatar = user?['avatarId']?.toString() ?? '';
-    c.push(
+    final sent = await c.push<bool>(
       '/payments/transfer'
       '?to=${Uri.encodeQueryComponent(peer ?? '')}'
       '${peer == null ? '' : '&conversation=${widget.id}'}'
@@ -977,6 +987,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       '${redPacket ? '&red=1' : ''}'
       '${redPacket && groupChat ? '&group=1' : ''}',
     );
+    // A transfer or a red packet is written by the wallet API, so there is no
+    // optimistic bubble like `send()` has. The socket's `message:new` normally
+    // adds it, but if that event is missed (or the list was scrolled up) the
+    // row only appeared after reopening the chat. Pull the newest page and
+    // jump to it as soon as the sheet reports a successful send.
+    if (sent == true && mounted) {
+      await load(fresh: true);
+      if (mounted) scrollToEnd();
+    }
   }
 
   void callPeer(BuildContext c, bool video) =>

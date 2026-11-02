@@ -182,7 +182,7 @@ class _TransferScreenState extends ConsumerState<TransferScreen> {
           QChatDialogAction(label: tr(context, 'confirm'), primary: true),
         ],
       );
-      if (mounted) context.pop();
+      if (mounted) context.pop(true);
     } on DioException catch (e) {
       if (!mounted) return;
       fail(switch (e.response?.statusCode) {
