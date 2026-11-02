@@ -29,8 +29,10 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   Server,
   ShieldCheck,
+  Smartphone,
   Trash2,
   UserCog,
   Users,
@@ -47,6 +49,7 @@ type Permission =
   | "feedback"
   | "landing"
   | "audit"
+  | "devices"
   | "system";
 type Section = "overview" | Permission;
 type Me = { userId: string; role: string; permissions: Permission[] };
@@ -70,6 +73,11 @@ const permissions: { id: Permission; label: string; hint: string }[] = [
   { id: "feedback", label: "Phản hồi", hint: "Xử lý góp ý người dùng" },
   { id: "landing", label: "Trang chủ", hint: "Sửa liên kết tải app và IDE" },
   { id: "audit", label: "Nhật ký", hint: "Xem lịch sử thao tác quản trị" },
+  {
+    id: "devices",
+    label: "Thiết bị",
+    hint: "Thiết bị nhận thông báo đẩy và gửi thử",
+  },
   { id: "system", label: "Hệ thống", hint: "Kiểm tra sức khỏe dịch vụ" },
 ];
 const permissionLabel = (id: string) =>
@@ -203,6 +211,17 @@ type Audit = {
   targetId: string;
   createdAt: string;
 };
+type PushDeviceRow = {
+  id: string;
+  platform: string;
+  token: string;
+  user: {
+    id: string;
+    qchatId: string;
+    nickname: string;
+    email: string;
+  };
+};
 type PaymentSummary = {
   totalBalance: number;
   wallets: number;
@@ -268,6 +287,12 @@ const navigation: {
     permission: "audit",
   },
   { id: "landing", label: "Trang chủ", icon: Globe2, permission: "landing" },
+  {
+    id: "devices",
+    label: "Thiết bị",
+    icon: Smartphone,
+    permission: "devices",
+  },
   { id: "system", label: "Hệ thống", icon: Server, permission: "system" },
 ];
 const number = (value: number) => value.toLocaleString("vi-VN");
@@ -401,6 +426,12 @@ function failure(error: unknown) {
         INSUFFICIENT_FUNDS: "Số dư ví không đủ để thực hiện giao dịch.",
         REASON_REQUIRED: "Cần nhập lý do từ chối (ít nhất 3 ký tự).",
         RATE_LIMITED: "Bạn thao tác quá nhanh. Vui lòng thử lại sau.",
+        PUSH_NOT_CONFIGURED:
+          "Server chưa có khoá Firebase, không gửi được thông báo đẩy.",
+        PUSH_DEVICE_GONE:
+          "FID này không còn hiệu lực. Thiết bị cần đăng nhập lại để đăng ký mới.",
+        PUSH_FAILED:
+          "FCM không nhận được yêu cầu. Kiểm tra log server để biết chi tiết.",
       } as Record<string, string>
     )[code] ?? "Không thực hiện được yêu cầu. Vui lòng thử lại."
   );
@@ -423,6 +454,14 @@ export default function Dashboard() {
   const [reports, setReports] = useState<Report[]>([]);
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [audit, setAudit] = useState<Audit[]>([]);
+  const [devices, setDevices] = useState<PushDeviceRow[]>([]);
+  const [deviceSummary, setDeviceSummary] = useState({
+    total: 0,
+    android: 0,
+    ios: 0,
+    configured: false,
+  });
+  const [deviceBusy, setDeviceBusy] = useState("");
   const [links, setLinks] = useState<SiteLink[]>([]);
   const [linkBusy, setLinkBusy] = useState("");
   const [users, setUsers] = useState<User[]>([]);
@@ -585,6 +624,16 @@ export default function Dashboard() {
         const result = await api("/admin/audit");
         if (current !== revision.current) return;
         setAudit(result);
+      } else if (target === "devices") {
+        const result = await api("/admin/devices");
+        if (current !== revision.current) return;
+        setDevices(result.items);
+        setDeviceSummary({
+          total: result.total,
+          android: result.android,
+          ios: result.ios,
+          configured: result.configured,
+        });
       } else if (target === "landing") {
         const result = await api("/admin/links");
         if (current !== revision.current) return;
@@ -697,6 +746,8 @@ export default function Dashboard() {
       setReports([]);
       setFeedbacks([]);
       setAudit([]);
+      setDevices([]);
+      setDeviceSummary({ total: 0, android: 0, ios: 0, configured: false });
       setNotice("");
       setError("");
     } catch (e) {
@@ -716,6 +767,22 @@ export default function Dashboard() {
       setError(failure(e));
     } finally {
       setActionBusy(false);
+    }
+  }
+  // Sends one FCM test notification to a registered installation id.
+  async function testDevice(row: PushDeviceRow) {
+    setDeviceBusy(row.id);
+    setNotice("");
+    setError("");
+    try {
+      await api(`/admin/devices/${row.id}/test`, "POST");
+      setNotice(
+        `Đã gửi thông báo thử tới ${row.user.nickname} (${row.platform === "ios" ? "iOS" : "Android"}).`,
+      );
+    } catch (e) {
+      setError(failure(e));
+    } finally {
+      setDeviceBusy("");
     }
   }
   async function saveLink(link: SiteLink) {
@@ -1187,7 +1254,9 @@ export default function Dashboard() {
                               ? "Theo dõi các thay đổi do quản trị viên thực hiện."
                               : section === "landing"
                                 ? "Quản lý liên kết hiển thị trên trang giới thiệu."
-                                : "Kiểm tra khả năng phục vụ của hệ thống."}
+                                : section === "devices"
+                                  ? "Thiết bị đã đăng ký nhận thông báo đẩy và gửi thử."
+                                  : "Kiểm tra khả năng phục vụ của hệ thống."}
               </p>
             </div>
             <button
@@ -2282,6 +2351,101 @@ export default function Dashboard() {
                           </td>
                           <td className="whitespace-nowrap px-5 py-4 text-xs text-slate-500">
                             {date(row.createdAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {section === "devices" && (
+            <Card>
+              <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-100 p-5">
+                <div>
+                  <h2 className="font-bold">Thiết bị nhận thông báo đẩy</h2>
+                  <p className="mt-1 text-xs text-slate-400">
+                    Tối đa 200 FID đã đăng ký · gửi thử để kiểm tra cấu hình
+                    Firebase
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge>Tổng {number(deviceSummary.total)}</Badge>
+                  <Badge>Android {number(deviceSummary.android)}</Badge>
+                  <Badge>iOS {number(deviceSummary.ios)}</Badge>
+                  <Badge warning={!deviceSummary.configured}>
+                    {deviceSummary.configured
+                      ? "FCM sẵn sàng"
+                      : "FCM chưa cấu hình"}
+                  </Badge>
+                </div>
+              </div>
+              {devices.length === 0 && !busy ? (
+                <Empty>
+                  Chưa có thiết bị nào đăng ký. Đăng nhập trên app và bật quyền
+                  thông báo để thiết bị xuất hiện ở đây.
+                </Empty>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 text-xs text-slate-500">
+                      <tr>
+                        {["Người dùng", "Nền tảng", "FID", "Gửi thử"].map(
+                          (label) => (
+                            <th key={label} className="px-5 py-4">
+                              {label}
+                            </th>
+                          ),
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {devices.map((row) => (
+                        <tr key={row.id}>
+                          <td className="px-5 py-4">
+                            <p className="font-semibold">{row.user.nickname}</p>
+                            <p className="mt-0.5 break-all text-xs text-slate-400">
+                              @{row.user.qchatId} · {row.user.email}
+                            </p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <Badge warning={row.platform !== "android"}>
+                              {row.platform === "ios" ? "iOS" : "Android"}
+                            </Badge>
+                          </td>
+                          <td className="px-5 py-4">
+                            <code
+                              className="break-all font-mono text-xs text-slate-500"
+                              title={row.token}
+                            >
+                              {row.token.length > 28
+                                ? `${row.token.slice(0, 14)}…${row.token.slice(-8)}`
+                                : row.token}
+                            </code>
+                          </td>
+                          <td className="whitespace-nowrap px-5 py-4">
+                            <button
+                              className={buttonStyle}
+                              disabled={
+                                deviceBusy === row.id ||
+                                !deviceSummary.configured
+                              }
+                              title={
+                                deviceSummary.configured
+                                  ? "Gửi một thông báo thử qua FCM"
+                                  : "Server chưa có khoá Firebase"
+                              }
+                              onClick={() => void testDevice(row)}
+                            >
+                              {deviceBusy === row.id ? (
+                                <Loader2 size={15} className="animate-spin" />
+                              ) : (
+                                <Send size={15} />
+                              )}
+                              Gửi thử
+                            </button>
                           </td>
                         </tr>
                       ))}

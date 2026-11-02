@@ -19,6 +19,7 @@ import { maybeExpireMoneyTransfers } from "./money-expiry";
 import { miniAppsRoute, miniAppReviewRoute } from "../modules/miniapps";
 import { deleteMediaObjects } from "../modules/media";
 import { deleteBuild } from "./miniapp-storage";
+import { pushReady, sendTestPush } from "./push";
 import {
   ADMIN_SECTIONS,
   canManage,
@@ -1122,6 +1123,59 @@ export async function handle(request: Request) {
               },
             }),
           ]);
+          result = { ok: true };
+        }
+        // Registered push devices. The console can see which installation ids
+        // belong to an account and send one test notification to each.
+        if (method === "GET" && path[1] === "devices" && !path[2]) {
+          requireCondition(canManage(auth, "devices"), 403, "FORBIDDEN");
+          const [items, total, android, ios, configured] = await Promise.all([
+            db.pushDevice.findMany({
+              take: 200,
+              orderBy: [{ platform: "asc" }, { token: "asc" }],
+              select: {
+                id: true,
+                platform: true,
+                token: true,
+                user: {
+                  select: {
+                    id: true,
+                    qchatId: true,
+                    nickname: true,
+                    email: true,
+                  },
+                },
+              },
+            }),
+            db.pushDevice.count(),
+            db.pushDevice.count({ where: { platform: "android" } }),
+            db.pushDevice.count({ where: { platform: "ios" } }),
+            pushReady(),
+          ]);
+          result = { items, total, android, ios, configured };
+        }
+        if (
+          method === "POST" &&
+          path[1] === "devices" &&
+          path[2] &&
+          path[3] === "test"
+        ) {
+          requireCondition(canManage(auth, "devices"), 403, "FORBIDDEN");
+          const device = isUuid(path[2])
+            ? await db.pushDevice.findUnique({
+                where: { id: path[2] },
+                select: { token: true },
+              })
+            : null;
+          requireCondition(device, 404, "NOT_FOUND");
+          const sent = await sendTestPush(device.token);
+          if (!sent.ok) {
+            console.error("Admin push test failed", {
+              code: sent.code,
+              detail: sent.detail,
+            });
+            throw new ApiError(400, sent.code);
+          }
           result = { ok: true };
         }
         break;

@@ -80,6 +80,14 @@ The realtime worker is the component that sends the push: it already consumes
 each `Outbox` row for `message:new` exactly once. A dead installation id is
 deleted from `PushDevice` automatically.
 
+## Admin console
+
+The **Thiết bị** section (permission `devices`) lists up to 200 registered
+installation ids with the owning account, platform and FCM status. **Gửi thử**
+sends one notification through the same Android channel and APNs payload as a
+real message, so a missing key, a revoked FID or a transport error is reported
+directly in the console instead of being guessed from logs.
+
 ## iOS
 
 iOS needs an Apple developer account, so these steps are documented but not done
