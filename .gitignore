@@ -14,5 +14,7 @@ apps/mobile/ios/Pods/
 apps/mobile/ios/Flutter/Generated.xcconfig
 # Firebase service accounts never belong in Git; GitHub push protection rejects
 # them as Google Cloud credentials. push.ts reads this file on the host when it
-# exists, or takes the key from FIREBASE_SERVICE_ACCOUNT(_FILE).
-apps/server/secrets/
+# exists, or takes the key from FIREBASE_SERVICE_ACCOUNT(_FILE). The committed
+# *.example documents the shape.
+apps/server/secrets/*
+!apps/server/secrets/*.example

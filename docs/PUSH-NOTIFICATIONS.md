@@ -60,9 +60,11 @@ FIREBASE_SERVICE_ACCOUNT={"type":"service_account", ... }
 FIREBASE_SERVICE_ACCOUNT_FILE=/run/secrets/qchat-firebase.json
 ```
 
-`apps/server/secrets/` is git-ignored: GitHub push protection rejects a service
-account JSON as a Google Cloud credential, so it can never be committed. Copy it
-to the server once, from **Project settings → Service accounts** in Firebase:
+`apps/server/secrets/` ignores the real key: GitHub push protection rejects a
+service account JSON as a Google Cloud credential, so it can never be committed.
+`apps/server/secrets/firebase-service-account.json.example` shows the shape of
+the file; the real one comes from **Project settings → Service accounts** in
+Firebase. Copy it to the server once:
 
 ```bash
 scp qchat-6dd06-firebase-adminsdk-*.json \
