@@ -22,6 +22,7 @@ import 'features/profile/profile_screen.dart';
 import 'features/profile/user_profile_screen.dart';
 import 'features/profile/contact_note_screen.dart';
 import 'features/profile/contact_settings_screen.dart';
+import 'features/scan/scan_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
 import 'features/payments/payments_screen.dart';

@@ -228,6 +228,86 @@ class QChatIconButton extends StatelessWidget {
   );
 }
 
+/// A round button for a full-bleed camera surface, where the page behind is a
+/// live preview rather than a sheet or a list: the scanner's shortcut discs and
+/// its white back disc.
+///
+/// The disc is flat — no ink, no elevation — and only a 120 ms colour fade marks
+/// the press, matching [QChatCapsule]. [hitSize] keeps the touch target larger
+/// than the drawn circle when the artwork is small.
+class QChatCircleButton extends StatefulWidget {
+  const QChatCircleButton(
+    this.icon, {
+    super.key,
+    required this.label,
+    required this.onTap,
+    this.size = 57,
+    this.hitSize,
+    this.iconSize = 26,
+    this.background = QChatColors.darkFill,
+    this.color = QChatColors.white,
+  });
+  final String icon, label;
+  final VoidCallback? onTap;
+  final double size;
+  final double? hitSize;
+  final double iconSize;
+  final Color background, color;
+  @override
+  State<QChatCircleButton> createState() => _QChatCircleButtonState();
+}
+
+class _QChatCircleButtonState extends State<QChatCircleButton> {
+  bool _pressed = false;
+
+  void _set(bool value) {
+    if (_pressed != value && mounted) setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final target = widget.hitSize ?? widget.size;
+    return Semantics(
+      button: true,
+      label: widget.label,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        onTapDown: (_) => _set(true),
+        onTapUp: (_) => _set(false),
+        onTapCancel: () => _set(false),
+        child: SizedBox(
+          width: target,
+          height: target,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOutCubic,
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _pressed
+                    ? Color.alphaBlend(
+                        QChatColors.white.withValues(alpha: .16),
+                        widget.background,
+                      )
+                    : widget.background,
+              ),
+              alignment: Alignment.center,
+              child: QChatIcon(
+                widget.icon,
+                color: widget.color,
+                size: widget.iconSize,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class QChatButton extends StatelessWidget {
   const QChatButton(
     this.text, {

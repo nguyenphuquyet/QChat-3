@@ -8,7 +8,6 @@ import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
@@ -614,45 +613,6 @@ class QChatQrAction extends StatelessWidget {
           style: TextStyle(fontSize: 15, color: color),
         ),
       ),
-    ),
-  );
-}
-
-class ScanScreen extends StatefulWidget {
-  const ScanScreen({super.key});
-  @override
-  State<ScanScreen> createState() => _ScanScreenState();
-}
-
-class _ScanScreenState extends State<ScanScreen> {
-  bool scanned = false;
-  @override
-  Widget build(BuildContext c) => QChatPage(
-    // Let the camera preview reach behind the system home/navigation bar.
-    edgeToEdge: true,
-    navigationBackground: QChatColors.black,
-    title: tr(c, 'scan'),
-    leading: QChatIconButton(
-      'back',
-      label: tr(c, 'back'),
-      onTap: () => c.pop(),
-    ),
-    child: MobileScanner(
-      onDetect: (capture) {
-        if (scanned) return;
-        for (final barcode in capture.barcodes) {
-          final uri = Uri.tryParse(barcode.rawValue ?? '');
-          if (uri?.scheme == 'qchat' &&
-              uri?.host == 'user' &&
-              uri!.pathSegments.length == 1) {
-            scanned = true;
-            context.pushReplacement(
-              '/user?q=${Uri.encodeComponent(uri.pathSegments.first)}&from=qr',
-            );
-            break;
-          }
-        }
-      },
     ),
   );
 }

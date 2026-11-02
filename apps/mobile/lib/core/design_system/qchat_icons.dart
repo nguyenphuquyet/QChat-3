@@ -457,6 +457,171 @@ class _IconPainter extends CustomPainter {
         }
         canvas.drawRect(const Rect.fromLTWH(15, 15, 6, 6), p);
         break;
+      // The scanner's back disc: the same chevron, drawn as heavily as the
+      // reference screen draws it, where the thin header chevron disappears.
+      case 'backBold':
+        canvas.drawPath(
+          Path()
+            ..moveTo(15.2, 4.6)
+            ..lineTo(7.6, 12)
+            ..lineTo(15.2, 19.4),
+          p
+            ..strokeWidth = 2.8
+            ..strokeCap = StrokeCap.square,
+        );
+        break;
+      // A filled camera with the two circular arrows cut out of it, so the
+      // preview behind shows through the arrows.
+      case 'switchCamera':
+        final fill = Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+        canvas.saveLayer(const Rect.fromLTWH(0, 0, 24, 24), Paint());
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(1.5, 7.4, 21, 13.4),
+            const Radius.circular(2.6),
+          ),
+          fill,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(8, 4, 8, 5.5),
+            const Radius.circular(1.7),
+          ),
+          fill,
+        );
+        final cut = Paint()
+          ..style = PaintingStyle.fill
+          ..blendMode = BlendMode.clear;
+        const center = Offset(12, 14);
+        const radius = 4.0;
+        const half = 2.0;
+        // Two arcs facing each other, each ending in an arrow head.
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          math.pi * 1.06,
+          math.pi * .78,
+          false,
+          cut..style = PaintingStyle.stroke..strokeWidth = 2.1,
+        );
+        canvas.drawArc(
+          Rect.fromCircle(center: center, radius: radius),
+          math.pi * .06,
+          math.pi * .78,
+          false,
+          cut,
+        );
+        cut.style = PaintingStyle.fill;
+        for (final angle in [math.pi * 1.84, math.pi * .84]) {
+          final tip = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+          final dir = Offset(-math.sin(angle), math.cos(angle));
+          final side = Offset(-dir.dy, dir.dx) * half;
+          canvas.drawPath(
+            Path()
+              ..moveTo(tip.dx + dir.dx * 2.2, tip.dy + dir.dy * 2.2)
+              ..lineTo(tip.dx + side.dx, tip.dy + side.dy)
+              ..lineTo(tip.dx - side.dx, tip.dy - side.dy)
+              ..close(),
+            cut,
+          );
+        }
+        canvas.restore();
+        break;
+      // The solid QR glyph of the scanner's shortcut: one large finder and
+      // three small ones, with the loose modules between them.
+      case 'qrFilled':
+        final solid = Paint()
+          ..color = color
+          ..style = PaintingStyle.fill;
+        final ring = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(2.1, 2.1, 9.4, 9.4),
+            const Radius.circular(2.6),
+          ),
+          ring,
+        );
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(5.6, 5.6, 2.4, 2.4),
+            const Radius.circular(.8),
+          ),
+          solid,
+        );
+        for (final corner in const [
+          Offset(14.9, 2.9),
+          Offset(2.9, 14.9),
+          Offset(14.9, 14.9),
+        ]) {
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              corner & const Size(6.2, 6.2),
+              const Radius.circular(1.7),
+            ),
+            ring,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(
+              (corner + const Offset(1.9, 1.9)) & const Size(2.4, 2.4),
+              const Radius.circular(.8),
+            ),
+            solid,
+          );
+        }
+        canvas.drawRect(
+          const Rect.fromLTWH(15.2, 11.7, 2.1, 2.1),
+          solid,
+        );
+        canvas.drawRect(
+          const Rect.fromLTWH(18.9, 11.7, 2.1, 2.1),
+          solid,
+        );
+        canvas.drawRect(
+          const Rect.fromLTWH(11.7, 15.2, 2.1, 2.1),
+          solid,
+        );
+        canvas.drawRect(
+          const Rect.fromLTWH(11.7, 18.6, 1.7, 1.7),
+          solid,
+        );
+        break;
+      // A framed photo: the reference draws the mountains solid inside an
+      // outlined frame, not as an outline like the `image` glyph.
+      case 'imageFilled':
+        final frame = Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2;
+        final box = RRect.fromRectAndRadius(
+          const Rect.fromLTWH(2.4, 4.1, 19.2, 16.2),
+          const Radius.circular(2.7),
+        );
+        canvas.drawRRect(box, frame);
+        canvas.save();
+        canvas.clipRRect(
+          RRect.fromRectAndRadius(
+            const Rect.fromLTWH(3.5, 5.2, 17, 14),
+            const Radius.circular(1.5),
+          ),
+        );
+        canvas.drawPath(
+          Path()
+            ..moveTo(2.5, 19.8)
+            ..lineTo(8.6, 11.3)
+            ..lineTo(12.1, 15.6)
+            ..lineTo(15.6, 9.3)
+            ..lineTo(21.5, 19.8)
+            ..close(),
+          Paint()
+            ..color = color
+            ..style = PaintingStyle.fill,
+        );
+        canvas.restore();
+        break;
       default:
         canvas.drawRRect(
           RRect.fromRectAndRadius(
