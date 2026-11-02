@@ -100,10 +100,33 @@ class QChatSendConfirmSheet extends StatefulWidget {
 
 class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
   final _note = TextEditingController();
+  final _scroll = ScrollController();
+  double _keyboard = 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    if (keyboard > _keyboard) {
+      // The keyboard just took the bottom of the sheet. Slide the note field
+      // and the two buttons back into view so the sheet stays usable while
+      // typing, instead of leaving them under the keyboard.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scroll.hasClients) return;
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    }
+    _keyboard = keyboard;
+  }
 
   @override
   void dispose() {
     _note.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -138,6 +161,7 @@ class _QChatSendConfirmSheetState extends State<QChatSendConfirmSheet> {
         child: SafeArea(
           top: false,
           child: SingleChildScrollView(
+            controller: _scroll,
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 26),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -451,30 +475,43 @@ Future<QChatSendResult?> showQChatSendConfirmSheet(
   transitionDuration: qchatOverlayDuration,
   pageBuilder: (c, _, _) {
     final media = MediaQuery.of(c);
+    final keyboard = media.viewInsets.bottom;
     // Hug the content instead of filling the screen: the sheet stays on the
     // bottom edge, so a short card does not leave a grey void under the
     // buttons. Very tall content scrolls inside the cap.
     final maxHeight = math.max(
       320.0,
-      media.size.height - media.padding.top - media.viewInsets.bottom,
+      media.size.height - media.padding.top - keyboard,
     );
     return Align(
       alignment: Alignment.bottomCenter,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: media.size.width,
-          maxHeight: maxHeight,
-        ),
-        child: SizedBox(
-          width: media.size.width,
-          child: QChatSendConfirmSheet(
-            title: title,
-            recipient: recipient,
-            extra: extra,
-            preview: preview,
-            hint: hint,
-            sendLabel: sendLabel,
-            changeable: changeable,
+      // Ride on top of the keyboard. A dialog route is not resized for the
+      // keyboard the way Material's own sheet is, so without this padding the
+      // note field and the buttons end up behind it.
+      child: Padding(
+        padding: EdgeInsets.only(bottom: keyboard),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: media.size.width,
+            maxHeight: maxHeight,
+          ),
+          child: SizedBox(
+            width: media.size.width,
+            child: MediaQuery.removePadding(
+              context: c,
+              // While the keyboard is up it covers the home indicator, so the
+              // sheet should not reserve that gap on top of it.
+              removeBottom: keyboard > 0,
+              child: QChatSendConfirmSheet(
+                title: title,
+                recipient: recipient,
+                extra: extra,
+                preview: preview,
+                hint: hint,
+                sendLabel: sendLabel,
+                changeable: changeable,
+              ),
+            ),
           ),
         ),
       ),

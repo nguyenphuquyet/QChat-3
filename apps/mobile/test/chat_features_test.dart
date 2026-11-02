@@ -375,6 +375,31 @@ void main() {
       ),
       'Kèm lời nhắn',
     );
+
+    // Tapping the note field raises the keyboard. The sheet must ride above
+    // it, with the field and the green button still on screen, instead of
+    // leaving only its title visible behind the keyboard.
+    addTearDown(tester.view.resetViewInsets);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    const keyboardTop = 844.0 - 320;
+    final field = find.descendant(
+      of: find.byType(QChatSendConfirmSheet),
+      matching: find.byType(CupertinoTextField),
+    );
+    expect(
+      tester.getRect(find.byType(QChatSendConfirmSheet)).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    expect(tester.getRect(field).bottom, lessThanOrEqualTo(keyboardTop));
+    expect(
+      tester.getRect(find.text('Gửi')).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Gửi'));
     await tester.pumpAndSettle();
     expect(client.calls, contains('/messages/message/forward'));
