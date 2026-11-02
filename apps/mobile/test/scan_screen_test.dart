@@ -20,7 +20,6 @@ void main() {
       ),
       child: ScanChrome(
         preview: const ColoredBox(color: QChatColors.black),
-        glow: const AlwaysStoppedAnimation(1),
         onBack: onBack ?? () {},
         onSwitchCamera: onSwitchCamera ?? () {},
         onMyQr: onMyQr ?? () {},

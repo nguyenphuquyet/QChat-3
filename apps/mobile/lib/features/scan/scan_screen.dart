@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -25,22 +24,16 @@ class ScanScreen extends StatefulWidget {
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
-class _ScanScreenState extends State<ScanScreen>
-    with SingleTickerProviderStateMixin {
+class _ScanScreenState extends State<ScanScreen> {
   final _scanner = MobileScannerController(
     formats: const [BarcodeFormat.qrCode],
     detectionSpeed: DetectionSpeed.noDuplicates,
   );
-  late final AnimationController _glow = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 2400),
-  )..repeat(reverse: true);
   bool _found = false;
   bool _reading = false;
 
   @override
   void dispose() {
-    _glow.dispose();
     unawaited(_scanner.dispose());
     super.dispose();
   }
@@ -103,7 +96,6 @@ class _ScanScreenState extends State<ScanScreen>
     background: QChatColors.black,
     navigationBackground: QChatColors.black,
     child: ScanChrome(
-      glow: _glow,
       preview: MobileScanner(
         controller: _scanner,
         fit: BoxFit.cover,
@@ -133,25 +125,15 @@ class ScanChrome extends StatelessWidget {
     required this.onMyQr,
     required this.onGallery,
     required this.onFeature,
-    this.glow,
   });
 
   final Widget preview;
   final VoidCallback onBack, onSwitchCamera, onMyQr, onGallery, onFeature;
 
-  /// Drives the breathing of the scan light. A still value is fine: the glow is
-  /// drawn from whatever the animation reports.
-  final Animation<double>? glow;
-
   @override
   Widget build(BuildContext context) => Stack(
     fit: StackFit.expand,
-    children: [
-      preview,
-      _ScanGlow(animation: glow),
-      _topBar(context),
-      _bottomBar(context),
-    ],
+    children: [preview, _topBar(context), _bottomBar(context)],
   );
 
   Widget _topBar(BuildContext context) => SafeArea(
@@ -221,94 +203,6 @@ class ScanChrome extends StatelessWidget {
       ),
     ),
   );
-}
-
-/// The scan light: a green glow resting on an invisible line at 42.5 % of the
-/// screen, fading upward into the preview.
-class _ScanGlow extends StatelessWidget {
-  const _ScanGlow({required this.animation});
-
-  final Animation<double>? animation;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: LayoutBuilder(
-      builder: (context, box) {
-        Widget paint(double value) => CustomPaint(
-          size: Size(box.maxWidth, box.maxHeight),
-          painter: _GlowPainter(
-            bottom: box.maxHeight * .425,
-            breathe: value,
-          ),
-        );
-        final animation = this.animation;
-        if (animation == null) return paint(1);
-        return AnimatedBuilder(
-          animation: animation,
-          builder: (context, _) => paint(animation.value),
-        );
-      },
-    ),
-  );
-}
-
-class _GlowPainter extends CustomPainter {
-  _GlowPainter({required this.bottom, required this.breathe});
-
-  final double bottom;
-  final double breathe;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // A radial gradient stretched sideways: the light sits on a wide ellipse,
-    // so it reaches the edges of the screen while staying a thin band. The band
-    // is clipped at [bottom], which gives the glow the flat lower edge of a
-    // light resting on a surface.
-    const radius = 72.0;
-    const band = 104.0;
-    final strength = .86 + .14 * breathe;
-    canvas.save();
-    canvas.clipRect(Rect.fromLTRB(0, bottom - band, size.width, bottom));
-    canvas.translate(size.width / 2, bottom);
-    canvas.scale(3.4, 1);
-    canvas.drawCircle(
-      Offset.zero,
-      radius,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          Offset.zero,
-          radius,
-          [
-            const Color(0xff1ecf90).withValues(alpha: .84 * strength),
-            const Color(0xff10a06a).withValues(alpha: .46 * strength),
-            const Color(0xff0a6b4c).withValues(alpha: .13 * strength),
-            const Color(0x00000000),
-          ],
-          const [0, .34, .70, 1],
-        ),
-    );
-    canvas.restore();
-    // The line the light rests on: brightest under the middle, still visible at
-    // the edges, then black below it.
-    canvas.drawRect(
-      Rect.fromLTWH(0, bottom - 1, size.width, 1.1),
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(0, bottom),
-          Offset(size.width, bottom),
-          [
-            const Color(0xff1d5a47).withValues(alpha: .55 * strength),
-            const Color(0xff43c293).withValues(alpha: .95 * strength),
-            const Color(0xff1d5a47).withValues(alpha: .55 * strength),
-          ],
-          const [0, .5, 1],
-        ),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_GlowPainter old) =>
-      old.bottom != bottom || old.breathe != breathe;
 }
 
 /// The shortcut that carries the new feature: two dots, a headline, a "new"
