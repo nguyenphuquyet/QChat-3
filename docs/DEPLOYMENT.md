@@ -74,6 +74,12 @@ docker compose --env-file .env -f infra/compose.vps.yaml exec -T server node --i
 `migrate` runs `prisma migrate deploy` before `server` and `realtime` start, so a
 new `apps/server/prisma/migrations` folder is applied by `up -d` alone.
 
+Push needs the Firebase service account, which cannot be committed (GitHub push
+protection rejects Google Cloud credentials). Copy it once to
+`apps/server/secrets/firebase-service-account.json` before the first build, or
+set `FIREBASE_SERVICE_ACCOUNT_FILE` in `.env` to another path inside the image.
+Without it the server sends no push; everything else works.
+
 Configure SMTP in `/opt/qchat/.env` and recreate the backend services to enable
 verification and password-reset email. No SMTP credentials are included in Git.
 For updates, back up PostgreSQL and the `qchat_media` volume first, pull the reviewed
@@ -179,7 +185,7 @@ traffic back.
 7. Build Flutter with `--dart-define=API_URL=https://chat.example.com/api --dart-define=REALTIME_URL=https://chat.example.com`. Web media and camera require HTTPS except localhost.
 8. The admin console is at `/admin` on the Next.js service. Promote a specific existing user to ADMIN through an audited operational database procedure; there is no default admin or shared password.
 
-The current Compose deployment has not been executed in this Windows environment. The admin UI is served by the main Next.js application to share authorization and avoid an additional public origin. TURN, background calling and media scanning require further implementation/configuration before production. Push notifications are implemented end to end but stay off until the Firebase project files and service account are supplied; see [PUSH-NOTIFICATIONS.md](PUSH-NOTIFICATIONS.md).
+The current Compose deployment has not been executed in this Windows environment. The admin UI is served by the main Next.js application to share authorization and avoid an additional public origin. TURN, background calling and media scanning require further implementation/configuration before production. Push notifications are implemented end to end; the Android client config is committed, while the Firebase service account must be copied to `apps/server/secrets/` on the VPS because GitHub rejects Google credentials in a push. See [PUSH-NOTIFICATIONS.md](PUSH-NOTIFICATIONS.md).
 
 ## Backup and restore
 

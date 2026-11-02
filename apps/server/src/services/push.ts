@@ -1,29 +1,56 @@
 import { readFile } from "node:fs/promises";
+import type { ServiceAccount } from "firebase-admin/app";
 import type { Messaging } from "firebase-admin/messaging";
 import { db } from "./db";
 
 /**
  * Firebase Cloud Messaging for new chat messages.
  *
- * The service account is not in the repository. Set either
- * `FIREBASE_SERVICE_ACCOUNT` (the JSON document itself) or
- * `FIREBASE_SERVICE_ACCOUNT_FILE` (a path to it), both from the Firebase
- * console → Project settings → Service accounts. Without one of them this
- * module is a no-op: the server, the realtime worker and the app all keep
- * working as before, and adding the variable switches push on.
+ * The key is read from `FIREBASE_SERVICE_ACCOUNT` (the JSON document itself),
+ * then from `FIREBASE_SERVICE_ACCOUNT_FILE` (a path to it), and finally from
+ * `apps/server/secrets/firebase-service-account.json` on the host (that folder is
+ * git-ignored; GitHub rejects Google Cloud credentials in a push). Without any
+ * key this module is a no-op: the server, the realtime worker and the app all
+ * keep working as before, and adding a key switches push on.
  */
+const defaultKey = new URL(
+  "../../secrets/firebase-service-account.json",
+  import.meta.url,
+);
+
 let client: Messaging | null | undefined;
+
+/** The parsed service account, or null when no key is available at all. */
+async function serviceAccount(): Promise<ServiceAccount | null> {
+  const inline = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+  if (inline) return JSON.parse(inline);
+  const file = process.env.FIREBASE_SERVICE_ACCOUNT_FILE?.trim();
+  try {
+    return JSON.parse(await readFile(file || defaultKey, "utf8"));
+  } catch (error) {
+    // No bundled key in this checkout: push is simply off, not an error.
+    if (!file && (error as NodeJS.ErrnoException).code === "ENOENT")
+      return null;
+    throw error;
+  }
+}
 
 async function messaging(): Promise<Messaging | null> {
   if (client !== undefined) return client;
-  const inline = process.env.FIREBASE_SERVICE_ACCOUNT;
-  const file = process.env.FIREBASE_SERVICE_ACCOUNT_FILE;
-  if (!inline && !file) return (client = null);
   try {
+    const account = await serviceAccount();
+    if (!account) return (client = null);
     const { cert, getApps, initializeApp } = await import("firebase-admin/app");
     const { getMessaging } = await import("firebase-admin/messaging");
-    const account = JSON.parse(inline || (await readFile(file!, "utf8")));
-    const app = getApps()[0] ?? initializeApp({ credential: cert(account) });
+    // A named app of our own: messaging derives the project id from AppOptions,
+    // so reusing an unrelated default app would leave it unresolved.
+    const name = "qchat-push";
+    const app =
+      getApps().find((existing) => existing.name === name) ??
+      initializeApp(
+        { credential: cert(account), projectId: account.projectId },
+        name,
+      );
     client = getMessaging(app);
   } catch (error) {
     // A malformed key must not take down message delivery.
