@@ -31,7 +31,7 @@ with no code change.
 ## Android
 
 1. Create a project in the [Firebase console](https://console.firebase.google.com).
-2. Add an **Android** app with package name `com.qchat.qchat`.
+2. Add an **Android** app with package name `com.nguyenphuquyet.chat`.
 3. Download `google-services.json` and save it as
    `apps/mobile/android/app/google-services.json`.
    `apps/mobile/android/app/google-services.json.example` shows the shape of the
@@ -67,7 +67,7 @@ yet. Until then the iOS build compiles and runs; it just receives no push.
    - **Push Notifications**
    - **Background Modes → Remote notifications** (the `UIBackgroundModes` entry
      is already in `Info.plist`; the capability adds the APS entitlement).
-2. In Firebase, add an **iOS** app with bundle id `com.qchat.qchat`, download
+2. In Firebase, add an **iOS** app with bundle id `com.nguyenphuquyet.chat`, download
    `GoogleService-Info.plist` and save it as
    `apps/mobile/ios/Runner/GoogleService-Info.plist` (git-ignored). Add it to the
    Runner target in Xcode with "Copy items if needed".

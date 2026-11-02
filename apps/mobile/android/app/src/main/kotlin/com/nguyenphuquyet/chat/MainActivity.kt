@@ -1,4 +1,4 @@
-package com.qchat.qchat
+package com.nguyenphuquyet.chat
 
 import io.flutter.embedding.android.FlutterActivity
 
