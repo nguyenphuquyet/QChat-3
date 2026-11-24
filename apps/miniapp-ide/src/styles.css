@@ -746,6 +746,35 @@ html[data-theme="light"] .glass {
   background: var(--color-studio-900);
 }
 
+/*
+ * The dark UI also uses literal translucent black for recessed surfaces: search
+ * boxes in the tree/docs panels, code blocks in the dialogs, the settings aside
+ * and the modal scrims. Inverting `--color-white` does not touch those
+ * literals, so on a white page they still painted as heavy grey slabs. Remap
+ * each step of the ramp to the same depth of shading a light theme needs. The
+ * phone preview keeps its real black bezel and toast through `data-keep-dark`.
+ */
+html[data-theme="light"] .bg-black\/15:not([data-keep-dark] *) {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+html[data-theme="light"] .bg-black\/20:not([data-keep-dark] *) {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+html[data-theme="light"] .bg-black\/25:not([data-keep-dark] *) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+html[data-theme="light"] .bg-black\/30:not([data-keep-dark] *) {
+  background-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Dialog and command-palette backdrops stay dim, but far less than 55% black. */
+html[data-theme="light"] .bg-black\/55:not([data-keep-dark] *) {
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
 /* Surfaces that must keep their original white text (the blue status bar and
    the dark phone preview) opt out of the `white` inversion. */
 html[data-theme="light"] [data-keep-white] {

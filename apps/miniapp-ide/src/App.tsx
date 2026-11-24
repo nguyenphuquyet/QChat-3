@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ActivityBar } from "./components/ActivityBar";
 import { AboutDialog } from "./components/AboutDialog";
 import { BottomPanel } from "./components/BottomPanel";
@@ -342,6 +343,14 @@ export default function App() {
     document
       .querySelector('meta[name="theme-color"]')
       ?.setAttribute("content", settings.theme === "light" ? "#f6f7fb" : "#080a0f");
+    // Windows paints the frame of a decoration-less window from the window's own
+    // theme, not from the page, so a light UI kept a black 1px border until the
+    // native window was switched over too.
+    if (api.isDesktop()) {
+      void getCurrentWindow()
+        .setTheme(settings.theme)
+        .catch(() => undefined);
+    }
   }, [settings.language, settings.theme]);
 
   // Block the browser/WebView context menu. Monaco and explicitly opted-in
