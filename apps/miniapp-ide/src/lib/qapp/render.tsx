@@ -1290,6 +1290,15 @@ function QappNavBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
   const showBack = node.props.showBack === true && hasEvent(node, "back");
   const color = qappColor(style.color) ?? ctx.colors.ink;
   const BackIcon = qappIcon("arrowLeft");
+  // Mirrors `QChatHeader` on the device: a 44pt bar with the title centred in
+  // the room left over by the widest control. The host floats a 94pt capsule
+  // plus 14pt of air over the right edge, and the back arrow reserves 56pt on
+  // the left; the larger reserve is applied to both sides so the title sits on
+  // the screen's centre line instead of drifting left.
+  const titleInset = Math.max(
+    56,
+    Math.min(240, asNumber(node.props.reserveRight) ?? 94 + 14),
+  );
   return (
     <div
       data-node={node.id}
@@ -1300,33 +1309,22 @@ function QappNavBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
         flex: "0 0 auto",
         paddingTop: safeArea ? ctx.device.safeAreaTop : undefined,
         background: transparent ? "transparent" : (qappColor(style.backgroundColor) ?? ctx.colors.surface),
-        borderBottom: border ? `1px solid ${ctx.colors.line}` : undefined,
+        borderBottom: border ? `0.5px solid ${ctx.colors.line}` : undefined,
         backdropFilter: node.props.blur === true ? "blur(18px)" : undefined,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", minHeight: 52, padding: "0 12px 0 4px" }}>
-        {showBack ? (
-          <button
-            type="button"
-            onClick={() => ctx.emit(node.id, "back", { type: "back" })}
-            aria-label="Back"
-            style={{
-              width: 44,
-              height: 44,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: "none",
-              color,
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            {BackIcon ? <BackIcon size={22} color={color} strokeWidth={2} /> : null}
-          </button>
-        ) : null}
-        <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ position: "relative", display: "flex", alignItems: "center", height: 44 }}>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            padding: `0 ${titleInset}px`,
+            pointerEvents: "none",
+          }}
+        >
           {title ? (
             <div
               style={{
@@ -1336,7 +1334,7 @@ function QappNavBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                textAlign: showBack ? "left" : "center",
+                textAlign: "center",
               }}
             >
               {title}
@@ -1345,24 +1343,55 @@ function QappNavBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
           {subtitle ? (
             <div
               style={{
-                fontSize: 12,
+                fontSize: 11,
+                lineHeight: 1.25,
                 color: ctx.colors.muted,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                textAlign: showBack ? "left" : "center",
-                marginTop: 1,
+                textAlign: "center",
               }}
             >
               {subtitle}
             </div>
           ) : null}
         </div>
+        {showBack ? (
+          <div
+            style={{
+              position: "absolute",
+              left: 8,
+              top: 0,
+              bottom: 0,
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => ctx.emit(node.id, "back", { type: "back" })}
+              aria-label="Back"
+              style={{
+                width: 44,
+                height: 44,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: "none",
+                color,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              {BackIcon ? <BackIcon size={22} color={color} strokeWidth={2} /> : null}
+            </button>
+          </div>
+        ) : null}
         {/* The host floats its own capsule over the right edge of a header. */}
-        <div style={{ width: 88, flex: "0 0 auto" }} />
       </div>
       {(node.children ?? []).length ? (
-        <div style={{ display: "flex", flexDirection: "column", padding: "0 16px 10px" }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           {(node.children ?? []).map((child) => renderNode(child, ctx))}
         </div>
       ) : null}
@@ -1426,17 +1455,17 @@ function QappTabBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
+              justifyContent: "flex-start",
+              paddingTop: 9,
               gap: 4,
               border: "none",
               background: "transparent",
               color,
               cursor: hasEvent(node, "change") ? "pointer" : "default",
-              padding: 0,
             }}
           >
             <span style={{ position: "relative", display: "inline-flex" }}>
-              {Glyph ? <Glyph size={22} color={color} strokeWidth={selected ? 2.1 : 1.8} /> : null}
+              {Glyph ? <Glyph size={25} color={color} strokeWidth={selected ? 2.1 : 1.8} /> : null}
               {badge ? (
                 <span
                   style={{
@@ -1459,7 +1488,9 @@ function QappTabBar({ node, ctx }: { node: QappNode; ctx: QappRenderContext }) {
                 </span>
               ) : null}
             </span>
-            <span style={{ fontSize: 10, lineHeight: "12px" }}>{asString(tab.label)}</span>
+            <span style={{ fontSize: 10, lineHeight: "12px", maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {asString(tab.label)}
+            </span>
           </button>
         );
       })}

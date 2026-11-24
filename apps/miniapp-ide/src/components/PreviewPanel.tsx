@@ -9,6 +9,7 @@ import {
   Hammer,
   Info,
   Loader2,
+  Moon,
   Package,
   Play,
   RefreshCw,
@@ -16,6 +17,7 @@ import {
   Signal,
   Smartphone,
   Square,
+  Sun,
   TriangleAlert,
   Wifi,
   X,
@@ -93,7 +95,6 @@ function PhoneShell({
 
 function LivePreview() {
   const project = useStudio((state) => state.project);
-  const settings = useStudio((state) => state.settings);
   const previewRevision = useStudio((state) => state.previewRevision);
   const { t, language } = useI18n();
 
@@ -113,6 +114,13 @@ function LivePreview() {
   const [logs, setLogs] = useState<QappPreviewLog[]>([]);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  /*
+   * The simulated device has its own appearance: switching the Studio to dark
+   * must not repaint the Mini App, exactly like flipping a phone's system theme
+   * does not change the IDE. The toggle below is the device's system setting;
+   * the app's own theme switch (light/dark/sepia) stays untouched by it.
+   */
+  const [deviceTheme, setDeviceTheme] = useState<"light" | "dark">("light");
 
   const refresh = useCallback(async () => {
     if (runningRef.current) {
@@ -194,8 +202,7 @@ function LivePreview() {
   useEffect(() => {
     const host = hostRef.current;
     if (!host || !bundle) return;
-    const dark = useStudio.getState().settings.theme === "dark";
-    const device: QappDevice = { ...DEVICE, theme: dark ? "dark" : "light" };
+    const device: QappDevice = { ...DEVICE, theme: deviceTheme };
     const preview = new QappPreview(host, {
       appJs: bundle.appJs,
       appInfo: bundle.appInfo,
@@ -234,13 +241,13 @@ function LivePreview() {
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bundle, language, settings.theme]);
+  }, [bundle, language, deviceTheme]);
 
-  const theme = settings.theme === "dark" ? DARK_THEME : LIGHT_THEME;
+  const theme = deviceTheme === "dark" ? DARK_THEME : LIGHT_THEME;
   const frameRoot = frame?.root ?? null;
   const renderContext = {
     colors: theme,
-    device: { ...DEVICE, theme: settings.theme === "dark" ? ("dark" as const) : ("light" as const) },
+    device: { ...DEVICE, theme: deviceTheme },
     assets: bundle?.assets ?? {},
     emit: (id: string, event: string, payload: unknown) =>
       previewRef.current?.dispatch(id, event, payload),
@@ -279,6 +286,15 @@ function LivePreview() {
           {t("preview.live")}
         </span>
         <div className="flex items-center gap-1">
+          <button
+            className="icon-btn h-6 w-6"
+            title={
+              deviceTheme === "dark" ? t("title.switchToLight") : t("title.switchToDark")
+            }
+            onClick={() => setDeviceTheme(deviceTheme === "dark" ? "light" : "dark")}
+          >
+            {deviceTheme === "dark" ? <Sun size={12} /> : <Moon size={12} />}
+          </button>
           <button
             className="icon-btn h-6 w-6"
             title={t("preview.reload")}
