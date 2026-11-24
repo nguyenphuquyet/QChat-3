@@ -1033,8 +1033,9 @@ fn list_artifacts(project: String) -> Result<Vec<Artifact>, String> {
 }
 
 /// Keeps the frameless shell looking native on Windows 11: the window has no
-/// decorations, so DWM would otherwise draw a square silhouette with a white
-/// 1px frame. The app paints its own title bar, so only the outline is adjusted.
+/// decorations, so DWM would otherwise draw a square silhouette and a 1px
+/// outline around it. The app paints its own title bar, so only the corner
+/// rounding is kept and the outline is switched off entirely.
 #[cfg(windows)]
 fn apply_window_chrome(window: &tauri::WebviewWindow) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -1060,12 +1061,14 @@ fn apply_window_chrome(window: &tauri::WebviewWindow) {
 
     // DWMWA_WINDOW_CORNER_PREFERENCE (33) with DWMWCP_ROUND (2).
     let rounded: u32 = 2;
-    // DWMWA_BORDER_COLOR (34) with COLORREF(0x00BBGGRR) for #07090d.
-    let background: u32 = 0x000D_0907;
+    // DWMWA_BORDER_COLOR (34) with DWMWA_COLOR_NONE, so DWM draws no outline at
+    // all. It used to be pinned to the dark studio background, which is why a
+    // light theme still showed a black 1px frame around the whole window.
+    let no_border: u32 = 0xFFFF_FFFE;
 
     unsafe {
         DwmSetWindowAttribute(hwnd, 33, &rounded as *const u32 as *const c_void, 4);
-        DwmSetWindowAttribute(hwnd, 34, &background as *const u32 as *const c_void, 4);
+        DwmSetWindowAttribute(hwnd, 34, &no_border as *const u32 as *const c_void, 4);
     }
 }
 
