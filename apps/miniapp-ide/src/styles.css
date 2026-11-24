@@ -215,9 +215,14 @@ html[lang="vi"] {
     cursor: pointer;
   }
 
+  /*
+   * Selection paints the background only. Declaring `color` here (even
+   * `inherit`) makes Chromium resolve it against the parent element, which
+   * repaints every selected token in one colour and wipes the syntax
+   * highlighting. Leaving it out keeps the token colours, like VS Code.
+   */
   ::selection {
     background: rgba(0, 120, 212, 0.35);
-    color: inherit;
   }
 
   ::-webkit-scrollbar {
@@ -602,7 +607,6 @@ html[data-theme="light"] {
 
 html[data-theme="light"] ::selection {
   background: rgba(0, 95, 184, 0.2);
-  color: inherit;
 }
 
 html[data-theme="light"] ::-webkit-scrollbar-thumb {

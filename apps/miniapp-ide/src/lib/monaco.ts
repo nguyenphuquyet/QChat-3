@@ -82,7 +82,11 @@ monaco.editor.defineTheme("qchat-studio-light", {
     "editorLineNumber.foreground": "#237893",
     "editorLineNumber.activeForeground": "#0b216f",
     "editorCursor.foreground": "#000000",
-    "editor.selectionBackground": "#add6ff",
+    // 60% alpha: an opaque #add6ff washes out the thin 13px glyphs, so selected
+    // code reads as one flat colour. The translucent tint keeps every token
+    // colour legible. `editor.selectionForeground` stays unset on purpose -
+    // setting it repaints all selected tokens with a single colour.
+    "editor.selectionBackground": "#add6ff99",
     "editor.inactiveSelectionBackground": "#e5ebf1",
     "editor.lineHighlightBackground": "#f3f3f3",
     "editor.lineHighlightBorder": "#00000000",
