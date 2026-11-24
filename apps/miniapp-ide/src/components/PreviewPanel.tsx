@@ -80,8 +80,7 @@ function PhoneShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative rounded-[44px] border border-white/[0.12] bg-gradient-to-b from-studio-700/80 to-studio-900 p-[3px] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)]" data-keep-white data-keep-dark>
-      <div className="absolute -inset-6 -z-10 rounded-[60px] bg-accent-500/[0.08] blur-3xl" />
+    <div className="relative rounded-[44px] border border-white/[0.12] bg-studio-800 p-[3px]" data-keep-white data-keep-dark>
       <div className="relative overflow-hidden rounded-[41px] border border-black/50 bg-[#07090d]">
         <div className="absolute left-1/2 top-2 z-40 h-[24px] w-[96px] -translate-x-1/2 rounded-full bg-black">
           <span className="absolute right-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-studio-800" />
@@ -251,7 +250,7 @@ function LivePreview() {
     return (
       <div className="flex flex-col items-center" ref={shellRef}>
         <div className="flex h-[300px] w-full max-w-[260px] flex-col items-center justify-center gap-3 rounded-[32px] border border-white/10 bg-white/[0.02] px-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-studio-500">
+          <div className="flex h-12 w-12 items-center justify-center rounded border border-white/10 bg-white/[0.04] text-studio-500">
             <Smartphone size={22} />
           </div>
           <div className="text-[11px] font-medium text-studio-300">{t("preview.noApp")}</div>
@@ -348,7 +347,7 @@ function LivePreview() {
                       {error}
                     </div>
                     <button
-                      className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/80"
+                      className="rounded border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/80"
                       onClick={() => void refresh()}
                     >
                       {t("preview.retry")}
@@ -358,7 +357,7 @@ function LivePreview() {
 
                 {toastMessage ? (
                   <div className="pointer-events-none absolute inset-x-0 bottom-[54px] z-30 flex justify-center px-6">
-                    <div className="max-w-[280px] rounded-lg bg-black/75 px-3 py-2 text-center text-[11px] leading-4 text-white shadow-lg">
+                    <div className="max-w-[280px] rounded bg-black/75 px-3 py-2 text-center text-[11px] leading-4 text-white shadow-lg">
                       {toastMessage}
                     </div>
                   </div>
@@ -380,7 +379,7 @@ function LivePreview() {
           )}
         </div>
         <button
-          className="flex shrink-0 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[8.5px] text-studio-400"
+          className="flex shrink-0 items-center gap-1 rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[8.5px] text-studio-400"
           onClick={() => setConsoleOpen((open) => !open)}
           title={t("preview.console")}
         >
@@ -392,7 +391,7 @@ function LivePreview() {
       </div>
 
       {consoleOpen ? (
-        <div className="mt-2 w-full rounded-lg border border-white/[0.06] bg-black/30 p-2">
+        <div className="mt-2 w-full rounded border border-white/[0.06] bg-black/30 p-2">
           {logs.length === 0 ? (
             <div className="py-1 text-center text-[8.5px] text-studio-600">
               {t("preview.consoleEmpty")}
@@ -458,7 +457,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
 
         <div className="mt-3 flex gap-1.5">
           <button
-            className="flex h-7 flex-1 items-center justify-center gap-1 rounded-lg bg-gradient-to-b from-accent-400 to-accent-600 text-[8.5px] font-semibold text-white shadow-glow disabled:opacity-50"
+            className="flex h-7 flex-1 items-center justify-center gap-1 rounded bg-accent-500 text-[8.5px] font-semibold text-white hover:bg-accent-600 disabled:opacity-50"
             onClick={() => void runAction(() => buildProject(false), t("common.packageBuilt"))}
             disabled={!ready || buildStatus === "running"}
           >
@@ -466,7 +465,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
           </button>
           <button
             className={cn(
-              "flex h-7 items-center justify-center gap-1 rounded-lg border px-2 text-[8.5px] font-semibold disabled:opacity-50",
+              "flex h-7 items-center justify-center gap-1 rounded border px-2 text-[8.5px] font-semibold disabled:opacity-50",
               devRunning
                 ? "border-rose-400/25 bg-rose-400/10 text-rose-300"
                 : "border-white/10 bg-white/[0.04] text-white/70",
@@ -492,7 +491,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
         ) : null}
 
         <div className="mt-4 space-y-2.5">
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+          <div className="rounded border border-white/[0.07] bg-white/[0.02] p-3">
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.14em] text-studio-500">
                 <Package size={11} /> {t("preview.artifact")}
@@ -552,14 +551,14 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </>
             ) : (
-              <div className="mt-2 rounded-lg border border-dashed border-white/[0.08] px-2 py-3 text-center text-[9px] leading-4 text-studio-600">
+              <div className="mt-2 rounded border border-dashed border-white/[0.08] px-2 py-3 text-center text-[9px] leading-4 text-studio-600">
                 {t("preview.buildArtifactHint")}
               </div>
             )}
           </div>
 
           {inspection ? (
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+            <div className="rounded border border-white/[0.07] bg-white/[0.02] p-3">
               <div className="flex items-center justify-between">
                 <span className="flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.14em] text-studio-500">
                   <Boxes size={11} /> {t("preview.packageFiles")}
@@ -590,7 +589,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
             </div>
           ) : null}
 
-          <div className="rounded-xl border border-accent-500/15 bg-accent-500/[0.045] p-3">
+          <div className="rounded border border-accent-500/15 bg-accent-500/[0.045] p-3">
             <div className="flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.14em] text-accent-300">
               <Info size={11} /> {t("preview.ship")}
             </div>
@@ -607,7 +606,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
               )}
             </ol>
             <button
-              className="mt-2 flex w-full items-center justify-center gap-1 rounded-lg border border-white/[0.08] bg-white/[0.04] py-1.5 text-[9px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
+              className="mt-2 flex w-full items-center justify-center gap-1 rounded border border-white/[0.08] bg-white/[0.04] py-1.5 text-[9px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
               onClick={() =>
                 void api.openUrl(
                   "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPP-DEVELOPER-GUIDE.md",

@@ -579,6 +579,21 @@ const vi = {
   "store.devExited": "Trình theo dõi dev thoát với mã {code}.",
   "store.typeCommand": "Nhập lệnh qapp, ví dụ: build --dir .",
   "store.processExited": "Tiến trình thoát với mã {code}.",
+
+  "chooser.title": "Chọn dự án để mở",
+  "chooser.subtitle": "Thư mục đã chọn chứa nhiều Mini App. Chọn một dự án bên dưới.",
+  "chooser.openFolder": "Mở thư mục này",
+  "chooser.hint": "Mẹo: chọn thẳng thư mục dự án, hoặc thư mục cha để Studio tự tìm.",
+
+  "build.preflight": "Kiểm tra môi trường build…",
+  "build.node": "Node: {version}",
+  "build.cli": "qapp CLI: {version}",
+  "build.command": "Lệnh: {command}",
+  "build.missingManifest": "Thiếu manifest.json — thư mục này không phải QChat Mini App.",
+  "build.missingEntry": "Thiếu src/main.tsx — dự án chưa có tệp khởi động.",
+  "build.hintTypecheck": "Nếu lỗi đến từ kiểu TypeScript, thử Build nhanh (bỏ kiểm tra kiểu).",
+  "build.hintCli": "Không chạy được qapp CLI. Mở Cài đặt để trỏ đúng Node.js và CLI.",
+  "build.hintNode": "Không tìm thấy Node.js. Cài Node 20+ hoặc đặt đường dẫn trong Cài đặt.",
 } as const;
 
 export type MessageKey = keyof typeof vi;
@@ -1140,6 +1155,21 @@ const zh: Record<MessageKey, string> = {
   "store.devExited": "开发监听退出，代码 {code}。",
   "store.typeCommand": "输入 qapp 命令，例如：build --dir .",
   "store.processExited": "进程退出，代码 {code}。",
+
+  "chooser.title": "选择要打开的项目",
+  "chooser.subtitle": "所选文件夹包含多个 Mini App。请在下面选择一个项目。",
+  "chooser.openFolder": "打开此文件夹",
+  "chooser.hint": "提示：直接选择项目文件夹，或选择父文件夹让 Studio 自动查找。",
+
+  "build.preflight": "正在检查构建环境…",
+  "build.node": "Node：{version}",
+  "build.cli": "qapp CLI：{version}",
+  "build.command": "命令：{command}",
+  "build.missingManifest": "缺少 manifest.json — 此文件夹不是 QChat Mini App。",
+  "build.missingEntry": "缺少 src/main.tsx — 项目还没有入口文件。",
+  "build.hintTypecheck": "如果错误来自 TypeScript 类型检查，请尝试快速构建（跳过类型检查）。",
+  "build.hintCli": "无法运行 qapp CLI。请在设置中指定正确的 Node.js 和 CLI。",
+  "build.hintNode": "找不到 Node.js。请安装 Node 20+ 或在设置中指定路径。",
 };
 
 const en: Record<MessageKey, string> = {
@@ -1699,6 +1729,21 @@ const en: Record<MessageKey, string> = {
   "store.devExited": "Dev watcher exited with code {code}.",
   "store.typeCommand": "Type a qapp command, for example: build --dir .",
   "store.processExited": "Process exited with code {code}.",
+
+  "chooser.title": "Choose a project to open",
+  "chooser.subtitle": "The folder you picked contains several Mini Apps. Pick one below.",
+  "chooser.openFolder": "Open this folder",
+  "chooser.hint": "Tip: pick the project folder directly, or a parent folder and Studio will find it.",
+
+  "build.preflight": "Checking the build environment…",
+  "build.node": "Node: {version}",
+  "build.cli": "qapp CLI: {version}",
+  "build.command": "Command: {command}",
+  "build.missingManifest": "manifest.json is missing — this folder is not a QChat Mini App.",
+  "build.missingEntry": "src/main.tsx is missing — the project has no entry file.",
+  "build.hintTypecheck": "If the error comes from TypeScript, try Quick Build (skip typecheck).",
+  "build.hintCli": "The qapp CLI could not run. Open Settings and point to the right Node.js and CLI.",
+  "build.hintNode": "Node.js was not found. Install Node 20+ or set its path in Settings.",
 };
 
 const DICTIONARIES: Record<Language, Record<MessageKey, string>> = {

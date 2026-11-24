@@ -33,14 +33,14 @@ export function Dialog({
   if (!open) return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-[6px] animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6 animate-fade-in"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className={cn(
-          "panel relative w-full overflow-hidden rounded-2xl shadow-panel animate-slide-up",
+          "panel relative w-full overflow-hidden rounded shadow-panel animate-slide-up",
           width,
         )}
         onMouseDown={(event) => event.stopPropagation()}
@@ -67,7 +67,7 @@ export function DialogHeader({
   return (
     <div className="flex items-start gap-3 border-b border-white/[0.065] px-6 py-5">
       {icon ? (
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-500/25 bg-accent-500/10 text-accent-300">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-accent-500/25 bg-accent-500/10 text-accent-300">
           {icon}
         </div>
       ) : null}
@@ -94,7 +94,7 @@ export function Toggle({
   description?: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg px-1 py-2">
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded px-1 py-2">
       <span>
         <span className="block text-xs font-medium text-studio-200">{label}</span>
         {description ? (

@@ -39,7 +39,7 @@ function Card({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-xl border border-white/[0.07] bg-white/[0.022] p-3", className)}>
+    <div className={cn("rounded border border-white/[0.07] bg-white/[0.022] p-3", className)}>
       {children}
     </div>
   );
@@ -58,7 +58,7 @@ function PipelineStep({
     <div className="flex items-start gap-2.5">
       <span
         className={cn(
-          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border",
+          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border",
           state === "done" && "border-mint-400/30 bg-mint-400/10 text-mint-400",
           state === "active" && "border-accent-400/40 bg-accent-500/15 text-accent-300",
           state === "idle" && "border-white/10 bg-white/[0.03] text-studio-500",
@@ -136,20 +136,19 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
 
       <div className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
         {!project ? (
-          <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-[11px] leading-5 text-studio-500">
+          <div className="rounded border border-dashed border-white/10 px-4 py-8 text-center text-[11px] leading-5 text-studio-500">
             {t("build.noProject")}
           </div>
         ) : (
           <>
-            <div className="relative overflow-hidden rounded-xl border border-accent-500/20 bg-gradient-to-br from-accent-500/[0.14] via-transparent to-mint-400/[0.06] p-3.5">
-              <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-accent-500/20 blur-2xl" />
+            <div className="relative overflow-hidden rounded border border-accent-500/20 bg-accent-500/[0.05] p-3.5">
               <div className="flex items-center justify-between">
                 <span className="text-[9px] font-semibold tracking-[0.16em] text-accent-300">
                   {t("build.pipeline")}
                 </span>
                 <span
                   className={cn(
-                    "flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                    "flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-semibold",
                     buildStatus === "success" && "bg-mint-400/10 text-mint-400",
                     buildStatus === "running" && "bg-accent-500/15 text-accent-300",
                     buildStatus === "error" && "bg-rose-400/10 text-rose-300",
@@ -285,7 +284,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               </div>
               {latest ? (
                 <button
-                  className="flex w-full items-center gap-2 rounded-lg border border-white/[0.06] bg-black/20 p-2 text-left transition hover:border-white/12"
+                  className="flex w-full items-center gap-2 rounded border border-white/[0.06] bg-black/20 p-2 text-left transition hover:border-white/12"
                   onClick={() => {
                     void runAction(
                       () => useStudio.getState().inspectArtifact(latest.path),
@@ -293,7 +292,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                     );
                   }}
                 >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-mint-400/10 text-mint-400">
+                  <span className="flex h-7 w-7 items-center justify-center rounded bg-mint-400/10 text-mint-400">
                     <Package size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -307,14 +306,14 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                   <ArrowUpRight size={12} className="text-studio-500" />
                 </button>
               ) : (
-                <div className="rounded-lg border border-dashed border-white/10 px-3 py-4 text-center text-[10px] text-studio-500">
+                <div className="rounded border border-dashed border-white/10 px-3 py-4 text-center text-[10px] text-studio-500">
                   {t("build.noJapp")}
                 </div>
               )}
               {validation.status !== "idle" ? (
                 <div
                   className={cn(
-                    "mt-2 flex items-start gap-2 rounded-lg border p-2 text-[9.5px] leading-4",
+                    "mt-2 flex items-start gap-2 rounded border p-2 text-[9.5px] leading-4",
                     validation.status === "pass" && "border-mint-400/20 bg-mint-400/[0.06] text-mint-400",
                     validation.status === "fail" && "border-rose-400/20 bg-rose-400/[0.06] text-rose-300",
                     validation.status === "running" && "border-accent-500/20 bg-accent-500/[0.06] text-accent-300",
@@ -413,7 +412,7 @@ export function PackagesSidebar() {
 
       <div className="min-h-0 flex-1 overflow-auto p-2.5">
         {artifacts.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center text-[11px] leading-5 text-studio-500">
+          <div className="rounded border border-dashed border-white/10 px-4 py-8 text-center text-[11px] leading-5 text-studio-500">
             {t("packages.empty")}
             <br />
             {t("packages.emptyHint")}
@@ -424,14 +423,14 @@ export function PackagesSidebar() {
               <div key={artifact.path}>
                 <button
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-lg border p-2 text-left transition",
+                    "flex w-full items-center gap-2 rounded border p-2 text-left transition",
                     activeArtifact === artifact.path
                       ? "border-accent-500/30 bg-accent-500/[0.09]"
                       : "border-white/[0.06] bg-white/[0.02] hover:border-white/12",
                   )}
                   onClick={() => void runAction(() => inspectArtifact(artifact.path))}
                 >
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-mint-400/10 text-mint-400">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-mint-400/10 text-mint-400">
                     <Package size={14} />
                   </span>
                   <span className="min-w-0 flex-1">
@@ -530,7 +529,7 @@ export function PackagesSidebar() {
                 {inspection.files.map((file) => (
                   <div
                     key={file.name}
-                    className="flex items-center gap-2 rounded-md px-1 py-1 text-[9.5px] hover:bg-white/[0.03]"
+                    className="flex items-center gap-2 rounded px-1 py-1 text-[9.5px] hover:bg-white/[0.03]"
                   >
                     <FileCode2 size={11} className="shrink-0 text-studio-500" />
                     <span className="min-w-0 flex-1 truncate font-mono text-studio-300">
@@ -543,7 +542,7 @@ export function PackagesSidebar() {
             </Card>
           </div>
         ) : artifacts.length ? (
-          <div className="mt-3 rounded-xl border border-dashed border-white/10 px-4 py-6 text-center text-[10px] leading-4 text-studio-500">
+          <div className="mt-3 rounded border border-dashed border-white/10 px-4 py-6 text-center text-[10px] leading-4 text-studio-500">
             {t("packages.selectHint")}
           </div>
         ) : null}

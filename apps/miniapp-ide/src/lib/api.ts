@@ -10,6 +10,7 @@ import type {
   FileStamp,
   FsEntry,
   InspectResult,
+  ProjectCandidate,
 } from "../types";
 
 export function isTauri(): boolean {
@@ -130,6 +131,16 @@ export const api = {
   listArtifacts(project: string): Promise<Artifact[]> {
     if (!isTauri()) return Promise.resolve([]);
     return invoke<Artifact[]>("list_artifacts", { project });
+  },
+
+  /**
+   * Resolves a picked folder to Mini App projects: the folder itself, one of
+   * its parents, or its direct children. Returns every candidate so the UI can
+   * ask which one to open.
+   */
+  findProjects(path: string): Promise<ProjectCandidate[]> {
+    if (!isTauri()) return Promise.resolve([]);
+    return invoke<ProjectCandidate[]>("find_projects", { path });
   },
 
   async pickDirectory(defaultPath?: string): Promise<string | null> {

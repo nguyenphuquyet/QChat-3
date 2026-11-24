@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   BookOpen,
   Boxes,
   Check,
-  ChevronDown,
   CircleHelp,
   Command,
   FilePlus2,
@@ -20,6 +26,7 @@ import {
   Play,
   RefreshCw,
   Save,
+  Search,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -48,23 +55,32 @@ export interface StudioCommands {
   docs: (docId?: string) => void;
 }
 
+/** Only one menu bar dropdown may be open at a time. */
+const MenuContext = createContext<{
+  open: string | null;
+  setOpen: (id: string | null) => void;
+}>({ open: null, setOpen: () => {} });
+
 function Menu({
+  id,
   label,
   children,
 }: {
+  id: string;
   label: string;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const { open: openId, setOpen } = useContext(MenuContext);
+  const open = openId === id;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     const onDown = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+      if (!ref.current?.contains(event.target as Node)) setOpen(null);
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape") setOpen(null);
     };
     window.addEventListener("mousedown", onDown);
     window.addEventListener("keydown", onKey);
@@ -72,23 +88,28 @@ function Menu({
       window.removeEventListener("mousedown", onDown);
       window.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, setOpen]);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative h-full" ref={ref}>
       <button
         className={cn(
-          "rounded px-2 py-1 text-[11.5px] font-medium text-studio-300 transition hover:bg-white/[0.06] hover:text-white",
-          open && "bg-white/[0.07] text-white",
+          "h-full px-2 text-[12px] text-studio-200 transition-colors hover:bg-white/[0.08]",
+          open && "bg-white/[0.1]",
         )}
-        onClick={() => setOpen((value) => !value)}
+        onClick={() => setOpen(open ? null : id)}
+        onMouseEnter={() => {
+          // Once a menu is open, hovering the neighbours switches to them,
+          // exactly like a desktop menu bar.
+          if (openId !== null && openId !== id) setOpen(id);
+        }}
       >
         {label}
       </button>
       {open ? (
         <div
-          className="glass absolute left-0 top-full z-40 mt-1 w-60 rounded-xl border border-white/10 p-1.5 shadow-panel animate-slide-up"
-          onClick={() => setOpen(false)}
+          className="absolute left-0 top-full z-40 min-w-[230px] border border-white/10 bg-studio-900 p-1 shadow-panel animate-slide-up"
+          onClick={() => setOpen(null)}
         >
           {children}
         </div>
@@ -114,7 +135,7 @@ function Item({
 }) {
   return (
     <button
-      className={cn("menu-item", danger && "text-rose-300 hover:text-rose-200")}
+      className={cn("menu-item", danger && "text-rose-300 hover:text-white")}
       onClick={onClick}
       disabled={disabled}
     >
@@ -155,6 +176,7 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
   const { t } = useI18n();
   const language = settings.language;
   const theme = settings.theme;
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const canBuild = Boolean(project && cli?.ready);
   const running = buildStatus === "running";
@@ -186,22 +208,55 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
     });
   };
 
-  return (
-    <header className="relative z-30 shrink-0 border-b border-white/[0.065] bg-studio-950/80 backdrop-blur-xl">
-      <div
-        className="flex h-9 items-center gap-1 border-b border-white/[0.045] pl-2 pr-0"
-        {...drag}
-      >
-        <div className="mr-2 flex items-center gap-2 pl-1">
-          <div className="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-accent-400 via-accent-600 to-cyan-400 shadow-glow" data-keep-white>
-            <TerminalSquare size={12} className="text-white" strokeWidth={2.5} />
-          </div>
-          <span className="text-[11px] font-semibold tracking-wide text-studio-100">
-            QChat <span className="text-studio-400">Studio</span>
-          </span>
-        </div>
+  /** Compact icon button used by the title bar tool groups. */
+  const tool = (
+    key: string,
+    icon: ReactNode,
+    title: string,
+    onClick: () => void,
+    options: { disabled?: boolean; active?: boolean; danger?: boolean } = {},
+  ) => (
+    <button
+      key={key}
+      className={cn(
+        "flex h-[26px] min-w-[26px] items-center justify-center gap-1.5 rounded-[3px] px-1.5 text-[11px] transition-colors",
+        options.disabled
+          ? "cursor-not-allowed text-studio-500"
+          : options.active
+            ? "bg-white/[0.12] text-studio-100"
+            : options.danger
+              ? "bg-rose-500/20 text-rose-200 hover:bg-rose-500/30"
+              : "text-studio-300 hover:bg-white/[0.08] hover:text-studio-100",
+      )}
+      onClick={onClick}
+      disabled={options.disabled}
+      title={title}
+      aria-label={title}
+    >
+      {icon}
+    </button>
+  );
 
-        <Menu label={t("menu.file")}>
+  return (
+    <MenuContext.Provider value={{ open: openMenu, setOpen: setOpenMenu }}>
+    <header
+      className="relative z-30 flex h-9 shrink-0 items-stretch border-b border-white/[0.07] bg-studio-750"
+      {...drag}
+    >
+      {/* App mark */}
+      <div className="flex shrink-0 items-center pl-2.5 pr-1.5">
+        <div
+          className="flex h-[18px] w-[18px] items-center justify-center rounded-[3px] bg-accent-500"
+          data-keep-white
+          title="QChat Mini App Studio"
+        >
+          <TerminalSquare size={11} className="text-white" strokeWidth={2.5} />
+        </div>
+      </div>
+
+      {/* Menu bar */}
+      <div className="flex h-full shrink-0 items-stretch">
+        <Menu id="file" label={t("menu.file")}>
           <Item icon={<FilePlus2 size={13} />} label={t("title.newProject")} shortcut="Ctrl N" onClick={commands.newProject} />
           <Item icon={<FolderOpen size={13} />} label={t("title.openProject")} shortcut="Ctrl O" onClick={commands.openProject} />
           <div className="menu-separator" />
@@ -210,24 +265,30 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           <Item icon={<X size={13} />} label={t("title.closeProject")} onClick={closeProject} disabled={!project} />
         </Menu>
 
-        <Menu label={t("menu.edit")}>
+        <Menu id="edit" label={t("menu.edit")}>
           <Item icon={<Save size={13} />} label={t("title.saveActive")} shortcut="Ctrl S" onClick={() => void saveActive()} disabled={!project} />
           <Item icon={<RefreshCw size={13} />} label={t("title.refreshExplorer")} onClick={() => void refreshTree()} disabled={!project} />
           <div className="menu-separator" />
           <Item icon={<Wand2 size={13} />} label={t("title.commandPalette")} shortcut="Ctrl K" onClick={commands.palette} />
         </Menu>
 
-        <Menu label={t("menu.view")}>
+        <Menu id="view" label={t("menu.view")}>
           <Item icon={<PanelLeft size={13} />} label={t("title.toggleSidebar")} onClick={() => setSidebarOpen(!sidebarOpen)} />
-          <Item icon={<PanelRight size={13} />} label={t("title.toggleDevice")} onClick={() => setPreviewOpen(!previewOpen)} />
           <Item icon={<PanelBottom size={13} />} label={t("title.toggleOutput")} onClick={() => setBottomOpen(!bottomOpen)} />
+          <Item icon={<PanelRight size={13} />} label={t("title.toggleDevice")} onClick={() => setPreviewOpen(!previewOpen)} />
           <div className="menu-separator" />
           <Item icon={<Boxes size={13} />} label={t("title.projectExplorer")} onClick={() => setSidebarTab("project")} />
           <Item icon={<Hammer size={13} />} label={t("title.buildOverview")} onClick={() => setSidebarTab("build")} />
           <Item icon={<ShieldCheck size={13} />} label={t("title.packages")} onClick={() => setSidebarTab("packages")} />
+          <div className="menu-separator" />
+          <Item
+            icon={theme === "dark" ? <Moon size={13} /> : <Sun size={13} />}
+            label={theme === "dark" ? t("title.switchToLight") : t("title.switchToDark")}
+            onClick={() => updateSettings({ theme: theme === "dark" ? "light" : "dark" })}
+          />
         </Menu>
 
-        <Menu label={t("menu.build")}>
+        <Menu id="build" label={t("menu.build")}>
           <Item icon={<Hammer size={13} />} label={t("title.buildJapp")} shortcut="Ctrl B" onClick={() => build(false)} disabled={!canBuild || running} />
           <Item icon={<Hammer size={13} />} label={t("title.buildNoTypecheck")} shortcut="Ctrl ⇧ B" onClick={() => build(true)} disabled={!canBuild || running} />
           <div className="menu-separator" />
@@ -237,7 +298,7 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           <Item icon={<FolderTree size={13} />} label={t("title.revealDist")} onClick={() => project && void api.reveal(`${project.path}/dist`)} disabled={!project} />
         </Menu>
 
-        <Menu label={t("menu.run")}>
+        <Menu id="run" label={t("menu.run")}>
           <Item
             icon={devRunning ? <Square size={13} /> : <Play size={13} />}
             label={devRunning ? t("title.stopDev") : t("title.startDev")}
@@ -249,7 +310,7 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           <Item icon={<RefreshCw size={13} />} label={t("title.redetectCli")} onClick={() => void detect()} />
         </Menu>
 
-        <Menu label={t("menu.tools")}>
+        <Menu id="tools" label={t("menu.tools")}>
           <Item icon={<Settings size={13} />} label={t("title.cliSettings")} onClick={commands.settings} />
           <Item icon={<Sparkles size={13} />} label={t("title.projectSettings")} onClick={commands.projectSettings} disabled={!project} />
           <div className="menu-separator" />
@@ -257,148 +318,107 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           <Item icon={<X size={13} />} label={t("title.clearOutput")} onClick={clearLogs} />
         </Menu>
 
-        <Menu label={t("menu.help")}>
+        <Menu id="help" label={t("menu.help")}>
           <Item icon={<BookOpen size={13} />} label={t("title.docs")} onClick={() => commands.docs()} />
           <Item icon={<CircleHelp size={13} />} label={t("title.packageFormat")} onClick={() => commands.docs("miniapps")} />
           <div className="menu-separator" />
           <Item icon={<Info size={13} />} label={t("title.about")} onClick={commands.about} />
         </Menu>
+      </div>
 
-        <div className="ml-auto flex items-center gap-2 pl-3 pr-2">
+      {/* Command center */}
+      <div className="flex min-w-0 flex-1 items-center justify-center px-2">
+        <button
+          className="flex h-[22px] w-full max-w-[520px] items-center justify-center gap-2 rounded-[4px] border border-white/10 bg-white/[0.06] px-2.5 text-[11px] text-studio-300 transition-colors hover:border-white/20 hover:text-studio-200"
+          onClick={commands.palette}
+          title={project?.path ?? t("title.hint")}
+        >
+          <Search size={11} className="shrink-0" />
+          <span className="truncate">
+            {project
+              ? `${project.name}${project.manifest ? ` · v${project.manifest.version}` : ""}`
+              : t("title.noProject")}
+          </span>
+          <span className="kbd ml-1 shrink-0">Ctrl K</span>
+        </button>
+      </div>
+
+      {/* Build / run tools */}
+      <div className="flex shrink-0 items-center gap-1 px-1">
+        <button
+          className={cn(
+            "flex h-[26px] items-center gap-1.5 rounded-[3px] px-2 text-[11px] font-medium transition-colors",
+            canBuild && !running
+              ? "bg-accent-500 text-white hover:bg-accent-600"
+              : "cursor-not-allowed bg-accent-500/40 text-white/60",
+          )}
+          onClick={() => build(false)}
+          disabled={!canBuild || running}
+          title={t("title.buildTitle")}
+        >
+          {running ? (
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+          ) : (
+            <Hammer size={13} />
+          )}
+          {t("common.build")}
+        </button>
+        {tool("quick", <Hammer size={13} />, t("title.quickBuildTitle"), () => build(true), { disabled: !canBuild || running })}
+        {tool("dev", devRunning ? <Square size={13} /> : <Play size={13} />, devRunning ? t("title.stopDev") : t("title.devTitle"), toggleDev, {
+          disabled: !canBuild,
+          danger: devRunning,
+        })}
+        {tool("test", <FlaskConical size={13} />, t("title.testTitle"), test, { disabled: !canBuild || running })}
+        {tool("validate", <ShieldCheck size={13} />, t("title.validatePackage"), validate, { disabled: !canBuild })}
+      </div>
+
+      {/* Right side: CLI status, language, theme, layout, settings */}
+      <div className="flex shrink-0 items-center gap-0.5 pl-1">
+        <button
+          className="flex h-[26px] items-center gap-1.5 rounded-[3px] px-1.5 text-[10px] text-studio-300 hover:bg-white/[0.08]"
+          onClick={commands.settings}
+          title={cli?.error || cli?.cliPath || t("title.cliStatus")}
+        >
           <span
-            className={cn(
-              "flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-              cli?.ready
-                ? "border-mint-400/20 bg-mint-400/10 text-mint-400"
-                : "border-amber-400/20 bg-amber-400/10 text-amber-300",
-            )}
-            title={cli?.error || cli?.cliPath || t("title.cliStatus")}
-          >
-            <span className={cn("h-1.5 w-1.5 rounded-full", cli?.ready ? "bg-mint-400" : "bg-amber-400", !cli?.ready && "animate-pulse")} />
+            className={cn("h-2 w-2 rounded-full", cli?.ready ? "bg-mint-400" : "bg-amber-400")}
+          />
+          <span className="hidden 2xl:inline">
             {cli?.ready ? `CLI ${cli.cliVersion?.split(" ")[0] ?? ""}` : t("title.cliMissing")}
           </span>
-          <span className="text-[10px] text-studio-500">v1.0.0</span>
-        </div>
-        <WindowControls className="ml-1" />
+        </button>
+
+        <Menu id="language" label={LANGUAGES.find((item) => item.id === language)?.short ?? "VI"}>
+          <div className="px-2 pb-1 pt-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-studio-500">
+            {t("title.language")}
+          </div>
+          {LANGUAGES.map((item) => (
+            <Item
+              key={item.id}
+              icon={
+                item.id === language ? (
+                  <Check size={13} className="text-accent-300" />
+                ) : (
+                  <Languages size={13} />
+                )
+              }
+              label={item.label}
+              onClick={() => updateSettings({ language: item.id })}
+            />
+          ))}
+        </Menu>
+
+        {tool("theme", theme === "dark" ? <Sun size={14} /> : <Moon size={14} />, theme === "dark" ? t("title.switchToLight") : t("title.switchToDark"), () =>
+          updateSettings({ theme: theme === "dark" ? "light" : "dark" }),
+        )}
+        {tool("sidebar", <PanelLeft size={14} />, t("title.toggleSidebar"), () => setSidebarOpen(!sidebarOpen), { active: sidebarOpen })}
+        {tool("panel", <PanelBottom size={14} />, t("title.toggleOutput"), () => setBottomOpen(!bottomOpen), { active: bottomOpen })}
+        {tool("preview", <PanelRight size={14} />, t("title.toggleDeviceTitle"), () => setPreviewOpen(!previewOpen), { active: previewOpen })}
+        {tool("settings", <Settings size={14} />, t("common.settings"), commands.settings)}
+        {tool("palette", <Command size={14} />, t("title.paletteTitle"), commands.palette)}
       </div>
 
-      <div className="flex h-[46px] items-center gap-3 px-3">
-        <div className="flex min-w-0 items-center gap-2" {...drag}>
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.045] text-studio-300">
-            <FolderTree size={14} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-[12.5px] font-semibold text-studio-100">
-                {project?.name ?? t("title.noProject")}
-              </span>
-              {project?.manifest ? (
-                <span className="chip chip-accent text-[9px]">v{project.manifest.version}</span>
-              ) : null}
-            </div>
-            <div className="max-w-[330px] truncate font-mono text-[9.5px] text-studio-500">
-              {project?.path ?? t("title.hint")}
-            </div>
-          </div>
-        </div>
-
-        <div className="mx-2 h-6 w-px bg-white/[0.065]" />
-
-        <div className="flex items-center gap-1.5">
-          <button
-            className="btn btn-primary h-7 px-3"
-            onClick={() => build(false)}
-            disabled={!canBuild || running}
-            title={t("title.buildTitle")}
-          >
-            {running ? (
-              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-            ) : (
-              <Hammer size={13} />
-            )}
-            {t("common.build")}
-            <span className="kbd ml-1 border-white/20 bg-white/10 text-white/80">⌘B</span>
-          </button>
-          <button
-            className="btn btn-secondary h-7 px-2"
-            onClick={() => build(true)}
-            disabled={!canBuild || running}
-            title={t("title.quickBuildTitle")}
-          >
-            <Hammer size={12} />
-            <span className="hidden 2xl:inline">{t("title.quickBuild")}</span>
-          </button>
-          <button
-            className={cn("btn h-7 px-3", devRunning ? "btn-danger" : "btn-secondary")}
-            onClick={toggleDev}
-            disabled={!canBuild}
-            title={t("title.devTitle")}
-          >
-            {devRunning ? <Square size={12} /> : <Play size={12} />}
-            {devRunning ? t("common.stop") : t("common.dev")}
-          </button>
-          <button
-            className="btn btn-secondary h-7 px-2"
-            onClick={test}
-            disabled={!canBuild || running}
-            title={t("title.testTitle")}
-          >
-            <FlaskConical size={12} />
-          </button>
-        </div>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          <button
-            className="flex h-7 items-center gap-2 rounded-lg border border-white/[0.075] bg-white/[0.03] px-2.5 text-[11px] text-studio-400 transition hover:border-white/15 hover:text-studio-200"
-            onClick={commands.palette}
-            title={t("title.paletteTitle")}
-          >
-            <Command size={12} />
-            <span className="hidden md:inline">{t("title.commands")}</span>
-            <span className="kbd">Ctrl K</span>
-          </button>
-          <Menu label={LANGUAGES.find((item) => item.id === language)?.short ?? "VI"}>
-            <div className="px-2 pb-1 pt-1.5 text-[8.5px] font-semibold uppercase tracking-[0.16em] text-studio-600">
-              {t("title.language")}
-            </div>
-            {LANGUAGES.map((item) => (
-              <Item
-                key={item.id}
-                icon={
-                  item.id === language ? (
-                    <Check size={13} className="text-accent-300" />
-                  ) : (
-                    <Languages size={13} />
-                  )
-                }
-                label={item.label}
-                onClick={() => updateSettings({ language: item.id })}
-              />
-            ))}
-          </Menu>
-          <button
-            className="icon-btn"
-            onClick={() => updateSettings({ theme: theme === "dark" ? "light" : "dark" })}
-            title={theme === "dark" ? t("title.switchToLight") : t("title.switchToDark")}
-          >
-            {theme === "dark" ? <Sun size={15} /> : <Moon size={15} />}
-          </button>
-          <button
-            className={cn("icon-btn", previewOpen && "bg-white/[0.07] text-white")}
-            onClick={() => setPreviewOpen(!previewOpen)}
-            title={t("title.toggleDeviceTitle")}
-          >
-            <PanelRight size={15} />
-          </button>
-          <button
-            className="icon-btn"
-            onClick={commands.settings}
-            title={t("common.settings")}
-          >
-            <Settings size={15} />
-          </button>
-        </div>
-      </div>
+      <WindowControls />
     </header>
+    </MenuContext.Provider>
   );
 }

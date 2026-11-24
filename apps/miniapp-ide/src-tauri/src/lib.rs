@@ -83,6 +83,15 @@ struct Artifact {
     modified_ms: Option<u64>,
 }
 
+/// One openable Mini App discovered by [`find_projects`].
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCandidate {
+    path: String,
+    name: String,
+    version: Option<String>,
+}
+
 /// Cheap "has this file changed on disk?" probe used by the studio to pick up
 /// edits made outside the app (another editor, a CLI run, git checkout...).
 #[derive(Serialize)]
@@ -904,6 +913,92 @@ fn delete_entry(path: String) -> Result<(), String> {
     }
 }
 
+/// Reads `manifest.json` and returns it only when it looks like a Mini App
+/// manifest. The studio itself can open any folder, but the project finder
+/// must not treat every folder that happens to contain a `manifest.json` as a
+/// Mini App.
+fn project_manifest(dir: &Path) -> Option<serde_json::Value> {
+    let raw = fs::read(dir.join("manifest.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+    let object = value.as_object()?;
+    let is_qapp = object.get("format").and_then(|v| v.as_str()) == Some("qapp");
+    let has_entry = object.get("entry").and_then(|v| v.as_str()).is_some();
+    if is_qapp || has_entry {
+        Some(value)
+    } else {
+        None
+    }
+}
+
+fn project_candidate(dir: &Path, manifest: &serde_json::Value) -> ProjectCandidate {
+    let name = manifest
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| {
+            dir.file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| dir.to_string_lossy().to_string())
+        });
+    let version = manifest
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    ProjectCandidate {
+        path: dir.to_string_lossy().to_string(),
+        name,
+        version,
+    }
+}
+
+/// Turns whatever folder the user picked into Mini App projects:
+///
+/// 1. the folder itself,
+/// 2. one of its parents (the user picked `src/` inside a project),
+/// 3. its direct children (the user picked a folder that holds projects).
+///
+/// Returning every match lets the UI show a chooser instead of failing when a
+/// parent folder with several projects was picked.
+#[tauri::command]
+fn find_projects(path: String) -> Vec<ProjectCandidate> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    let dir = Path::new(trimmed);
+    if !dir.is_dir() {
+        return Vec::new();
+    }
+
+    if let Some(manifest) = project_manifest(dir) {
+        return vec![project_candidate(dir, &manifest)];
+    }
+
+    // Picking `<project>/src` should still resolve to `<project>`.
+    for ancestor in dir.ancestors().skip(1).take(4) {
+        if let Some(manifest) = project_manifest(ancestor) {
+            return vec![project_candidate(ancestor, &manifest)];
+        }
+    }
+
+    let mut found: Vec<ProjectCandidate> = fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|entry| entry.is_dir())
+                .filter_map(|entry| {
+                    project_manifest(&entry)
+                        .map(|manifest| project_candidate(&entry, &manifest))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    found.sort_by_key(|candidate| candidate.name.to_lowercase());
+    found
+}
+
 #[tauri::command]
 fn list_artifacts(project: String) -> Result<Vec<Artifact>, String> {
     let dist = PathBuf::from(&project).join("dist");
@@ -1002,7 +1097,8 @@ pub fn run() {
             create_entry,
             rename_entry,
             delete_entry,
-            list_artifacts
+            list_artifacts,
+            find_projects
         ])
         .run(tauri::generate_context!())
         .expect("error while running QChat Mini App Studio");

@@ -162,7 +162,7 @@ export function NewProjectDialog({
                 <button
                   key={key}
                   className={cn(
-                    "flex w-full items-start gap-2.5 rounded-xl border p-2.5 text-left transition",
+                    "flex w-full items-start gap-2.5 rounded border p-2.5 text-left transition",
                     selected
                       ? "border-accent-500/40 bg-accent-500/[0.09]"
                       : "border-white/[0.06] bg-white/[0.015] hover:border-white/12 hover:bg-white/[0.03]",
@@ -171,7 +171,7 @@ export function NewProjectDialog({
                 >
                   <span
                     className={cn(
-                      "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border",
+                      "mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border",
                       selected
                         ? "border-accent-400/30 bg-accent-500/15 text-accent-300"
                         : "border-white/[0.07] bg-white/[0.03] text-studio-400",
@@ -193,7 +193,7 @@ export function NewProjectDialog({
             })}
           </div>
 
-          <div className="mt-4 rounded-xl border border-white/[0.06] bg-black/20 p-3">
+          <div className="mt-4 rounded border border-white/[0.06] bg-black/20 p-3">
             <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-studio-500">
               <Info size={10} /> {t("new.whatHappens")}
             </div>
@@ -212,7 +212,7 @@ export function NewProjectDialog({
 
           <div
             className={cn(
-              "mt-3 flex items-start gap-2 rounded-lg border px-2.5 py-2 text-[9px] leading-4",
+              "mt-3 flex items-start gap-2 rounded border px-2.5 py-2 text-[9px] leading-4",
               cli?.ready
                 ? "border-mint-400/15 bg-mint-400/[0.05] text-mint-400"
                 : "border-amber-400/15 bg-amber-400/[0.05] text-amber-300",
@@ -319,7 +319,7 @@ export function NewProjectDialog({
                   <button
                     key={permission.id}
                     className={cn(
-                      "flex items-start gap-2 rounded-lg border p-2 text-left transition",
+                      "flex items-start gap-2 rounded border p-2 text-left transition",
                       selected
                         ? "border-accent-500/30 bg-accent-500/[0.07]"
                         : "border-white/[0.06] bg-white/[0.015] hover:border-white/12",
@@ -328,7 +328,7 @@ export function NewProjectDialog({
                   >
                     <span
                       className={cn(
-                        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                        "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded",
                         selected ? "bg-accent-500/15 text-accent-300" : "bg-white/[0.04] text-studio-500",
                       )}
                     >
@@ -350,13 +350,13 @@ export function NewProjectDialog({
           </div>
 
           {error ? (
-            <div className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] p-2.5 text-[10px] leading-4 text-rose-200">
+            <div className="mt-3 rounded border border-rose-400/25 bg-rose-400/[0.07] p-2.5 text-[10px] leading-4 text-rose-200">
               {error}
             </div>
           ) : null}
 
           {!desktop ? (
-            <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[9.5px] leading-4 text-amber-200/90">
+            <div className="mt-3 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[9.5px] leading-4 text-amber-200/90">
               {t("new.desktopRequired")}
             </div>
           ) : null}
@@ -382,8 +382,8 @@ export function NewProjectDialog({
       </div>
 
       {creating ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-studio-950/70 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-white/10 bg-studio-900 px-8 py-6 shadow-panel">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-studio-950/70">
+          <div className="flex flex-col items-center gap-3 rounded border border-white/10 bg-studio-900 px-8 py-6 shadow-panel">
             <Loader2 size={22} className="animate-spin text-accent-300" />
             <div className="text-[12px] font-semibold text-white">
               {t("new.creatingTitle", { name: slug || name })}

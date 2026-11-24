@@ -24,10 +24,9 @@ export function AboutDialog({
   return (
     <Dialog open={open} onClose={onClose} width="max-w-md">
       <div className="relative overflow-hidden p-6">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-accent-500/15 blur-3xl" />
         <div className="flex items-start justify-between">
           <div
-            className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-400 via-accent-600 to-cyan-400 shadow-glow"
+            className="flex h-14 w-14 items-center justify-center rounded bg-accent-500"
             data-keep-white
           >
             <TerminalSquare size={26} className="text-white" strokeWidth={2.4} />
@@ -69,7 +68,7 @@ export function AboutDialog({
           />
         </div>
 
-        <div className="mt-4 rounded-lg border border-white/[0.07] bg-black/20 p-2.5 font-mono text-[9px] leading-4 text-studio-500">
+        <div className="mt-4 rounded border border-white/[0.07] bg-black/20 p-2.5 font-mono text-[9px] leading-4 text-studio-500">
           <div className="flex justify-between gap-3">
             <span>CLI</span>
             <span className="truncate text-studio-300">{cli?.cliVersion || t("about.notConnected")}</span>
@@ -113,7 +112,7 @@ function Feature({
   detail: string;
 }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2">
+    <div className="rounded border border-white/[0.06] bg-white/[0.02] p-2">
       <div className="flex items-center gap-1.5 text-[9px] font-medium text-studio-200">
         <span className="text-accent-300">{icon}</span> {title}
       </div>

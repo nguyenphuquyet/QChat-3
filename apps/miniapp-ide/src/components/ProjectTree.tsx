@@ -84,7 +84,7 @@ function Row({
     <>
       <button
         className={cn(
-          "group flex h-[26px] w-full items-center gap-1.5 rounded-md pr-2 text-left text-[11.5px] transition",
+          "group flex h-[26px] w-full items-center gap-1.5 rounded pr-2 text-left text-[11.5px] transition",
           isActive
             ? "bg-accent-500/12 text-white"
             : "text-studio-300 hover:bg-white/[0.045] hover:text-studio-100",
@@ -317,7 +317,7 @@ export function ProjectTree() {
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={t("tree.filter")}
-            className="h-6 w-full rounded-md border border-white/[0.06] bg-black/20 pl-7 pr-2 text-[11px] text-studio-200 outline-none placeholder:text-studio-600 focus:border-accent-500/40"
+            className="h-6 w-full rounded border border-white/[0.06] bg-black/20 pl-7 pr-2 text-[11px] text-studio-200 outline-none placeholder:text-studio-600 focus:border-accent-500/40"
           />
         </div>
       </div>
@@ -368,7 +368,7 @@ export function ProjectTree() {
       {context ? (
         <div
           ref={menuRef}
-          className="glass fixed z-50 w-48 rounded-lg border border-white/10 p-1 shadow-panel animate-fade-in"
+          className="glass fixed z-50 w-48 rounded border border-white/10 p-1 shadow-panel animate-fade-in"
           style={{ left: context.x, top: context.y }}
           onMouseDown={(event) => event.stopPropagation()}
         >

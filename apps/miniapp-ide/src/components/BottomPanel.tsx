@@ -279,7 +279,7 @@ export function BottomPanel({
               className="min-w-0 flex-1 bg-transparent font-mono text-[10.5px] text-studio-200 outline-none placeholder:text-studio-600"
             />
             <button
-              className="flex h-6 items-center gap-1 rounded-md border border-white/[0.08] bg-white/[0.04] px-2 text-[9px] font-semibold text-studio-300 transition hover:border-white/15 hover:text-white"
+              className="flex h-6 items-center gap-1 rounded border border-white/[0.08] bg-white/[0.04] px-2 text-[9px] font-semibold text-studio-300 transition hover:border-white/15 hover:text-white"
               onClick={execute}
             >
               <Play size={9} /> {t("bottom.run")}

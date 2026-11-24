@@ -324,13 +324,13 @@ export function CommandPalette({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex justify-center bg-black/55 px-6 pt-[14vh] backdrop-blur-[5px] animate-fade-in"
+      className="fixed inset-0 z-50 flex justify-center bg-black/55 px-6 pt-[14vh]  animate-fade-in"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
-        className="glass h-fit w-full max-w-[600px] overflow-hidden rounded-2xl border border-white/10 shadow-panel animate-slide-up"
+        className="glass h-fit w-full max-w-[600px] overflow-hidden rounded border border-white/10 shadow-panel animate-slide-up"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="flex items-center gap-2.5 border-b border-white/[0.07] px-4">
@@ -360,7 +360,7 @@ export function CommandPalette({
                 ) : null}
                 <button
                   className={cn(
-                    "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition",
+                    "flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left transition",
                     itemIndex === index ? "bg-accent-500/[0.13] text-white" : "text-studio-300 hover:bg-white/[0.04]",
                     command.disabled && "opacity-40",
                   )}
@@ -374,7 +374,7 @@ export function CommandPalette({
                 >
                   <span
                     className={cn(
-                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-md",
+                      "flex h-6 w-6 shrink-0 items-center justify-center rounded",
                       itemIndex === index
                         ? "bg-accent-500/20 text-accent-300"
                         : "bg-white/[0.04] text-studio-500",

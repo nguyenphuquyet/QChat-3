@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080a0f" />
+    <meta name="theme-color" content="#1e1e1e" />
     <title>QChat Mini App Studio</title>
     <script>
       // Apply the persisted theme and language before the first paint so the
@@ -37,7 +37,7 @@
         root.className = theme;
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) {
-          meta.setAttribute("content", theme === "light" ? "#f6f7fb" : "#080a0f");
+          meta.setAttribute("content", theme === "light" ? "#ffffff" : "#1e1e1e");
         }
       })();
     </script>
@@ -47,19 +47,19 @@
       #root {
         height: 100%;
         margin: 0;
-        background: #080a0f;
+        background: #1e1e1e;
       }
       html[data-theme="light"],
       html[data-theme="light"] body,
       html[data-theme="light"] #root {
-        background: #f6f7fb;
+        background: #ffffff;
       }
       #boot {
         display: flex;
         align-items: center;
         justify-content: center;
         height: 100%;
-        color: #8b93a7;
+        color: #a5a5a5;
         font:
           500 13px/1.5 "Segoe UI",
           system-ui,
@@ -67,7 +67,7 @@
         letter-spacing: 0.02em;
       }
       html[data-theme="light"] #boot {
-        color: #6f7889;
+        color: #616161;
       }
     </style>
   </head>

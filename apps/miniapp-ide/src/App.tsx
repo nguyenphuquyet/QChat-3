@@ -9,6 +9,7 @@ import { DocsPanel } from "./components/DocsPanel";
 import { EditorArea, Welcome } from "./components/EditorArea";
 import { NewProjectDialog } from "./components/NewProjectDialog";
 import { PreviewPanel } from "./components/PreviewPanel";
+import { ProjectChooserDialog } from "./components/ProjectChooserDialog";
 import { ProjectSettingsDialog } from "./components/ProjectSettingsDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar } from "./components/Sidebar";
@@ -20,7 +21,7 @@ import { runAction } from "./lib/feedback";
 import { useStudio } from "./lib/store";
 import { useI18n } from "./lib/useI18n";
 import { cn } from "./lib/utils";
-import type { DevExit, DevLog } from "./types";
+import type { DevExit, DevLog, ProjectCandidate } from "./types";
 
 const SIDEBAR_MIN = 190;
 const SIDEBAR_MAX = 460;
@@ -34,6 +35,13 @@ const DISK_POLL_MS = 1500;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/** Windows paths are case-insensitive and may mix separators. */
+function samePath(left: string, right: string): boolean {
+  const normalize = (value: string) =>
+    value.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return normalize(left) === normalize(right);
 }
 
 function Resizer({
@@ -102,6 +110,10 @@ export default function App() {
   );
   const [docsId, setDocsId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [chooser, setChooser] = useState<{
+    picked: string;
+    candidates: ProjectCandidate[];
+  } | null>(null);
   const dragCleanup = useRef<(() => void) | null>(null);
 
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -114,7 +126,20 @@ export default function App() {
           project?.path || settings.projectsDir || undefined,
         );
         if (!path) return;
-        await runAction(() => openProject(path));
+        // Resolve the picked folder to Mini Apps: the folder itself, a parent
+        // (`<project>/src`) or its direct children. A plain folder still opens
+        // as-is, like before.
+        const candidates = await api.findProjects(path).catch(() => []);
+        const projects = candidates.filter((item) => !samePath(item.path, path));
+        if (projects.length === 0) {
+          await runAction(() => openProject(path));
+          return;
+        }
+        if (projects.length === 1) {
+          await runAction(() => openProject(projects[0].path));
+          return;
+        }
+        setChooser({ picked: path, candidates: projects });
       })();
     },
     settings: () => setDialog("settings"),
@@ -444,6 +469,21 @@ export default function App() {
       <StatusBar onSettings={() => setDialog("settings")} />
 
       <NewProjectDialog open={dialog === "new"} onClose={closeDialog} />
+      <ProjectChooserDialog
+        open={chooser !== null}
+        picked={chooser?.picked ?? ""}
+        candidates={chooser?.candidates ?? []}
+        onPick={(candidate) => {
+          setChooser(null);
+          void runAction(() => openProject(candidate.path));
+        }}
+        onOpenPicked={() => {
+          const picked = chooser?.picked;
+          setChooser(null);
+          if (picked) void runAction(() => openProject(picked));
+        }}
+        onClose={() => setChooser(null)}
+      />
       <SettingsDialog open={dialog === "settings"} onClose={closeDialog} />
       <ProjectSettingsDialog open={dialog === "project"} onClose={closeDialog} />
       <AboutDialog open={dialog === "about"} onClose={closeDialog} />
@@ -460,7 +500,7 @@ export default function App() {
 
       {!bottomOpen ? (
         <button
-          className="fixed bottom-8 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/10 bg-studio-900/90 px-3 py-1 text-[10px] text-studio-300 shadow-panel backdrop-blur transition hover:text-white"
+          className="fixed bottom-8 left-1/2 z-30 -translate-x-1/2 rounded border border-white/10 bg-studio-900 px-3 py-1 text-[10px] text-studio-300 shadow-panel transition hover:text-white"
           onClick={() => setBottomOpen(true)}
         >
           {t("common.showingPanel")}
@@ -477,17 +517,15 @@ export default function App() {
         toastOptions={{
           style: {
             background:
-              settings.theme === "light"
-                ? "rgba(255, 255, 255, 0.96)"
-                : "rgba(14, 18, 26, 0.94)",
+              settings.theme === "light" ? "#ffffff" : "#252526",
             border:
               settings.theme === "light"
-                ? "1px solid rgba(15, 23, 42, 0.12)"
+                ? "1px solid rgba(0, 0, 0, 0.12)"
                 : "1px solid rgba(255,255,255,0.09)",
-            color: settings.theme === "light" ? "#161c28" : "#e6e9f2",
+            color: settings.theme === "light" ? "#1f1f1f" : "#e8e8e8",
             fontSize: "12px",
-            backdropFilter: "blur(18px)",
-            borderRadius: "12px",
+            borderRadius: "2px",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.35)",
           },
         }}
       />

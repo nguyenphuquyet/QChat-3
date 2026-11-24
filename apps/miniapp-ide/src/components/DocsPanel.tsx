@@ -89,7 +89,7 @@ export function DocsPanel({
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder={t("docs.search", undefined, "Tìm tài liệu...")}
                 aria-label={t("docs.search", undefined, "Tìm tài liệu...")}
-                className="h-8 w-full rounded-lg border border-white/[0.07] bg-black/25 pl-7 pr-2 text-[11px] text-studio-200 outline-none transition placeholder:text-studio-500 focus:border-accent-500/40"
+                className="h-8 w-full rounded border border-white/[0.07] bg-black/25 pl-7 pr-2 text-[11px] text-studio-200 outline-none transition placeholder:text-studio-500 focus:border-accent-500/40"
               />
             </div>
           </div>
@@ -109,7 +109,7 @@ export function DocsPanel({
                       onClick={() => setActiveId(section.id)}
                       title={section.summary}
                       className={cn(
-                        "group relative flex w-full items-center rounded-lg py-1.5 pl-3 pr-2 text-left text-[11px] transition",
+                        "group relative flex w-full items-center rounded py-1.5 pl-3 pr-2 text-left text-[11px] transition",
                         isActive
                           ? "bg-accent-500/12 text-accent-300"
                           : "text-studio-400 hover:bg-white/[0.05] hover:text-studio-100",

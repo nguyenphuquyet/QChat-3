@@ -33,6 +33,13 @@ export interface Artifact {
   modifiedMs: number | null;
 }
 
+/** A Mini App folder discovered by the smart open-project resolver. */
+export interface ProjectCandidate {
+  path: string;
+  name: string;
+  version: string | null;
+}
+
 export interface ProjectManifest {
   schemaVersion: number;
   format: string;

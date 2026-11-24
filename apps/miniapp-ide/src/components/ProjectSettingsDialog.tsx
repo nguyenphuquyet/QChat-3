@@ -158,7 +158,7 @@ export function ProjectSettingsDialog({
                 <button
                   key={permission.id}
                   className={cn(
-                    "flex items-center gap-2 rounded-lg border p-2 text-left transition",
+                    "flex items-center gap-2 rounded border p-2 text-left transition",
                     selected
                       ? "border-accent-500/30 bg-accent-500/[0.07]"
                       : "border-white/[0.06] bg-white/[0.015] hover:border-white/12",
@@ -189,13 +189,13 @@ export function ProjectSettingsDialog({
           </div>
         </div>
 
-        <div className="mt-4 flex items-start gap-2 rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 text-[9px] leading-4 text-studio-500">
+        <div className="mt-4 flex items-start gap-2 rounded border border-white/[0.06] bg-white/[0.02] p-2.5 text-[9px] leading-4 text-studio-500">
           <Info size={11} className="mt-0.5 shrink-0" />
           {t("psettings.serverNote")}
         </div>
 
         {error ? (
-          <div className="mt-3 rounded-lg border border-rose-400/25 bg-rose-400/[0.07] p-2.5 text-[10px] leading-4 text-rose-200">
+          <div className="mt-3 rounded border border-rose-400/25 bg-rose-400/[0.07] p-2.5 text-[10px] leading-4 text-rose-200">
             {error}
           </div>
         ) : null}

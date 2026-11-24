@@ -95,7 +95,7 @@ export function SettingsDialog({
           <div className="space-y-5 p-5">
             <section>
               <div className="label">{t("settings.appearance")}</div>
-              <div className="space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
+              <div className="space-y-3 rounded border border-white/[0.06] bg-white/[0.015] p-3">
                 <div>
                   <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-studio-400">
                     <Languages size={11} /> {t("settings.language")}
@@ -107,7 +107,7 @@ export function SettingsDialog({
                         <button
                           key={item.id}
                           className={cn(
-                            "flex items-center justify-between gap-1 rounded-lg border px-2.5 py-1.5 text-[10.5px] font-medium transition",
+                            "flex items-center justify-between gap-1 rounded border px-2.5 py-1.5 text-[10.5px] font-medium transition",
                             active
                               ? "border-accent-500/40 bg-accent-500/[0.12] text-accent-300"
                               : "border-white/[0.07] bg-white/[0.02] text-studio-300 hover:border-white/15 hover:text-studio-100",
@@ -139,7 +139,7 @@ export function SettingsDialog({
                         <button
                           key={value}
                           className={cn(
-                            "flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[10.5px] font-medium transition",
+                            "flex items-center justify-center gap-1.5 rounded border px-2.5 py-1.5 text-[10.5px] font-medium transition",
                             active
                               ? "border-accent-500/40 bg-accent-500/[0.12] text-accent-300"
                               : "border-white/[0.07] bg-white/[0.02] text-studio-300 hover:border-white/15 hover:text-studio-100",
@@ -244,7 +244,7 @@ export function SettingsDialog({
 
             <section>
               <div className="label">{t("settings.editor")}</div>
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] px-3 py-1">
+              <div className="rounded border border-white/[0.06] bg-white/[0.015] px-3 py-1">
                 <Toggle
                   checked={draft.autoSave}
                   onChange={(value) => set("autoSave", value)}
@@ -271,7 +271,7 @@ export function SettingsDialog({
                 />
               </div>
 
-              <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
+              <div className="mt-3 flex items-center gap-3 rounded border border-white/[0.06] bg-white/[0.015] p-3">
                 <span className="text-[10px] text-studio-400">{t("settings.fontSize")}</span>
                 <input
                   type="range"
@@ -297,7 +297,7 @@ export function SettingsDialog({
                 ].map((command) => (
                   <div
                     key={command}
-                    className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-black/25 px-2.5 py-1.5"
+                    className="flex items-center gap-2 rounded border border-white/[0.06] bg-black/25 px-2.5 py-1.5"
                   >
                     <Terminal size={11} className="shrink-0 text-mint-400" />
                     <code className="min-w-0 flex-1 truncate font-mono text-[9.5px] text-studio-300">
@@ -322,7 +322,7 @@ export function SettingsDialog({
 
             <div className="mt-3">
               <div className="text-[8.5px] uppercase tracking-wider text-studio-500">{t("settings.resolvedCli")}</div>
-              <div className="mt-1 break-all rounded-lg border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
+              <div className="mt-1 break-all rounded border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
                 {cli?.cliPath || t("common.notFound")}
               </div>
             </div>
@@ -330,13 +330,13 @@ export function SettingsDialog({
             {cli?.workspace ? (
               <div className="mt-3">
                 <div className="text-[8.5px] uppercase tracking-wider text-studio-500">{t("settings.workspace")}</div>
-                <div className="mt-1 break-all rounded-lg border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
+                <div className="mt-1 break-all rounded border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
                   {cli.workspace}
                 </div>
               </div>
             ) : null}
 
-            <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+            <div className="mt-3 rounded border border-white/[0.06] bg-white/[0.02] p-3">
               <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-studio-500">
                 <Info size={10} /> {t("settings.freshCheckout")}
               </div>
@@ -347,7 +347,7 @@ export function SettingsDialog({
                 {joinPath(cli?.workspace || "…", "packages", "miniapp-framework", "dist", "cli.js")}
               </p>
               <button
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] py-1.5 text-[9px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-white/[0.08] bg-white/[0.04] py-1.5 text-[9px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
                 onClick={() => void copy(joinPath(cli?.workspace || "", "packages", "miniapp-framework", "dist", "cli.js"))}
               >
                 <Copy size={10} /> {t("settings.copyCliPath")}
@@ -355,12 +355,12 @@ export function SettingsDialog({
             </div>
 
             {!desktop ? (
-              <div className="mt-3 flex gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[9px] leading-4 text-amber-200/90">
+              <div className="mt-3 flex gap-2 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[9px] leading-4 text-amber-200/90">
                 <CircleAlert size={12} className="mt-0.5 shrink-0" />
                 {t("settings.browserWarning")}
               </div>
             ) : cli?.error ? (
-              <div className="mt-3 flex gap-2 rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-2.5 text-[9px] leading-4 text-rose-200/90">
+              <div className="mt-3 flex gap-2 rounded border border-rose-400/20 bg-rose-400/[0.06] p-2.5 text-[9px] leading-4 text-rose-200/90">
                 <CircleAlert size={12} className="mt-0.5 shrink-0" />
                 {cli.error}
               </div>

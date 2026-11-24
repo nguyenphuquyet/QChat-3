@@ -797,7 +797,14 @@ export const useStudio = create<StudioState>()(
         const project = get().project;
         const language = get().settings.language;
         if (!project) throw new Error(translate(language, "store.openFirst"));
-        if (!get().cli?.ready) throw new Error(translate(language, "store.cliNotReadyShort"));
+        const cli = get().cli;
+        if (!cli?.ready) {
+          get().appendLog(
+            "stderr",
+            cli?.error || translate(language, "build.hintCli"),
+          );
+          throw new Error(translate(language, "store.cliNotReadyShort"));
+        }
         // The CLI reads the files from disk: flush unsaved editors first.
         if (get().settings.autoSave) await get().saveAllDirty();
         set({
@@ -809,9 +816,41 @@ export const useStudio = create<StudioState>()(
           bottomOpen: true,
           bottomTab: "output",
         });
+
+        // Preflight: explain what will run and fail early with an actionable
+        // message instead of a raw CLI stack trace.
+        get().appendLog("system", translate(language, "build.preflight"));
+        get().appendLog(
+          "system",
+          translate(language, "build.node", { version: cli.nodeVersion ?? "—" }),
+        );
+        get().appendLog(
+          "system",
+          translate(language, "build.cli", {
+            version: cli.cliVersion ?? cli.cliPath ?? "—",
+          }),
+        );
+        const tree = get().tree;
+        const hasManifest = tree.some((entry) => entry.relative === "manifest.json");
+        const hasEntry = tree.some((entry) => entry.relative === "src/main.tsx");
+        if (!hasManifest) {
+          const message = translate(language, "build.missingManifest");
+          get().appendLog("stderr", message);
+          set({ buildStatus: "error", buildMessage: message });
+          throw new Error(message);
+        }
+        if (!hasEntry) {
+          const message = translate(language, "build.missingEntry");
+          get().appendLog("stderr", message);
+          set({ buildStatus: "error", buildMessage: message });
+          throw new Error(message);
+        }
+
         const args = ["build", "--dir", project.path];
         if (noTypecheck) args.push("--no-typecheck");
-        get().appendLog("system", `$ qapp ${args.join(" ")}`);
+        const command = `qapp ${args.join(" ")}`;
+        get().appendLog("system", translate(language, "build.command", { command }));
+        get().appendLog("system", `$ ${command}`);
         try {
           const result = await api.runCli(
             args,
@@ -823,6 +862,14 @@ export const useStudio = create<StudioState>()(
           if (result.stderr) get().appendLog("stderr", result.stderr);
           const problems = outputProblems(result.stdout, result.stderr, "build");
           if (result.code !== 0) {
+            const combined = `${result.stdout}\n${result.stderr}`;
+            if (/cannot find module|ERR_MODULE_NOT_FOUND/i.test(combined)) {
+              get().appendLog("system", translate(language, "build.hintCli"));
+            } else if (/tsc|typescript|TS\d{4}/i.test(combined)) {
+              get().appendLog("system", translate(language, "build.hintTypecheck"));
+            } else if (/ENOENT|not recognized|is not recognized/i.test(combined)) {
+              get().appendLog("system", translate(language, "build.hintNode"));
+            }
             set({
               buildStatus: "error",
               buildMessage: translate(language, "store.buildFailedCheck"),

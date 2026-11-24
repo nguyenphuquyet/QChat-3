@@ -63,15 +63,11 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
   const { t, language } = useI18n();
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-auto">
-      <div className="grid-bg pointer-events-none absolute inset-0 opacity-40" />
-      <div className="pointer-events-none absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full bg-accent-600/[0.13] blur-[100px]" />
-      <div className="pointer-events-none absolute right-0 top-1/3 h-[360px] w-[360px] rounded-full bg-mint-500/[0.06] blur-[110px]" />
-
+    <div className="relative flex h-full min-h-0 flex-col overflow-auto bg-studio-950">
       <div className="relative z-10 mx-auto flex w-full max-w-[1100px] flex-1 flex-col justify-center px-10 py-10">
         <div className="grid gap-10 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="animate-slide-up">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent-500/25 bg-accent-500/[0.08] px-3 py-1 text-[10px] font-semibold tracking-wide text-accent-300">
+            <div className="mb-5 inline-flex items-center gap-2 rounded border border-accent-500/30 bg-accent-500/[0.08] px-3 py-1 text-[10px] font-semibold tracking-wide text-accent-300">
               <Sparkles size={12} />
               {t("welcome.badge")}
             </div>
@@ -112,18 +108,18 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                 ) : null}
               </div>
               {recent.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/[0.09] bg-white/[0.015] px-4 py-5 text-[11px] leading-5 text-studio-500">
+                <div className="rounded border border-dashed border-white/[0.09] bg-white/[0.015] px-4 py-5 text-[11px] leading-5 text-studio-500">
                   {t("welcome.noRecent")}
                 </div>
               ) : (
-                <div className="divide-y divide-white/[0.05] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <div className="divide-y divide-white/[0.05] overflow-hidden rounded border border-white/[0.07] bg-white/[0.02]">
                   {recent.slice(0, 4).map((item) => (
                     <button
                       key={item.path}
                       className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/[0.045]"
                       onClick={() => void runAction(() => openProject(item.path))}
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.07] bg-gradient-to-br from-accent-500/20 to-cyan-400/10 text-[10px] font-bold text-accent-200">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/[0.07] bg-accent-500/15 text-[10px] font-bold text-accent-300">
                         {item.name.slice(0, 2).toUpperCase()}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -154,15 +150,14 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
           </div>
 
           <div className="space-y-3 animate-slide-up" style={{ animationDelay: "70ms" }}>
-            <div className="panel relative overflow-hidden rounded-2xl p-4 shadow-panel">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent-500/10 blur-2xl" />
+            <div className="panel relative overflow-hidden rounded p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[9.5px] font-semibold tracking-[0.16em] text-studio-500">
                   {t("welcome.status")}
                 </span>
                 <span
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold",
+                    "flex items-center gap-1.5 rounded px-2 py-0.5 text-[9px] font-semibold",
                     cli?.ready
                       ? "bg-mint-400/10 text-mint-400"
                       : "bg-amber-400/10 text-amber-300",
@@ -210,11 +205,11 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
               </div>
 
               {!desktop ? (
-                <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
+                <div className="mt-3 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
                   {t("welcome.browserWarning")}
                 </div>
               ) : !cli?.ready ? (
-                <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
+                <div className="mt-3 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
                   {cli?.error || t("welcome.cliMissing")}
                 </div>
               ) : null}
@@ -235,7 +230,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
               </div>
             </div>
 
-            <div className="panel rounded-2xl p-4">
+            <div className="panel rounded p-4">
               <div className="flex items-center gap-2">
                 <Rocket size={14} className="text-mint-400" />
                 <span className="text-[11.5px] font-semibold text-studio-100">{t("welcome.steps")}</span>
@@ -247,7 +242,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                   [t("welcome.stepRelease"), t("welcome.stepReleaseDetail")],
                 ].map(([title, detail], index) => (
                   <div key={title} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] font-mono text-[9px] text-studio-300">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-white/[0.08] bg-white/[0.04] font-mono text-[9px] text-studio-300">
                       {index + 1}
                     </span>
                     <span>
@@ -258,7 +253,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                 ))}
               </div>
               <button
-                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.025] py-1.5 text-[10px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded border border-white/[0.07] bg-white/[0.025] py-1.5 text-[10px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
                 onClick={() => commands.docs("miniapps")}
               >
                 {t("welcome.guide")} <ArrowRight size={11} />
@@ -322,8 +317,8 @@ function MiniFeature({
   detail: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-accent-300">
+    <div className="flex items-center gap-2.5 rounded px-2 py-1.5">
+      <span className="flex h-7 w-7 items-center justify-center rounded border border-white/[0.06] bg-white/[0.03] text-accent-300">
         {icon}
       </span>
       <span>
@@ -581,7 +576,7 @@ function EmptyEditor() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-studio-900/20 p-8">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-gradient-to-br from-accent-500/15 to-cyan-400/5 text-accent-300">
+      <div className="flex h-14 w-14 items-center justify-center rounded border border-white/[0.08] bg-accent-500/10 text-accent-300">
         <FileCode2 size={24} />
       </div>
       <div className="text-center">
