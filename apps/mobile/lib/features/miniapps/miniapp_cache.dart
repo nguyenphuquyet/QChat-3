@@ -428,7 +428,13 @@ class MiniAppCache {
       final name = p
           .relative(entity.path, from: directory.path)
           .replaceAll('\\', '/');
-      if (name == _readyFile || name == 'metadata.json') continue;
+      if (name == _readyFile) continue;
+      // `manifest.json` and `permissions.json` are checked above and are not
+      // payload rows in `metadata.json`; `metadata.json` is not a payload row
+      // either. `index.html` is the one core file that is both.
+      if (_webappCoreFiles.contains(name) && !expected.containsKey(name)) {
+        continue;
+      }
       final row = expected[name];
       if (row == null) {
         throw const MiniAppCacheException('UNEXPECTED_FILE');
