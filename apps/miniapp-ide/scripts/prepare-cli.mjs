@@ -305,7 +305,6 @@ function copyNodeRuntime() {
 }
 
 function main() {
-  assertBundleResources();
   ensureFrameworkBuild();
 
   const frameworkPackage = JSON.parse(
@@ -328,6 +327,7 @@ function main() {
     try {
       const previous = JSON.parse(readFileSync(markerPath, "utf8"));
       if (JSON.stringify(previous) === JSON.stringify(stamp)) {
+        assertBundleResources();
         console.log(
           `prepare-cli: resources are up to date (${formatSize(dirSize(qappDir))}).`,
         );
@@ -347,6 +347,10 @@ function main() {
   const assets = copyFrameworkAssets();
   const dependencies = copyDependencies();
   const node = copyNodeRuntime();
+
+  // Tauri errors on a `bundle.resources` glob that matches nothing, but only
+  // after the Rust build. Verify the configured bases once the resources exist.
+  assertBundleResources();
 
   writeFileSync(markerPath, `${JSON.stringify(stamp, null, 2)}\n`);
 
