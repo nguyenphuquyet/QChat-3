@@ -1,0 +1,19 @@
+.qchat-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 1.4rem;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+  background: transparent;
+  border: 0;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.qchat-input::placeholder {
+  color: var(--qchat-input-placeholder-color, #999999);
+}

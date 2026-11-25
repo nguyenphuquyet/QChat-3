@@ -9,6 +9,8 @@ on:
     paths:
       - 'apps/miniapp-ide/**'
       - 'packages/miniapp-framework/**'
+      - 'packages/miniapp-examples/wechat-demo/**'
+      - 'packages/contracts/miniapps.ts'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -18,6 +20,8 @@ on:
     paths:
       - 'apps/miniapp-ide/**'
       - 'packages/miniapp-framework/**'
+      - 'packages/miniapp-examples/wechat-demo/**'
+      - 'packages/contracts/miniapps.ts'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - 'package.json'
@@ -61,6 +65,9 @@ jobs:
       - name: Build the QChat framework CLI
         run: corepack pnpm --filter @mna/qchat build
 
+      - name: Test the QChat framework
+        run: corepack pnpm --filter @mna/qchat test
+
       - name: Typecheck the IDE
         run: corepack pnpm --filter @qchat/miniapp-ide typecheck
 
@@ -71,62 +78,51 @@ jobs:
         run: |
           corepack pnpm --filter @qchat/miniapp-ide prepare:cli
           node apps/miniapp-ide/src-tauri/resources/qapp/cli.js version
-          test -f apps/miniapp-ide/src-tauri/resources/qapp/node_modules/typescript/bin/tsc
-          test -f apps/miniapp-ide/src-tauri/resources/qapp/node_modules/esbuild/lib/main.js
-          test -d apps/miniapp-ide/src-tauri/resources/qapp/node_modules/@esbuild
-          test -f apps/miniapp-ide/src-tauri/resources/types/qchat-env.d.ts
-          test -f apps/miniapp-ide/src-tauri/resources/qapp/types/qchat-env.d.ts
+          test -f apps/miniapp-ide/src-tauri/resources/qapp/dist/builder.js
+          test -f apps/miniapp-ide/src-tauri/resources/qapp/builtin/view/view.wxml
+          test -f apps/miniapp-ide/src-tauri/resources/qapp/runtime/host.js
+          test -f apps/miniapp-ide/src-tauri/resources/qapp/node_modules/webpack/package.json
+          test -f apps/miniapp-ide/src-tauri/resources/qapp/node_modules/glass-easel/package.json
 
-      # A QuickJS-only project outside the checkout: no `@types/node`, no DOM
-      # lib. This is the layout an installed Studio builds, and it is where a
-      # missing `qchat-env.d.ts` shows up as "Cannot find name 'console'".
-      - name: Typecheck a QuickJS-only project with the bundled CLI
+      # A WeChat-shaped project outside the checkout, built by the packaged CLI.
+      # This is the layout an installed Studio builds.
+      - name: Build a WeChat-shaped probe with the bundled CLI
         run: |
-          probe="$RUNNER_TEMP/qapp-probe"
-          mkdir -p "$probe/src"
+          probe="$RUNNER_TEMP/wechat-probe"
+          mkdir -p "$probe/pages/index"
+          cat > "$probe/app.json" <<'JSON'
+          {
+            "pages": ["pages/index/index"],
+            "window": { "navigationBarTitleText": "Probe" }
+          }
+          JSON
+          cat > "$probe/app.js" <<'JS'
+          App({ globalData: { title: "Probe" } });
+          JS
+          cat > "$probe/app.wxss" <<'CSS'
+          page { background-color: #ffffff; }
+          CSS
           cat > "$probe/manifest.json" <<'JSON'
           {
-            "schemaVersion": 2,
-            "format": "qapp",
             "name": "Probe",
-            "description": "Typecheck probe",
             "version": "1.0.0",
-            "entry": "app.js",
-            "sdkVersion": "1.0.0",
-            "minRuntimeVersion": "1.0.0",
-            "requestedPermissions": ["toast"],
-            "source": "src/main.tsx"
+            "requestedPermissions": ["toast"]
           }
           JSON
-          cat > "$probe/tsconfig.json" <<'JSON'
-          {
-            "compilerOptions": {
-              "target": "ES2020",
-              "lib": ["ES2020"],
-              "module": "ESNext",
-              "moduleResolution": "Bundler",
-              "strict": true,
-              "skipLibCheck": true,
-              "noEmit": true,
-              "jsx": "react-jsx",
-              "jsxImportSource": "@mna/qchat"
-            },
-            "include": ["src/**/*.ts", "src/**/*.tsx"]
-          }
-          JSON
-          cat > "$probe/src/main.tsx" <<'TSX'
-          import { Text } from "@mna/qchat/ui";
-          import "@mna/qchat/env/auto";
-
-          export function App() {
-            const id = setInterval(() => console.log("tick"), 1000);
-            clearInterval(id);
-            setTimeout(() => console.info("later"), 10);
-            return <Text>probe</Text>;
-          }
-          TSX
+          cat > "$probe/pages/index/index.js" <<'JS'
+          Page({
+            data: { title: "" },
+            onLoad() { this.setData({ title: getApp().globalData.title }); },
+            noop() {},
+          });
+          JS
+          cat > "$probe/pages/index/index.wxml" <<'WXML'
+          <view><text>{{title}}</text><button bindtap="noop">ok</button></view>
+          WXML
           node apps/miniapp-ide/src-tauri/resources/qapp/cli.js build \
-            --dir "$probe" --out "$RUNNER_TEMP/qapp-probe.japp"
+            "$probe" --out "$RUNNER_TEMP/wechat-probe.japp"
+          node apps/miniapp-ide/src-tauri/resources/qapp/cli.js inspect \
+            "$RUNNER_TEMP/wechat-probe.japp"
 
   build:
     name: Build ${{ matrix.name }} installer
@@ -200,7 +196,7 @@ jobs:
         with:
           workspaces: apps/miniapp-ide/src-tauri -> target
 
-      - name: Bundle CLI, esbuild, TypeScript and Node
+      - name: Bundle CLI and Node
         run: corepack pnpm prepare:cli
 
       - name: Build Tauri installers

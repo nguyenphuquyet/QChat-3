@@ -1,91 +1,54 @@
+/// Public surface of the QChat Mini Program toolchain.
+///
+/// A Mini Program is a WeChat-shaped project (`app.json`, `app.js`, `app.wxss`,
+/// `pages/**`, `components/**`). QChat does not compile WXML or WXSS: it
+/// orchestrates the official `glass-easel-miniprogram-webpack-plugin` and its
+/// template/stylesheet compilers, then packages the output into the verified
+/// `.japp` container the Flutter host serves.
+///
+/// [buildMiniProgram] is the supported entry point. [loadMiniProgram] exposes the
+/// validated project model for editors and the CLI.
+
 export {
-  h,
-  node,
-  Fragment,
-  start,
-  dispose,
-  useState,
-  useReducer,
-  useRef,
-  useMemo,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useId,
-  createContext,
-  useContext,
-  useLifecycle,
-  getRenderTree,
-  dispatchEvent,
-  hostNodeTypes,
-} from "./runtime.js";
-export type {
-  VNode,
-  VNodeChild,
-  Component,
-  Context,
-  ContextProvider,
-} from "./runtime.js";
-export {
-  PROTOCOL_VERSION,
-  SDK_VERSION,
+  BUILDER_VERSION,
+  BuildError,
+  METADATA_FORMAT_VERSION,
+  PACKAGE_ENTRY,
+  PACKAGE_FORMAT,
+  PACKAGE_SCHEMA_VERSION,
   RUNTIME_VERSION,
-  QChatError,
-} from "./protocol.js";
-export type {
-  Style,
-  BaseProps,
-  EventName,
-  EventPayload,
-  RenderNode,
-  RenderTree,
-  HostMethod,
-  HostBridge,
-  HostError,
-  HostResponse,
-  QappBoxShadow,
-  QappGradient,
-  QappGradientStop,
-  QappLinearGradient,
-  QappRadialGradient,
-  QappRef,
-  QappEvent,
-  QappTextEvent,
-  QappToggleEvent,
-  QappNumberEvent,
-  QappScrollEvent,
-  QappTabEvent,
-} from "./protocol.js";
-export { normalizeStyleEnum } from "./protocol.js";
+  buildAppConfig,
+  buildMiniProgram,
+  readPackageManifest,
+  renderIndexHtml,
+  type AppConfig,
+  type BuildDiagnostic,
+  type BuildOptions,
+  type BuiltMiniProgram,
+  type MiniProgramManifest,
+  type MiniProgramMetadata,
+} from "./builder.js";
 export {
-  getAppInfo,
-  getSystemInfo,
-  getUserInfo,
-  chooseImage,
-  share,
-} from "./app.js";
-export type {
-  AppInfo,
-  SystemInfo,
-  UserInfo,
-  ChosenImage,
-} from "./app.js";
-export {
-  navigateTo,
-  navigateBack,
-  closeMiniApp,
-  showToast,
-  openExternal,
-} from "./navigation.js";
-export {
-  getStorage,
-  setStorage,
-  removeStorage,
-  createStorage,
-} from "./storage.js";
-export {
-  request,
-  fetch,
-  fetchJson,
-} from "./network.js";
-export type { RequestOptions, FetchOptions, FetchResponse } from "./network.js";
+  MiniProgramError,
+  inlineWxss,
+  loadMiniProgram,
+  resolveComponentBase,
+  rewriteWxmlAssets,
+  stripBom,
+  toPosix,
+  type AppJson,
+  type LoadOptions,
+  type ManifestOverrides,
+  type MiniProgramAsset,
+  type MiniProgramComponent,
+  type MiniProgramPage,
+  type MiniProgramProgram,
+  type MiniProgramScript,
+  type MiniProgramTemplate,
+  type PageJson,
+  type ProjectConfig,
+  type TabBarConfig,
+  type TabBarItem,
+  type WindowConfig,
+} from "./wechat.js";
+export { crc32, readZip, writeZip, type ZipEntry, type ZipEntryInput } from "./zip.js";

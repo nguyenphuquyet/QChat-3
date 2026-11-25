@@ -2,7 +2,7 @@
   "name": "@qchat/miniapp-ide",
   "private": true,
   "version": "1.0.0",
-  "description": "QChat Mini App Studio — a desktop IDE for building TSX mini apps",
+  "description": "QChat Mini App Studio — a desktop IDE for WeChat-shaped Mini Programs",
   "type": "module",
   "scripts": {
     "dev": "vite",

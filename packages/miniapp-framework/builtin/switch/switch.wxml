@@ -1,0 +1,1 @@
+<span class="qchat-switch {{checked ? 'qchat-switch--on' : ''}} {{disabled ? 'qchat-switch--disabled' : ''}} {{type === 'checkbox' ? 'qchat-switch--checkbox' : ''}}" style="{{checked ? 'background-color:' + color : ''}}" bindtap="onTap"><span class="qchat-switch__thumb"><span wx:if="{{type === 'checkbox'}}" class="qchat-switch__check">✓</span></span></span>

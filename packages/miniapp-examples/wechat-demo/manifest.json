@@ -1,0 +1,6 @@
+{
+  "name": "QChat WeChat Demo",
+  "version": "1.0.0",
+  "description": "A WeChat-shaped Mini Program that exercises the Phase 2 built-in components.",
+  "requestedPermissions": ["toast", "storage"]
+}

@@ -1,5 +1,12 @@
 # QChat Mini App Studio
 
+> **Not yet ported (2026-11-25).** The framework CLI now builds WeChat-shaped
+> projects with the official `glass-easel` Webpack pipeline. The Studio's editor
+> still targets the retired TSX `qapp` format; `prepare:cli` bundles the new CLI
+> so packaged builds keep working, but the editor UI must be ported before this
+> app can author Mini Programs. See
+> [`docs/WXML-COMPILER-INTEGRATION.md`](../../docs/WXML-COMPILER-INTEGRATION.md).
+
 Desktop IDE for native QChat mini apps. It edits TSX projects, runs the real
 `@mna/qchat` CLI, typechecks with the bundled SDK typings and produces
 `.japp` packages for the Flutter QuickJS runtime. It is **not** a WebView app
@@ -30,15 +37,18 @@ corepack pnpm prepare:cli
 corepack pnpm tauri dev
 ```
 
-`prepare:cli` copies the whole compiled SDK — subdirectories included, so
-`@mna/qchat/env` ships with it — plus esbuild (with the platform binary) and
-TypeScript into `src-tauri/resources/qapp`, and the QuickJS declarations into
-both `src-tauri/resources/types` and `src-tauri/resources/qapp/types`. The
-compiler accepts either location, and `tauri.conf.json` bundles both: a Studio
-that ships the CLI without `qchat-env.d.ts` type-checks `console`, `setTimeout`
-and `URL` as `Cannot find name`, which is exactly the error an incomplete
-resource set produces. Without the CLI copy the packaged app cannot build
-projects at all, although the IDE still detects a CLI from the repo checkout.
+`prepare:cli` copies the compiled CLI into `src-tauri/resources/qapp` together
+with `builtin/`, `runtime/`, `package.json` and a flattened production
+`node_modules` tree (webpack, the official glass-easel loaders and their
+transitive dependencies). `resources/qapp/cli.js` is a small shim that imports
+`dist/cli.js`; the `dist/` layout is preserved because the builder resolves
+`builtin/`, `runtime/` and `package.json` from its own directory's parent.
+Without that resource set the packaged app cannot build projects at all,
+although the IDE still detects a CLI from the repo checkout.
+
+The editor UI still targets the retired TSX format; only the CLI pipeline has
+been ported to WXML/WXSS. See
+[`docs/WXML-COMPILER-INTEGRATION.md`](../../docs/WXML-COMPILER-INTEGRATION.md).
 
 Browser-only UI work:
 
@@ -86,8 +96,8 @@ after changing settings.
   `src/lib/qchat-sdk.generated.ts`, so the editor and the device runtime never
   disagree; run `corepack pnpm contract:generate` at the repository root after
   changing the contract.
-- Project creation through `qapp create`, with starter, counter and blank
-  templates, permission and network-domain selection.
+- Project creation through `qchat create`, with starter, counter and blank
+  templates, permission selection.
 - Build (`Ctrl+B`), build without typecheck (`Ctrl+Shift+B`), runtime test
   (`Ctrl+T`), validate and inspect, with streamed CLI output and artifacts.
 - Dev watcher (`F5`) bridged over Tauri events, with stop, logs and exit code.
@@ -172,7 +182,7 @@ can be added the same way if a branded header is wanted.
 ## Resource preparation
 
 ```sh
-corepack pnpm prepare:cli              # CLI + esbuild + TypeScript
+corepack pnpm prepare:cli              # CLI + built-ins + runtime + node_modules
 corepack pnpm prepare:cli -- --force   # rebuild even when the marker matches
 corepack pnpm prepare:cli -- --with-node
 ```
@@ -234,7 +244,9 @@ core path and core window permissions are granted.
 - `corepack pnpm typecheck` and `corepack pnpm build` run for the frontend in the
   workflow above.
 - The bundled resource set builds a real `.japp` through
-  `resources/qapp/cli.js build`, including typechecking and esbuild.
+  `resources/qapp/cli.js build` with the official glass-easel Webpack pipeline.
+- The editor UI still authors the retired TSX format, so an end-to-end Studio
+  build of a WXML project is **not** verified yet.
 - `cargo check`, `tauri dev` and installer builds are **unverified on this
   machine** because no Rust toolchain is installed; they run only in the
   workflow above or on a Rust-equipped host.

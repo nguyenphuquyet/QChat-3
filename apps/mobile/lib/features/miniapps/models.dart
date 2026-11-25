@@ -125,25 +125,26 @@ class MiniAppDetail extends MiniAppSummary {
       openedAt: summary.openedAt,
       supportUrl: _string(json['supportUrl']),
       privacyUrl: _string(json['privacyUrl']),
-      minRuntimeVersion: _string(json['minRuntimeVersion'], '1.0.0'),
+      minRuntimeVersion: _string(json['minRuntimeVersion'], '2.0.0'),
       size: _int(json['size']),
-      runtimeVersion: _string(json['runtimeVersion'], '1.0.0'),
+      runtimeVersion: _string(json['runtimeVersion'], '2.0.0'),
     );
   }
 }
 
 class MiniAppManifest {
   const MiniAppManifest({
-    this.schemaVersion = 2,
+    this.schemaVersion = 3,
     required this.name,
     required this.description,
     required this.version,
-    this.entry = 'app.js',
-    this.minRuntimeVersion = '1.0.0',
+    this.entry = 'index.html',
+    this.minRuntimeVersion = '2.0.0',
     required this.requestedPermissions,
-    this.format = 'qapp',
+    this.format = 'webapp',
     this.sdkVersion,
     this.buildHash,
+    this.themeColor,
   });
 
   final int schemaVersion;
@@ -154,29 +155,31 @@ class MiniAppManifest {
   final String minRuntimeVersion;
   final List<String> requestedPermissions;
 
-  /// Internal package format id. Native `.japp` packages always use `qapp`.
+  /// Internal package format id. Every `.japp` is a static web package.
   final String format;
   final String? sdkVersion;
   final String? buildHash;
+  final String? themeColor;
 
   factory MiniAppManifest.fromJson(Map<String, dynamic> json) {
-    final schemaVersion = _int(json['schemaVersion'], 2);
+    final schemaVersion = _int(json['schemaVersion'], 3);
     final declared = _string(json['format']).trim().toLowerCase();
     return MiniAppManifest(
       schemaVersion: schemaVersion,
       name: _string(json['name']),
       description: _string(json['description']),
       version: _string(json['version']),
-      entry: _string(json['entry'], 'app.js'),
-      minRuntimeVersion: _string(json['minRuntimeVersion'], '1.0.0'),
+      entry: _string(json['entry'], 'index.html'),
+      minRuntimeVersion: _string(json['minRuntimeVersion'], '2.0.0'),
       requestedPermissions: _strings(json['requestedPermissions']),
       // A package without a format field is classified by its schema version,
-      // so a legacy `schemaVersion: 1` manifest can never masquerade as qapp.
+      // so an old `schemaVersion: 2` manifest can never masquerade as a web app.
       format: declared.isEmpty
-          ? (schemaVersion >= 2 ? 'qapp' : 'webview')
+          ? (schemaVersion >= 3 ? 'webapp' : 'legacy')
           : declared,
       sdkVersion: json['sdkVersion']?.toString(),
       buildHash: json['buildHash']?.toString(),
+      themeColor: json['themeColor']?.toString(),
     );
   }
 }
@@ -192,7 +195,7 @@ class MiniAppBuild {
     required this.requestedPermissions,
     required this.manifest,
     required this.url,
-    this.format = 'qapp',
+    this.format = 'webapp',
     this.sdkVersion,
     this.expiresAt,
   });

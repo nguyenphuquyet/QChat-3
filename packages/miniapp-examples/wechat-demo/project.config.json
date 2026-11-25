@@ -1,0 +1,10 @@
+{
+  "projectname": "qchat-wechat-demo",
+  "compileType": "miniprogram",
+  "libVersion": "3.0.0",
+  "appid": "touristappid",
+  "setting": {
+    "es6": true,
+    "minified": false
+  }
+}

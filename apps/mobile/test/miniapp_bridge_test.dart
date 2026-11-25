@@ -70,9 +70,9 @@ class Harness {
       appId: _appId,
       appName: 'Demo',
       version: '1.0.0',
-      entry: 'app.js',
-      runtimeVersion: '1.0.0',
-      minRuntimeVersion: '1.0.0',
+      entry: 'index.html',
+      runtimeVersion: '2.0.0',
+      minRuntimeVersion: '2.0.0',
       permissions: permissions,
       api: api,
       storage: storage,
@@ -136,9 +136,7 @@ class Harness {
   }
 
   Map<String, dynamic>? errorOf(Map<String, dynamic> response) =>
-      response['error'] is Map
-      ? Map<String, dynamic>.from(response['error'] as Map)
-      : null;
+      response['ok'] == false ? response : null;
 }
 
 void main() {
@@ -163,7 +161,7 @@ void main() {
       final result = response['result'] as Map<String, dynamic>;
       expect(result['appId'], _appId);
       expect(result['version'], '1.0.0');
-      expect(result['format'], 'qapp');
+      expect(result['format'], 'webapp');
       expect(result['permissions'], contains('storage'));
       expect(harness.permissionRequests, isEmpty);
     },

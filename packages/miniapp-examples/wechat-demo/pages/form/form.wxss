@@ -1,0 +1,6 @@
+.row input,
+.row textarea {
+  background-color: #ffffff;
+  border-radius: 12rpx;
+  padding: 12rpx 16rpx;
+}

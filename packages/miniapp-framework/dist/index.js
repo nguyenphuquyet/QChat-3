@@ -1,8 +1,14 @@
-export { h, node, Fragment, start, dispose, useState, useReducer, useRef, useMemo, useCallback, useEffect, useLayoutEffect, useId, createContext, useContext, useLifecycle, getRenderTree, dispatchEvent, hostNodeTypes, } from "./runtime.js";
-export { PROTOCOL_VERSION, SDK_VERSION, RUNTIME_VERSION, QChatError, } from "./protocol.js";
-export { normalizeStyleEnum } from "./protocol.js";
-export { getAppInfo, getSystemInfo, getUserInfo, chooseImage, share, } from "./app.js";
-export { navigateTo, navigateBack, closeMiniApp, showToast, openExternal, } from "./navigation.js";
-export { getStorage, setStorage, removeStorage, createStorage, } from "./storage.js";
-export { request, fetch, fetchJson, } from "./network.js";
+/// Public surface of the QChat Mini Program toolchain.
+///
+/// A Mini Program is a WeChat-shaped project (`app.json`, `app.js`, `app.wxss`,
+/// `pages/**`, `components/**`). QChat does not compile WXML or WXSS: it
+/// orchestrates the official `glass-easel-miniprogram-webpack-plugin` and its
+/// template/stylesheet compilers, then packages the output into the verified
+/// `.japp` container the Flutter host serves.
+///
+/// [buildMiniProgram] is the supported entry point. [loadMiniProgram] exposes the
+/// validated project model for editors and the CLI.
+export { BUILDER_VERSION, BuildError, METADATA_FORMAT_VERSION, PACKAGE_ENTRY, PACKAGE_FORMAT, PACKAGE_SCHEMA_VERSION, RUNTIME_VERSION, buildAppConfig, buildMiniProgram, readPackageManifest, renderIndexHtml, } from "./builder.js";
+export { MiniProgramError, inlineWxss, loadMiniProgram, resolveComponentBase, rewriteWxmlAssets, stripBom, toPosix, } from "./wechat.js";
+export { crc32, readZip, writeZip } from "./zip.js";
 //# sourceMappingURL=index.js.map

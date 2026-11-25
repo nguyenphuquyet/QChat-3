@@ -1,0 +1,1 @@
+<span class="qchat-checkbox {{checked ? 'qchat-checkbox--on' : ''}} {{disabled ? 'qchat-checkbox--disabled' : ''}}" bindtap="onTap"><span class="qchat-checkbox__box" style="{{checked ? 'background-color:' + color + ';border-color:' + color : ''}}"><span class="qchat-checkbox__mark">✓</span></span><span class="qchat-checkbox__label"><slot /></span></span>

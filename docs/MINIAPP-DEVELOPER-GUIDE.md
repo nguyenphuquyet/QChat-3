@@ -1,5 +1,14 @@
 # QChat Mini Apps — Hướng dẫn phát triển đầy đủ
 
+> **Đã ngừng (2026-11-25).** Runtime và SDK `qapp` (TSX/QuickJS) đã bị gỡ bỏ.
+> Mini App bây giờ là một dự án đúng chuẩn WeChat (`app.json`, `app.js`,
+> `app.wxss`, `pages/<route>/{js,json,wxml,wxss}`, `components/`) và được build
+> bằng pipeline Webpack chính thức của `glass-easel`. Xem
+> [`docs/WXML-COMPILER-INTEGRATION.md`](./WXML-COMPILER-INTEGRATION.md),
+> [`docs/BUILTIN-COMPONENTS-AUDIT.md`](./BUILTIN-COMPONENTS-AUDIT.md) và mẫu
+> `packages/miniapp-examples/wechat-demo/`. Toàn bộ nội dung bên dưới mô tả định
+> dạng cũ và chỉ còn giá trị lịch sử/di trú.
+
 Tài liệu này là bản tham chiếu duy nhất cho việc viết một Mini App chạy trong
 QChat: kiến trúc, CLI, manifest, vòng đời, hooks, toàn bộ component, hệ style,
 API host, giới hạn đóng gói, kiểm thử và các lỗi thường gặp.

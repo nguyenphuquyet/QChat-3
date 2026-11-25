@@ -1,0 +1,1 @@
+<span class="qchat-radio {{checked ? 'qchat-radio--on' : ''}} {{disabled ? 'qchat-radio--disabled' : ''}}" bindtap="onTap"><span class="qchat-radio__box" style="{{checked ? 'border-color:' + color : ''}}"><span class="qchat-radio__dot" style="{{checked ? 'background-color:' + color : ''}}"></span></span><span class="qchat-radio__label"><slot /></span></span>

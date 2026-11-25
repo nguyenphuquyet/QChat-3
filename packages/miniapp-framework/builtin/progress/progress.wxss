@@ -1,0 +1,51 @@
+.qchat-progress {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.qchat-progress__bar {
+  flex: 1;
+  overflow: hidden;
+}
+
+.qchat-progress__fill {
+  height: 100%;
+  transition: width 0.2s;
+}
+
+.qchat-progress__fill--active {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
+  background-size: 16px 16px;
+  animation-name: qchat-progress-stripes;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+.qchat-progress__fill--forwards {
+  animation-direction: reverse;
+}
+
+.qchat-progress__info {
+  margin-left: 8px;
+  color: inherit;
+  white-space: nowrap;
+}
+
+@keyframes qchat-progress-stripes {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 16px 0;
+  }
+}

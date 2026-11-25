@@ -1,0 +1,1 @@
+<textarea class="qchat-textarea {{placeholderClass}}" style="{{placeholderColor ? '--qchat-textarea-placeholder-color:' + placeholderColor : ''}}" placeholder="{{placeholder}}" disabled="{{disabled}}" maxlength="{{nativeMaxlength}}" enterkeyhint="{{confirmType}}">{{value}}</textarea>

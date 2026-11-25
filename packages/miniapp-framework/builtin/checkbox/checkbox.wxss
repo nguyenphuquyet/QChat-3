@@ -1,0 +1,39 @@
+.qchat-checkbox {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.qchat-checkbox__box {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  margin-right: 5px;
+  background-color: #ffffff;
+  border: 1px solid #d1d1d1;
+  border-radius: 4px;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.qchat-checkbox__mark {
+  display: block;
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+  visibility: hidden;
+}
+
+.qchat-checkbox--on .qchat-checkbox__mark {
+  visibility: visible;
+}
+
+.qchat-checkbox--disabled {
+  opacity: 0.4;
+}
+
+.qchat-checkbox__label {
+  display: inline-block;
+}

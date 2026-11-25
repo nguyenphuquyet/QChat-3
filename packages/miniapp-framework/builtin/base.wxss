@@ -1,0 +1,172 @@
+/*
+ * QChat's base stylesheet for the WeChat built-in components.
+ *
+ * The official stylesheet compiler prefixes every tag selector with the host
+ * prefix (`page` -> `wx-page`, `view` -> `wx-view`), and these rules target the
+ * host element of each built-in. They are intentionally tag selectors, not
+ * `:host` rules inside a component: an author's `view { ... }` must be able to
+ * override a built-in default, and `:host` (an attribute selector) would win.
+ *
+ * Visual values are WeChat's documented defaults where WeChat documents one
+ * (image 320x240, button 46px tall, progress 6px stroke) and a neutral QChat
+ * approximation otherwise. The built-in implementation is QChat's, not
+ * WeChat's: see docs/BUILTIN-COMPONENTS-AUDIT.md for the exact gaps.
+ */
+
+page {
+  display: block;
+  min-height: 100%;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-size: 16px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+view {
+  display: block;
+}
+
+text {
+  display: inline;
+}
+
+button {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: 184px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 12px 24px;
+  overflow: hidden;
+  color: #000000;
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.41176471;
+  text-align: center;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 8px;
+  background-color: #f2f2f2;
+  cursor: pointer;
+}
+
+button::after {
+  border: none;
+}
+
+button.qchat-button--mini {
+  display: inline-block;
+  width: auto;
+  padding: 4px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+button.qchat-button--primary {
+  color: #ffffff;
+  background-color: #07c160;
+}
+
+button.qchat-button--warn {
+  color: #ffffff;
+  background-color: #fa5151;
+}
+
+button.qchat-button--plain {
+  color: #07c160;
+  background-color: transparent;
+  border: 1px solid #07c160;
+}
+
+button.qchat-button--warn.qchat-button--plain {
+  color: #fa5151;
+  border-color: #fa5151;
+}
+
+button.qchat-button--disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+image {
+  display: inline-block;
+  width: 320px;
+  height: 240px;
+  overflow: hidden;
+}
+
+scroll-view {
+  display: block;
+  overflow: hidden;
+}
+
+input {
+  display: block;
+  box-sizing: border-box;
+  height: 1.4rem;
+  min-height: 1.4rem;
+  font-size: inherit;
+  line-height: 1.4;
+}
+
+textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 300px;
+  height: 150px;
+  font-size: inherit;
+  line-height: 1.4;
+}
+
+switch {
+  display: inline-block;
+}
+
+checkbox {
+  display: inline-block;
+}
+
+checkbox-group {
+  display: block;
+}
+
+radio {
+  display: inline-block;
+}
+
+radio-group {
+  display: block;
+}
+
+slider {
+  display: block;
+  margin: 10px 18px;
+  padding: 0;
+}
+
+navigator {
+  display: block;
+}
+
+progress {
+  display: block;
+}
+
+/*
+ * WeChat's documented default hover classes. The author can override them in
+ * their own stylesheet, exactly like WeChat's built-ins.
+ */
+.button-hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  opacity: 0.7;
+}
+
+.navigator-hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  opacity: 0.7;
+}

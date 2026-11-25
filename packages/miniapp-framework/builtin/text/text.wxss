@@ -1,0 +1,8 @@
+.qchat-text {
+  display: inline;
+}
+
+.qchat-text--selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}

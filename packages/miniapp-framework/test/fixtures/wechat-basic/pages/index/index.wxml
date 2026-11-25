@@ -1,0 +1,7 @@
+﻿<view class="page" id="page">
+  <text id="count">{{count}}</text>
+  <button id="inc" bind:tap="inc">plus</button>
+  <view wx:if="{{show}}" id="shown">shown</view>
+  <view wx:for="{{items}}" wx:key="*this" class="row">{{item}}</view>
+  <card title="{{title}}" bind:cardtap="onCard" />
+</view>

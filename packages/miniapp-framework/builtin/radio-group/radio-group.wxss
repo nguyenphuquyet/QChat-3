@@ -1,0 +1,4 @@
+/*
+ * The group is only a selector; its children draw the circles. The base
+ * stylesheet gives the host `display: block` like WeChat's.
+ */

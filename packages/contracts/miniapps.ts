@@ -79,40 +79,97 @@ export const httpsUrlSchema = z
     message: "HTTPS URL required",
   });
 
-/// `manifest.json` for a native `.japp` package. The app id is assigned by the
+/// `manifest.json` for a web Mini App package. The app id is assigned by the
 /// server from the app record, so it must not appear in the upload.
-export const qappManifestSchema = z
+///
+/// A web package is a static site: `index.html` is the entry, every other file
+/// lives under `assets/`, and the Flutter host serves the verified directory to
+/// a WebView over a loopback HTTP server. No remote code is ever loaded.
+export const webappManifestSchema = z
   .object({
-    schemaVersion: z.literal(2),
-    format: z.literal("qapp"),
+    schemaVersion: z.literal(3),
+    format: z.literal("webapp"),
     name: z.string().trim().min(1).max(60),
     description: z.string().trim().max(500).default(""),
     version: semverSchema,
-    entry: z.literal("app.js"),
-    sdkVersion: semverSchema,
-    minRuntimeVersion: semverSchema.default("1.0.0"),
+    entry: z.literal("index.html"),
+    minRuntimeVersion: semverSchema.default("2.0.0"),
     requestedPermissions: z
       .array(z.enum(miniappPermissionIds as [string, ...string[]]))
       .max(miniappPermissionIds.length)
       .default([]),
-    appSha256: z
+    /// Optional accent colour a host may use for the status bar or splash.
+    themeColor: z
       .string()
-      .regex(/^[a-f0-9]{64}$/)
-      .optional(),
-    buildHash: z
-      .string()
-      .regex(/^[a-f0-9]{64}$/)
+      .regex(/^#[0-9a-fA-F]{6}$/)
       .optional(),
   })
   .strict();
-export type QappManifest = z.infer<typeof qappManifestSchema>;
+export type WebappManifest = z.infer<typeof webappManifestSchema>;
 
-export const runtimeVersion = "1.0.0";
+/// Metadata written by the packager. It repeats the entry hash and lists every
+/// payload file so the server and the device can verify the archive before any
+/// code is served to the WebView.
+export const webappMetadataSchema = z
+  .object({
+    formatVersion: z.literal(2),
+    builderVersion: z.string().min(1).max(40),
+    version: semverSchema,
+    entry: z.literal("index.html"),
+    builtAt: z.string().datetime(),
+    entrySha256: z.string().regex(/^[a-f0-9]{64}$/),
+    files: z
+      .array(
+        z
+          .object({
+            path: z.string().min(1).max(300),
+            sha256: z.string().regex(/^[a-f0-9]{64}$/),
+            size: z.number().int().min(0),
+          })
+          .strict(),
+      )
+      .max(2000),
+  })
+  .strict();
+export type WebappMetadata = z.infer<typeof webappMetadataSchema>;
 
-/// Paths a Mini App may read through `QChat.request`. Anything else is
+export const runtimeVersion = "2.0.0";
+
+/// Paths a Mini App may read through `qchat.request`. Anything else is
 /// rejected by the host before a QChat token is ever used.
 export const miniappApiAllowlist: Record<string, MiniappPermission> = {
   "/users/me": "user.profile",
   "/friends": "user.profile",
   "/conversations": "qchat.api",
 };
+
+/// Extensions allowed anywhere under `assets/`. They are the files a static web
+/// build produces; executables, server scripts and archives stay rejected.
+export const webappAssetExtensions = new Set([
+  ".html",
+  ".htm",
+  ".js",
+  ".mjs",
+  ".css",
+  ".json",
+  ".map",
+  ".txt",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".avif",
+  ".svg",
+  ".ico",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".mp3",
+  ".wav",
+  ".mp4",
+  ".webm",
+  ".vtt",
+  ".wasm",
+]);
