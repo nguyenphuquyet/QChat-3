@@ -38,6 +38,7 @@ const distDir = path.join(frameworkDir, "dist");
 const resourcesDir = path.join(ideDir, "src-tauri", "resources");
 const qappDir = path.join(resourcesDir, "qapp");
 const nodeDir = path.join(resourcesDir, "node");
+const tauriConfig = path.join(ideDir, "src-tauri", "tauri.conf.json");
 
 const withNode =
   process.argv.includes("--with-node") || process.env.QAPP_BUNDLE_NODE === "1";
@@ -61,6 +62,39 @@ function dirSize(directory) {
 function formatSize(bytes) {
   if (bytes > 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024).toFixed(0)} KB`;
+}
+
+/// Tauri errors on a `bundle.resources` glob that matches nothing, after the
+/// whole Rust build has already run. Check the bases up front so a stale entry
+/// fails here with a clear message instead.
+function assertBundleResources() {
+  let config;
+  try {
+    config = JSON.parse(readFileSync(tauriConfig, "utf8"));
+  } catch (error) {
+    fail(`cannot read src-tauri/tauri.conf.json: ${error.message}`);
+  }
+  const patterns = config?.bundle?.resources ?? [];
+  const missing = [];
+  for (const pattern of patterns) {
+    if (typeof pattern !== "string") continue;
+    const base = pattern.split("*")[0].replace(/[\\/]+$/, "");
+    if (!base) continue;
+    const target = path.join(ideDir, "src-tauri", base);
+    if (!existsSync(target)) {
+      missing.push(pattern);
+      continue;
+    }
+    if (statSync(target).isDirectory() && readdirSync(target).length === 0) {
+      missing.push(pattern);
+    }
+  }
+  if (missing.length) {
+    fail(
+      `bundle.resources patterns match nothing: ${missing.join(", ")}\n` +
+        "Remove them from src-tauri/tauri.conf.json or create the folders in prepare-cli.",
+    );
+  }
 }
 
 function ensureFrameworkBuild() {
@@ -271,6 +305,7 @@ function copyNodeRuntime() {
 }
 
 function main() {
+  assertBundleResources();
   ensureFrameworkBuild();
 
   const frameworkPackage = JSON.parse(
