@@ -11,4 +11,5 @@
 export { BUILDER_VERSION, BuildError, METADATA_FORMAT_VERSION, PACKAGE_ENTRY, PACKAGE_FORMAT, PACKAGE_SCHEMA_VERSION, RUNTIME_VERSION, buildAppConfig, buildMiniProgram, readPackageManifest, renderIndexHtml, } from "./builder.js";
 export { MiniProgramError, inlineWxss, loadMiniProgram, resolveComponentBase, rewriteWxmlAssets, stripBom, toPosix, } from "./wechat.js";
 export { crc32, readZip, writeZip } from "./zip.js";
+export { API_CAPABILITIES, COMPONENT_CAPABILITIES, buildCapabilities, } from "./capabilities.js";
 //# sourceMappingURL=index.js.map

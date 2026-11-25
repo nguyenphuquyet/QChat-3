@@ -1,0 +1,9 @@
+.qchat-rich-text {
+  display: block;
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+.qchat-rich-text img {
+  max-width: 100%;
+}

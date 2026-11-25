@@ -52,3 +52,11 @@ export {
   type WindowConfig,
 } from "./wechat.js";
 export { crc32, readZip, writeZip, type ZipEntry, type ZipEntryInput } from "./zip.js";
+export {
+  API_CAPABILITIES,
+  COMPONENT_CAPABILITIES,
+  buildCapabilities,
+  type ApiCapability,
+  type CapabilityManifest,
+  type ComponentCapability,
+} from "./capabilities.js";

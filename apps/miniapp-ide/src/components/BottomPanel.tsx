@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   CircleAlert,
@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "../lib/store";
 import { useI18n } from "../lib/useI18n";
-import { cn, clockTime } from "../lib/utils";
+import { cn, clockTime, joinPath } from "../lib/utils";
 
 export function BottomPanel({
   height,
@@ -27,6 +27,9 @@ export function BottomPanel({
 }) {
   const logs = useStudio((state) => state.logs);
   const problems = useStudio((state) => state.problems);
+  const diagnostics = useStudio((state) => state.diagnostics);
+  const project = useStudio((state) => state.project);
+  const revealLocation = useStudio((state) => state.revealLocation);
   const tab = useStudio((state) => state.bottomTab);
   const setTab = useStudio((state) => state.setBottomTab);
   const setOpen = useStudio((state) => state.setBottomOpen);
@@ -55,8 +58,24 @@ export function BottomPanel({
     }
   }, [tab]);
 
-  const errors = problems.filter((problem) => problem.severity === "error").length;
-  const warnings = problems.length - errors;
+  const allProblems = useMemo(() => {
+    const fromDiagnostics = diagnostics.map((diagnostic) => ({
+      id: `static:${diagnostic.id}`,
+      severity: diagnostic.severity,
+      text: `${diagnostic.file}${diagnostic.line ? `:${diagnostic.line}` : ""} — ${diagnostic.message}`,
+      source: "project",
+      file: diagnostic.file,
+      line: diagnostic.line,
+    }));
+    const seen = new Set(fromDiagnostics.map((problem) => problem.text));
+    return [
+      ...fromDiagnostics,
+      ...problems.filter((problem) => !seen.has(problem.text)),
+    ];
+  }, [diagnostics, problems]);
+
+  const errors = allProblems.filter((problem) => problem.severity === "error").length;
+  const warnings = allProblems.length - errors;
   const running = buildStatus === "running";
 
   const execute = () => {
@@ -95,14 +114,14 @@ export function BottomPanel({
             onClick={() => setTab("problems")}
           >
             {t("bottom.problems")}
-            {problems.length ? (
+            {allProblems.length ? (
               <span
                 className={cn(
                   "rounded px-1 text-[8.5px]",
                   errors ? "bg-rose-400/15 text-rose-300" : "bg-amber-400/15 text-amber-300",
                 )}
               >
-                {problems.length}
+                {allProblems.length}
               </span>
             ) : null}
           </button>
@@ -196,34 +215,47 @@ export function BottomPanel({
 
       {tab === "problems" ? (
         <div className="min-h-0 flex-1 overflow-auto">
-          {problems.length === 0 ? (
+          {allProblems.length === 0 ? (
             <div className="flex h-full items-center justify-center gap-2 text-[10.5px] text-studio-600">
               <CircleAlert size={13} /> {t("bottom.noProblems")}
             </div>
           ) : (
             <div className="divide-y divide-white/[0.035]">
-              {problems.map((problem) => (
-                <div
-                  key={problem.id}
-                  className="flex items-start gap-2.5 px-3 py-2 transition hover:bg-white/[0.025]"
-                >
-                  {problem.severity === "error" ? (
-                    <XCircle size={13} className="mt-0.5 shrink-0 text-rose-400" />
-                  ) : (
-                    <TriangleAlert size={13} className="mt-0.5 shrink-0 text-amber-300" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="select-text font-mono text-[10px] leading-4 text-studio-300">
-                      {problem.text}
+              {allProblems.map((problem) => {
+                const target =
+                  problem.file && project
+                    ? joinPath(project.path, ...problem.file.split("/"))
+                    : null;
+                return (
+                  <button
+                    key={problem.id}
+                    className={cn(
+                      "flex w-full items-start gap-2.5 px-3 py-2 text-left transition hover:bg-white/[0.025]",
+                      target && "cursor-pointer",
+                    )}
+                    onClick={() => {
+                      if (target) void revealLocation(target, problem.line);
+                    }}
+                    disabled={!target}
+                  >
+                    {problem.severity === "error" ? (
+                      <XCircle size={13} className="mt-0.5 shrink-0 text-rose-400" />
+                    ) : (
+                      <TriangleAlert size={13} className="mt-0.5 shrink-0 text-amber-300" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="select-text font-mono text-[10px] leading-4 text-studio-300">
+                        {problem.text}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-2 text-[8.5px] uppercase tracking-wider text-studio-600">
+                        <span>{problem.source}</span>
+                        <span>·</span>
+                        <span>{problem.severity}</span>
+                      </div>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[8.5px] uppercase tracking-wider text-studio-600">
-                      <span>{problem.source}</span>
-                      <span>·</span>
-                      <span>{problem.severity}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -252,7 +284,7 @@ export function BottomPanel({
             </div>
           </div>
           <div className="flex items-center gap-2 border-t border-white/[0.05] px-3 py-2">
-            <span className="font-mono text-[10px] text-mint-400">qapp</span>
+            <span className="font-mono text-[10px] text-mint-400">qchat</span>
             <input
               ref={inputRef}
               value={command}

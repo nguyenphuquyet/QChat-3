@@ -87,10 +87,11 @@ their respective paths, or manually from **Actions → Run workflow**:
   pass `pnpm --filter @qchat/realtime start` as the container command. Supply the
   backend environment and service connections at runtime as with local deployment.
 - **Mini App Studio** (`.github/workflows/miniapp-ide.yml`): Node 24 / pnpm 10.11.0,
-  framework and IDE typechecks, frontend build and CLI resource verification, then
-  Tauri installers on Windows (NSIS + MSI), macOS (DMG) and Ubuntu (DEB/AppImage). Download
-  `qchat-miniapp-studio-<os>-<commit>`. Installers bundle the framework CLI, esbuild,
-  TypeScript and a Node runtime; they are unsigned.
+  framework and IDE typechecks, IDE project-model tests, frontend build and CLI
+  resource verification, then Tauri installers on Windows (NSIS + MSI), macOS (DMG)
+  and Ubuntu (DEB/AppImage). Download `qchat-miniapp-studio-<os>-<commit>`.
+  Installers bundle the framework CLI, webpack, the official glass-easel WXML/WXSS
+  compilers and a Node runtime; they are unsigned.
 
 In **Settings → Secrets and variables → Actions → Variables**, set `API_URL`
 (including `/api`) and `REALTIME_URL` to your reachable backend URLs before building
@@ -110,7 +111,7 @@ pnpm typecheck
 pnpm test
 pnpm build
 # Desktop IDE frontend (Rust required only for tauri dev/build):
-cd apps/miniapp-ide && corepack pnpm typecheck && corepack pnpm build
+cd apps/miniapp-ide && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build
 # Requires running real backend/gateway/database/Redis:
 TEST_API_URL=http://localhost:3000/api TEST_REALTIME_URL=http://localhost:3001 pnpm test:integration
 cd apps/mobile
@@ -140,7 +141,8 @@ media files or guarantee a first-ever browser page load without internet.
 - `apps/server`: Next.js API, domain modules, Prisma schema and SQL migration.
 - `apps/realtime`: authenticated gateway and transactional outbox delivery.
 - `apps/admin`: admin interface served through Next.js `/admin`.
-- `apps/miniapp-ide`: Tauri desktop Studio for qapp projects; see `apps/miniapp-ide/README.md`.
+- `apps/miniapp-ide`: Tauri desktop Studio for WeChat Mini Programs (WXML/WXSS, official glass-easel pipeline); see `apps/miniapp-ide/README.md`.
+- `packages/miniapp-framework`: `qchat` CLI, glass-easel build pipeline, built-in components, host runtime and capability registry.
 - `packages/contracts`: strict shared Zod schemas.
 - `infra`: Dockerfiles, Compose, HTTPS/WSS reverse proxy.
 - `tests`: contract/security unit tests and real-service integration scenario.

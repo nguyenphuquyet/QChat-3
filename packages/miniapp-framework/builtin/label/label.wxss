@@ -1,0 +1,3 @@
+.qchat-label {
+  display: inline;
+}

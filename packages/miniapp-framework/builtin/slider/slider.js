@@ -20,6 +20,7 @@ export default Component({
     blockColor: { type: String, value: "#ffffff" },
     showValue: { type: Boolean, value: false },
     disabled: { type: Boolean, value: false },
+    name: { type: String, value: "" },
   },
   data: {
     percent: 0,
@@ -136,6 +137,14 @@ export default Component({
       const clamped = Math.min(max, Math.max(min, snapped));
       const digits = decimalPlaces(step);
       return Number(clamped.toFixed(digits));
+    },
+    __qchatFormValue() {
+      return Number(this.data.value) || 0;
+    },
+    __qchatResetValue(initial) {
+      const value = Number(initial);
+      this.setData({ value: Number.isFinite(value) ? value : Number(this.data.min) || 0 });
+      this.updatePercent();
     },
   },
 });

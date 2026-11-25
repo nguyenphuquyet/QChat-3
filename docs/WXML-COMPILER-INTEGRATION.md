@@ -114,6 +114,8 @@ WeChat-shaped project (unchanged)
     ├── App/Page lifecycle and page stack      ← QChat (missing in WeChat OSS)
     ├── wx.* bridge → Flutter                  ← QChat (missing in WeChat OSS)
     ├── storage / domain / permission sandbox  ← QChat
+    ├── capability registry (canIUse)          ← QChat, built from src/capabilities.ts
+    ├── devtools event channel (postMessage)   ← QChat, development builds only
     └── built-in components                    ← QChat host components
         │
         ▼
@@ -136,7 +138,8 @@ These are integration, not framework rewrites:
    others. Modal, action sheet, settings/authorize, clipboard, login and
    previewImage return `NOT_SUPPORTED`.*
 3. **Built-in components.** No public implementation exists. See the audit.
-   *The 15 Phase 2 components are implemented; the rest are not.*
+   *All 21 priority components are implemented at F2; `video`, `canvas`,
+   `web-view`, `map`, `camera`, `editor` and Skyline are not.*
 4. **Native chrome.** NavBar, TabBar, capsule, safe areas, back gesture.
    *The host exposes title/navigation-bar hooks; Flutter chrome integration is
    outside this package.*
@@ -159,19 +162,33 @@ metadata/archive consistency and deterministic metadata. The CLI
 **Phase 2 — built-ins and host.** Implemented and tested in jsdom.
 `runtime/host.js` installs `App`/`getApp`/`wx`/`getCurrentPages`, owns the page
 stack and URL reconciliation, mounts pages as `<wx-page>`, and triggers `ready`.
-The 15 components in `docs/BUILTIN-COMPONENTS-AUDIT.md` §0 render as `wx-*`
-hosts with WeChat-shaped attributes, events and lifecycle. `test/builtin.test.ts`
-covers rendering, `input`/`change`/`model:value`, group aggregation, slider and
-scroll gestures, `page {}` CSS, `navigator` and `wx.navigateBack`.
+The 15 Phase 2 components in `docs/BUILTIN-COMPONENTS-AUDIT.md` §0 render as
+`wx-*` hosts with WeChat-shaped attributes, events and lifecycle.
+`test/builtin.test.ts` covers rendering, `input`/`change`/`model:value`, group
+aggregation, slider and scroll gestures, `page {}` CSS, `navigator` and
+`wx.navigateBack`.
 
-**Phase 3 — end-to-end sample.** `packages/miniapp-examples/wechat-demo` is a
-WeChat-shaped three-page app (home → form → about) with a custom `section`
-component, an asset image and all 15 built-ins. `test/sample.test.ts` builds it
-with the real pipeline, boots the bundle in jsdom and walks the whole flow:
-button tap, `scroll-view` lower threshold, `navigator` push, every form control,
-submit, `wx.navigateBack({ delta: 2 })`. The packaged Studio CLI
-(`apps/miniapp-ide/scripts/prepare-cli.mjs` → `resources/qapp/cli.js`) builds and
-inspects the same shape of project from outside the repository checkout.
+**Phase 4 — remaining priority built-ins, capabilities and the Studio channel.**
+`swiper`, `swiper-item`, `picker`, `form`, `label` and `rich-text` are real host
+components at F2, bringing the registered set to 21. `form` collects named
+controls and restores them on reset, `label` activates a control by `for`,
+`picker` implements the `selector`/`multiSelector`/`time`/`date` modes (and
+reports `region` as an `error`), `rich-text` sanitises both HTML and node arrays.
+`swiper` uses a two-sided relation, idempotent refresh and change-only events so
+a bound `current` cannot loop.
+
+The capability registry lives in `src/capabilities.ts` and is embedded into
+`AppConfig.capabilities` at build time; `wx.canIUse` and `wx.getCapabilities`
+answer from it and `test/capabilities.test.ts` fails if the runtime, the
+component set and the registry drift apart. Permissions are declared in
+`manifest.json` (`requestedPermissions`) and enforced in `runtime/host.js`:
+calling a bridge API without its permission rejects with `PERMISSION_DENIED`.
+
+Development builds (`devtools: true`, the default outside production) forward
+`console`, network and uncaught-error events to the embedding Studio with
+`postMessage`, each tagged `source: "qchat-miniapp"`. `test/devtools.test.ts`
+covers the forwarding, the disabled channel, the production default and the
+no-parent case.
 
 **Verification limits.** Every result above is automated jsdom. There is **no**
 Android or iOS device run, no WeChat comparison run and no performance
@@ -180,12 +197,11 @@ unit-tested, not as device-verified.
 
 **Not implemented yet:**
 
-- Phase 3 device verification on Android and iOS.
+- Device verification on Android and iOS.
 - `wx.*` beyond the bridge surface in `runtime/host.js`; unsupported APIs report
   `NOT_SUPPORTED` instead of faking success.
-- `swiper`, `picker`, `rich-text`, `form`, `label`, `video`, `canvas`,
-  `web-view`; `map`, `camera`, `live-player`, `live-pusher`, `editor` and
-  Skyline components are explicitly unsupported.
+- `video`, `canvas`, `web-view`; `map`, `camera`, `live-player`, `live-pusher`,
+  `editor` and Skyline components are explicitly unsupported.
 - Remote images behind the WebView CSP, a host fetch proxy, and `wxapkg` import.
 - Porting the Studio editor UI from the retired TSX format to WXML.
 
@@ -196,7 +212,7 @@ No mock component or fake API is used to make a check pass.
 ```sh
 pnpm --filter @mna/qchat build
 pnpm --filter @mna/qchat typecheck
-pnpm --filter @mna/qchat test        # 20 tests, jsdom; serial by design
+pnpm --filter @mna/qchat test        # 34 tests, jsdom; serial by design
 pnpm test:miniapp                    # alias from the repository root
 ```
 

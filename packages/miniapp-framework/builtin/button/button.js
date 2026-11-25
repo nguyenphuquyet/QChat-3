@@ -26,6 +26,18 @@ export default Component({
     showMessageCard: { type: Boolean, value: false },
     groupId: { type: String, value: "" },
   },
+  relations: {
+    form: {
+      type: "ancestor",
+      target: "/__qchat__/builtin/form/form",
+      linked(form) {
+        this.__qchatForm = form;
+      },
+      unlinked() {
+        this.__qchatForm = null;
+      },
+    },
+  },
   observers: {
     size() {
       this.applyState();
@@ -60,6 +72,13 @@ export default Component({
       if (this.data.disabled) {
         if (event && typeof event.stopPropagation === "function") event.stopPropagation();
         return;
+      }
+      const formType = this.data.formType;
+      const form = this.__qchatForm;
+      if (formType === "submit" && form && typeof form.__qchatSubmit === "function") {
+        form.__qchatSubmit();
+      } else if (formType === "reset" && form && typeof form.__qchatReset === "function") {
+        form.__qchatReset();
       }
       const openType = this.data.openType;
       if (!openType) return;

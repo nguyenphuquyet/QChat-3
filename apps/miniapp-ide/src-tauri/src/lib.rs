@@ -913,21 +913,23 @@ fn delete_entry(path: String) -> Result<(), String> {
     }
 }
 
-/// Reads `manifest.json` and returns it only when it looks like a Mini App
-/// manifest. The studio itself can open any folder, but the project finder
-/// must not treat every folder that happens to contain a `manifest.json` as a
-/// Mini App.
+/// Detects a Mini Program project the same way the official toolchain does:
+/// the folder has an `app.json` with a `pages` array. `manifest.json` is only
+/// store metadata, so its absence does not disqualify a project; the candidate
+/// name then falls back to the folder name.
 fn project_manifest(dir: &Path) -> Option<serde_json::Value> {
-    let raw = fs::read(dir.join("manifest.json")).ok()?;
-    let value: serde_json::Value = serde_json::from_slice(&raw).ok()?;
-    let object = value.as_object()?;
-    let is_qapp = object.get("format").and_then(|v| v.as_str()) == Some("qapp");
-    let has_entry = object.get("entry").and_then(|v| v.as_str()).is_some();
-    if is_qapp || has_entry {
-        Some(value)
-    } else {
-        None
+    let raw = fs::read(dir.join("app.json")).ok()?;
+    let app: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+    let pages = app.get("pages")?.as_array()?;
+    if pages.is_empty() {
+        return None;
     }
+    let manifest = fs::read(dir.join("manifest.json"))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .filter(|value| value.is_object())
+        .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
+    Some(manifest)
 }
 
 fn project_candidate(dir: &Path, manifest: &serde_json::Value) -> ProjectCandidate {

@@ -1,0 +1,4 @@
+/*
+ * The item itself has no visible box; its size and flex behaviour are tag
+ * rules in `base.wxss` so the swiper track can size every item uniformly.
+ */

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BuiltMiniProgram } from "../src/builder.js";
+import { phaseFourProject } from "./projects.js";
 import {
   bootBuiltApp,
   buildFixture,
@@ -192,7 +193,7 @@ describe("Phase 2 built-in components", () => {
     // native `input`, `textarea` and `button` tags are the editing/control
     // primitives, so they are not in the forbidden list.
     const forbidden = /<(view|text|image|scroll-view|switch|checkbox|checkbox-group|radio|radio-group|slider|navigator|progress)(?=[\s/>])/;
-    for (const name of ["view", "text", "button", "image", "scroll-view", "input", "textarea", "switch", "checkbox", "checkbox-group", "radio", "radio-group", "slider", "navigator", "progress"]) {
+    for (const name of ["view", "text", "button", "image", "scroll-view", "input", "textarea", "switch", "checkbox", "checkbox-group", "radio", "radio-group", "slider", "navigator", "progress", "swiper", "swiper-item", "picker", "form", "label", "rich-text"]) {
       const template = await readFile(path.join(builtinRoot, name, `${name}.wxml`), "utf8");
       assert.doesNotMatch(
         template,
@@ -351,6 +352,185 @@ describe("Phase 2 built-in components", () => {
     const switchRoot = byClass(app.document, "qchat-switch");
     assert.ok(switchRoot);
     assert.match(switchRoot?.getAttribute("class") ?? "", /\b[A-Z]--qchat-switch\b/);
+
+    await app.dispose();
+  });
+});
+
+function pageInstance(app: BootedApp): Record<string, unknown> {
+  const getCurrentPages = app.window.getCurrentPages as () => Array<Record<string, unknown>>;
+  const pages = getCurrentPages();
+  assert.ok(pages.length > 0, "expected a mounted page");
+  return pages[pages.length - 1]!;
+}
+
+describe("Phase 4 built-in components", () => {
+  it("renders swiper, picker, form, label and rich-text hosts", async () => {
+    const built = await buildFixture(await makeProject(phaseFourProject()));
+    const app = await bootBuiltApp(built);
+    const query = (selector: string): Element | null => app.document.querySelector(selector);
+
+    assert.equal(query("#sw")?.tagName, "WX-SWIPER");
+    assert.equal(app.document.querySelectorAll("#sw wx-swiper-item").length, 2);
+    assert.ok(query("#sw [class*='qchat-swiper__track']"), "swiper renders a track");
+    assert.equal(app.document.querySelectorAll("#sw span[data-index]").length, 2);
+
+    assert.ok(query("#pk select"), "selector picker renders a native select");
+    assert.equal(query("#pk select option")?.parentElement?.children.length, 3);
+    assert.equal(app.document.querySelectorAll("#mp select").length, 2);
+    assert.ok(query("#tp input[type='time']"), "time picker renders a native time input");
+    assert.ok(query("#dp input[type='date']"), "date picker renders a native date input");
+    assert.ok(query("#rp [class*='qchat-picker__unsupported']"), "region picker states it is unsupported");
+
+    assert.ok(query("#fm [class*='qchat-form']"), "form renders its host box");
+    assert.equal(query("#lab")?.tagName, "WX-LABEL");
+    assert.ok(query("#rich [class*='qchat-rich-text']"), "rich-text renders a native container");
+
+    await app.dispose();
+  });
+
+  it("drives swiper, picker, form, label and rich-text behaviour", async () => {
+    const built = await buildFixture(await makeProject(phaseFourProject()));
+    const app = await bootBuiltApp(built);
+    const query = (selector: string): Element | null => app.document.querySelector(selector);
+    const page = pageInstance(app);
+
+    // swiper: a dot tap goes to that item and reports the WeChat detail.
+    const dots = app.document.querySelectorAll("#sw span[data-index]");
+    app.tap(dots[1] ?? null);
+    await app.settle();
+    assert.deepEqual(plain(last(app, "swiper:change").detail), { current: 1, source: "touch" });
+    assert.equal(pageData(app).current, 1);
+    assert.match(
+      query("#sw [class*='qchat-swiper__track']")?.getAttribute("style") ?? "",
+      /translateX\(-100%\)/,
+    );
+    assert.equal(find(app, "swiper:animationfinish").length, 1);
+
+    // swiper: a drag to the right goes back to the first item.
+    const swiperHost = query("#sw");
+    assert.ok(swiperHost);
+    swiperHost.dispatchEvent(new app.window.MouseEvent("mousedown", { bubbles: true, clientX: 20, clientY: 10 }));
+    swiperHost.dispatchEvent(new app.window.MouseEvent("mouseup", { bubbles: true, clientX: 120, clientY: 10 }));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "swiper:change").detail), { current: 0, source: "touch" });
+    assert.equal(pageData(app).current, 0);
+
+    // picker selector: the native select value is the index.
+    const select = query("#pk select") as HTMLSelectElement;
+    select.value = "2";
+    select.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "picker:selector").detail), { value: 2 });
+    assert.equal(pageData(app).picked, 2);
+
+    // picker multiSelector: a column change is reported, then confirm commits.
+    const columns = app.document.querySelectorAll("#mp select");
+    assert.equal(columns.length, 2);
+    const firstColumn = columns[0] as HTMLSelectElement;
+    firstColumn.value = "1";
+    firstColumn.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "picker:column").detail), { column: 0, value: 1 });
+    app.tap(query("#mp [class*='qchat-picker__confirm']"));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "picker:multi").detail), { value: [1, 0] });
+    assert.deepEqual(plain(pageData(app).multi), [1, 0]);
+
+    // picker time and date.
+    const timeInput = query("#tp input[type='time']") as HTMLInputElement;
+    timeInput.value = "09:45";
+    timeInput.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "picker:time").detail), { value: "09:45" });
+
+    const dateInput = query("#dp input[type='date']") as HTMLInputElement;
+    dateInput.value = "2026-05-06";
+    dateInput.dispatchEvent(new app.window.Event("change", { bubbles: true }));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "picker:date").detail), { value: "2026-05-06" });
+
+    // picker region reports an error instead of faking a region dataset.
+    app.tap(query("#rp [class*='qchat-picker__unsupported']"));
+    await app.settle();
+    assert.match(String(last(app, "picker:region").detail?.errMsg), /region/);
+
+    // form: edit controls, then submit collects their `name` values.
+    app.input(query("#fm input") as HTMLInputElement, "hello");
+    await app.settle();
+    app.tap(query("#fm [class*='qchat-switch__thumb']"));
+    await app.settle();
+    app.tap(query("#fm wx-radio [class*='qchat-radio__box']"));
+    await app.settle();
+    assert.equal(pageData(app).choice, "a");
+
+    app.tap(query("#submit button"));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "form:submit").detail), {
+      value: {
+        note: "hello",
+        agree: true,
+        choice: "a",
+        tags: ["t1"],
+        level: 30,
+        fruit: 0,
+      },
+      formId: "",
+    });
+
+    // form: reset restores the values captured when the form became ready.
+    app.tap(query("#reset button"));
+    await app.settle();
+    assert.equal(find(app, "form:reset").length, 1);
+    app.tap(query("#submit button"));
+    await app.settle();
+    assert.deepEqual(plain(last(app, "form:submit").detail?.value), {
+      note: "",
+      agree: false,
+      choice: "b",
+      tags: ["t1"],
+      level: 30,
+      fruit: 0,
+    });
+
+    // label: tapping the label text toggles the control named by `for`.
+    // The switch outside the form is still on from the earlier toggle, so a
+    // label tap turns it off and reports the new value to the page.
+    const labSwitchOn = (): boolean =>
+      Boolean(app.document.querySelector("#lab-switch [class*='qchat-switch--on']"));
+    assert.equal(labSwitchOn(), true);
+    const label = query("#lab [class*='qchat-label']") ?? query("#lab");
+    assert.ok(label);
+    label.dispatchEvent(new app.window.MouseEvent("click", { bubbles: true }));
+    await app.settle();
+    assert.equal(labSwitchOn(), false);
+    assert.equal(pageData(app).agree, false);
+
+    // rich-text: HTML and node arrays are sanitised against the allowlist.
+    const rich = query("#rich [class*='qchat-rich-text']");
+    assert.ok(rich);
+    assert.match(rich.innerHTML, /<b>bold<\/b>/);
+    assert.doesNotMatch(rich.innerHTML, /<script/i);
+    assert.doesNotMatch(rich.innerHTML, /javascript:/i);
+    assert.doesNotMatch(rich.innerHTML, /onerror/i);
+
+    const rich2 = query("#rich2 [class*='qchat-rich-text']");
+    assert.ok(rich2);
+    assert.match(rich2.innerHTML, /<p class="x">hi<\/p>/);
+    assert.doesNotMatch(rich2.innerHTML, /onclick/i);
+    assert.doesNotMatch(rich2.innerHTML, /<script/i);
+
+    // text: `space` and `decode` rewrite the rendered text nodes.
+    assert.equal(query("#space")?.textContent, "a\u00a0b");
+    assert.equal(query("#decode")?.textContent, "<b>");
+
+    // checkbox-group: setting `value` to `[]` after mount unchecks every child.
+    const checked = (): number =>
+      app.document.querySelectorAll("#cg2 wx-checkbox [class*='qchat-checkbox--on']").length;
+    assert.equal(checked(), 1);
+    (page as { clearTags: () => void }).clearTags();
+    await app.settle();
+    assert.equal(checked(), 0);
 
     await app.dispose();
   });

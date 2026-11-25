@@ -94,11 +94,10 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
   const validation = useStudio((state) => state.validation);
   const artifacts = useStudio((state) => state.artifacts);
   const buildProject = useStudio((state) => state.buildProject);
-  const runTests = useStudio((state) => state.runTests);
+  const validateProject = useStudio((state) => state.validateProject);
   const startDev = useStudio((state) => state.startDev);
   const stopDev = useStudio((state) => state.stopDev);
   const refreshArtifacts = useStudio((state) => state.refreshArtifacts);
-  const validateArtifact = useStudio((state) => state.validateArtifact);
   const activeArtifact = useStudio((state) => state.activeArtifact);
   const setSidebarTab = useStudio((state) => state.setSidebarTab);
   const { t, language } = useI18n();
@@ -175,7 +174,7 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                 <button
                   className="btn btn-primary h-7 flex-1 px-2 text-[10.5px]"
                   onClick={() =>
-                    void runAction(() => buildProject(false), t("common.packageBuilt"))
+                    void runAction(() => buildProject(), t("common.packageBuilt"))
                   }
                   disabled={!ready || running}
                 >
@@ -184,12 +183,12 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
                 <button
                   className="btn btn-secondary h-7 px-2 text-[10.5px]"
                   onClick={() =>
-                    void runAction(() => buildProject(true), t("common.bundleBuilt"))
+                    void runAction(() => validateProject(), t("common.projectValid"))
                   }
                   disabled={!ready || running}
-                  title={t("build.skipTypecheck")}
+                  title={t("build.validateProject")}
                 >
-                  <Zap size={11} />
+                  <ShieldCheck size={11} />
                 </button>
                 <button
                   className={cn("btn h-7 px-2 text-[10.5px]", devRunning ? "btn-danger" : "btn-secondary")}
@@ -244,10 +243,10 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               </div>
               <button
                 className="btn btn-secondary mt-3 h-7 w-full text-[10.5px]"
-                onClick={() => void runAction(() => runTests(), t("common.runtimePassed"))}
+                onClick={() => void runAction(() => validateProject(), t("common.projectValid"))}
                 disabled={!ready || running}
               >
-                <Terminal size={11} /> {t("build.runHostTest")}
+                <ShieldCheck size={11} /> {t("build.validateProject")}
               </button>
             </Card>
 
@@ -327,14 +326,12 @@ export function BuildSidebar({ onSettings }: { onSettings: () => void }) {
               ) : null}
               <button
                 className="btn btn-secondary mt-2 h-7 w-full text-[10px]"
-                disabled={!activeArtifact}
+                disabled={!project}
                 onClick={() => {
-                  if (activeArtifact) {
-                    void runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
-                  }
+                  void runAction(() => validateProject(), t("common.projectValid"));
                 }}
               >
-                <ShieldCheck size={11} /> {t("build.validateLatest")}
+                <ShieldCheck size={11} /> {t("common.validateProject")}
               </button>
             </Card>
 
@@ -395,7 +392,7 @@ export function PackagesSidebar() {
   const inspection = useStudio((state) => state.inspection);
   const inspecting = useStudio((state) => state.inspecting);
   const inspectArtifact = useStudio((state) => state.inspectArtifact);
-  const validateArtifact = useStudio((state) => state.validateArtifact);
+  const validateProject = useStudio((state) => state.validateProject);
   const project = useStudio((state) => state.project);
   const { t, language } = useI18n();
 
@@ -488,10 +485,10 @@ export function PackagesSidebar() {
                 </div>
               </div>
               <div className="mt-2 flex flex-wrap gap-1">
-                {(inspection.manifest.requestedPermissions.length
+                {((inspection.manifest.requestedPermissions ?? []).length
                   ? inspection.manifest.requestedPermissions
                   : [t("packages.noPermissions")]
-                ).map((permission) => (
+                )?.map((permission) => (
                   <span key={permission} className={cn("chip", permissionTone(permission) === "mint" && "chip-mint")}>
                     {permission}
                   </span>
@@ -501,12 +498,11 @@ export function PackagesSidebar() {
                 <button
                   className="btn btn-secondary h-7 flex-1 text-[10px]"
                   onClick={() => {
-                    if (activeArtifact) {
-                      void runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
-                    }
+                    void runAction(() => validateProject(), t("common.projectValid"));
                   }}
+                  disabled={!project}
                 >
-                  <ShieldCheck size={11} /> {t("packages.validate")}
+                  <ShieldCheck size={11} /> {t("common.validateProject")}
                 </button>
                 <button
                   className="btn btn-secondary h-7 px-2"

@@ -157,6 +157,37 @@ progress {
   display: block;
 }
 
+swiper {
+  display: block;
+  height: 150px;
+  overflow: hidden;
+}
+
+swiper-item {
+  display: block;
+  flex: 0 0 var(--qchat-swiper-item-size, 100%);
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+picker {
+  display: inline-block;
+}
+
+form {
+  display: block;
+}
+
+label {
+  display: inline;
+}
+
+rich-text {
+  display: block;
+}
+
 /*
  * WeChat's documented default hover classes. The author can override them in
  * their own stylesheet, exactly like WeChat's built-ins.

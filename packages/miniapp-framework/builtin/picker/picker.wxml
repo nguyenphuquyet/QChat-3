@@ -1,0 +1,54 @@
+<div class="qchat-picker {{disabled ? 'qchat-picker--disabled' : ''}}">
+  <slot />
+  <span wx:if="{{displayText}}" class="qchat-picker__text">{{displayText}}</span>
+
+  <select
+    wx:if="{{mode === 'selector' && !disabled}}"
+    class="qchat-picker__overlay"
+    value="{{nativeIndex}}"
+  >
+    <option wx:for="{{options}}" wx:key="index" value="{{index}}">{{item.label}}</option>
+  </select>
+
+  <div wx:if="{{mode === 'multiSelector' && !disabled}}" class="qchat-picker__columns">
+    <select
+      wx:for="{{columns}}"
+      wx:for-item="column"
+      wx:for-index="columnIndex"
+      wx:key="columnIndex"
+      class="qchat-picker__column"
+      data-column="{{columnIndex}}"
+      value="{{column.index}}"
+    >
+      <option
+        wx:for="{{column.options}}"
+        wx:for-item="option"
+        wx:for-index="optionIndex"
+        wx:key="optionIndex"
+        value="{{optionIndex}}"
+      >{{option.label}}</option>
+    </select>
+  </div>
+  <span wx:if="{{mode === 'multiSelector' && !disabled}}" class="qchat-picker__confirm" bindtap="onConfirm">OK</span>
+
+  <input
+    wx:if="{{mode === 'time' && !disabled}}"
+    class="qchat-picker__overlay"
+    type="time"
+    value="{{nativeValue}}"
+  />
+  <input
+    wx:if="{{mode === 'date' && !disabled}}"
+    class="qchat-picker__overlay"
+    type="date"
+    value="{{nativeValue}}"
+    min="{{start}}"
+    max="{{end}}"
+  />
+
+  <span
+    wx:if="{{mode === 'region'}}"
+    class="qchat-picker__unsupported"
+    bindtap="onRegionTap"
+  >Region picker is not supported</span>
+</div>

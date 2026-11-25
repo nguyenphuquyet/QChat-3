@@ -12,6 +12,7 @@ export default Component({
     disabled: { type: Boolean, value: false },
     type: { type: String, value: "switch" },
     color: { type: String, value: "#04BE02" },
+    name: { type: String, value: "" },
   },
   methods: {
     onTap(event) {
@@ -22,6 +23,15 @@ export default Component({
       const value = !this.data.checked;
       this.setData({ checked: value });
       this.triggerEvent("change", { value });
+    },
+    __qchatActivate() {
+      this.onTap();
+    },
+    __qchatFormValue() {
+      return Boolean(this.data.checked);
+    },
+    __qchatResetValue(initial) {
+      this.setData({ checked: Boolean(initial) });
     },
   },
 });

@@ -29,6 +29,7 @@ export default Component({
     disableDefaultPadding: { type: Boolean, value: false },
     confirmType: { type: String, value: "return" },
     confirmHold: { type: Boolean, value: false },
+    name: { type: String, value: "" },
   },
   data: {
     nativeMaxlength: 140,
@@ -140,6 +141,21 @@ export default Component({
       const element = (event && event.target) || nativeElement(this, ".qchat-textarea");
       this.triggerEvent("confirm", { value: element ? inputValue(element) : "" });
       if (!this.data.confirmHold && element && typeof element.blur === "function") element.blur();
+    },
+    __qchatActivate() {
+      if (this.data.disabled) return;
+      const element = nativeElement(this, ".qchat-textarea");
+      if (element && typeof element.focus === "function") element.focus();
+    },
+    __qchatFormValue() {
+      return this.data.value;
+    },
+    __qchatResetValue(initial) {
+      const value = initial == null ? "" : String(initial);
+      this.setData({ value });
+      const element = nativeElement(this, ".qchat-textarea");
+      if (element) element.value = value;
+      this.applyAutoHeight();
     },
   },
 });

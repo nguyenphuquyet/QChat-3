@@ -152,7 +152,6 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
   const settings = useStudio((state) => state.settings);
   const devRunning = useStudio((state) => state.devRunning);
   const buildStatus = useStudio((state) => state.buildStatus);
-  const activeArtifact = useStudio((state) => state.activeArtifact);
   const sidebarTab = useStudio((state) => state.sidebarTab);
   const sidebarOpen = useStudio((state) => state.sidebarOpen);
   const bottomOpen = useStudio((state) => state.bottomOpen);
@@ -162,10 +161,9 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
   const setBottomOpen = useStudio((state) => state.setBottomOpen);
   const setPreviewOpen = useStudio((state) => state.setPreviewOpen);
   const buildProject = useStudio((state) => state.buildProject);
-  const runTests = useStudio((state) => state.runTests);
+  const validateProject = useStudio((state) => state.validateProject);
   const startDev = useStudio((state) => state.startDev);
   const stopDev = useStudio((state) => state.stopDev);
-  const validateArtifact = useStudio((state) => state.validateArtifact);
   const refreshTree = useStudio((state) => state.refreshTree);
   const clearLogs = useStudio((state) => state.clearLogs);
   const saveActive = useStudio((state) => state.saveActive);
@@ -181,13 +179,11 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
   const canBuild = Boolean(project && cli?.ready);
   const running = buildStatus === "running";
 
-  const build = (noTypecheck = false) =>
+  const build = () =>
     void runAction(
-      () => buildProject(noTypecheck),
-      noTypecheck ? t("common.bundleBuilt") : t("common.packageBuilt"),
+      () => buildProject(),
+      t("common.packageBuilt"),
     );
-
-  const test = () => void runAction(() => runTests(), t("common.runtimePassed"));
 
   const toggleDev = () => {
     if (devRunning) {
@@ -197,16 +193,8 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
     }
   };
 
-  const validate = () => {
-    if (activeArtifact) {
-      void runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
-      return;
-    }
-    void api.pickPackage(project?.path).then((path) => {
-      if (path)
-        void runAction(() => validateArtifact(path), t("common.packageValid"));
-    });
-  };
+  const validate = () =>
+    void runAction(() => validateProject(), t("common.projectValid"));
 
   /** Compact icon button used by the title bar tool groups. */
   const tool = (
@@ -289,11 +277,9 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
         </Menu>
 
         <Menu id="build" label={t("menu.build")}>
-          <Item icon={<Hammer size={13} />} label={t("title.buildJapp")} shortcut="Ctrl B" onClick={() => build(false)} disabled={!canBuild || running} />
-          <Item icon={<Hammer size={13} />} label={t("title.buildNoTypecheck")} shortcut="Ctrl ⇧ B" onClick={() => build(true)} disabled={!canBuild || running} />
+          <Item icon={<Hammer size={13} />} label={t("title.buildJapp")} shortcut="Ctrl B" onClick={build} disabled={!canBuild || running} />
           <div className="menu-separator" />
-          <Item icon={<FlaskConical size={13} />} label={t("title.testRuntime")} shortcut="Ctrl T" onClick={test} disabled={!canBuild || running} />
-          <Item icon={<ShieldCheck size={13} />} label={t("title.validatePackage")} onClick={validate} disabled={!canBuild} />
+          <Item icon={<ShieldCheck size={13} />} label={t("build.validateProject")} shortcut="Ctrl T" onClick={validate} disabled={!canBuild || running} />
           <div className="menu-separator" />
           <Item icon={<FolderTree size={13} />} label={t("title.revealDist")} onClick={() => project && void api.reveal(`${project.path}/dist`)} disabled={!project} />
         </Menu>
@@ -352,7 +338,7 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
               ? "bg-accent-500 text-white hover:bg-accent-600"
               : "cursor-not-allowed bg-accent-500/40 text-white/60",
           )}
-          onClick={() => build(false)}
+          onClick={() => build()}
           disabled={!canBuild || running}
           title={t("title.buildTitle")}
         >
@@ -363,13 +349,11 @@ export function TitleBar({ commands }: { commands: StudioCommands }) {
           )}
           {t("common.build")}
         </button>
-        {tool("quick", <Hammer size={13} />, t("title.quickBuildTitle"), () => build(true), { disabled: !canBuild || running })}
         {tool("dev", devRunning ? <Square size={13} /> : <Play size={13} />, devRunning ? t("title.stopDev") : t("title.devTitle"), toggleDev, {
           disabled: !canBuild,
           danger: devRunning,
         })}
-        {tool("test", <FlaskConical size={13} />, t("title.testTitle"), test, { disabled: !canBuild || running })}
-        {tool("validate", <ShieldCheck size={13} />, t("title.validatePackage"), validate, { disabled: !canBuild })}
+        {tool("validate", <ShieldCheck size={13} />, t("build.validateProject"), validate, { disabled: !canBuild || running })}
       </div>
 
       {/* Right side: CLI status, language, theme, layout, settings */}

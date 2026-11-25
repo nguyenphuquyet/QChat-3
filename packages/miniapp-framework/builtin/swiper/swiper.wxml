@@ -1,0 +1,18 @@
+<div class="qchat-swiper {{vertical ? 'qchat-swiper--vertical' : ''}}">
+  <div
+    class="qchat-swiper__track"
+    style="transform: translate{{vertical ? 'Y' : 'X'}}(-{{offset}}%); transition-duration: {{duration}}ms; --qchat-swiper-item-size: {{itemSize}}%; {{vertical ? 'flex-direction: column;' : ''}}"
+  >
+    <slot />
+  </div>
+  <div wx:if="{{indicatorDots && dots.length > 1}}" class="qchat-swiper__dots {{vertical ? 'qchat-swiper__dots--vertical' : ''}}">
+    <span
+      wx:for="{{dots}}"
+      wx:key="*this"
+      class="qchat-swiper__dot {{index === current ? 'qchat-swiper__dot--active' : ''}}"
+      style="background-color: {{index === current ? indicatorActiveColor : indicatorColor}}"
+      data-index="{{index}}"
+      bindtap="onDotTap"
+    ></span>
+  </div>
+</div>

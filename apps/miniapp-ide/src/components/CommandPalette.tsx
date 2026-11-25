@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import {
   Boxes,
   FilePlus2,
-  FlaskConical,
   FolderOpen,
   FolderTree,
   Hammer,
@@ -20,10 +19,8 @@ import {
   Trash2,
   Wand2,
   X,
-  Zap,
 } from "lucide-react";
 import { useStudio } from "../lib/store";
-import { api } from "../lib/api";
 import { runAction } from "../lib/feedback";
 import { useI18n } from "../lib/useI18n";
 import { cn } from "../lib/utils";
@@ -52,12 +49,10 @@ export function CommandPalette({
   const project = useStudio((state) => state.project);
   const cli = useStudio((state) => state.cli);
   const devRunning = useStudio((state) => state.devRunning);
-  const activeArtifact = useStudio((state) => state.activeArtifact);
   const buildProject = useStudio((state) => state.buildProject);
-  const runTests = useStudio((state) => state.runTests);
+  const validateProject = useStudio((state) => state.validateProject);
   const startDev = useStudio((state) => state.startDev);
   const stopDev = useStudio((state) => state.stopDev);
-  const validateArtifact = useStudio((state) => state.validateArtifact);
   const refreshTree = useStudio((state) => state.refreshTree);
   const clearLogs = useStudio((state) => state.clearLogs);
   const setPreviewOpen = useStudio((state) => state.setPreviewOpen);
@@ -110,43 +105,17 @@ export function CommandPalette({
         shortcut: "Ctrl B",
         group: t("palette.groupBuild"),
         disabled: !canBuild,
-        run: () => runAction(() => buildProject(false), t("common.packageBuilt")),
-      },
-      {
-        id: "quick-build",
-        label: t("palette.quickBuild"),
-        hint: t("palette.quickBuildHint"),
-        icon: <Zap size={14} />,
-        shortcut: "Ctrl ⇧ B",
-        group: t("palette.groupBuild"),
-        disabled: !canBuild,
-        run: () => runAction(() => buildProject(true), t("common.bundleBuilt")),
-      },
-      {
-        id: "test",
-        label: t("palette.test"),
-        hint: t("palette.testHint"),
-        icon: <FlaskConical size={14} />,
-        shortcut: "Ctrl T",
-        group: t("palette.groupBuild"),
-        disabled: !canBuild,
-        run: () => runAction(() => runTests(), t("common.runtimePassed")),
+        run: () => runAction(() => buildProject(), t("common.packageBuilt")),
       },
       {
         id: "validate",
         label: t("palette.validate"),
-        hint: activeArtifact ? t("palette.validateHintSelected") : t("palette.validateHintPick"),
+        hint: t("palette.validateHint"),
         icon: <ShieldCheck size={14} />,
+        shortcut: "Ctrl T",
         group: t("palette.groupBuild"),
         disabled: !canBuild,
-        run: async () => {
-          if (activeArtifact) {
-            await runAction(() => validateArtifact(activeArtifact), t("common.packageValid"));
-            return;
-          }
-          const path = await api.pickPackage(project?.path);
-          if (path) await runAction(() => validateArtifact(path), t("common.packageValid"));
-        },
+        run: () => runAction(() => validateProject(), t("common.projectValid")),
       },
       {
         id: "dev",
@@ -255,7 +224,6 @@ export function CommandPalette({
       },
     ];
   }, [
-    activeArtifact,
     bottomOpen,
     buildProject,
     clearLogs,
@@ -263,7 +231,6 @@ export function CommandPalette({
     previewOpen,
     project,
     refreshTree,
-    runTests,
     setBottomOpen,
     setBottomTab,
     setPreviewOpen,
@@ -273,7 +240,7 @@ export function CommandPalette({
     stopDev,
     studio,
     t,
-    validateArtifact,
+    validateProject,
     cli?.ready,
   ]);
 

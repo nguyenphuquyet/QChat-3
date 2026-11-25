@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 import type { Configuration, WebpackPluginInstance } from "webpack";
 import { TmplGroup } from "glass-easel-template-compiler";
 import { BUILTIN_DIR, HOST_ENTRY, withBuiltins } from "./builtin.js";
+import { buildCapabilities, type CapabilityManifest } from "./capabilities.js";
 import {
   loadMiniProgram,
   MiniProgramError,
@@ -130,6 +131,13 @@ export type AppConfig = {
   usingComponents: Record<string, string>;
   sdkVersion: string;
   generatedAt: string;
+  /// Permissions the package declared (manifest.json + detected `wx.*` calls).
+  permissions: string[];
+  /// What the host implements, embedded so `wx.canIUse` never guesses.
+  capabilities: CapabilityManifest;
+  /// True for development builds; the runtime forwards console/network events
+  /// to an embedding Studio through `window.parent.postMessage`.
+  devtools: boolean;
 };
 
 export type BuildOptions = {
@@ -147,6 +155,9 @@ export type BuildOptions = {
   sourceMap?: boolean;
   /** Prefix for custom component host elements. Defaults to `wx-`. */
   tagNamePrefix?: string;
+  /// Forward console/network events to an embedding Studio. Defaults to true
+  /// outside production builds.
+  devtools?: boolean;
 };
 
 export type BuiltMiniProgram = {
@@ -647,7 +658,9 @@ export function buildAppConfig(
   project: MiniProgramProgram,
   manifest: MiniProgramManifest,
   date: Date,
+  devtools = true,
 ): AppConfig {
+  const permissions = [...manifest.requestedPermissions];
   return {
     format: "qchat-miniprogram",
     formatVersion: 1,
@@ -675,6 +688,9 @@ export function buildAppConfig(
     usingComponents: project.app.usingComponents ?? {},
     sdkVersion: manifest.minRuntimeVersion,
     generatedAt: date.toISOString(),
+    permissions,
+    capabilities: buildCapabilities(permissions),
+    devtools,
   };
 }
 
@@ -776,7 +792,12 @@ export async function buildMiniProgram(options: BuildOptions): Promise<BuiltMini
 
   const date = options.date ?? new Date();
   const manifest = buildManifest(project, options);
-  const appConfig = buildAppConfig(project, manifest, date);
+  const appConfig = buildAppConfig(
+    project,
+    manifest,
+    date,
+    options.devtools ?? options.mode !== "production",
+  );
   const appConfigJson = `${JSON.stringify(appConfig, null, 2)}\n`;
 
   const staging = await createStaging(project);

@@ -18,6 +18,9 @@ Usage:
   qchat migrate <dir>              Scaffold a WXML project from a legacy app
   qchat version                    Print the toolchain version
 
+Every command that takes [dir] also accepts --dir <path>; it is the explicit
+form the QChat Studio uses and wins over the positional argument.
+
 The authoring format is the WeChat Mini Program one: app.json, app.js, app.wxss,
 pages/<route>/{wxml,wxss,js,json} and components. QChat does not compile WXML or
 WXSS; it orchestrates the official glass-easel Webpack pipeline and emits the
@@ -430,6 +433,10 @@ pipeline alone.
 async function main(argv) {
     const [command, ...rest] = argv;
     const { positionals: args, flags } = parseArgs(rest);
+    // `--dir <path>` is the explicit form of the positional directory. Editor
+    // integrations (the QChat Studio) always pass it so a project path that
+    // starts with `-` cannot be mistaken for a flag.
+    const directory = (fallback = ".") => flags["--dir"] ?? args[0] ?? fallback;
     switch (command) {
         case undefined:
         case "-h":
@@ -441,17 +448,17 @@ async function main(argv) {
             const name = args[0];
             if (!name)
                 fail("create needs a name");
-            await createProject(name, args[1] ?? name);
+            await createProject(name, flags["--dir"] ?? args[1] ?? name);
             return;
         }
         case "build":
-            await buildCommand(args[0] ?? ".", flags);
+            await buildCommand(directory(), flags);
             return;
         case "dev":
-            await devCommand(args[0] ?? ".", flags);
+            await devCommand(directory(), flags);
             return;
         case "validate":
-            await validateCommand(args[0] ?? ".");
+            await validateCommand(directory());
             return;
         case "inspect":
             if (!args[0])

@@ -26,6 +26,12 @@ export const BUILTIN_COMPONENTS = [
     "slider",
     "navigator",
     "progress",
+    "swiper",
+    "swiper-item",
+    "picker",
+    "form",
+    "label",
+    "rich-text",
 ];
 /** Staged directory, relative to the staged `src` root. */
 export const BUILTIN_DIR = "__qchat__/builtin";

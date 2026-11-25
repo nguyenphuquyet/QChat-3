@@ -27,6 +27,12 @@ export const BUILTIN_COMPONENTS = [
   "slider",
   "navigator",
   "progress",
+  "swiper",
+  "swiper-item",
+  "picker",
+  "form",
+  "label",
+  "rich-text",
 ] as const;
 
 export type BuiltinComponent = (typeof BUILTIN_COMPONENTS)[number];

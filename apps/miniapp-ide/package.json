@@ -9,6 +9,7 @@
     "dev:web": "vite",
     "build": "tsc --noEmit && vite build",
     "build:web": "vite build",
+    "test": "tsx --test test/*.test.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
@@ -38,6 +39,7 @@
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^6.1.2",
     "tailwindcss": "^4.3.3",
+    "tsx": "4.21.0",
     "typescript": "5.9.3",
     "vite": "^8.3.5"
   }

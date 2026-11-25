@@ -25,6 +25,176 @@ const appId = typeof config.appId === "string" && config.appId ? config.appId : 
 const storagePrefix = `qchat:storage:${appId}:`;
 
 // ---------------------------------------------------------------------------
+// Capabilities and permissions
+// ---------------------------------------------------------------------------
+
+// `buildAppConfig` embeds the registry in the package, so the runtime never
+// keeps a second copy of what the host implements.
+const capabilities =
+  config.capabilities && typeof config.capabilities === "object"
+    ? config.capabilities
+    : { permissions: [], apis: {}, bridge: {}, components: {} };
+const declaredPermissions = Array.isArray(config.permissions)
+  ? config.permissions.slice()
+  : Array.isArray(capabilities.permissions)
+    ? capabilities.permissions.slice()
+    : [];
+
+function hasPermission(permission) {
+  return declaredPermissions.includes(permission);
+}
+
+function apiCapability(name) {
+  return capabilities.apis && capabilities.apis[name] ? capabilities.apis[name] : null;
+}
+
+function capabilityReason(name) {
+  const api = apiCapability(name);
+  return api && api.reason ? api.reason : null;
+}
+
+/// The permissions a bridge method requires, from the build-time manifest.
+function bridgePermissions(method) {
+  const required = capabilities.bridge && capabilities.bridge[method];
+  return Array.isArray(required) ? required : [];
+}
+
+function permissionDenied(method, required) {
+  return hostError(
+    `${method} requires the ${required.join(" or ")} permission, which this Mini Program did not declare`,
+    "PERMISSION_DENIED",
+  );
+}
+
+function bridgePermissionError(method) {
+  const required = bridgePermissions(method);
+  if (required.length === 0 || required.some(hasPermission)) return null;
+  return permissionDenied(method, required);
+}
+
+// ---------------------------------------------------------------------------
+// Development event channel
+// ---------------------------------------------------------------------------
+
+// The Studio embeds the real `qchat dev` page in an iframe. Development builds
+// forward console output, network calls and runtime errors to the embedding
+// page so the Studio's Console and Network tabs show what the app really did.
+const devtools = config.devtools === true;
+const devEventSource = "qchat-miniapp";
+
+function devParent() {
+  try {
+    return window.parent && window.parent !== window ? window.parent : null;
+  } catch {
+    return null;
+  }
+}
+
+function postDevEvent(event) {
+  if (!devtools) return;
+  const parent = devParent();
+  if (!parent) return;
+  try {
+    parent.postMessage({ ...event, source: devEventSource }, "*");
+  } catch {
+    /* the embedding page may be gone */
+  }
+}
+
+function describeValue(value) {
+  if (typeof value === "string") return value;
+  if (value instanceof Error) return value.stack || value.message;
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function responseStatus(result) {
+  if (!result || typeof result !== "object") return null;
+  if (typeof result.statusCode === "number") return result.statusCode;
+  if (typeof result.status === "number") return result.status;
+  return null;
+}
+
+/// Runs a bridge network call and mirrors the request/response pair to the
+/// Studio. The author's callbacks are untouched.
+function logNetwork(call, method, url, params, options) {
+  const value = options || {};
+  const startedAt = Date.now();
+  postDevEvent({ type: "network", phase: "request", method, url, at: startedAt });
+  return bridgeCall(call, params, {
+    ...value,
+    success: (result) => {
+      postDevEvent({
+        type: "network",
+        phase: "response",
+        method,
+        url,
+        status: responseStatus(result),
+        durationMs: Date.now() - startedAt,
+        at: Date.now(),
+      });
+      if (typeof value.success === "function") value.success(result);
+    },
+    fail: (error) => {
+      postDevEvent({
+        type: "network",
+        phase: "error",
+        method,
+        url,
+        message: error && error.message ? error.message : String(error),
+        durationMs: Date.now() - startedAt,
+        at: Date.now(),
+      });
+      if (typeof value.fail === "function") value.fail(error);
+    },
+  });
+}
+
+function installDevChannel() {
+  if (!devtools) return;
+  for (const level of ["log", "info", "warn", "error", "debug"]) {
+    const original = console[level];
+    if (typeof original !== "function") continue;
+    console[level] = function (...args) {
+      original.apply(console, args);
+      postDevEvent({
+        type: "console",
+        level,
+        message: args.map(describeValue).join(" "),
+        at: Date.now(),
+      });
+    };
+  }
+  window.addEventListener("error", (event) => {
+    postDevEvent({
+      type: "error",
+      message: event && event.message ? String(event.message) : "Uncaught error",
+      file: event && event.filename ? String(event.filename) : "",
+      line: event && event.lineno ? Number(event.lineno) : 0,
+      column: event && event.colno ? Number(event.colno) : 0,
+      at: Date.now(),
+    });
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event && event.reason;
+    postDevEvent({
+      type: "error",
+      message: reason && reason.message ? String(reason.message) : describeValue(reason),
+      file: "unhandledrejection",
+      line: 0,
+      column: 0,
+      at: Date.now(),
+    });
+  });
+}
+
+installDevChannel();
+
+
+// ---------------------------------------------------------------------------
 // App
 // ---------------------------------------------------------------------------
 
@@ -73,10 +243,13 @@ function hostError(message, code) {
 /// options object. With no callbacks the promise is returned, which is the
 /// modern WeChat API shape.
 function bridgeCall(method, params, options) {
+  const denied = bridgePermissionError(method);
   const bridge = hostBridge();
-  const promise = bridge
-    ? Promise.resolve(bridge.call(method, params || {}))
-    : Promise.reject(hostError("QChat host is unavailable", "HOST_UNAVAILABLE"));
+  const promise = denied
+    ? Promise.reject(denied)
+    : bridge
+      ? Promise.resolve(bridge.call(method, params || {}))
+      : Promise.reject(hostError("QChat host is unavailable", "HOST_UNAVAILABLE"));
   if (!options || typeof options !== "object") return promise;
   const { success, fail, complete } = options;
   const done = promise.then(
@@ -95,12 +268,20 @@ function bridgeCall(method, params, options) {
   return done;
 }
 
-function unsupported(method, options) {
-  const error = hostError(`${method} is not supported by the QChat host`, "NOT_SUPPORTED");
+function settleError(error, options) {
   if (options && typeof options.fail === "function") options.fail(error);
-  else console.warn(`[qchat] ${method} is not supported by the QChat host`);
+  else console.warn(`[qchat] ${error.message}`);
   if (options && typeof options.complete === "function") options.complete(error);
   return Promise.resolve(undefined);
+}
+
+function unsupported(method, options) {
+  const name = String(method).replace(/^wx\./, "");
+  const error = hostError(
+    capabilityReason(name) || `${method} is not supported by the QChat host`,
+    "NOT_SUPPORTED",
+  );
+  return settleError(error, options);
 }
 
 function readLocal(key) {
@@ -390,8 +571,38 @@ function refreshSystemInfo() {
 const wx = {
   env: { USER_DATA_PATH: "qchat://user" },
 
-  canIUse() {
-    return false;
+  /// Answers WeChat's capability query from the registry the build embedded.
+  /// `wx.getStorageSync`, `swiper`, `button.open-type.share` and the like are
+  /// supported only when `builtin/` or this runtime implements them.
+  canIUse(schema) {
+    const text = String(schema == null ? "" : schema).trim();
+    if (!text) return false;
+    if (text.startsWith("wx.")) {
+      const api = apiCapability(text.slice(3));
+      return Boolean(api && api.supported);
+    }
+    const parts = text.split(".");
+    const tag = parts[0];
+    const component = capabilities.components && capabilities.components[tag];
+    if (!component) return false;
+    if (parts.length === 1) return true;
+    const attribute = parts[1];
+    const attributes = Array.isArray(component.attributes) ? component.attributes : [];
+    if (!attributes.includes(attribute)) return false;
+    if (parts.length === 2) return true;
+    const values = component.values && component.values[attribute];
+    return Array.isArray(values) && values.includes(parts[2]);
+  },
+
+  /// The full capability manifest: declared permissions, implemented APIs and
+  /// component attributes. Use it to explain a missing feature instead of
+  /// guessing why a call failed.
+  getCapabilities() {
+    return {
+      permissions: declaredPermissions.slice(),
+      apis: JSON.parse(JSON.stringify(capabilities.apis || {})),
+      components: JSON.parse(JSON.stringify(capabilities.components || {})),
+    };
   },
 
   nextTick(callback) {
@@ -555,6 +766,10 @@ const wx = {
         if (value.success) value.success({ data });
       },
       fail: (error) => {
+        if (error && error.code === "PERMISSION_DENIED") {
+          if (value.fail) value.fail(error);
+          return;
+        }
         const data = readLocal(value.key);
         if (data !== undefined && value.success) value.success({ data });
         else if (value.fail) value.fail(error);
@@ -563,35 +778,59 @@ const wx = {
     });
   },
   getStorageSync(key) {
+    if (!hasPermission("storage")) {
+      console.warn("[qchat] wx.getStorageSync requires the storage permission");
+      return "";
+    }
     const value = readLocal(key);
     return value === undefined ? "" : value;
   },
   setStorage(options) {
     const value = options || {};
+    const denied = bridgePermissionError("setStorage");
+    if (denied) return settleError(denied, value);
     writeLocal(value.key, value.data);
     return bridgeCall("setStorage", { key: value.key, value: value.data }, value);
   },
   setStorageSync(key, data) {
+    const denied = bridgePermissionError("setStorage");
+    if (denied) {
+      console.warn(`[qchat] ${denied.message}`);
+      return;
+    }
     writeLocal(key, data);
     bridgeCall("setStorage", { key, value: data }, {}).catch(() => {});
   },
   removeStorage(options) {
     const value = options || {};
+    const denied = bridgePermissionError("removeStorage");
+    if (denied) return settleError(denied, value);
     removeLocal(value.key);
     return bridgeCall("removeStorage", { key: value.key }, value);
   },
   removeStorageSync(key) {
+    const denied = bridgePermissionError("removeStorage");
+    if (denied) {
+      console.warn(`[qchat] ${denied.message}`);
+      return;
+    }
     removeLocal(key);
     bridgeCall("removeStorage", { key }, {}).catch(() => {});
   },
   clearStorage(options) {
-    clearLocal();
     const value = options || {};
+    const denied = bridgePermissionError("clearStorage");
+    if (denied) return settleError(denied, value);
+    clearLocal();
     if (value.success) value.success({});
     if (value.complete) value.complete({});
     return Promise.resolve({});
   },
   clearStorageSync() {
+    if (!hasPermission("storage")) {
+      console.warn("[qchat] wx.clearStorageSync requires the storage permission");
+      return;
+    }
     clearLocal();
   },
 
@@ -607,7 +846,7 @@ const wx = {
     if (/^https?:\/\//i.test(url)) params.url = url;
     else params.path = url;
     const call = /^https?:\/\//i.test(url) ? "fetch" : "request";
-    return bridgeCall(call, params, value);
+    return logNetwork(call, method, url, params, value);
   },
   fetch(options) {
     return wx.request(options);
@@ -702,6 +941,8 @@ const index = require("../index.js");
 runtime.index = index;
 runtime.wx = wx;
 runtime.config = config;
+runtime.capabilities = capabilities;
+runtime.devtools = devtools;
 
 createBackend();
 index.registerGlobalEventListener(backend);

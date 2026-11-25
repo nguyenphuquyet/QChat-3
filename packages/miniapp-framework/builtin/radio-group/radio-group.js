@@ -8,6 +8,7 @@ export default Component({
   behaviors: [hidden],
   properties: {
     value: { type: String, value: "" },
+    name: { type: String, value: "" },
   },
   relations: {
     radio: {
@@ -75,6 +76,13 @@ export default Component({
         this.__qchatSyncing = false;
       }
       this.triggerEvent("change", { value: changed.data.value });
+    },
+    __qchatFormValue() {
+      return this.data.value == null ? "" : String(this.data.value);
+    },
+    __qchatResetValue(initial) {
+      this.setData({ value: initial == null ? "" : String(initial) });
+      this.__qchatSyncFromValue();
     },
   },
 });

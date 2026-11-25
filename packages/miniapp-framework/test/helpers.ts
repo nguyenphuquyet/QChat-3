@@ -130,6 +130,9 @@ export async function bootBuiltApp(
     config?: Record<string, unknown>;
     /// App-level WXSS to attach to the document, for computed-style checks.
     styles?: string;
+    /// Runs on the jsdom window after the globals are installed and before the
+    /// bundle evaluates. Used to stub `window.parent` for the devtools channel.
+    beforeEval?: (window: JSDOM["window"]) => void;
   } = {},
 ): Promise<BootedApp> {
   const dom = new JSDOM("<!doctype html><html><head></head><body></body></html>", {
@@ -160,6 +163,8 @@ export async function bootBuiltApp(
     style.textContent = options.styles;
     document.head.appendChild(style);
   }
+
+  if (options.beforeEval) options.beforeEval(window);
 
   try {
     window.eval(built.appService.toString("utf8"));

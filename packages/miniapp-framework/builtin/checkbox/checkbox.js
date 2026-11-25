@@ -41,5 +41,8 @@ export default Component({
         this.triggerEvent("change", { value });
       }
     },
+    __qchatActivate() {
+      this.onTap();
+    },
   },
 });

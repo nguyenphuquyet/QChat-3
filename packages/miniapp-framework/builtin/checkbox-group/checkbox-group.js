@@ -4,12 +4,14 @@ import hidden from "../behaviors/hidden.js";
 ///
 /// Collects the checked children and emits one `change` with
 /// `{ value: [string, ...] }`, matching WeChat. Setting `value` on the group
-/// selects the matching children; the children's own `checked` attribute is the
-/// initial state when the group has no value.
+/// selects the matching children; when the group has no explicit value the
+/// children's own `checked` attribute is the initial state. Setting `value` to
+/// `[]` after mount unchecks every child.
 export default Component({
   behaviors: [hidden],
   properties: {
     value: { type: Array, value: [] },
+    name: { type: String, value: "" },
   },
   relations: {
     checkbox: {
@@ -25,13 +27,23 @@ export default Component({
   },
   observers: {
     value() {
-      this.__qchatScheduleSync();
+      if (this.__qchatReady) {
+        this.__qchatExplicitValue = true;
+        this.__qchatScheduleSync();
+      } else if (Array.isArray(this.data.value) && this.data.value.length > 0) {
+        this.__qchatExplicitValue = true;
+      }
     },
   },
   lifetimes: {
+    ready() {
+      this.__qchatReady = true;
+      if (this.__qchatExplicitValue) this.__qchatScheduleSync();
+    },
     detached() {
       if (this.__qchatSyncTimer) clearTimeout(this.__qchatSyncTimer);
       this.__qchatSyncTimer = null;
+      this.__qchatReady = false;
     },
   },
   methods: {
@@ -49,7 +61,7 @@ export default Component({
     },
     __qchatSyncFromValue() {
       const selected = Array.isArray(this.data.value) ? this.data.value : [];
-      if (selected.length === 0) return;
+      if (selected.length === 0 && !this.__qchatExplicitValue) return;
       this.__qchatSyncing = true;
       try {
         for (const child of this.__qchatChildren()) {
@@ -62,7 +74,7 @@ export default Component({
     },
     __qchatOnChildLinked(child) {
       const selected = Array.isArray(this.data.value) ? this.data.value : [];
-      if (selected.length === 0) return;
+      if (!this.__qchatExplicitValue && selected.length === 0) return;
       const checked = selected.includes(child.data.value);
       if (Boolean(child.data.checked) !== checked) child.setData({ checked });
     },
@@ -79,6 +91,15 @@ export default Component({
         this.__qchatSyncing = false;
       }
       this.triggerEvent("change", { value: values });
+    },
+    __qchatFormValue() {
+      return Array.isArray(this.data.value) ? this.data.value.slice() : [];
+    },
+    __qchatResetValue(initial) {
+      const value = Array.isArray(initial) ? initial.slice() : [];
+      this.__qchatExplicitValue = true;
+      this.setData({ value });
+      this.__qchatSyncFromValue();
     },
   },
 });

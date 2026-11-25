@@ -71,6 +71,9 @@ jobs:
       - name: Typecheck the IDE
         run: corepack pnpm --filter @qchat/miniapp-ide typecheck
 
+      - name: Test the IDE project model
+        run: corepack pnpm --filter @qchat/miniapp-ide test
+
       - name: Build the web frontend
         run: corepack pnpm --filter @qchat/miniapp-ide build:web
 

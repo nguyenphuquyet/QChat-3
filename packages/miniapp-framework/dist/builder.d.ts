@@ -1,3 +1,4 @@
+import { type CapabilityManifest } from "./capabilities.js";
 import { type AppJson, type ManifestOverrides, type MiniProgramComponent, type MiniProgramPage, type MiniProgramProgram, type PageJson, type TabBarConfig, type WindowConfig } from "./wechat.js";
 export declare const PACKAGE_FORMAT = "webapp";
 export declare const PACKAGE_SCHEMA_VERSION = 3;
@@ -69,6 +70,9 @@ export type AppConfig = {
     usingComponents: Record<string, string>;
     sdkVersion: string;
     generatedAt: string;
+    permissions: string[];
+    capabilities: CapabilityManifest;
+    devtools: boolean;
 };
 export type BuildOptions = {
     projectDir: string;
@@ -85,6 +89,7 @@ export type BuildOptions = {
     sourceMap?: boolean;
     /** Prefix for custom component host elements. Defaults to `wx-`. */
     tagNamePrefix?: string;
+    devtools?: boolean;
 };
 export type BuiltMiniProgram = {
     outFile: string;
@@ -103,7 +108,7 @@ export type BuiltMiniProgram = {
     project: MiniProgramProgram;
     durationMs: number;
 };
-export declare function buildAppConfig(project: MiniProgramProgram, manifest: MiniProgramManifest, date: Date): AppConfig;
+export declare function buildAppConfig(project: MiniProgramProgram, manifest: MiniProgramManifest, date: Date, devtools?: boolean): AppConfig;
 export declare function renderIndexHtml(manifest: MiniProgramManifest, appConfigJson: string): string;
 export declare function buildMiniProgram(options: BuildOptions): Promise<BuiltMiniProgram>;
 export declare function readPackageManifest(file: string): Promise<MiniProgramManifest>;

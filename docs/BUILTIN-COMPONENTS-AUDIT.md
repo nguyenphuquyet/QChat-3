@@ -10,11 +10,16 @@ custom components, which confirms that the host owns those tags.
 This document started as a plan. Phase 2 is now implemented: the 15 components
 listed in §7.1 are real `glass-easel` host components in
 `packages/miniapp-framework/builtin/`, rendered through the official template
-and stylesheet compilers. The automated matrix in
+and stylesheet compilers. Phase 4 adds the six remaining priority built-ins
+(`swiper`, `swiper-item`, `picker`, `form`, `label`, `rich-text`), for 21
+registered tags in total. The automated matrix in
 `packages/miniapp-framework/test/builtin.test.ts` covers rendering, events,
-group aggregation, `model:value`, slider/scroll gestures, page lifecycle and
-navigation. There is still **no Android or iOS device result**; §8 lists what is
-and is not claimed.
+group aggregation, `model:value`, slider/scroll/swiper gestures, form
+submit/reset, picker modes, rich-text sanitisation, page lifecycle and
+navigation. `test/capabilities.test.ts` checks that the capability registry
+matches the runtime and the built-in set, and `test/devtools.test.ts` covers the
+Studio event channel. There is still **no Android or iOS device result**; §8
+lists what is and is not claimed.
 
 ## Fidelity levels
 
@@ -29,7 +34,7 @@ Shipping target: **F2** for the core set, **F1/F2** for media that can be
 mapped to web primitives, and an explicit "unsupported" state for anything that
 would otherwise be a fake tag.
 
-## 0. Phase 2 implementation status
+## 0. Implementation status
 
 Implemented in `packages/miniapp-framework/builtin/<tag>/<tag>.{js,json,wxml,wxss}`.
 Every entry is a `glass-easel` `Component` registered per user page/component
@@ -39,21 +44,56 @@ Shared behaviour lives in `builtin/behaviors/` (`hidden`, `hover`) and host-DOM
 helpers in `builtin/shared/dom.js`. Default visuals are in `builtin/base.wxss`,
 compiled to `wx-*` tag selectors so an author rule can override them.
 
+The registry in `packages/miniapp-framework/src/capabilities.ts` is the single
+source of truth for what the host really implements. It is embedded into
+`window.__QCHAT_APP_CONFIG__.capabilities` at build time, `wx.canIUse` and
+`wx.getCapabilities` read it, and `test/capabilities.test.ts` fails if the
+runtime, the component set and the registry drift apart. Nothing below is
+listed as supported unless a test boots the runtime and exercises it.
+
+### 0.1 Phase 2 components
+
 | Component | Level | Implemented | Remaining gap |
 | --- | --- | --- | --- |
 | `view` | F2 | Block host with slot; `hidden`; `hover-class` + start/stay timing | `hover-stop-propagation` is accepted but inert (no ancestor hover in this runtime) |
-| `text` | F1–F2 | Inline host with nested text; `selectable`/`user-select` properties | `space` and `decode` are accepted but not applied; iOS selection/copy policy unverified |
-| `button` | F2 | `type`/`size`/`plain`/`disabled`/`loading`, hover, native button, `open-type=share`/`getUserInfo`; other open-types emit `error` | `form-type`, `form`, `label` not implemented; `contact`/`feedback`/`getPhoneNumber`/`requestPayment` need host capabilities and are reported unsupported |
+| `text` | F2 | Inline host with nested text; `selectable`/`user-select`; `space` (`nbsp`/`ensp`/`emsp`) and `decode` now applied | iOS selection/copy policy unverified |
+| `button` | F2 | `type`/`size`/`plain`/`disabled`/`loading`, hover, native button, `open-type=share`/`getUserInfo`; `form-type=submit`/`reset` reaches the enclosing `form` | `open-type` values other than `share`/`getUserInfo` emit `error`; `contact`/`feedback`/`getPhoneNumber`/`requestPayment` need host capabilities and are reported unsupported |
 | `image` | F2 | Native `img`, `mode` → CSS class, `bindload`/`binderror`, empty state, asset URL rewrite | Exact crop per mode relies on `object-fit`; long-press menu not implemented; remote `src` is blocked by the WebView CSP |
 | `scroll-view` | F2 | `scroll`/`scrolltolower`/`scrolltoupper` detail, `scroll-top`/`scroll-left`, `scroll-into-view`, axis direction, thresholds | Pull-to-refresh gesture is property-only; `enhanced` flags are accepted but inert; device gesture verification pending |
-| `input` | F2 | Native input, value sync, `model:value`, `input`/`focus`/`blur`/`confirm`, password/number types, `maxlength`, `disabled` | `placeholder-class` styles only the native element; iOS keyboard `confirm-type` and selection restore unverified |
-| `textarea` | F2 | Native textarea, value sync, `auto-height`, `linechange`, `input`/`focus`/`blur`/`confirm` | Placeholder styling partial; native overlay/keyboard behaviour unverified |
-| `switch` | F2 | `checked`/`disabled`/`color`/`type="checkbox"`, `change` | Animation parity unverified |
-| `checkbox` / `checkbox-group` | F2 | Group relation, checked aggregation, `change` with `{value:[…]}` | Programmatically setting a group `value` to `[]` does not uncheck children (non-empty sync only); ordering is document order |
-| `radio` / `radio-group` | F2 | One checked child, `change` with `{value}`, group `value` sync | No `label`/`form` integration |
-| `slider` | F2 | Pointer drag/tap, `changing`/`change`, `min`/`max`/`step`, colors, `disabled` | No `duration`-style smoothing; touch device verification pending |
+| `input` | F2 | Native input, value sync, `model:value`, `input`/`focus`/`blur`/`confirm`, password/number types, `maxlength`, `disabled`, `name` for forms | `placeholder-class` styles only the native element; iOS keyboard `confirm-type` and selection restore unverified |
+| `textarea` | F2 | Native textarea, value sync, `auto-height`, `linechange`, `input`/`focus`/`blur`/`confirm`, `name` for forms | Placeholder styling partial; native overlay/keyboard behaviour unverified |
+| `switch` | F2 | `checked`/`disabled`/`color`/`type="checkbox"`, `change`, `name` for forms | Animation parity unverified |
+| `checkbox` / `checkbox-group` | F2 | Group relation, checked aggregation, `change` with `{value:[…]}`, `name` for forms; setting the group `value` to `[]` now unchecks children | Ordering is document order |
+| `radio` / `radio-group` | F2 | One checked child, `change` with `{value}`, group `value` sync, `name` for forms | None known beyond device verification |
+| `slider` | F2 | Pointer drag/tap, `changing`/`change`, `min`/`max`/`step`, colors, `disabled`, `name` for forms | No `duration`-style smoothing; touch device verification pending |
 | `navigator` | F2 | `navigate`/`redirect`/`switchTab`/`reLaunch`/`navigateBack`, hover, URL query | `target="miniProgram"` and `open-type="exit"` emit `error`; no route guards |
 | `progress` | F2 | `percent` clamp, `stroke-width`, colors, `show-info`, active stripe | `duration`/`active-mode` animation speed is fixed |
+
+### 0.2 Phase 4 components
+
+| Component | Level | Implemented | Remaining gap |
+| --- | --- | --- | --- |
+| `swiper` / `swiper-item` | F2 | Descendant relation over `swiper-item`; `current`, `autoplay`, `interval`, `duration`, `circular`, `vertical`, `indicator-dots`/colors, `display-multiple-items`, `previous-margin`/`next-margin`/`easing-function`/`snap-to-edge` accepted; touch and mouse drag paging; `change` and `animationfinish` with `{current, source}` | `circular` wraps by animating across all items instead of cloning the ends; `previous-margin`/`next-margin` are parsed but not laid out; `easing-function` does not change the CSS timing |
+| `picker` | F2 | `selector`, `multiSelector`, `time`, `date` modes with native controls; `value`/`range`/`range-key`/`fields`; `change` with `{value}`; `columnchange` for `multiSelector`; `disabled`; `name` for forms; `region` emits `error` instead of faking a region picker | `multiSelector` uses inline native columns rather than WeChat's wheel sheet; `header-text` unused; `region` mode unsupported |
+| `form` | F2 | Collects named `input`, `textarea`, `switch`, `checkbox-group`, `radio-group`, `slider`, `picker` into `submit` detail `{value}`; `reset` restores the values captured at ready; `bindsubmit`/`bindreset`; two-sided `button` relation for `form-type` | `report-submit`/`report-submit-timeout` accepted but `formId` stays `""` (no template-message backend) |
+| `label` | F2 | `for` activates the target `switch`/`checkbox`/`radio`/`button`/`input` by id; wrapping a control also works; tap bubbles normally | Checkbox/radio activation relies on the control's own tap handler |
+| `rich-text` | F2 | `nodes` accepts an HTML string or a node array; sanitises against a tag/attribute allow-list (drops `<script>`, event attributes, `javascript:` URLs) | Allow-list is conservative; WeChat's full inline-style surface is larger |
+
+### 0.3 Cross-cutting notes
+
+- **Relations are two-sided in `glass-easel`.** A pair links only when *both*
+  components declare it. `checkbox`↔`checkbox-group`, `radio`↔`radio-group`,
+  `swiper`↔`swiper-item` and `button`↔`form` each declare both sides; a
+  parent-only `descendant` declaration does not link.
+- **Relation callbacks run before the node list is populated.** `swiper` reads
+  its item count on the next task (`__qchatScheduleRefresh`) instead of inside
+  `linked()`.
+- **`swiper` is idempotent.** `__qchatRefresh` patches only changed fields and
+  `__qchatApplyCurrent` emits `change` only when the effective index really
+  changes, so a page that binds `current` and writes it back in `bindchange`
+  does not loop.
+- **Boolean WXML attributes need explicit values.** `indicator-dots` alone
+  becomes `""`, which is `false`; write `indicator-dots="{{true}}"`.
 
 Host-level behaviour that the matrix also covers:
 
@@ -65,7 +105,6 @@ Host-level behaviour that the matrix also covers:
   `bindtap`; a disabled `button`/`switch`/`checkbox`/`radio` stops the tap.
 - `input`/`textarea` native events are captured on the component host and
   re-emitted once with WeChat's detail shape, so no detail-less duplicate leaks.
-
 
 ## 1. Source-of-truth status
 
@@ -89,7 +128,7 @@ tag names.
 | Component | Core WeChat behaviour | Public impl. | QChat plan | Target | Missing |
 | --- | --- | --- | --- | --- | --- |
 | `view` | Block container; `hover-class`, `hover-start-time`, `hover-stay-time`, `hover-stop-propagation`; flex layout is CSS-driven | No | `glass-easel` host component wrapping a `div`; hover classes via touch listeners | F2 | Hover timing, propagation stop, default `display:block` |
-| `text` | Inline text; `selectable`, `space` (`nbsp`/`ensp`/`emsp`), `decode`; nested `text` inherits | No | Host component wrapping `span`; entity decoding and space modes | F2 | Nested inheritance, copy/selection policy on iOS |
+| `text` | Inline text; `selectable`, `space` (`nbsp`/`ensp`/`emsp`), `decode`; nested `text` inherits | No | **Implemented at F2**: host `span` with `space`/`decode` | F2 | iOS copy/selection policy |
 | `block` | Compile-time wrapper, no node | Compiler (official) | No runtime component. `glass-easel-template-compiler` handles it | F3 | — |
 | `slot` | Content projection | `glass-easel` | Native `glass-easel` feature | F3 | Verify named/scoped slots |
 | `template` / `import` / `include` | Compile-time composition | Official template compiler | No runtime component | F3 | Verify WXS interaction |
@@ -123,10 +162,10 @@ tag names.
 | `checkbox` / `checkbox-group` | Grouped multi-select | No | Host components | F2 | Group value ordering |
 | `radio` / `radio-group` | Grouped single-select | No | Host components | F2 | Group value semantics |
 | `slider` | Range input, `min`/`max`/`step`/`value`, `activeColor`, `block-size`, `bindchange`/`bindchanging` | No | Host component (pointer events) | F2 | `bindchanging` throttling |
-| `picker` | `selector`, `multiSelector`, `time`, `date`, `region`; `bindchange`/`bindcancel`/`bindcolumnchange` | No | Host component + native sheet | F1–F2 | Region dataset, multi-column cascade |
+| `picker` | `selector`, `multiSelector`, `time`, `date`, `region`; `bindchange`/`bindcancel`/`bindcolumnchange` | No | **Implemented at F2** for `selector`/`multiSelector`/`time`/`date`; `region` emits `error` | F2 | Region dataset, wheel-sheet parity |
 | `picker-view` / `picker-view-column` | Custom wheel picker | No | Host component | F1 | Momentum/snap physics |
-| `form` | Collects named controls, `bindsubmit`/`bindreset` | No | Host component walking named descendants | F2 | Value coercion rules |
-| `label` | Focuses/activates the labelled control | No | Host component | F2 | `for` resolution across components |
+| `form` | Collects named controls, `bindsubmit`/`bindreset` | No | **Implemented at F2** (see §0.2) | F2 | `report-submit` template-message backend |
+| `label` | Focuses/activates the labelled control | No | **Implemented at F2** (see §0.2) | F2 | Cross-component `for` is limited to the rendered tree |
 | `editor` | Rich-text editor | No | Host `contenteditable` + `wx.*` editor context | Deferred | Delta format, selection APIs |
 
 ## 5. Scrolling and gestures
@@ -134,7 +173,7 @@ tag names.
 | Component | Core WeChat behaviour | Public impl. | QChat plan | Target | Missing |
 | --- | --- | --- | --- | --- | --- |
 | `scroll-view` | Axis scrolling, `scroll-into-view`, `scroll-top`/`scroll-left`, `refresher-*`, `bindscroll`/`bindscrolltolower`/`bindscrolltoupper`, `enhanced` | No | Host component; overflow scroll + event throttling | F2 | Refresher, `enhanced` features, nested scroll arbitration |
-| `swiper` / `swiper-item` | Paging, `autoplay`, `interval`, `duration`, `circular`, `indicator-dots`, `vertical`, `bindchange` | No | Host component with pointer/touch paging | F1–F2 | Transition parity, indicator styles, RTL |
+| `swiper` / `swiper-item` | Paging, `autoplay`, `interval`, `duration`, `circular`, `indicator-dots`, `vertical`, `bindchange` | No | **Implemented at F2** (see §0.2): two-sided relation, touch/mouse paging, `change`/`animationfinish` | F2 | Seamless `circular` cloning, `previous-margin`/`next-margin` layout, easing curves |
 | `movable-area` / `movable-view` | Draggable/zoomable surface, `direction`, `inertia`, `out-of-bounds`, `scale`, `bindchange`/`bindscale` | No | Host component with pointer gesture math | F1 | Inertia curves, bounds modes, pinch |
 | `match-media` | Responsive query wrapper | No | Host component using `matchMedia` | F1 | Query syntax parity |
 | `cover-view` / `cover-image` | Native overlay above native components | No | Only meaningful over native platform views | Deferred | Native layering |
@@ -145,7 +184,7 @@ tag names.
 | Component | Core WeChat behaviour | Public impl. | QChat plan | Target | Missing |
 | --- | --- | --- | --- | --- | --- |
 | `navigator` | `url`, `open-type` (`navigate`, `redirect`, `switchTab`, `reLaunch`, `navigateBack`), `delta`, `hover-class` | No | Host component calling the QChat page stack | F2 | Route guards, tab state |
-| `rich-text` | `nodes` (HTML string or node array) | No | Host component with a sanitizing renderer | F1 | Tag/attribute allow-list, node array format |
+| `rich-text` | `nodes` (HTML string or node array) | No | **Implemented at F2** with an allow-list sanitiser (see §0.2) | F2 | Larger inline-style surface |
 | `progress` | `percent`, `stroke-width`, `activeColor`, `active`, `show-info` | No | Host component | F2 | Animation parity |
 | `icon` | `type`, `size`, `color` | No | QChat icon set mapped to WeChat types | F1 | Exact glyph parity |
 | `open-data` | Displays user/group data | No | Native bridge, consent-gated | Deferred | Privacy model |
@@ -155,10 +194,12 @@ tag names.
 
 1. **Done (Phase 2):** `view`, `text`, `button`, `image`, `scroll-view`,
    `input`, `textarea`, `switch`, `checkbox`, `radio`, `slider`, `navigator`,
-   `progress` at **F2** (with the gaps recorded in §0).
-2. **Next:** `swiper`, `picker`, `rich-text`, `form`, `label` at **F1**, then F2.
-3. `video`, `canvas`, `web-view` at **F1** using web primitives, behind a
-   capability flag.
+   `progress` at **F2** (with the gaps recorded in §0.1).
+2. **Done (Phase 4):** `swiper`, `swiper-item`, `picker`, `form`, `label`,
+   `rich-text` at **F2** (gaps in §0.2). The priority list from the product
+   brief is complete.
+3. **Next:** `video`, `canvas`, `web-view` at **F1** using web primitives, behind
+   a capability flag; then device verification of everything already shipped.
 4. `map`, `camera`, `live-player`, `live-pusher`, `editor`, Skyline components:
    report **unsupported** until a native implementation exists. No tag-only
    fallback is shipped as "compatible".
@@ -169,13 +210,14 @@ Every component gets:
 - attribute parsing with WeChat defaults and type coercion;
 - events with WeChat names and payload shapes;
 - lifecycle/teardown handling;
-- an entry in a compatibility manifest so the host, the IDE and the store can
-  show exactly which level is implemented.
+- an entry in `src/capabilities.ts`, embedded into `AppConfig.capabilities`, so
+  `wx.canIUse`/`wx.getCapabilities`, the IDE and the store show exactly which
+  level is implemented.
 
 ## 8. Explicit non-claims
 
-- Phase 2 compatibility is proven by automated jsdom tests, not by Android or
-  iOS device runs. No device result exists yet.
+- Phase 2 and Phase 4 compatibility is proven by automated jsdom tests, not by
+  Android or iOS device runs. No device result exists yet.
 - The components are QChat's implementation of WeChat's documented surface, not
   WeChat's closed native implementation. Visual parity is approximate where
   WeChat does not document values.
@@ -184,8 +226,10 @@ Every component gets:
 - `miniprogram-compiler` (`wcc`/`wcsc`) output is not runnable without WeChat's
   closed runtime and is not used.
 - `map`, `camera`, `live-player`, `live-pusher`, `editor` and Skyline components
-  are unsupported. `rich-text`, `form`, `label`, `picker`, `swiper` and
-  `video`/`canvas` are not implemented yet.
+  are unsupported. `video`, `canvas` and `web-view` are not implemented yet.
+- `swiper` `circular` is not seamless, `picker` `region` mode is not
+  implemented, and `form` `report-submit` yields no `formId`. These report their
+  gaps rather than pretending parity.
 - Remote image sources are subject to the WebView CSP (`img-src 'self' data:
   blob:`); a host proxy is not implemented.
 - `wx.showModal`, `wx.showActionSheet`, `wx.getSetting`, `wx.authorize`,

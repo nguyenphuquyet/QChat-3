@@ -71,7 +71,7 @@ export function DocsPanel({
         subtitle={t(
           "docs.subtitle",
           undefined,
-          "Hướng dẫn xây dựng mini app qapp và vận hành QChat Mini App Studio.",
+          "Hướng dẫn xây dựng WeChat Mini Program trong QChat và vận hành Studio.",
         )}
         onClose={onClose}
       />

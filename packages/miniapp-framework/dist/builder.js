@@ -20,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { TmplGroup } from "glass-easel-template-compiler";
 import { BUILTIN_DIR, HOST_ENTRY, withBuiltins } from "./builtin.js";
+import { buildCapabilities } from "./capabilities.js";
 import { loadMiniProgram, MiniProgramError, stripBom, } from "./wechat.js";
 import { readZip, writeZip } from "./zip.js";
 export const PACKAGE_FORMAT = "webapp";
@@ -470,7 +471,8 @@ function buildManifest(project, options) {
     void options;
     return manifest;
 }
-export function buildAppConfig(project, manifest, date) {
+export function buildAppConfig(project, manifest, date, devtools = true) {
+    const permissions = [...manifest.requestedPermissions];
     return {
         format: "qchat-miniprogram",
         formatVersion: 1,
@@ -498,6 +500,9 @@ export function buildAppConfig(project, manifest, date) {
         usingComponents: project.app.usingComponents ?? {},
         sdkVersion: manifest.minRuntimeVersion,
         generatedAt: date.toISOString(),
+        permissions,
+        capabilities: buildCapabilities(permissions),
+        devtools,
     };
 }
 function escapeHtml(value) {
@@ -582,7 +587,7 @@ export async function buildMiniProgram(options) {
     }
     const date = options.date ?? new Date();
     const manifest = buildManifest(project, options);
-    const appConfig = buildAppConfig(project, manifest, date);
+    const appConfig = buildAppConfig(project, manifest, date, options.devtools ?? options.mode !== "production");
     const appConfigJson = `${JSON.stringify(appConfig, null, 2)}\n`;
     const staging = await createStaging(project);
     const capture = captureCompilerMessages();
