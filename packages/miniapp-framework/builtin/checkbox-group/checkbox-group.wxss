@@ -1,0 +1,4 @@
+/*
+ * The group is only a collector; its children draw the boxes. The base
+ * stylesheet gives the host `display: block` like WeChat's.
+ */

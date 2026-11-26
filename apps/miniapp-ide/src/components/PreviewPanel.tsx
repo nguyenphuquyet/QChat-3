@@ -5,7 +5,9 @@ import {
   ChevronRight,
   Clock3,
   Copy,
+  ExternalLink,
   FolderOpen,
+  Globe2,
   Hammer,
   Info,
   Loader2,
@@ -18,6 +20,7 @@ import {
   Smartphone,
   Square,
   Sun,
+  Terminal,
   TriangleAlert,
   Wifi,
   X,
@@ -30,25 +33,18 @@ import { runAction } from "../lib/feedback";
 import { useI18n } from "../lib/useI18n";
 import {
   cn,
-  errorMessage,
   formatBytes,
   permissionTone,
   timeAgo,
 } from "../lib/utils";
-import { QappPreview } from "../lib/qapp/runtime";
-import { QappFrameView } from "../lib/qapp/render";
-import { DARK_THEME, LIGHT_THEME } from "../lib/qapp/style";
-import { loadPreviewBundle, type QappPreviewBundle } from "../lib/qapp/preview";
-import type { QappDevice, QappFrame, QappPreviewLog } from "../lib/qapp/types";
+import type { DevEvent } from "../types";
 
 /** The device a Mini App actually runs on: an iPhone 14-class screen. */
-const DEVICE: QappDevice = {
+const DEVICE = {
   width: 390,
   height: 844,
-  pixelRatio: 3,
   safeAreaTop: 47,
   safeAreaBottom: 34,
-  theme: "light",
 };
 
 const FRAME_PADDING = 3;
@@ -76,13 +72,13 @@ function HomeIndicator() {
   );
 }
 
-function PhoneShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function PhoneShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative rounded-[44px] border border-white/[0.12] bg-studio-800 p-[3px]" data-keep-white data-keep-dark>
+    <div
+      className="relative rounded-[44px] border border-white/[0.12] bg-studio-800 p-[3px]"
+      data-keep-white
+      data-keep-dark
+    >
       <div className="relative overflow-hidden rounded-[41px] border border-black/50 bg-[#07090d]">
         <div className="absolute left-1/2 top-2 z-40 h-[24px] w-[96px] -translate-x-1/2 rounded-full bg-black">
           <span className="absolute right-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-studio-800" />
@@ -93,90 +89,62 @@ function PhoneShell({
   );
 }
 
+type PreviewTab = "simulator" | "console" | "network";
+
+function devEventTone(event: DevEvent): string {
+  if (event.type === "error") return "text-rose-300";
+  if (event.type === "console") {
+    if (event.level === "error") return "text-rose-300";
+    if (event.level === "warn") return "text-amber-300";
+    return "text-studio-400";
+  }
+  if (event.phase === "error") return "text-rose-300";
+  if (event.phase === "request") return "text-studio-400";
+  return "text-mint-400/80";
+}
+
+function describeDevEvent(event: DevEvent): string {
+  if (event.type === "console") {
+    return `${event.level}  ${event.message}`;
+  }
+  if (event.type === "error") {
+    const where = event.file
+      ? ` (${event.file}${event.line ? `:${event.line}` : ""})`
+      : "";
+    return `error  ${event.message}${where}`;
+  }
+  if (event.phase === "request") {
+    return `${event.method} ${event.url}`;
+  }
+  if (event.phase === "error") {
+    return `${event.method} ${event.url} — ${event.message ?? "failed"}`;
+  }
+  return `${event.method} ${event.url} — ${event.status ?? "?"}${
+    typeof event.durationMs === "number" ? ` · ${event.durationMs} ms` : ""
+  }`;
+}
+
 function LivePreview() {
   const project = useStudio((state) => state.project);
-  const previewRevision = useStudio((state) => state.previewRevision);
-  const { t, language } = useI18n();
+  const devRunning = useStudio((state) => state.devRunning);
+  const devUrl = useStudio((state) => state.devUrl);
+  const devRevision = useStudio((state) => state.devRevision);
+  const devEvents = useStudio((state) => state.devEvents);
+  const reloadDev = useStudio((state) => state.reloadDev);
+  const clearDevEvents = useStudio((state) => state.clearDevEvents);
+  const appendDevEvent = useStudio((state) => state.appendDevEvent);
+  const startDev = useStudio((state) => state.startDev);
+  const { t } = useI18n();
 
   const shellRef = useRef<HTMLDivElement | null>(null);
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const previewRef = useRef<QappPreview | null>(null);
-  const runningRef = useRef(false);
-  const queuedRef = useRef(false);
-  const requestRef = useRef(0);
-  const toastTimer = useRef<number | undefined>(undefined);
-
   const [scale, setScale] = useState(0.68);
-  const [bundle, setBundle] = useState<QappPreviewBundle | null>(null);
-  const [phase, setPhase] = useState<"idle" | "bundling" | "ready" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [frame, setFrame] = useState<QappFrame | null>(null);
-  const [logs, setLogs] = useState<QappPreviewLog[]>([]);
-  const [consoleOpen, setConsoleOpen] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [tab, setTab] = useState<PreviewTab>("simulator");
   /*
    * The simulated device has its own appearance: switching the Studio to dark
    * must not repaint the Mini App, exactly like flipping a phone's system theme
-   * does not change the IDE. The toggle below is the device's system setting;
-   * the app's own theme switch (light/dark/sepia) stays untouched by it.
+   * does not change the IDE. The toggle below is the device's system setting.
    */
   const [deviceTheme, setDeviceTheme] = useState<"light" | "dark">("light");
-
-  const refresh = useCallback(async () => {
-    if (runningRef.current) {
-      queuedRef.current = true;
-      return;
-    }
-    const state = useStudio.getState();
-    const current = state.project;
-    if (!current?.manifest) {
-      setPhase("idle");
-      return;
-    }
-    runningRef.current = true;
-    const request = ++requestRef.current;
-    setPhase("bundling");
-    setError(null);
-    try {
-      if (state.settings.autoSave) await state.saveAllDirty();
-      const next = await loadPreviewBundle(current, state.settings);
-      if (request !== requestRef.current) return;
-      setBundle(next);
-      setLogs([]);
-      setFrame(null);
-      setPhase("ready");
-    } catch (failure) {
-      if (request !== requestRef.current) return;
-      setError(errorMessage(failure));
-      setPhase("error");
-    } finally {
-      runningRef.current = false;
-      if (queuedRef.current) {
-        queuedRef.current = false;
-        void refresh();
-      }
-    }
-    // Reads the live store, so it never closes over a stale project or setting.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // First mount, project switch, save and successful builds all land here.
-  useEffect(() => {
-    if (!project?.manifest) {
-      setBundle(null);
-      setFrame(null);
-      setPhase("idle");
-      return;
-    }
-    if (!api.isDesktop()) {
-      setPhase("error");
-      setError(t("preview.needsDesktop"));
-      return;
-    }
-    const timer = window.setTimeout(() => void refresh(), 400);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [project?.path, project?.manifest?.version, previewRevision]);
 
   // Fit the 390 × 844 stage into whatever width the panel has.
   useEffect(() => {
@@ -197,63 +165,35 @@ function LivePreview() {
     };
   }, []);
 
-  // One runtime per bundle: the iframe is recreated so no module state survives
-  // a reload, which is what a fresh app launch looks like on a device.
+  // The host runtime forwards console, network and error events from the real
+  // page. Only messages from the dev server's origin are accepted.
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host || !bundle) return;
-    const device: QappDevice = { ...DEVICE, theme: deviceTheme };
-    const preview = new QappPreview(host, {
-      appJs: bundle.appJs,
-      appInfo: bundle.appInfo,
-      device,
-      locale: language === "vi" ? "vi-VN" : language === "zh" ? "zh-CN" : "en-US",
-      onFrame: (next) => {
-        setFrame(next);
-        setPhase("ready");
-      },
-      onLog: (entry) => {
-        setLogs((previous) => [...previous.slice(-79), entry]);
-      },
-      onError: (failure) => {
-        setError(failure.message);
-        setLogs((previous) => [
-          ...previous.slice(-79),
-          { level: "error", message: failure.message },
-        ]);
-      },
-      onToast: (message) => {
-        if (toastTimer.current) window.clearTimeout(toastTimer.current);
-        setToastMessage(message);
-        toastTimer.current = window.setTimeout(() => setToastMessage(null), 2200);
-      },
-      onClose: () => {
-        setLogs((previous) => [
-          ...previous.slice(-79),
-          { level: "info", message: t("preview.closed") },
-        ]);
-      },
-    });
-    previewRef.current = preview;
-    return () => {
-      preview.dispose();
-      previewRef.current = null;
-      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    let origin = "";
+    try {
+      origin = new URL(devUrl).origin;
+    } catch {
+      origin = "";
+    }
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { source?: string } | null;
+      if (!data || data.source !== "qchat-miniapp") return;
+      if (origin && event.origin && event.origin !== origin) return;
+      const payload = { ...(data as Record<string, unknown>) };
+      delete payload.source;
+      if (typeof payload.type !== "string") return;
+      appendDevEvent(payload as never);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bundle, language, deviceTheme]);
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [appendDevEvent, devUrl]);
 
-  const theme = deviceTheme === "dark" ? DARK_THEME : LIGHT_THEME;
-  const frameRoot = frame?.root ?? null;
-  const renderContext = {
-    colors: theme,
-    device: { ...DEVICE, theme: deviceTheme },
-    assets: bundle?.assets ?? {},
-    emit: (id: string, event: string, payload: unknown) =>
-      previewRef.current?.dispatch(id, event, payload),
-  };
+  const consoleEvents = devEvents.filter(
+    (event) => event.type === "console" || event.type === "error",
+  );
+  const networkEvents = devEvents.filter((event) => event.type === "network");
+  const events = tab === "network" ? networkEvents : consoleEvents;
 
-  if (!project?.manifest) {
+  if (!project) {
     return (
       <div className="flex flex-col items-center" ref={shellRef}>
         <div className="flex h-[300px] w-full max-w-[260px] flex-col items-center justify-center gap-3 rounded-[32px] border border-white/10 bg-white/[0.02] px-8 text-center">
@@ -261,15 +201,11 @@ function LivePreview() {
             <Smartphone size={22} />
           </div>
           <div className="text-[11px] font-medium text-studio-300">{t("preview.noApp")}</div>
-          <div className="text-[9.5px] leading-4 text-studio-500">
-            {t("preview.noAppHint")}
-          </div>
+          <div className="text-[9.5px] leading-4 text-studio-500">{t("preview.noAppHint")}</div>
         </div>
       </div>
     );
   }
-
-  const busy = phase === "bundling";
 
   return (
     <div className="flex flex-col items-center">
@@ -278,9 +214,7 @@ function LivePreview() {
           <span
             className={cn(
               "h-1.5 w-1.5 rounded-full",
-              busy && "bg-amber-300",
-              !busy && phase === "ready" && "bg-mint-400",
-              !busy && phase === "error" && "bg-rose-400",
+              devRunning ? "bg-mint-400" : "bg-studio-600",
             )}
           />
           {t("preview.live")}
@@ -298,10 +232,18 @@ function LivePreview() {
           <button
             className="icon-btn h-6 w-6"
             title={t("preview.reload")}
-            onClick={() => void refresh()}
-            disabled={busy}
+            onClick={() => reloadDev()}
+            disabled={!devRunning}
           >
-            {busy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+            <RefreshCw size={12} />
+          </button>
+          <button
+            className="icon-btn h-6 w-6"
+            title={t("preview.openBrowser")}
+            onClick={() => void api.openUrl(devUrl)}
+            disabled={!devRunning}
+          >
+            <ExternalLink size={12} />
           </button>
         </div>
       </div>
@@ -322,62 +264,40 @@ function LivePreview() {
           >
             <PhoneShell>
               <div
-                style={{ width: DEVICE.width, height: DEVICE.height, background: theme.background }}
+                style={{
+                  width: DEVICE.width,
+                  height: DEVICE.height,
+                  background: deviceTheme === "dark" ? "#111318" : "#ffffff",
+                }}
                 className="relative"
               >
-                {/* The sandbox runs the app's JavaScript; it never paints. The
-                    React tree below is what the user sees and touches. */}
-                <div
-                  ref={hostRef}
-                  className="pointer-events-none absolute inset-0 opacity-0"
-                  aria-hidden
-                />
-                <div className="absolute inset-0 overflow-hidden">
-                  {frameRoot ? (
-                    <div className="absolute inset-0">
-                      <QappFrameView root={frameRoot} ctx={renderContext} />
+                {devRunning ? (
+                  <iframe
+                    key={devRevision}
+                    src={devUrl}
+                    title={t("preview.simulator")}
+                    className="absolute inset-0 h-full w-full border-0 bg-white"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-7 text-center">
+                    <Smartphone size={22} className="text-studio-500" />
+                    <div className="text-[12px] font-semibold text-studio-200">
+                      {t("preview.noDev")}
                     </div>
-                  ) : null}
-                </div>
-                <StatusBar />
-                <HomeIndicator />
-
-                {!frameRoot && busy ? (
-                  <div
-                    className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3"
-                    style={{ background: theme.background, color: theme.muted }}
-                  >
-                    <Loader2 size={22} className="animate-spin" />
-                    <span className="text-[11px]">{t("preview.building")}</span>
-                  </div>
-                ) : null}
-
-                {!frameRoot && !busy && phase === "error" ? (
-                  <div
-                    className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-7 text-center"
-                    style={{ background: theme.background, color: theme.ink }}
-                  >
-                    <TriangleAlert size={22} className="text-rose-400" />
-                    <div className="text-[12px] font-semibold">{t("preview.failedToRun")}</div>
-                    <div className="max-h-[220px] overflow-auto whitespace-pre-wrap break-words text-[9.5px] leading-4 text-studio-500">
-                      {error}
+                    <div className="text-[9.5px] leading-4 text-studio-500">
+                      {t("preview.noDevHint")}
                     </div>
                     <button
-                      className="rounded border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/80"
-                      onClick={() => void refresh()}
+                      className="mt-1 flex items-center gap-1 rounded bg-accent-500 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-accent-600"
+                      onClick={() => void runAction(() => startDev(), t("common.devStarted"))}
                     >
-                      {t("preview.retry")}
+                      <Play size={10} /> {t("common.dev")}
                     </button>
                   </div>
-                ) : null}
-
-                {toastMessage ? (
-                  <div className="pointer-events-none absolute inset-x-0 bottom-[54px] z-30 flex justify-center px-6">
-                    <div className="max-w-[280px] rounded bg-black/75 px-3 py-2 text-center text-[11px] leading-4 text-white shadow-lg">
-                      {toastMessage}
-                    </div>
-                  </div>
-                ) : null}
+                )}
+                <StatusBar />
+                <HomeIndicator />
               </div>
             </PhoneShell>
           </div>
@@ -386,45 +306,62 @@ function LivePreview() {
 
       <div className="mt-2 flex w-full items-center justify-between gap-2">
         <div className="min-w-0 text-[8.5px] text-studio-600">
-          {phase === "error" && bundle ? (
-            <span className="line-clamp-2 text-rose-300/80">{error}</span>
-          ) : phase === "bundling" ? (
-            <span className="text-amber-300/80">{t("preview.buildingShort")}</span>
+          {devRunning ? (
+            <span className="font-mono">{devUrl}</span>
           ) : (
             <span>{t("preview.hint")}</span>
           )}
         </div>
-        <button
-          className="flex shrink-0 items-center gap-1 rounded border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 text-[8.5px] text-studio-400"
-          onClick={() => setConsoleOpen((open) => !open)}
-          title={t("preview.console")}
-        >
-          {t("preview.console")}
-          <span className={cn("font-mono", logs.length ? "text-studio-300" : "text-studio-600")}>
-            {logs.length}
-          </span>
-        </button>
       </div>
 
-      {consoleOpen ? (
-        <div className="mt-2 w-full rounded border border-white/[0.06] bg-black/30 p-2">
-          {logs.length === 0 ? (
+      <div className="mt-2 flex w-full items-center gap-1 border-b border-white/[0.06] pb-1">
+        {(
+          [
+            ["simulator", t("preview.simulator"), null],
+            ["console", t("preview.console"), consoleEvents.length],
+            ["network", t("preview.network"), networkEvents.length],
+          ] as Array<[PreviewTab, string, number | null]>
+        ).map(([id, label, count]) => (
+          <button
+            key={id}
+            className={cn(
+              "flex items-center gap-1 rounded px-1.5 py-0.5 text-[8.5px] transition",
+              tab === id
+                ? "bg-white/[0.08] text-studio-100"
+                : "text-studio-500 hover:text-studio-300",
+            )}
+            onClick={() => setTab(id)}
+          >
+            {label}
+            {count !== null ? (
+              <span className={cn("font-mono", count ? "text-studio-300" : "text-studio-600")}>
+                {count}
+              </span>
+            ) : null}
+          </button>
+        ))}
+        {tab !== "simulator" ? (
+          <button
+            className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[8.5px] text-studio-500 hover:text-studio-300"
+            onClick={() => clearDevEvents()}
+            title={t("preview.clearEvents")}
+          >
+            <X size={9} /> {t("preview.clearEvents")}
+          </button>
+        ) : null}
+      </div>
+
+      {tab !== "simulator" ? (
+        <div className="mt-1 w-full rounded border border-white/[0.06] bg-black/30 p-2">
+          {events.length === 0 ? (
             <div className="py-1 text-center text-[8.5px] text-studio-600">
-              {t("preview.consoleEmpty")}
+              {tab === "network" ? t("preview.networkEmpty") : t("preview.consoleEmpty")}
             </div>
           ) : (
             <div className="max-h-[140px] space-y-0.5 overflow-auto font-mono text-[8.5px] leading-3.5">
-              {logs.slice(-40).map((entry, index) => (
-                <div
-                  key={`${index}-${entry.message.slice(0, 12)}`}
-                  className={cn(
-                    "break-words",
-                    String(entry.level) === "error" && "text-rose-300",
-                    String(entry.level) === "warn" && "text-amber-300",
-                    String(entry.level) !== "error" && String(entry.level) !== "warn" && "text-studio-400",
-                  )}
-                >
-                  <span className="text-studio-600">{String(entry.level)}</span> {entry.message}
+              {events.slice(-80).map((event) => (
+                <div key={event.id} className={cn("break-words", devEventTone(event))}>
+                  {describeDevEvent(event)}
                 </div>
               ))}
             </div>
@@ -443,7 +380,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
   const devRunning = useStudio((state) => state.devRunning);
   const activeArtifact = useStudio((state) => state.activeArtifact);
   const artifacts = useStudio((state) => state.artifacts);
-  const validateArtifact = useStudio((state) => state.validateArtifact);
+  const validateProject = useStudio((state) => state.validateProject);
   const buildProject = useStudio((state) => state.buildProject);
   const startDev = useStudio((state) => state.startDev);
   const stopDev = useStudio((state) => state.stopDev);
@@ -474,7 +411,7 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
         <div className="mt-3 flex gap-1.5">
           <button
             className="flex h-7 flex-1 items-center justify-center gap-1 rounded bg-accent-500 text-[8.5px] font-semibold text-white hover:bg-accent-600 disabled:opacity-50"
-            onClick={() => void runAction(() => buildProject(false), t("common.packageBuilt"))}
+            onClick={() => void runAction(() => buildProject(), t("common.packageBuilt"))}
             disabled={!ready || buildStatus === "running"}
           >
             <Hammer size={9} /> {t("common.build")}
@@ -538,13 +475,10 @@ export function PreviewPanel({ onClose }: { onClose: () => void }) {
                   <button
                     className="btn btn-secondary h-6 flex-1 text-[9px]"
                     onClick={() =>
-                      void runAction(
-                        () => validateArtifact(activeArtifact),
-                        t("common.packageValid"),
-                      )
+                      void runAction(() => validateProject(), t("common.projectValid"))
                     }
                   >
-                    <ShieldCheck size={10} /> {t("common.validate")}
+                    <ShieldCheck size={10} /> {t("common.validateProject")}
                   </button>
                   <button
                     className="btn btn-secondary h-6 px-2"

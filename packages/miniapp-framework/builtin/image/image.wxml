@@ -1,0 +1,1 @@
+<img class="qchat-image__img qchat-image__img--{{mode}} {{src ? '' : 'qchat-image__img--empty'}}" src="{{src}}" alt="" />

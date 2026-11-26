@@ -9,7 +9,28 @@ import 'package:path/path.dart' as p;
 
 import 'miniapp_api.dart';
 import 'miniapp_storage.dart';
-import 'qapp/qapp_js_types.dart';
+
+/// One answer from the host to a `window.qchat` call. The WebView bridge turns
+/// it into the JSON the injected client resolves its promise with.
+class MiniAppHostResponse {
+  const MiniAppHostResponse.ok(this.result)
+    : ok = true,
+      code = '',
+      message = '';
+
+  const MiniAppHostResponse.error(this.code, this.message)
+    : ok = false,
+      result = null;
+
+  final bool ok;
+  final Object? result;
+  final String code;
+  final String message;
+
+  Map<String, dynamic> toJson() => ok
+      ? {'ok': true, 'result': result}
+      : {'ok': false, 'code': code, 'message': message};
+}
 
 class MiniAppBridgeException implements Exception {
   const MiniAppBridgeException(this.code, this.message);
@@ -123,16 +144,16 @@ class MiniAppBridge {
     _recent.clear();
   }
 
-  /// Entry point used by the QuickJS host. Returns the response directly.
-  Future<QappHostResponse> execute(String method, Object? rawParams) async {
+  /// Entry point used by the WebView bridge. Returns the response directly.
+  Future<MiniAppHostResponse> execute(String method, Object? rawParams) async {
     if (_closed) {
-      return const QappHostResponse.error('HOST_CLOSED', 'Mini App is closed');
+      return const MiniAppHostResponse.error('HOST_CLOSED', 'Mini App is closed');
     }
     if (!_methods.contains(method)) {
-      return const QappHostResponse.error('NOT_SUPPORTED', 'Unknown method');
+      return const MiniAppHostResponse.error('NOT_SUPPORTED', 'Unknown method');
     }
     if (!_allowCall(method)) {
-      return const QappHostResponse.error(
+      return const MiniAppHostResponse.error(
         'RATE_LIMITED',
         'Too many calls, slow down',
       );
@@ -142,20 +163,20 @@ class MiniAppBridge {
         method,
         rawParams,
       ).timeout(_timeoutFor(method));
-      return QappHostResponse.ok(result);
+      return MiniAppHostResponse.ok(result);
     } on TimeoutException {
-      return QappHostResponse.error('TIMEOUT', '$method timed out');
+      return MiniAppHostResponse.error('TIMEOUT', '$method timed out');
     } on MiniAppBridgeException catch (error) {
-      return QappHostResponse.error(error.code, error.message);
+      return MiniAppHostResponse.error(error.code, error.message);
     } on MiniAppStorageException catch (error) {
-      return QappHostResponse.error(
+      return MiniAppHostResponse.error(
         error.code,
         error.code == 'STORAGE_QUOTA_EXCEEDED'
             ? 'Mini App storage quota exceeded'
             : 'Storage is unavailable',
       );
     } catch (_) {
-      return const QappHostResponse.error(
+      return const MiniAppHostResponse.error(
         'HOST_ERROR',
         'The QChat host could not complete this call',
       );
@@ -202,7 +223,7 @@ class MiniAppBridge {
           'name': appName,
           'version': version,
           'entry': entry,
-          'format': 'qapp',
+          'format': 'webapp',
           'runtimeVersion': runtimeVersion,
           'minRuntimeVersion': minRuntimeVersion,
           'permissions': permissions,

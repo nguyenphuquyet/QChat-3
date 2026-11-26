@@ -1,7 +1,7 @@
 {
   "name": "@mna/qchat",
-  "version": "1.0.0",
-  "description": "QChat Mini App TypeScript/TSX SDK, renderer protocol, compiler and CLI",
+  "version": "3.0.0",
+  "description": "QChat Mini Program builder: official glass-easel Webpack pipeline and .japp packager",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,68 +14,49 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./ui": {
-      "types": "./dist/ui.d.ts",
-      "import": "./dist/ui.js"
+    "./builder": {
+      "types": "./dist/builder.d.ts",
+      "import": "./dist/builder.js"
     },
-    "./navigation": {
-      "types": "./dist/navigation.d.ts",
-      "import": "./dist/navigation.js"
+    "./wechat": {
+      "types": "./dist/wechat.d.ts",
+      "import": "./dist/wechat.js"
     },
-    "./storage": {
-      "types": "./dist/storage.d.ts",
-      "import": "./dist/storage.js"
-    },
-    "./network": {
-      "types": "./dist/network.d.ts",
-      "import": "./dist/network.js"
-    },
-    "./jsx-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
-      "import": "./dist/jsx-runtime.js"
-    },
-    "./jsx-dev-runtime": {
-      "types": "./dist/jsx-runtime.d.ts",
-      "import": "./dist/jsx-runtime.js"
-    },
-    "./env": {
-      "types": "./dist/env/index.d.ts",
-      "import": "./dist/env/index.js"
-    },
-    "./env/auto": {
-      "types": "./dist/env/auto.d.ts",
-      "import": "./dist/env/auto.js"
-    },
-    "./compiler": {
-      "types": "./dist/compiler.d.ts",
-      "import": "./dist/compiler.js"
+    "./zip": {
+      "types": "./dist/zip.d.ts",
+      "import": "./dist/zip.js"
     },
     "./package.json": "./package.json"
   },
   "files": [
     "dist",
-    "types",
+    "builtin",
+    "runtime",
     "README.md"
-  ],
-  "sideEffects": [
-    "./dist/env/auto.js",
-    "./src/env/auto.ts"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "test": "tsx --test test/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "dependencies": {
-    "esbuild": "0.27.7"
-  },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
     "@types/node": "24.10.1",
-    "quickjs-emscripten": "0.32.0",
+    "jsdom": "^26.1.0",
     "tsx": "4.21.0",
     "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "css-loader": "6.11.0",
+    "glass-easel": "^1.2.2",
+    "glass-easel-miniprogram-adapter": "^1.2.2",
+    "glass-easel-miniprogram-webpack-plugin": "1.2.2",
+    "glass-easel-stylesheet-compiler": "^1.2.2",
+    "glass-easel-template-compiler": "^1.2.2",
+    "mini-css-extract-plugin": "2.9.2",
+    "webpack": "5.101.3"
   }
 }

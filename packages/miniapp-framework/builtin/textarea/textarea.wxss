@@ -1,0 +1,21 @@
+.qchat-textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  min-height: 1.4rem;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: 1.4;
+  background: transparent;
+  border: 0;
+  outline: none;
+  resize: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.qchat-textarea::placeholder {
+  color: var(--qchat-textarea-placeholder-color, #999999);
+}

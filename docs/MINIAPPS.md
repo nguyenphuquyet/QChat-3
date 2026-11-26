@@ -1,5 +1,14 @@
 # QChat Mini Apps
 
+> **Retired (2026-11-25).** The TSX/QuickJS `qapp` runtime and SDK are gone.
+> A Mini App is now a WeChat-shaped project (`app.json`, `app.js`, `app.wxss`,
+> `pages/<route>/{js,json,wxml,wxss}`, `components/`) built by the official
+> `glass-easel` Webpack pipeline. See
+> [`docs/WXML-COMPILER-INTEGRATION.md`](./WXML-COMPILER-INTEGRATION.md),
+> [`docs/BUILTIN-COMPONENTS-AUDIT.md`](./BUILTIN-COMPONENTS-AUDIT.md) and the
+> sample in `packages/miniapp-examples/wechat-demo/`. Everything below describes
+> the retired format and is kept only as migration history.
+
 Mini Apps are small applications that run inside QChat. They are built and
 uploaded by developers, reviewed by an administrator, released as immutable
 packages, and opened by the Flutter client.

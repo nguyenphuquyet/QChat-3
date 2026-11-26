@@ -1,0 +1,16 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/form/form",
+    "pages/about/about"
+  ],
+  "window": {
+    "navigationBarTitleText": "QChat WeChat Demo",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f7f7f7",
+    "backgroundTextStyle": "dark"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

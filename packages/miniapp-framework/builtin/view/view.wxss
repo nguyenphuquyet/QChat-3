@@ -1,0 +1,5 @@
+/*
+ * `view` renders its slot directly; the host element is the box the author
+ * styles. No `:host` rule here on purpose: the host defaults live in the
+ * base stylesheet so an author's `view { ... }` can override them.
+ */

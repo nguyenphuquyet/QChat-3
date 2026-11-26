@@ -1,0 +1,19 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 24rpx;
+  margin-bottom: 24rpx;
+  border-radius: 16rpx;
+  background-color: #ffffff;
+}
+
+.section__title {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.section__body {
+  color: #6b6b6b;
+  font-size: 24rpx;
+}

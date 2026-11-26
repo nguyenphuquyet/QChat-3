@@ -25,18 +25,16 @@ import 'miniapp_bridge.dart';
 import 'miniapp_cache.dart';
 import 'miniapp_storage.dart';
 import 'models.dart';
-import 'qapp/qapp_js_types.dart';
-import 'qapp/qapp_view.dart';
+import 'miniapp_web_server.dart';
+import 'miniapp_web_view.dart';
 
 /// The host runtime the app is checked against, and the version reported to the
 /// mini program bridge.
 ///
-/// 1.1.0 changed how a scroller's `padding` is drawn: it now insets the content
-/// inside the viewport instead of wrapping (and shrinking) the viewport itself.
-/// An app that depends on the corrected layout declares `minRuntimeVersion`
-/// 1.1.0 so it is never served by a 1.0.0 host, which clips the content one
-/// padding short of the header, the footer and the right edge.
-const miniAppRuntimeVersion = '1.1.0';
+/// 2.0.0 is the WebView runtime: a package is a static web build served over
+/// loopback with a CSP, and `window.qchat` is the only host API. A package that
+/// needs the safe-area variables or the promise bridge declares `2.0.0`.
+const miniAppRuntimeVersion = '2.0.0';
 
 /// Failures the launch error view can explain in words. Anything else is a
 /// package, download or platform problem, so the view shows the raw code
@@ -74,10 +72,12 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   MiniAppCache? _cache;
   MiniAppApi? _api;
   MiniAppBridge? _bridge;
-  QappViewController? _qappController;
-  String? _qappDirectory;
-  String _qappKey = '';
-  int _qappEpoch = 0;
+  MiniAppWebViewController? _webController;
+  MiniAppWebServer? _webServer;
+  String? _webUrl;
+  String _webOrigin = '';
+  String _webKey = '';
+  int _webEpoch = 0;
   CachedMiniApp? _active;
 
   String _name = '';
@@ -114,8 +114,8 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final qapp = _qappController;
-    if (qapp == null) return;
+    final web = _webController;
+    if (web == null) return;
     final event = state == AppLifecycleState.resumed
         ? 'resume'
         : state == AppLifecycleState.paused
@@ -123,7 +123,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         : state == AppLifecycleState.detached
         ? 'destroy'
         : '';
-    if (event.isNotEmpty) qapp.lifecycle(event);
+    if (event.isNotEmpty) web.lifecycle(event);
   }
 
   @override
@@ -132,6 +132,8 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     _revealTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _bridge?.dispose();
+    unawaited(_webServer?.dispose());
+    _webServer = null;
     super.dispose();
   }
 
@@ -169,9 +171,12 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     if (!mounted) return;
     _bridge?.dispose();
     _bridge = null;
-    _qappController = null;
-    _qappDirectory = null;
-    _qappKey = '';
+    _webController = null;
+    _webUrl = null;
+    _webOrigin = '';
+    _webKey = '';
+    unawaited(_webServer?.dispose());
+    _webServer = null;
     _revealTimer?.cancel();
     _splashAt = DateTime.now();
     setState(() {
@@ -191,9 +196,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         });
       }
       final build = await api.build(widget.appId);
-      // Legacy WebView builds are inert now. Fail clearly instead of trying to
-      // verify an HTML package against the native qapp layout.
-      if (build.format != 'qapp') {
+      // Only static web packages are served. A legacy native qapp build has no
+      // index.html, so opening it would just show an empty WebView.
+      if (build.format != 'webapp') {
         throw const MiniAppException('UNSUPPORTED_FORMAT');
       }
       _version = build.version;
@@ -201,7 +206,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       _checkRuntime(build.minRuntimeVersion);
       final installed = await cache.find(build) ?? await cache.install(build);
       _recordedOpen = false;
-      await _startQapp(installed);
+      await _startWeb(installed);
     } on MiniAppCacheException catch (error) {
       debugPrint('[miniapps] install failed: ${error.code}');
       await _telemetry('download_failure', error.code);
@@ -232,7 +237,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         _permissions = latest.manifest.requestedPermissions;
         _offline = true;
         try {
-          await _startQapp(latest);
+          await _startWeb(latest);
         } catch (_) {
           if (!mounted) return;
           setState(() {
@@ -268,8 +273,8 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     );
   }
 
-  /// Starts a compiled TypeScript package in the sandboxed native runtime.
-  Future<void> _startQapp(CachedMiniApp cached) async {
+  /// Starts a verified static web package in the sandboxed WebView runtime.
+  Future<void> _startWeb(CachedMiniApp cached) async {
     _active = cached;
     final storage = await MiniAppStorage.open(
       _cacheRoot ?? p.dirname(p.dirname(p.dirname(cached.directory))),
@@ -278,7 +283,12 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     final granted = await _grantedPermissions();
     if (!mounted || _closed) return;
 
-    final controller = QappViewController();
+    final server = await MiniAppWebServer.start(cached.directory);
+    if (!mounted || _closed) {
+      await server.dispose();
+      return;
+    }
+    final controller = MiniAppWebViewController();
     final bridge = MiniAppBridge(
       appId: cached.appId,
       appName: _name,
@@ -295,25 +305,35 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       onToast: _showToast,
       onShare: _share,
       onNavigate: (path) async {
-        controller.navigate(path);
+        // The bridge's route API stays available to web packages; it mirrors
+        // what a normal SPA does with the History API.
+        controller.evaluate(
+          'history.pushState({}, "", ${jsonEncode(path)});'
+          'window.dispatchEvent(new PopStateEvent("popstate"));',
+        );
       },
       onNavigateBack: () async {
-        if (!controller.back()) _close();
+        if (!await controller.back()) _close();
       },
       onClose: _close,
       systemInfo: _systemInfo,
     );
     _bridge = bridge;
-    if (!mounted || _closed) return;
+    if (!mounted || _closed) {
+      await server.dispose();
+      return;
+    }
     setState(() {
-      _qappController = controller;
-      _qappDirectory = cached.directory;
-      _qappKey = '${cached.appId}@${cached.version}#${++_qappEpoch}';
+      _webServer = server;
+      _webController = controller;
+      _webUrl = server.entryUrl;
+      _webOrigin = server.baseUrl;
+      _webKey = '${cached.appId}@${cached.version}#${++_webEpoch}';
     });
     _revealTimer?.cancel();
-    // The native runtime normally paints within a few frames. The timeout only
-    // stops the splash from covering a broken package forever.
-    _revealTimer = Timer(const Duration(seconds: 8), _revealContent);
+    // A local page normally paints in a few frames. The timeout only stops the
+    // splash from covering a broken package forever.
+    _revealTimer = Timer(const Duration(seconds: 10), _revealContent);
   }
 
   Future<void> _recordOpen(CachedMiniApp cached) async {
@@ -718,8 +738,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     if (_closed || !mounted) return;
     _closed = true;
     _bridge?.dispose();
-    _qappController = null;
-    _qappDirectory = null;
+    _webController = null;
+    unawaited(_webServer?.dispose());
+    _webServer = null;
     if (context.canPop()) {
       context.pop();
     } else {
@@ -730,8 +751,13 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   /// Back leaves the page the mini program is on, and only leaves the mini
   /// program itself when it has nowhere left to go.
   void _handleBack() {
-    final qapp = _qappController;
-    if (qapp != null && qapp.back()) return;
+    final web = _webController;
+    if (web != null) {
+      unawaited(web.back().then((handled) {
+        if (!handled && !_closed && mounted) _close();
+      }));
+      return;
+    }
     _close();
   }
 
@@ -789,41 +815,34 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   Widget _body(BuildContext context) {
     final error = _error;
     if (error != null) return _errorView(context, error);
-    final qappController = _qappController;
-    final qappDirectory = _qappDirectory;
-    if (qappController != null && qappDirectory != null) {
-      return _qappBody(context, qappController, qappDirectory);
+    final controller = _webController;
+    final bridge = _bridge;
+    final url = _webUrl;
+    if (controller != null && bridge != null && url != null) {
+      return _webBody(context, controller, bridge, url);
     }
     return _loading
         ? _launchScreen(context)
         : _errorView(context, const MiniAppException('SERVICE_ERROR'));
   }
 
-  Widget _qappBody(
+  Widget _webBody(
     BuildContext context,
-    QappViewController controller,
-    String directory,
+    MiniAppWebViewController controller,
+    MiniAppBridge bridge,
+    String url,
   ) {
     return Stack(
       children: [
         Positioned.fill(
-          child: QappView(
-            key: ValueKey('qapp:$_qappKey'),
-            directory: directory,
+          child: MiniAppWebView(
+            key: ValueKey('webapp:$_webKey'),
+            entryUrl: url,
+            origin: _webOrigin,
             controller: controller,
-            onHostCall: (method, params) {
-              final bridge = _bridge;
-              if (bridge == null) {
-                return Future.value(
-                  const QappHostResponse.error(
-                    'BRIDGE_UNAVAILABLE',
-                    'The QChat host is not ready',
-                  ),
-                );
-              }
-              return bridge.execute(method, params);
-            },
-            onFirstFrame: () {
+            bridge: bridge,
+            systemInfo: _systemInfo,
+            onReady: () {
               if (_recordedOpen) {
                 _revealContent();
                 return;
@@ -840,13 +859,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
               if (_runtimeErrors.add(code)) {
                 unawaited(_telemetry('runtime_error', code));
               }
-            },
-            onLog: (level, message, stack) {
-              if (kDebugMode) {
-                debugPrint(
-                  '[qapp] $level: $message${stack == null ? '' : '\n$stack'}',
-                );
-              }
+              if (kDebugMode) debugPrint('[miniapps] $code: $message');
             },
           ),
         ),

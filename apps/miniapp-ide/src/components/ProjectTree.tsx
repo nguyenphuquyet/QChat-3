@@ -220,7 +220,7 @@ export function ProjectTree() {
     const base = parent ?? project.path;
     const name = window.prompt(
       directory ? t("tree.newFolderName") : t("tree.newFileName"),
-      directory ? "components" : "src/components/Card.tsx",
+      directory ? "components" : "pages/index/index.wxml",
     );
     if (!name?.trim()) return;
     try {

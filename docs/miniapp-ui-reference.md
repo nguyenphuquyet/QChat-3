@@ -1,5 +1,9 @@
 # Mini App UI reference (generated)
 
+> **Retired (2026-11-25).** This reference describes the retired TSX `qapp`
+> component set. The WeChat-shaped pipeline and its built-in components are
+> documented in [`docs/BUILTIN-COMPONENTS-AUDIT.md`](./BUILTIN-COMPONENTS-AUDIT.md).
+
 Generated from `packages/contracts/miniapp-ui.contract.json` by
 `corepack pnpm contract:generate`. Do not edit by hand; edit the contract and
 regenerate so the TypeScript SDK, the Flutter host and the Studio typings stay

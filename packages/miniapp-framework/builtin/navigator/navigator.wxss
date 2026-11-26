@@ -1,0 +1,3 @@
+.qchat-navigator {
+  display: block;
+}

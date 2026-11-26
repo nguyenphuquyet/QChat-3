@@ -1,0 +1,10 @@
+/*
+ * The host (`wx-scroll-view`) is the viewport, sized by the author's stylesheet
+ * like WeChat's `scroll-view`. The inner body is the actual scroller.
+ */
+.qchat-scroll-view__body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  -webkit-overflow-scrolling: touch;
+}

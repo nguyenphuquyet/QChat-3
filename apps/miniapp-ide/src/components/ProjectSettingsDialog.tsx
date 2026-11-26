@@ -36,19 +36,20 @@ export function ProjectSettingsDialog({
 
   if (!draft) return null;
 
-  const versionValid = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(draft.version);
+  const versionValid = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(draft.version ?? "");
   const nameValid = draft.name.trim().length > 0 && draft.name.length <= 80;
   const canSave = nameValid && versionValid && !saving;
+  const requestedPermissions = draft.requestedPermissions ?? [];
 
   const patch = (values: Partial<ProjectManifest>) => {
     setDraft((current) => (current ? { ...current, ...values } : current));
   };
 
   const togglePermission = (id: string) => {
-    const selected = draft.requestedPermissions.includes(id);
+    const selected = requestedPermissions.includes(id);
     const next = selected
-      ? draft.requestedPermissions.filter((item) => item !== id)
-      : [...draft.requestedPermissions, id];
+      ? requestedPermissions.filter((item) => item !== id)
+      : [...requestedPermissions, id];
     patch({ requestedPermissions: next });
   };
 
@@ -60,7 +61,8 @@ export function ProjectSettingsDialog({
       await saveManifest({
         ...draft,
         name: draft.name.trim(),
-        requestedPermissions: draft.requestedPermissions,
+        version: draft.version.trim(),
+        requestedPermissions,
       });
       toast.success(t("psettings.updated"));
       onClose();
@@ -82,12 +84,9 @@ export function ProjectSettingsDialog({
 
       <div className="max-h-[70vh] overflow-auto p-5">
         <div className="mb-4 flex flex-wrap gap-1.5">
-          <span className="chip chip-accent">
-            {t("psettings.schema", { schema: draft.schemaVersion })}
-          </span>
-          <span className="chip chip-mint">{draft.format}</span>
-          <span className="chip">{t("psettings.entry", { entry: draft.entry })}</span>
-          <span className="chip">{t("psettings.sdk", { sdk: draft.sdkVersion })}</span>
+          <span className="chip chip-accent">WeChat Mini Program</span>
+          <span className="chip chip-mint">app.json</span>
+          <span className="chip">{t("psettings.entry", { entry: "pages/index/index" })}</span>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -129,7 +128,7 @@ export function ProjectSettingsDialog({
             <input
               id="manifest-runtime"
               className="field font-mono"
-              value={draft.minRuntimeVersion}
+              value={draft.minRuntimeVersion ?? ""}
               onChange={(event) => patch({ minRuntimeVersion: event.target.value })}
             />
           </div>
@@ -138,7 +137,7 @@ export function ProjectSettingsDialog({
             <input
               id="manifest-sdk"
               className="field font-mono opacity-70"
-              value={draft.sdkVersion}
+              value="glass-easel (qchat build)"
               readOnly
             />
           </div>
@@ -148,12 +147,12 @@ export function ProjectSettingsDialog({
           <div className="mb-2 flex items-center justify-between">
             <span className="label mb-0">{t("psettings.permissions")}</span>
             <span className="text-[9px] text-studio-500">
-              {t("psettings.declared", { count: draft.requestedPermissions.length })}
+              {t("psettings.declared", { count: requestedPermissions.length })}
             </span>
           </div>
           <div className="grid gap-1.5 sm:grid-cols-2">
             {PERMISSIONS.map((permission) => {
-              const selected = draft.requestedPermissions.includes(permission.id);
+              const selected = requestedPermissions.includes(permission.id);
               return (
                 <button
                   key={permission.id}

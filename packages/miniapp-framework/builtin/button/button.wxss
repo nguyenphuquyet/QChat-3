@@ -1,0 +1,42 @@
+.qchat-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  cursor: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.qchat-button:focus {
+  outline: none;
+}
+
+.qchat-button__loading {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.35em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: qchat-button-spin 0.7s linear infinite;
+}
+
+@keyframes qchat-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -84,6 +84,14 @@ export function languageFor(path: string): string {
   }
   const extension = name.includes(".") ? name.split(".").pop() || "" : "";
   switch (extension) {
+    // Mini Program authoring languages. `wxml` and `wxss` are registered in
+    // `monaco.ts`; they are not HTML and CSS, even though they share a syntax.
+    case "wxml":
+      return "wxml";
+    case "wxss":
+      return "wxss";
+    case "wxs":
+      return "javascript";
     case "ts":
       return "typescript";
     case "tsx":

@@ -1,0 +1,36 @@
+<view class="page">
+  <text class="title">Form controls</text>
+  <text class="muted">Every control below is a Phase 2 built-in.</text>
+
+  <view class="row">
+    <text>Name</text>
+    <input id="name" value="{{name}}" placeholder="Your name" bindinput="onName" />
+    <text>Note</text>
+    <textarea id="note" value="{{note}}" auto-height placeholder="Anything to remember" bindinput="onNote" />
+    <switch id="subscribe" checked="{{subscribe}}" bindchange="onSubscribe" />
+    <text class="muted">Subscribe to updates</text>
+
+    <checkbox-group id="topics" bindchange="onTopics">
+      <checkbox value="wxml" checked>WXML</checkbox>
+      <checkbox value="wxss">WXSS</checkbox>
+      <checkbox value="glass-easel">glass-easel</checkbox>
+    </checkbox-group>
+
+    <radio-group id="plan" bindchange="onPlan">
+      <radio value="free" checked>Free</radio>
+      <radio value="pro">Pro</radio>
+    </radio-group>
+
+    <text>Volume {{volume}}</text>
+    <slider id="volume" value="{{volume}}" step="5" bindchanging="onVolume" bindchange="onVolume" />
+  </view>
+
+  <view class="actions">
+    <button id="submit" type="primary" bindtap="submit">Submit</button>
+    <navigator id="to-about" url="/pages/about/about" open-type="navigate">
+      <button>Next</button>
+    </navigator>
+  </view>
+
+  <text wx:if="{{result}}" id="result" class="result">{{result}}</text>
+</view>

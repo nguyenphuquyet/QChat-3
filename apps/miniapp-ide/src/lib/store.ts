@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import type {
   Artifact,
   CliInfo,
+  DevEvent,
+  DevEventPayload,
   DevExit,
   DevLog,
   EditorTab,
@@ -17,7 +19,13 @@ import type {
 } from "../types";
 import { api, inspectPackage } from "./api";
 import { translate } from "./i18n";
-import { TEMPLATE_LABELS } from "./templates";
+import { templateFiles } from "./templates";
+import {
+  diagnoseProject,
+  normalizeRelative,
+  type Diagnostic,
+  type ProjectFile,
+} from "./miniapp";
 import {
   basename,
   dirname,
@@ -41,6 +49,9 @@ export interface Problem {
   severity: "error" | "warning" | "info";
   text: string;
   source: string;
+  /** Project-relative file and line when the problem comes from static analysis. */
+  file?: string;
+  line?: number;
 }
 
 type BottomTab = "output" | "problems" | "terminal";
@@ -122,6 +133,63 @@ async function readManifest(path: string): Promise<ProjectManifest | null> {
   }
 }
 
+/// A Mini Program project is identified by its `app.json`, exactly like the
+/// official toolchain. `manifest.json` only carries the store metadata.
+function hasMiniProgram(tree: FsEntry[]): boolean {
+  return tree.some((entry) => !entry.isDir && entry.relative === "app.json");
+}
+
+const SOURCE_EXTENSIONS = new Set(["json", "js", "mjs", "cjs", "wxml", "wxss", "wxs"]);
+const SKIPPED_SEGMENTS = new Set(["node_modules", "dist", ".qchat-dev", ".git"]);
+
+/// Reads the files the static analyser needs: every source file in the tree
+/// plus the unsaved contents of open tabs, so diagnostics match the editor.
+async function readProjectFiles(
+  projectPath: string,
+  tree: FsEntry[],
+  tabs: EditorTab[],
+): Promise<ProjectFile[]> {
+  const byRelative = new Map<string, ProjectFile>();
+  const prefix = projectPath.replace(/[\\/]+$/, "");
+  for (const tab of tabs) {
+    if (!tab.path.startsWith(prefix)) continue;
+    const relative = normalizeRelative(tab.path.slice(prefix.length + 1));
+    byRelative.set(relative, { relative, content: tab.content });
+  }
+  const targets = tree.filter((entry) => {
+    if (entry.isDir) return false;
+    const relative = normalizeRelative(entry.relative);
+    const segments = relative.split("/");
+    if (segments.some((segment) => SKIPPED_SEGMENTS.has(segment))) return false;
+    const extension = relative.split(".").pop()?.toLowerCase() ?? "";
+    return SOURCE_EXTENSIONS.has(extension);
+  });
+  await Promise.all(
+    targets.map(async (entry) => {
+      const relative = normalizeRelative(entry.relative);
+      if (byRelative.has(relative)) return;
+      try {
+        const content = await api.readText(entry.path);
+        byRelative.set(relative, { relative, content });
+      } catch {
+        // Unreadable files are the compiler's problem; skip them here.
+      }
+    }),
+  );
+  return [...byRelative.values()];
+}
+
+function diagnosticsToProblems(diagnostics: Diagnostic[]): Problem[] {
+  return diagnostics.map((diagnostic) => ({
+    id: `static:${diagnostic.id}`,
+    severity: diagnostic.severity,
+    text: `${diagnostic.file}${diagnostic.line ? `:${diagnostic.line}` : ""} — ${diagnostic.message}`,
+    source: "project",
+    file: diagnostic.file,
+    line: diagnostic.line,
+  }));
+}
+
 export interface StudioState {
   booted: boolean;
   cli: CliInfo | null;
@@ -148,6 +216,8 @@ export interface StudioState {
 
   logs: { id: string; at: number; stream: LogStream; text: string }[];
   problems: Problem[];
+  /** Static project analysis; the Problems panel and Monaco markers read it. */
+  diagnostics: Diagnostic[];
   bottomTab: BottomTab;
   sidebarTab: SidebarTab;
   sidebarOpen: boolean;
@@ -155,6 +225,15 @@ export interface StudioState {
   previewOpen: boolean;
   /** Bumped whenever a saved file or a build can change the rendered app. */
   previewRevision: number;
+
+  /** `qchat dev` address the simulator iframe points at. */
+  devUrl: string;
+  /** Bumped to remount the simulator iframe (reload). */
+  devRevision: number;
+  /** Console, network and error events forwarded by the host runtime. */
+  devEvents: DevEvent[];
+  /** Scrolls the editor to a location after a Problems row is clicked. */
+  revealRequest: { path: string; line: number; column: number; revision: number } | null;
 
   buildStatus: "idle" | "running" | "success" | "error";
   buildMessage: string;
@@ -179,6 +258,9 @@ export interface StudioState {
   dismissExternalChange: (path: string) => void;
   openFile: (path: string) => Promise<void>;
   setActive: (path: string) => void;
+  /** Open a file (if needed) and scroll the editor to a line. */
+  revealLocation: (path: string, line?: number, column?: number) => Promise<void>;
+  consumeReveal: () => void;
   updateTab: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
   saveFile: (path: string) => Promise<void>;
@@ -186,9 +268,11 @@ export interface StudioState {
   saveAllDirty: () => Promise<void>;
   closeTab: (path: string) => void;
   createProject: (input: NewProjectInput) => Promise<string>;
-  buildProject: (noTypecheck?: boolean) => Promise<void>;
-  runTests: () => Promise<void>;
-  validateArtifact: (path: string) => Promise<void>;
+  buildProject: () => Promise<void>;
+  /** `qchat validate`: the official loader checks pages, components and assets. */
+  validateProject: () => Promise<void>;
+  /** Re-runs the static analyser over the project files. */
+  runDiagnostics: () => Promise<void>;
   inspectArtifact: (path: string) => Promise<void>;
   startDev: () => Promise<void>;
   stopDev: () => Promise<void>;
@@ -196,6 +280,9 @@ export interface StudioState {
   clearLogs: () => void;
   handleDevLog: (event: DevLog) => void;
   handleDevExit: (event: DevExit) => void;
+  appendDevEvent: (event: DevEventPayload) => void;
+  clearDevEvents: () => void;
+  reloadDev: () => void;
   setBottomTab: (tab: BottomTab) => void;
   setSidebarTab: (tab: SidebarTab) => void;
   setSidebarOpen: (open: boolean) => void;
@@ -236,12 +323,18 @@ export const useStudio = create<StudioState>()(
 
       logs: [],
       problems: [],
+      diagnostics: [],
       bottomTab: "output",
       sidebarTab: "project",
       sidebarOpen: true,
       bottomOpen: true,
       previewOpen: true,
       previewRevision: 0,
+
+      devUrl: "http://127.0.0.1:5273/",
+      devRevision: 0,
+      devEvents: [],
+      revealRequest: null,
 
       buildStatus: "idle",
       buildMessage: "",
@@ -326,16 +419,16 @@ export const useStudio = create<StudioState>()(
         });
         try {
           const manifest = await readManifest(path);
-          const project: Project = {
-            path,
-            name: manifest?.name || basename(path),
-            manifest,
-            isQapp: Boolean(manifest && manifest.format === "qapp"),
-          };
           const [tree, artifacts] = await Promise.all([
             api.listTree(path),
             api.listArtifacts(path),
           ]);
+          const project: Project = {
+            path,
+            name: manifest?.name || basename(path),
+            manifest,
+            isQapp: hasMiniProgram(tree),
+          };
           const recentEntry: RecentProject = {
             path,
             name: project.name,
@@ -357,12 +450,17 @@ export const useStudio = create<StudioState>()(
             buildStatus: "idle",
             buildMessage: "",
             problems: [],
+            diagnostics: [],
+            devEvents: [],
             validation: { status: "idle", text: "", at: null },
           });
-          const preferred =
-            tree.find((entry) => entry.relative === "src/main.tsx")?.path ||
-            tree.find((entry) => entry.relative === "manifest.json")?.path;
+          // The project root is the first thing an author wants: app.json
+          // declares the pages and the window.
+          const preferred = ["app.json", "pages/index/index.wxml", "manifest.json"]
+            .map((relative) => tree.find((entry) => entry.relative === relative)?.path)
+            .find(Boolean);
           if (preferred) await get().openFile(preferred);
+          await get().runDiagnostics();
         } catch (error) {
           set({ treeLoading: false });
           throw error;
@@ -381,6 +479,10 @@ export const useStudio = create<StudioState>()(
           inspection: null,
           activeArtifact: null,
           lastProject: null,
+          problems: [],
+          diagnostics: [],
+          devEvents: [],
+          revealRequest: null,
         });
       },
 
@@ -413,7 +515,7 @@ export const useStudio = create<StudioState>()(
 
       /**
        * One watcher tick. Files can be edited outside the studio (another
-       * editor, `qapp` on the CLI, git checkout...), so we poll cheap
+       * editor, `qchat` on the CLI, git checkout...), so we poll cheap
        * size+mtime stamps for the open tabs plus manifest.json, and a
        * structure hash for the explorer.
        *
@@ -470,7 +572,7 @@ export const useStudio = create<StudioState>()(
               if (!manifest || !current || current.path !== project.path) continue;
               if (JSON.stringify(current.manifest ?? null) === JSON.stringify(manifest)) continue;
               set({
-                project: { ...current, manifest, name: manifest.name, isQapp: manifest.format === "qapp" },
+                project: { ...current, manifest, name: manifest.name, isQapp: current.isQapp },
               });
               toast.info(translate(language, "sync.manifestReloaded"));
               continue;
@@ -570,7 +672,7 @@ export const useStudio = create<StudioState>()(
                       ...current,
                       manifest,
                       name: manifest.name,
-                      isQapp: manifest.format === "qapp",
+                      isQapp: current.isQapp,
                     },
                   });
                 }
@@ -611,7 +713,7 @@ export const useStudio = create<StudioState>()(
             const current = get().project;
             if (manifest && current) {
               set({
-                project: { ...current, manifest, name: manifest.name, isQapp: manifest.format === "qapp" },
+                project: { ...current, manifest, name: manifest.name, isQapp: current.isQapp },
               });
             }
           }
@@ -666,6 +768,22 @@ export const useStudio = create<StudioState>()(
         set({ activePath: path });
       },
 
+      async revealLocation(path, line = 1, column = 1) {
+        await get().openFile(path);
+        set({
+          revealRequest: {
+            path,
+            line: Math.max(1, Math.round(line)),
+            column: Math.max(1, Math.round(column)),
+            revision: (get().revealRequest?.revision ?? 0) + 1,
+          },
+        });
+      },
+
+      consumeReveal() {
+        set({ revealRequest: null });
+      },
+
       updateTab(path, content) {
         set({
           tabs: get().tabs.map((tab) =>
@@ -709,6 +827,7 @@ export const useStudio = create<StudioState>()(
             }
           }
           get().bumpPreview();
+          await get().runDiagnostics();
         } catch (error) {
           get().appendLog("stderr", translate(get().settings.language, "store.cannotSave", {
             path,
@@ -763,7 +882,7 @@ export const useStudio = create<StudioState>()(
         // The parent folder may not exist yet (for example the default projects
         // folder). Create it first so the CLI has a valid working directory.
         await api.ensureDirectory(directory);
-        get().appendLog("system", `$ qapp create ${name} --dir ${projectPath}`);
+        get().appendLog("system", `$ qchat create ${name} --dir ${projectPath}`);
         const result = await api.runCli(
           ["create", name, "--dir", projectPath],
           directory,
@@ -776,24 +895,24 @@ export const useStudio = create<StudioState>()(
           throw new Error(result.stderr.trim() || translate(language, "store.createFailed"));
         }
 
-        const manifestPath = joinPath(projectPath, "manifest.json");
-        const raw = await api.readText(manifestPath);
-        const manifest = JSON.parse(raw) as ProjectManifest;
-        manifest.name = name;
-        manifest.description = input.description;
-        manifest.version = input.version;
-        manifest.requestedPermissions = input.permissions;
-        await api.writeText(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-        await api.writeText(
-          joinPath(projectPath, "src", "main.tsx"),
-          TEMPLATE_LABELS[input.template].source,
-        );
+        const files = templateFiles(input.template, {
+          name,
+          description: input.description,
+          version: input.version,
+          permissions: input.permissions,
+        });
+        for (const file of files) {
+          await api.writeText(
+            joinPath(projectPath, ...file.relative.split("/")),
+            file.content,
+          );
+        }
         get().appendLog("system", translate(language, "store.created", { path: projectPath }));
         await get().openProject(projectPath);
         return projectPath;
       },
 
-      async buildProject(noTypecheck = false) {
+      async buildProject() {
         const project = get().project;
         const language = get().settings.language;
         if (!project) throw new Error(translate(language, "store.openFirst"));
@@ -809,10 +928,7 @@ export const useStudio = create<StudioState>()(
         if (get().settings.autoSave) await get().saveAllDirty();
         set({
           buildStatus: "running",
-          buildMessage: translate(
-            language,
-            noTypecheck ? "store.bundling" : "store.typechecking",
-          ),
+          buildMessage: translate(language, "store.building"),
           bottomOpen: true,
           bottomTab: "output",
         });
@@ -832,7 +948,7 @@ export const useStudio = create<StudioState>()(
         );
         const tree = get().tree;
         const hasManifest = tree.some((entry) => entry.relative === "manifest.json");
-        const hasEntry = tree.some((entry) => entry.relative === "src/main.tsx");
+        const hasEntry = tree.some((entry) => entry.relative === "app.json");
         if (!hasManifest) {
           const message = translate(language, "build.missingManifest");
           get().appendLog("stderr", message);
@@ -847,8 +963,7 @@ export const useStudio = create<StudioState>()(
         }
 
         const args = ["build", "--dir", project.path];
-        if (noTypecheck) args.push("--no-typecheck");
-        const command = `qapp ${args.join(" ")}`;
+        const command = `qchat ${args.join(" ")}`;
         get().appendLog("system", translate(language, "build.command", { command }));
         get().appendLog("system", `$ ${command}`);
         try {
@@ -865,8 +980,6 @@ export const useStudio = create<StudioState>()(
             const combined = `${result.stdout}\n${result.stderr}`;
             if (/cannot find module|ERR_MODULE_NOT_FOUND/i.test(combined)) {
               get().appendLog("system", translate(language, "build.hintCli"));
-            } else if (/tsc|typescript|TS\d{4}/i.test(combined)) {
-              get().appendLog("system", translate(language, "build.hintTypecheck"));
             } else if (/ENOENT|not recognized|is not recognized/i.test(combined)) {
               get().appendLog("system", translate(language, "build.hintNode"));
             }
@@ -898,6 +1011,7 @@ export const useStudio = create<StudioState>()(
               : translate(language, "store.buildCompleted"),
           });
           get().bumpPreview();
+          await get().runDiagnostics();
         } catch (error) {
           set({
             buildStatus: "error",
@@ -907,14 +1021,18 @@ export const useStudio = create<StudioState>()(
         }
       },
 
-      async runTests() {
+      async validateProject() {
         const project = get().project;
         const language = get().settings.language;
         if (!project) throw new Error(translate(language, "store.openFirst"));
         if (get().settings.autoSave) await get().saveAllDirty();
-        set({ bottomOpen: true, bottomTab: "output", buildStatus: "running" });
-        const args = ["test", "--dir", project.path];
-        get().appendLog("system", `$ qapp ${args.join(" ")}`);
+        set({
+          bottomOpen: true,
+          bottomTab: "output",
+          validation: { status: "running", text: "", at: null },
+        });
+        const args = ["validate", "--dir", project.path];
+        get().appendLog("system", `$ qchat ${args.join(" ")}`);
         try {
           const result = await api.runCli(
             args,
@@ -924,57 +1042,49 @@ export const useStudio = create<StudioState>()(
           );
           if (result.stdout) get().appendLog("stdout", result.stdout);
           if (result.stderr) get().appendLog("stderr", result.stderr);
-          const problems = outputProblems(result.stdout, result.stderr, "test");
+          const problems = outputProblems(result.stdout, result.stderr, "validate");
           set({ problems });
+          await get().runDiagnostics();
           if (result.code !== 0) {
-            set({ buildStatus: "error", buildMessage: translate(language, "store.testsFailed") });
-            throw new Error(result.stderr.trim() || translate(language, "store.testsFailed"));
+            const message = result.stderr.trim() || translate(language, "store.projectInvalid");
+            set({
+              validation: { status: "fail", text: message, at: Date.now() },
+            });
+            throw new Error(message);
           }
-          set({ buildStatus: "success", buildMessage: translate(language, "store.testPassed") });
-        } catch (error) {
-          set({ buildStatus: "error", buildMessage: errorMessage(error) });
-          throw error;
-        }
-      },
-
-      async validateArtifact(path) {
-        set({
-          bottomOpen: true,
-          bottomTab: "output",
-          validation: { status: "running", text: "", at: null },
-        });
-        get().appendLog("system", `$ qapp validate ${path}`);
-        const result = await api.runCli(
-          ["validate", path],
-          get().project?.path ?? "",
-          get().settings.nodePath,
-          get().settings.cliPath,
-        );
-        if (result.stdout) get().appendLog("stdout", result.stdout);
-        if (result.stderr) get().appendLog("stderr", result.stderr);
-        if (result.code === 0) {
           set({
             validation: {
               status: "pass",
               text: result.stdout.trim(),
               at: Date.now(),
             },
-            problems: outputProblems(result.stdout, result.stderr, "validate"),
           });
-        } else {
-          const invalidPackage = translate(
-            get().settings.language,
-            "store.invalidPackage",
-          );
+        } catch (error) {
           set({
             validation: {
               status: "fail",
-              text: result.stderr.trim() || invalidPackage,
+              text: errorMessage(error),
               at: Date.now(),
             },
-            problems: outputProblems(result.stdout, result.stderr, "validate"),
           });
-          throw new Error(result.stderr.trim() || invalidPackage);
+          throw error;
+        }
+      },
+
+      async runDiagnostics() {
+        const project = get().project;
+        if (!project) {
+          set({ diagnostics: [] });
+          return;
+        }
+        try {
+          const files = await readProjectFiles(project.path, get().tree, get().tabs);
+          if (get().project?.path !== project.path) return;
+          set({ diagnostics: diagnoseProject(files) });
+        } catch (error) {
+          // The analyser must never break editing: report and keep the last
+          // result instead of throwing into a save loop.
+          get().appendLog("stderr", errorMessage(error));
         }
       },
 
@@ -1000,14 +1110,20 @@ export const useStudio = create<StudioState>()(
         if (get().devRunning) return;
         if (get().settings.autoSave) await get().saveAllDirty();
         set({ bottomOpen: true, bottomTab: "output" });
-        get().appendLog("system", `$ qapp dev --dir ${project.path}`);
+        get().appendLog("system", `$ qchat dev --dir ${project.path}`);
         try {
           const pid = await api.startDev(
             project.path,
             get().settings.nodePath,
             get().settings.cliPath,
           );
-          set({ devPid: pid, devRunning: true, buildStatus: "running" });
+          set({
+            devPid: pid,
+            devRunning: true,
+            buildStatus: "running",
+            devEvents: [],
+            devRevision: get().devRevision + 1,
+          });
         } catch (error) {
           get().appendLog("stderr", errorMessage(error));
           throw error;
@@ -1035,10 +1151,14 @@ export const useStudio = create<StudioState>()(
       handleDevLog(event) {
         const lines = splitLines(event.line);
         for (const line of lines) get().appendLog(event.stream, line);
-        if (/Built .+ in \d+ ms/.test(event.line)) {
+        if (/rebuilt\s|Built .+ in \d+ ms/i.test(event.line)) {
+          // `qchat dev` rebuilt the package: refresh the package list and
+          // reload the simulator so it shows the new build.
           window.setTimeout(() => {
             void get().refreshArtifacts();
-          }, 300);
+            get().bumpPreview();
+            get().reloadDev();
+          }, 350);
         }
       },
 
@@ -1048,6 +1168,20 @@ export const useStudio = create<StudioState>()(
           event.code === 0 ? "system" : "stderr",
           translate(get().settings.language, "store.devExited", { code: event.code }),
         );
+      },
+
+      appendDevEvent(event) {
+        // The runtime already stamps every event with `at`; the id is local.
+        const entry = { ...event, id: nextId("dev") } as DevEvent;
+        set({ devEvents: [...get().devEvents, entry].slice(-400) });
+      },
+
+      clearDevEvents() {
+        set({ devEvents: [] });
+      },
+
+      reloadDev() {
+        set({ devRevision: get().devRevision + 1, devEvents: [] });
       },
 
       setBottomTab(tab) {
@@ -1095,7 +1229,7 @@ export const useStudio = create<StudioState>()(
           terminalHistory: [trimmed, ...get().terminalHistory].slice(0, 30),
           bottomTab: "output",
         });
-        get().appendLog("system", `$ qapp ${tokens.join(" ")}`);
+        get().appendLog("system", `$ qchat ${tokens.join(" ")}`);
         try {
           const result = await api.runCli(
             tokens,
@@ -1108,6 +1242,9 @@ export const useStudio = create<StudioState>()(
           set({ problems: outputProblems(result.stdout, result.stderr, "terminal") });
           if (tokens[0] === "build" || tokens[0] === "dev" || tokens[0] === "package") {
             await get().refreshArtifacts();
+          }
+          if (tokens[0] === "build" || tokens[0] === "validate") {
+            await get().runDiagnostics();
           }
           if (result.code !== 0) {
             get().appendLog(
@@ -1127,6 +1264,7 @@ export const useStudio = create<StudioState>()(
         await api.createEntry(path, directory);
         await get().refreshTree();
         if (!directory) await get().openFile(path);
+        await get().runDiagnostics();
       },
 
       async renameEntry(path, next) {
@@ -1146,6 +1284,7 @@ export const useStudio = create<StudioState>()(
           activePath: get().activePath === path ? target : get().activePath,
         });
         await get().refreshTree();
+        await get().runDiagnostics();
       },
 
       async deleteEntry(path) {
@@ -1157,6 +1296,7 @@ export const useStudio = create<StudioState>()(
         });
         await get().refreshTree();
         await get().refreshArtifacts();
+        await get().runDiagnostics();
       },
 
       async saveManifest(manifest) {
@@ -1179,6 +1319,7 @@ export const useStudio = create<StudioState>()(
           ),
         });
         await get().refreshTree();
+        await get().runDiagnostics();
       },
     }),
     {

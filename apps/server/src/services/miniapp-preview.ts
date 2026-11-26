@@ -4,17 +4,24 @@ import { readZip } from "./zip";
 
 /// Reviewer inspection: the stored `.japp` is opened read-only and one raw file
 /// is returned. Nothing is extracted and no code is executed server-side; the
-/// real rendering happens only in the Flutter QuickJS host.
+/// real rendering happens only in the Flutter WebView host.
 const contentTypes: Record<string, string> = {
+  html: "text/html; charset=utf-8",
+  htm: "text/html; charset=utf-8",
   js: "text/javascript; charset=utf-8",
+  mjs: "text/javascript; charset=utf-8",
+  css: "text/css; charset=utf-8",
   json: "application/json; charset=utf-8",
+  map: "application/json; charset=utf-8",
   txt: "text/plain; charset=utf-8",
   png: "image/png",
   jpg: "image/jpeg",
   jpeg: "image/jpeg",
   gif: "image/gif",
   webp: "image/webp",
+  avif: "image/avif",
   svg: "image/svg+xml",
+  ico: "image/x-icon",
   woff: "font/woff",
   woff2: "font/woff2",
   ttf: "font/ttf",
@@ -22,6 +29,9 @@ const contentTypes: Record<string, string> = {
   mp3: "audio/mpeg",
   wav: "audio/wav",
   mp4: "video/mp4",
+  webm: "video/webm",
+  vtt: "text/vtt; charset=utf-8",
+  wasm: "application/wasm",
 };
 
 const previewTokenSeconds = 15 * 60;

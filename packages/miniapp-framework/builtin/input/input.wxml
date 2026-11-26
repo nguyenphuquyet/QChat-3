@@ -1,0 +1,11 @@
+<input
+  class="qchat-input {{placeholderClass}}"
+  style="{{placeholderColor ? '--qchat-input-placeholder-color:' + placeholderColor : ''}}"
+  type="{{password || type === 'safe-password' ? 'password' : (type === 'number' ? 'number' : 'text')}}"
+  inputmode="{{type === 'digit' ? 'decimal' : (type === 'number' ? 'numeric' : '')}}"
+  value="{{value}}"
+  placeholder="{{placeholder}}"
+  disabled="{{disabled}}"
+  maxlength="{{nativeMaxlength}}"
+  enterkeyhint="{{confirmType}}"
+/>

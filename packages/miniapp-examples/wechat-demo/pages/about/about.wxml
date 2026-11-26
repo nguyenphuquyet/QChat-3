@@ -1,0 +1,14 @@
+<view class="page">
+  <text class="title">{{title}}</text>
+  <text class="muted">{{platform}}</text>
+  <text class="muted">Pages in the stack: {{pages}}</text>
+
+  <text class="result" id="submitted">{{submitted}}</text>
+
+  <view class="actions">
+    <button id="back" type="primary" bindtap="backHome">Back to home</button>
+    <navigator id="relaunch" url="/pages/home/home" open-type="reLaunch">
+      <button>ReLaunch</button>
+    </navigator>
+  </view>
+</view>

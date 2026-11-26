@@ -121,48 +121,47 @@ function makeZip(entries: Entry[]) {
   return Buffer.concat([...locals, directory, end]);
 }
 
-function qappZip(options: {
+function webappZip(options: {
   overrides?: Record<string, unknown>;
-  appJs?: string;
-  entryAppJs?: string;
+  indexHtml?: string;
+  entryHtml?: string;
   extra?: Entry[];
+  asset?: { path: string; data: string };
 } = {}) {
-  const appJs = options.appJs ?? "console.log('native qapp')";
-  const entryAppJs = options.entryAppJs ?? appJs;
+  const indexHtml =
+    options.indexHtml ?? "<!doctype html><html><body><div id=\"root\"></div></body></html>";
+  const entryHtml = options.entryHtml ?? indexHtml;
   const hash = (value: string | Buffer) =>
     createHash("sha256").update(value).digest("hex");
   const manifest = {
-    schemaVersion: 2,
-    format: "qapp",
-    name: "Native App",
-    description: "A native package",
+    schemaVersion: 3,
+    format: "webapp",
+    name: "Web App",
+    description: "A static web package",
     version: "1.0.0",
-    entry: "app.js",
-    sdkVersion: "1.0.0",
-    minRuntimeVersion: "1.0.0",
+    entry: "index.html",
+    minRuntimeVersion: "2.0.0",
     requestedPermissions: ["toast"] as string[],
-    appSha256: hash(appJs),
     ...options.overrides,
   };
   const requestedPermissions =
     (manifest.requestedPermissions as string[] | undefined) ?? [];
-  const manifestBytes = JSON.stringify(manifest);
-  const permissionsBytes = JSON.stringify({
-    requestedPermissions,
-  });
+  const asset = options.asset ?? {
+    path: "assets/app.js",
+    data: "console.log('webapp')",
+  };
   const files = [
-    { path: "manifest.json", data: Buffer.from(manifestBytes) },
-    { path: "app.js", data: Buffer.from(entryAppJs) },
-    { path: "permissions.json", data: Buffer.from(permissionsBytes) },
+    { path: "manifest.json", data: Buffer.from(JSON.stringify(manifest)) },
+    { path: "index.html", data: Buffer.from(entryHtml) },
+    { path: asset.path, data: Buffer.from(asset.data) },
   ];
   const metadata = {
-    formatVersion: 1,
-    compilerVersion: "1.0.0",
-    sdkVersion: manifest.sdkVersion,
+    formatVersion: 2,
+    builderVersion: "3.0.0",
     version: manifest.version,
-    entry: "app.js",
+    entry: "index.html",
     builtAt: new Date().toISOString(),
-    appSha256: hash(entryAppJs),
+    entrySha256: hash(indexHtml),
     files: files.map((file) => ({
       path: file.path,
       sha256: hash(file.data),
@@ -172,6 +171,10 @@ function qappZip(options: {
   return makeZip([
     ...files.map((file) => ({ name: file.path, data: file.data })),
     { name: "metadata.json", data: JSON.stringify(metadata) },
+    {
+      name: "permissions.json",
+      data: JSON.stringify({ requestedPermissions }),
+    },
     ...(options.extra ?? []),
   ]);
 }
@@ -335,8 +338,8 @@ test("legacy WebView packages are rejected", () => {
   );
 });
 
-test("qapp inspection rejects an archive without a manifest", () => {
-  const bytes = makeZip([{ name: "app.js", data: "x" }]);
+test("webapp inspection rejects an archive without a manifest", () => {
+  const bytes = makeZip([{ name: "index.html", data: "x" }]);
   assert.throws(
     () => inspectBuild(bytes, { version: "1.0.0" }),
     (error: unknown) =>
@@ -344,14 +347,17 @@ test("qapp inspection rejects an archive without a manifest", () => {
   );
 });
 
-test("qapp inspection verifies the bundle and owns the app id", () => {
-  const bytes = qappZip();
+test("webapp inspection verifies the bundle and owns the app id", () => {
+  const bytes = webappZip();
   const inspected = inspectBuild(bytes, { version: "1.0.0" });
-  assert.equal(inspected.format, "qapp");
-  assert.equal(inspected.entry, "app.js");
-  assert.equal(inspected.sdkVersion, "1.0.0");
+  assert.equal(inspected.format, "webapp");
+  assert.equal(inspected.entry, "index.html");
+  assert.equal(inspected.sdkVersion, null);
   assert.deepEqual(inspected.permissions, ["toast"]);
-  assert.equal(inspected.manifest.buildHash, undefined);
+  assert.equal(
+    (inspected.manifest as Record<string, unknown>).buildHash,
+    undefined,
+  );
   assert.equal(
     (inspected.manifest as Record<string, unknown>).appId,
     undefined,
@@ -362,16 +368,19 @@ test("qapp inspection verifies the bundle and owns the app id", () => {
   );
 });
 
-test("qapp inspection rejects appId, bad permissions and tampered files", () => {
+test("webapp inspection rejects appId, bad permissions and tampered files", () => {
   assert.throws(
-    () => inspectBuild(qappZip({ overrides: { appId: "mp_0123456789abcdef" } }), { version: "1.0.0" }),
+    () =>
+      inspectBuild(webappZip({ overrides: { appId: "mp_0123456789abcdef" } }), {
+        version: "1.0.0",
+      }),
     (error: unknown) =>
       error instanceof PackageError && error.code === "MANIFEST_INVALID",
   );
   assert.throws(
     () =>
       inspectBuild(
-        qappZip({ overrides: { requestedPermissions: ["admin"] } }),
+        webappZip({ overrides: { requestedPermissions: ["admin"] } }),
         { version: "1.0.0" },
       ),
     (error: unknown) =>
@@ -379,42 +388,41 @@ test("qapp inspection rejects appId, bad permissions and tampered files", () => 
   );
   assert.throws(
     () =>
-      inspectBuild(qappZip({ entryAppJs: "console.log('tampered')" }), {
+      inspectBuild(webappZip({ entryHtml: "<!doctype html><h1>tampered</h1>" }), {
         version: "1.0.0",
       }),
     (error: unknown) =>
-      error instanceof PackageError &&
-      ["APP_CHECKSUM_MISMATCH", "METADATA_MISMATCH"].includes(error.code),
+      error instanceof PackageError && error.code === "METADATA_MISMATCH",
   );
   assert.throws(
     () =>
       inspectBuild(
-        qappZip({ extra: [{ name: "notes.txt", data: "unexpected" }] }),
+        webappZip({ extra: [{ name: "notes.txt", data: "unexpected" }] }),
         { version: "1.0.0" },
       ),
     (error: unknown) =>
       error instanceof PackageError && error.code === "UNEXPECTED_FILE",
   );
   assert.throws(
-    () => inspectBuild(qappZip(), { version: "9.9.9" }),
+    () => inspectBuild(webappZip(), { version: "9.9.9" }),
     (error: unknown) =>
       error instanceof PackageError && error.code === "VERSION_MISMATCH",
   );
 });
 
-test("qapp inspection accepts the network permission without a host list", () => {
-  const bytes = qappZip({
+test("webapp inspection accepts the network permission without a host list", () => {
+  const bytes = webappZip({
     overrides: {
       requestedPermissions: ["network", "storage"],
     },
   });
   const inspected = inspectBuild(bytes, { version: "1.0.0" });
-  assert.equal(inspected.format, "qapp");
+  assert.equal(inspected.format, "webapp");
   assert.deepEqual(inspected.permissions, ["network", "storage"]);
 });
 
-test("qapp inspection rejects the removed host allowlist field", () => {
-  const bytes = qappZip({
+test("webapp inspection rejects the removed host allowlist field", () => {
+  const bytes = webappZip({
     overrides: {
       requestedPermissions: ["network"],
       networkDomains: ["api.example.com"],
@@ -437,17 +445,17 @@ test("permission catalog and API allowlist stay in sync", () => {
 });
 
 test("review preview returns raw stored files without executing them", () => {
-  const zip = qappZip({ appJs: "console.log('preview')" });
+  const zip = webappZip({ indexHtml: "<!doctype html><h1>preview</h1>" });
   const manifestFile = readRawPreviewFile(zip, "manifest.json");
   assert.equal(manifestFile?.name, "manifest.json");
   assert.equal(manifestFile?.type, "application/json; charset=utf-8");
   const parsed = JSON.parse(manifestFile!.bytes.toString("utf8"));
-  assert.equal(parsed.format, "qapp");
+  assert.equal(parsed.format, "webapp");
   assert.equal(parsed.appId, undefined);
 
-  const script = readRawPreviewFile(zip, "app.js");
+  const script = readRawPreviewFile(zip, "assets/app.js");
   assert.equal(script?.type, "text/javascript; charset=utf-8");
-  assert.equal(script?.bytes.toString("utf8"), "console.log('preview')");
+  assert.equal(script?.bytes.toString("utf8"), "console.log('webapp')");
 
   assert.equal(readRawPreviewFile(zip, "missing.js"), null);
   assert.equal(

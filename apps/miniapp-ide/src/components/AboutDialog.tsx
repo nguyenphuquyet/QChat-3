@@ -84,7 +84,7 @@ export function AboutDialog({
             className="btn btn-secondary h-8 flex-1 text-[10px]"
             onClick={() =>
               void api.openUrl(
-                "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md",
+                "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/WXML-COMPILER-INTEGRATION.md",
               )
             }
           >

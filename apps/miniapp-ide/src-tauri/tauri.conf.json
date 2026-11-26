@@ -36,13 +36,12 @@
     "active": true,
     "targets": "all",
     "category": "DeveloperTool",
-    "shortDescription": "Desktop IDE for QChat TSX mini apps",
-    "longDescription": "QChat Mini App Studio compiles TSX mini apps with the real qapp CLI, inspects immutable .japp packages and ships native QuickJS apps for the QChat runtime.",
+    "shortDescription": "Desktop IDE for QChat Mini Programs",
+    "longDescription": "QChat Mini App Studio edits WeChat Mini Programs in app.json, WXML, WXSS, Page and Component files, builds them with the official glass-easel Webpack pipeline and inspects immutable .japp packages.",
     "copyright": "Copyright © QChat",
     "resources": [
       "resources/qapp/**/*",
-      "resources/node/**/*",
-      "resources/types/**/*"
+      "resources/node/**/*"
     ],
     "icon": [
       "icons/32x32.png",

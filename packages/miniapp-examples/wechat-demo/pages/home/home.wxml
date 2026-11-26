@@ -1,0 +1,31 @@
+<view class="page">
+  <section title="{{title}}" body="Official glass-easel pipeline · Phase 2 built-ins">
+    <text class="muted">{{platform}}</text>
+  </section>
+
+  <view class="row">
+    <text class="title" id="count">{{count}} taps</text>
+    <progress percent="{{progress}}" show-info stroke-width="8" active />
+    <view class="actions">
+      <button id="inc" type="primary" bindtap="increment">Tap me</button>
+      <button id="reset" bindtap="reset">Reset</button>
+    </view>
+  </view>
+
+  <scroll-view class="scroller" scroll-y lower-threshold="20" bindscrolltolower="onLower">
+    <view wx:for="{{items}}" wx:key="*this" class="scroller__row">
+      <text>{{index + 1}}. {{item}}</text>
+    </view>
+  </scroll-view>
+
+  <image class="preview" src="../../assets/logo.png" mode="aspectFit" />
+
+  <view class="actions">
+    <navigator id="to-form" url="/pages/form/form" open-type="navigate">
+      <button type="primary">Open form</button>
+    </navigator>
+    <navigator id="to-about" url="/pages/about/about" open-type="navigate">
+      <button>About</button>
+    </navigator>
+  </view>
+</view>

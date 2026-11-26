@@ -1,0 +1,3 @@
+.qchat-form {
+  display: block;
+}

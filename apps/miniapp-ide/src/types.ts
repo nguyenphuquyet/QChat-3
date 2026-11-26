@@ -41,15 +41,17 @@ export interface ProjectCandidate {
 }
 
 export interface ProjectManifest {
-  schemaVersion: number;
-  format: string;
   name: string;
-  description?: string;
   version: string;
-  entry: string;
-  sdkVersion: string;
-  minRuntimeVersion: string;
-  requestedPermissions: string[];
+  description?: string;
+  requestedPermissions?: string[];
+  themeColor?: string;
+  minRuntimeVersion?: string;
+  /** Present only in a built package's manifest, not in the authoring file. */
+  schemaVersion?: number;
+  format?: string;
+  entry?: string;
+  sdkVersion?: string;
   source?: string;
   [key: string]: unknown;
 }
@@ -127,6 +129,36 @@ export interface DevLog {
 export interface DevExit {
   code: number;
 }
+
+/// One message forwarded by the host runtime's development channel
+/// (`window.parent.postMessage({ source: "qchat-miniapp", ... })`).
+export type DevEventPayload =
+  | {
+      type: "console";
+      level: "log" | "info" | "warn" | "error" | "debug";
+      message: string;
+      at: number;
+    }
+  | {
+      type: "network";
+      phase: "request" | "response" | "error";
+      method: string;
+      url: string;
+      status?: number | null;
+      durationMs?: number;
+      message?: string;
+      at: number;
+    }
+  | {
+      type: "error";
+      message: string;
+      file?: string;
+      line?: number;
+      column?: number;
+      at: number;
+    };
+
+export type DevEvent = DevEventPayload & { id: string };
 
 export interface Settings {
   nodePath: string;

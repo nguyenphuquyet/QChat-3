@@ -209,9 +209,9 @@ export async function miniAppsRoute(
         updatedAt: app.updatedAt,
         favorite: Boolean(favorite),
         openedAt: recent?.openedAt ?? null,
-        minRuntimeVersion: build?.minRuntimeVersion ?? "1.0.0",
+        minRuntimeVersion: build?.minRuntimeVersion ?? "2.0.0",
         size: build?.size ?? 0,
-        format: build?.format ?? "qapp",
+        format: build?.format ?? "webapp",
         sdkVersion: build?.sdkVersion ?? null,
         runtimeVersion,
       };
@@ -995,7 +995,7 @@ export async function miniAppPreview(versionId: string, requested: string) {
     ...file,
     appId: build.miniApp.appId,
     version: build.version,
-    format: "qapp",
+    format: build.format,
   };
 }
 

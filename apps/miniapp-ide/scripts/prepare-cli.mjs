@@ -1,7 +1,13 @@
 #!/usr/bin/env node
 /**
- * Copies the QChat CLI, its esbuild binary and TypeScript into src-tauri/resources
- * so a packaged Studio can compile mini apps without a local checkout.
+ * Copies the QChat CLI, its built-in components, its host runtime and its
+ * production dependency tree into `src-tauri/resources` so a packaged Studio can
+ * build Mini Programs without a local checkout.
+ *
+ * The builder runs the official glass-easel Webpack pipeline, so the packaged
+ * CLI needs webpack, the loaders and the glass-easel packages. The tree is
+ * flattened into `resources/qapp/node_modules`; webpack's `resolve.modules`
+ * already points at the package's own `node_modules`.
  *
  * Usage:
  *   node scripts/prepare-cli.mjs
@@ -15,6 +21,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -31,35 +38,11 @@ const distDir = path.join(frameworkDir, "dist");
 const resourcesDir = path.join(ideDir, "src-tauri", "resources");
 const qappDir = path.join(resourcesDir, "qapp");
 const nodeDir = path.join(resourcesDir, "node");
+const tauriConfig = path.join(ideDir, "src-tauri", "tauri.conf.json");
 
 const withNode =
   process.argv.includes("--with-node") || process.env.QAPP_BUNDLE_NODE === "1";
 const force = process.argv.includes("--force");
-
-const PLATFORM_PACKAGES = {
-  "aix-ppc64": "aix-ppc64",
-  "darwin-arm64": "darwin-arm64",
-  "darwin-x64": "darwin-x64",
-  "freebsd-arm64": "freebsd-arm64",
-  "freebsd-x64": "freebsd-x64",
-  "linux-arm": "linux-arm",
-  "linux-arm64": "linux-arm64",
-  "linux-ia32": "linux-ia32",
-  "linux-loong64": "linux-loong64",
-  "linux-mips64el": "linux-mips64el",
-  "linux-ppc64": "linux-ppc64",
-  "linux-riscv64": "linux-riscv64",
-  "linux-s390x": "linux-s390x",
-  "linux-x64": "linux-x64",
-  "netbsd-arm64": "netbsd-arm64",
-  "netbsd-x64": "netbsd-x64",
-  "openbsd-arm64": "openbsd-arm64",
-  "openbsd-x64": "openbsd-x64",
-  "sunos-x64": "sunos-x64",
-  "win32-arm64": "win32-arm64",
-  "win32-ia32": "win32-ia32",
-  "win32-x64": "win32-x64",
-};
 
 function fail(message) {
   console.error(`\nprepare-cli: ${message}\n`);
@@ -81,12 +64,45 @@ function formatSize(bytes) {
   return `${(bytes / 1024).toFixed(0)} KB`;
 }
 
+/// Tauri errors on a `bundle.resources` glob that matches nothing, after the
+/// whole Rust build has already run. Check the bases up front so a stale entry
+/// fails here with a clear message instead.
+function assertBundleResources() {
+  let config;
+  try {
+    config = JSON.parse(readFileSync(tauriConfig, "utf8"));
+  } catch (error) {
+    fail(`cannot read src-tauri/tauri.conf.json: ${error.message}`);
+  }
+  const patterns = config?.bundle?.resources ?? [];
+  const missing = [];
+  for (const pattern of patterns) {
+    if (typeof pattern !== "string") continue;
+    const base = pattern.split("*")[0].replace(/[\\/]+$/, "");
+    if (!base) continue;
+    const target = path.join(ideDir, "src-tauri", base);
+    if (!existsSync(target)) {
+      missing.push(pattern);
+      continue;
+    }
+    if (statSync(target).isDirectory() && readdirSync(target).length === 0) {
+      missing.push(pattern);
+    }
+  }
+  if (missing.length) {
+    fail(
+      `bundle.resources patterns match nothing: ${missing.join(", ")}\n` +
+        "Remove them from src-tauri/tauri.conf.json or create the folders in prepare-cli.",
+    );
+  }
+}
+
 function ensureFrameworkBuild() {
   const cli = path.join(distDir, "cli.js");
   if (existsSync(cli)) return;
 
   console.log("prepare-cli: framework dist is missing; building @mna/qchat…");
-  execSync("corepack pnpm --filter @mna/qchat build", {
+  execSync("pnpm --filter @mna/qchat build", {
     cwd: repoRoot,
     stdio: "inherit",
   });
@@ -96,13 +112,39 @@ function ensureFrameworkBuild() {
   }
 }
 
-function resolvePackageDir(request, fromDirs) {
+function resolvePackageDir(name, fromDirs) {
   for (const fromDir of fromDirs) {
+    let realFrom;
     try {
-      const requireFrom = createRequire(path.join(fromDir, "package.json"));
-      return path.dirname(requireFrom.resolve(request));
+      realFrom = realpathSync(fromDir);
     } catch {
-      // Try the next resolution root.
+      continue;
+    }
+    // pnpm links direct dependencies into the package's `node_modules`, but a
+    // transitive dependency lives next to the *real* package in the virtual
+    // store. Walk the ancestor `node_modules` chain from the real path so both
+    // layouts resolve, exactly like Node's own resolution.
+    for (
+      let current = realFrom;
+      current !== path.dirname(current);
+      current = path.dirname(current)
+    ) {
+      const candidate = path.join(current, "node_modules", name);
+      if (existsSync(path.join(candidate, "package.json"))) {
+        return realpathSync(candidate);
+      }
+    }
+    try {
+      // Fall back to `require.resolve` for anything the ancestor walk misses
+      // (for example a package reached through a symlinked workspace).
+      const requireFrom = createRequire(path.join(realFrom, "package.json"));
+      let current = path.dirname(requireFrom.resolve(name));
+      while (current !== path.dirname(current)) {
+        if (existsSync(path.join(current, "package.json"))) return current;
+        current = path.dirname(current);
+      }
+    } catch {
+      // Some packages do not expose their main entry to `require.resolve`.
     }
   }
   return null;
@@ -119,141 +161,127 @@ function copyDirectory(from, to) {
       continue;
     }
     if (entry.name.endsWith(".map")) continue;
-    if (!entry.name.endsWith(".js") && !entry.name.endsWith(".d.ts")) continue;
     cpSync(source, target);
     count += 1;
   }
   return count;
 }
 
-// Subdirectories matter: `dist/env` is the QuickJS environment the SDK exposes
-// as `@mna/qchat/env`, and the CLI resolves every `@mna/qchat/*` import from
-// this directory. Copying only the top level silently shipped a CLI without it.
 function copyFrameworkDist() {
-  const count = copyDirectory(distDir, qappDir);
-  if (!existsSync(path.join(qappDir, "cli.js"))) {
-    fail("dist/cli.js was not copied into resources/qapp");
+  const count = copyDirectory(distDir, path.join(qappDir, "dist"));
+  if (!existsSync(path.join(qappDir, "dist", "cli.js"))) {
+    fail("dist/cli.js was not copied into resources/qapp/dist");
   }
-  if (!existsSync(path.join(qappDir, "env", "auto.js"))) {
-    fail("dist/env was not copied into resources/qapp");
+  if (!existsSync(path.join(qappDir, "dist", "builder.js"))) {
+    fail("dist/builder.js was not copied into resources/qapp/dist");
   }
   return count;
 }
 
-// The QuickJS declarations sit in the SDK package root, which is the directory
-// above the CLI. A packaged Studio therefore needs them at `resources/types/`,
-// and copying them into `resources/qapp/types/` as well keeps them inside the
-// bundle glob that ships the CLI, so no separate resource entry can be missed.
-function copyFrameworkTypes() {
-  const from = path.join(frameworkDir, "types");
-  if (!existsSync(from)) return 0;
-  const targetDirs = [path.join(resourcesDir, "types"), path.join(qappDir, "types")];
-  let count = 0;
-  for (const targetDir of targetDirs) {
-    mkdirSync(targetDir, { recursive: true });
-    for (const entry of readdirSync(from, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".d.ts")) continue;
-      cpSync(path.join(from, entry.name), path.join(targetDir, entry.name));
-      count += 1;
-    }
-    if (!existsSync(path.join(targetDir, "qchat-env.d.ts"))) {
-      fail(`types/qchat-env.d.ts was not copied into ${targetDir}`);
-    }
-  }
-  return count / targetDirs.length;
+/// `resources/qapp/cli.js` is the path the Studio and the Tauri host run. It is
+/// a shim rather than the compiled CLI because the builder resolves `builtin/`,
+/// `runtime/` and `package.json` from its own directory's parent: keeping the
+/// `dist/` layout intact makes `qapp` behave exactly like the package root.
+function writeCliShim() {
+  writeFileSync(
+    path.join(qappDir, "cli.js"),
+    [
+      "#!/usr/bin/env node",
+      "// Generated by apps/miniapp-ide/scripts/prepare-cli.mjs.",
+      "// The compiled CLI lives in dist/ so the builder still finds builtin/,",
+      "// runtime/ and package.json next to the package root.",
+      'import "./dist/cli.js";',
+      "",
+    ].join("\n"),
+  );
 }
 
-function copyEsbuild(version) {
-  const esbuildDir = resolvePackageDir("esbuild/package.json", [frameworkDir, repoRoot]);
-  if (!esbuildDir) {
-    fail("esbuild is not installed. Run `corepack pnpm install` first.");
+/// The builder reads `builtin/` and `runtime/` from the package root, so a
+/// packaged CLI must ship them next to `dist/`.
+function copyFrameworkAssets() {
+  let count = 0;
+  for (const name of ["builtin", "runtime"]) {
+    const from = path.join(frameworkDir, name);
+    if (!existsSync(from)) fail(`framework ${name}/ is missing`);
+    count += copyDirectory(from, path.join(qappDir, name));
   }
+  cpSync(
+    path.join(frameworkDir, "package.json"),
+    path.join(qappDir, "package.json"),
+  );
+  return count;
+}
 
-  const targetDir = path.join(qappDir, "node_modules", "esbuild");
-  mkdirSync(path.dirname(targetDir), { recursive: true });
-  cpSync(esbuildDir, targetDir, {
-    recursive: true,
-    dereference: true,
-    filter: (source) => {
-      const relative = path.relative(esbuildDir, source);
-      return !relative.split(path.sep).includes("node_modules");
-    },
-  });
+/// Flattens the production dependency graph into one `node_modules` directory.
+/// pnpm keeps transitive packages next to their parent, so each dependency is
+/// resolved from its parent's directory and copied dereferenced.
+function copyDependencies() {
+  const frameworkPackage = JSON.parse(
+    readFileSync(path.join(frameworkDir, "package.json"), "utf8"),
+  );
+  const targetModules = path.join(qappDir, "node_modules");
+  mkdirSync(targetModules, { recursive: true });
 
-  const platformKey = `${process.platform}-${process.arch}`;
-  const packageName = PLATFORM_PACKAGES[platformKey];
-  if (!packageName) {
-    fail(`unsupported esbuild platform: ${platformKey}`);
-  }
+  const copied = new Set();
+  const queue = Object.keys(frameworkPackage.dependencies ?? {}).map((name) => ({
+    name,
+    fromDir: frameworkDir,
+    optional: false,
+  }));
 
-  const candidates = [
-    path.join(path.dirname(esbuildDir), "@esbuild", packageName),
-    path.join(repoRoot, "node_modules", "@esbuild", packageName),
-    path.join(frameworkDir, "node_modules", "@esbuild", packageName),
-  ];
+  while (queue.length > 0) {
+    const { name, fromDir, optional } = queue.shift();
+    if (copied.has(name)) continue;
+    const packageDir = resolvePackageDir(name, [
+      fromDir,
+      frameworkDir,
+      repoRoot,
+    ]);
+    if (!packageDir) {
+      if (optional) continue;
+      fail(
+        `dependency ${name} (required by ${path.basename(fromDir)}) is not installed. Run \`pnpm install\` first.`,
+      );
+    }
 
-  let platformDir = candidates.find((candidate) => existsSync(candidate));
-  if (!platformDir) {
-    for (let current = esbuildDir; current !== path.dirname(current); current = path.dirname(current)) {
-      const candidate = path.join(current, "@esbuild", packageName);
-      if (existsSync(candidate)) {
-        platformDir = candidate;
-        break;
+    const target = path.join(targetModules, name);
+    mkdirSync(path.dirname(target), { recursive: true });
+    cpSync(packageDir, target, {
+      recursive: true,
+      dereference: true,
+      filter: (source) => {
+        const relative = path.relative(packageDir, source);
+        return (
+          !relative.split(path.sep).includes("node_modules") &&
+          !source.endsWith(".map")
+        );
+      },
+    });
+    copied.add(name);
+
+    const manifest = JSON.parse(
+      readFileSync(path.join(packageDir, "package.json"), "utf8"),
+    );
+    for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+      queue.push({ name: dependency, fromDir: packageDir, optional: false });
+    }
+    for (const dependency of Object.keys(manifest.optionalDependencies ?? {})) {
+      queue.push({ name: dependency, fromDir: packageDir, optional: true });
+    }
+    for (const dependency of Object.keys(manifest.peerDependencies ?? {})) {
+      if (!copied.has(dependency)) {
+        queue.push({ name: dependency, fromDir: packageDir, optional: true });
       }
     }
   }
 
-  if (!platformDir) {
-    fail(
-      `the esbuild binary package @esbuild/${packageName} is missing. Reinstall dependencies for this platform.`,
-    );
+  if (!existsSync(path.join(targetModules, "webpack", "package.json"))) {
+    fail("webpack was not copied into resources/qapp/node_modules");
   }
-
-  const platformTarget = path.join(qappDir, "node_modules", "@esbuild", packageName);
-  cpSync(platformDir, platformTarget, { recursive: true, dereference: true });
-
-  const binary =
-    process.platform === "win32"
-      ? path.join(platformTarget, "esbuild.exe")
-      : path.join(platformTarget, "bin", "esbuild");
-  if (!existsSync(binary)) {
-    fail(`the esbuild binary was not found at ${binary}`);
+  if (!existsSync(path.join(targetModules, "glass-easel", "package.json"))) {
+    fail("glass-easel was not copied into resources/qapp/node_modules");
   }
-
-  return { version, platform: packageName };
-}
-
-function copyTypeScript() {
-  const tsDir = resolvePackageDir("typescript/package.json", [
-    repoRoot,
-    frameworkDir,
-    ideDir,
-  ]);
-  if (!tsDir) {
-    fail("typescript is not installed. Run `corepack pnpm install` first.");
-  }
-
-  const targetDir = path.join(qappDir, "node_modules", "typescript");
-  const version = JSON.parse(readFileSync(path.join(tsDir, "package.json"), "utf8")).version;
-  cpSync(tsDir, targetDir, {
-    recursive: true,
-    dereference: true,
-    filter: (source) => {
-      const relative = path.relative(tsDir, source);
-      return (
-        !relative.split(path.sep).includes("node_modules") &&
-        !source.endsWith(".map") &&
-        !source.endsWith(".tsbuildinfo")
-      );
-    },
-  });
-
-  const tsc = path.join(targetDir, "bin", "tsc");
-  if (!existsSync(tsc)) {
-    fail(`TypeScript was copied without bin/tsc (looked in ${tsc})`);
-  }
-
-  return version;
+  return copied.size;
 }
 
 function copyNodeRuntime() {
@@ -265,7 +293,7 @@ function copyNodeRuntime() {
     }
     writeFileSync(
       path.join(nodeDir, "README.txt"),
-      "Run `corepack pnpm prepare:cli -- --with-node` to bundle a Node runtime.\n",
+      "Run `pnpm prepare:cli -- --with-node` to bundle a Node runtime.\n",
     );
     return null;
   }
@@ -286,7 +314,7 @@ function main() {
   const stamp = {
     // Bumped when the resource layout changes, so an existing resources folder
     // is refreshed even though the CLI itself did not change.
-    layout: 3,
+    layout: 6,
     version: frameworkPackage.version,
     cliMtime,
     platform: process.platform,
@@ -299,6 +327,7 @@ function main() {
     try {
       const previous = JSON.parse(readFileSync(markerPath, "utf8"));
       if (JSON.stringify(previous) === JSON.stringify(stamp)) {
+        assertBundleResources();
         console.log(
           `prepare-cli: resources are up to date (${formatSize(dirSize(qappDir))}).`,
         );
@@ -314,32 +343,21 @@ function main() {
   mkdirSync(qappDir, { recursive: true });
 
   const files = copyFrameworkDist();
-  writeFileSync(
-    path.join(qappDir, "package.json"),
-    `${JSON.stringify(
-      {
-        name: "@mna/qchat",
-        version: frameworkPackage.version,
-        private: true,
-        type: "module",
-      },
-      null,
-      2,
-    )}\n`,
-  );
-
-  const types = copyFrameworkTypes();
-  const esbuild = copyEsbuild("esbuild");
-  const typescriptVersion = copyTypeScript();
+  writeCliShim();
+  const assets = copyFrameworkAssets();
+  const dependencies = copyDependencies();
   const node = copyNodeRuntime();
+
+  // Tauri errors on a `bundle.resources` glob that matches nothing, but only
+  // after the Rust build. Verify the configured bases once the resources exist.
+  assertBundleResources();
 
   writeFileSync(markerPath, `${JSON.stringify(stamp, null, 2)}\n`);
 
   console.log("");
   console.log(`  framework CLI   ${files} files · v${frameworkPackage.version}`);
-  console.log(`  env typings     ${types} files`);
-  console.log(`  esbuild         ${esbuild.version} · ${esbuild.platform}`);
-  console.log(`  typescript      ${typescriptVersion}`);
+  console.log(`  built-ins       ${assets} files`);
+  console.log(`  dependencies    ${dependencies} packages · ${formatSize(dirSize(path.join(qappDir, "node_modules")))}`);
   console.log(`  node runtime    ${node ? `${node.version} (${node.path})` : "not bundled"}`);
   console.log(`  resources       ${formatSize(dirSize(resourcesDir))} in src-tauri/resources`);
   console.log("");

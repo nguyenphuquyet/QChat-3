@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "Home",
+  "usingComponents": {
+    "section": "/components/section/section"
+  }
+}

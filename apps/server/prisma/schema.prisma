@@ -480,9 +480,9 @@ model MiniAppVersion {
   size Int
   manifest Json
   entry String
-  format String @default("qapp")
+  format String @default("webapp")
   sdkVersion String?
-  minRuntimeVersion String @default("1.0.0")
+  minRuntimeVersion String @default("2.0.0")
   requestedPermissions String[] @default([])
   status String @default("UPLOADED")
   channel String @default("DEVELOPMENT")

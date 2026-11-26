@@ -27,7 +27,7 @@ class CachedMiniApp {
     required this.directory,
     required this.manifest,
     this.sdkVersion,
-    this.format = 'qapp',
+    this.format = 'webapp',
   });
 
   final String appId;
@@ -39,7 +39,7 @@ class CachedMiniApp {
   final String? sdkVersion;
   final String format;
 
-  String get appJsPath => p.join(directory, 'app.js');
+  String get entryPath => p.join(directory, entry);
 }
 
 /// Downloads immutable ZIPs, verifies their SHA-256, unpacks them with path and
@@ -70,29 +70,41 @@ class MiniAppCache {
     '.deb',
     '.rpm',
   };
-  static const _qappCoreFiles = {
+  static const _webappCoreFiles = {
     'manifest.json',
-    'app.js',
+    'index.html',
     'metadata.json',
     'permissions.json',
   };
-  static const _qappAssetExtensions = {
+  static const _webappAssetExtensions = {
+    '.html',
+    '.htm',
+    '.js',
+    '.mjs',
+    '.css',
+    '.json',
+    '.map',
+    '.txt',
     '.png',
     '.jpg',
     '.jpeg',
-    '.webp',
     '.gif',
+    '.webp',
+    '.avif',
     '.svg',
-    '.ttf',
-    '.otf',
+    '.ico',
     '.woff',
     '.woff2',
-    '.json',
-    '.txt',
+    '.ttf',
+    '.otf',
     '.mp3',
     '.wav',
     '.mp4',
+    '.webm',
+    '.vtt',
+    '.wasm',
   };
+  static const maxEntryBytes = 2 * 1024 * 1024;
 
   String _appsDir(String appId) => p.join(root, 'apps', appId);
 
@@ -120,7 +132,7 @@ class MiniAppCache {
         final parsed = MiniAppManifest.fromJson(
           Map<String, dynamic>.from(manifest),
         );
-        await _verifyQappDirectory(candidate.key, parsed);
+        await _verifyWebappDirectory(candidate.key, parsed);
         return CachedMiniApp(
           appId: appId,
           version: json['version']?.toString() ?? parsed.version,
@@ -162,11 +174,11 @@ class MiniAppCache {
       final parsed = MiniAppManifest.fromJson(
         Map<String, dynamic>.from(manifest),
       );
-      if (parsed.version != build.version || parsed.format != 'qapp') {
+      if (parsed.version != build.version || parsed.format != 'webapp') {
         await directory.delete(recursive: true);
         return null;
       }
-      await _verifyQappDirectory(directory, parsed);
+      await _verifyWebappDirectory(directory, parsed);
       return CachedMiniApp(
         appId: build.appId,
         version: build.version,
@@ -291,11 +303,11 @@ class MiniAppCache {
         Map<String, dynamic>.from(manifestJson),
       );
       if (manifest.version != build.version ||
-          manifest.format != 'qapp' ||
-          manifest.entry != 'app.js') {
+          manifest.format != 'webapp' ||
+          manifest.entry != 'index.html') {
         throw const MiniAppCacheException('MANIFEST_MISMATCH');
       }
-      await _verifyQappDirectory(staging, manifest);
+      await _verifyWebappDirectory(staging, manifest);
 
       await target.parent.create(recursive: true);
       if (await target.exists()) await target.delete(recursive: true);
@@ -336,27 +348,27 @@ class MiniAppCache {
     }
   }
 
-  /// A `.japp` is a compiled JS bundle, not a website. The manifest and
-  /// metadata must agree, every declared file must match its SHA-256 and no
-  /// undeclared file may live beside the bundle. This runs at install time and
-  /// again whenever a cached copy is opened, so a modified cache is discarded.
-  Future<void> _verifyQappDirectory(
+  /// A `.japp` is a static website: `index.html` is the entry, every payload
+  /// file is declared in `metadata.json`, and no undeclared file may live beside
+  /// it. This runs at install time and again whenever a cached copy is opened,
+  /// so a modified cache is discarded before a WebView can serve it.
+  Future<void> _verifyWebappDirectory(
     Directory directory,
     MiniAppManifest manifest,
   ) async {
-    if (manifest.schemaVersion != 2 ||
-        manifest.format != 'qapp' ||
-        manifest.entry != 'app.js') {
+    if (manifest.schemaVersion != 3 ||
+        manifest.format != 'webapp' ||
+        manifest.entry != 'index.html') {
       throw const MiniAppCacheException('MANIFEST_MISMATCH');
     }
-    final appFile = File(p.join(directory.path, 'app.js'));
-    if (!await appFile.exists() || await appFile.length() == 0) {
+    final entryFile = File(p.join(directory.path, 'index.html'));
+    if (!await entryFile.exists() || await entryFile.length() == 0) {
       throw const MiniAppCacheException('ENTRY_MISSING');
     }
-    if (await appFile.length() > 4 * 1024 * 1024) {
+    if (await entryFile.length() > maxEntryBytes) {
       throw const MiniAppCacheException('ENTRY_TOO_LARGE');
     }
-    final appHash = sha256.convert(await appFile.readAsBytes()).toString();
+    final entryHash = sha256.convert(await entryFile.readAsBytes()).toString();
 
     final metadataFile = File(p.join(directory.path, 'metadata.json'));
     if (!await metadataFile.exists()) {
@@ -366,14 +378,14 @@ class MiniAppCache {
     if (metadata is! Map) {
       throw const MiniAppCacheException('METADATA_INVALID');
     }
-    if (metadata['formatVersion'] != 1 ||
+    if (metadata['formatVersion'] != 2 ||
         metadata['version'] != manifest.version ||
-        metadata['entry'] != 'app.js' ||
-        metadata['appSha256'] != appHash) {
+        metadata['entry'] != 'index.html' ||
+        metadata['entrySha256'] != entryHash) {
       throw const MiniAppCacheException('METADATA_MISMATCH');
     }
     final declared = metadata['files'];
-    if (declared is! List || declared.isEmpty || declared.length > 600) {
+    if (declared is! List || declared.isEmpty || declared.length > 2000) {
       throw const MiniAppCacheException('METADATA_INVALID');
     }
     final expected = <String, ({int size, String sha})>{};
@@ -390,16 +402,16 @@ class MiniAppCache {
       }
       expected[name] = (size: size, sha: hash);
     }
-    final appEntry = expected['app.js'];
-    if (appEntry == null ||
-        appEntry.sha != appHash ||
-        appEntry.size != await appFile.length()) {
+    final entryRow = expected['index.html'];
+    if (entryRow == null ||
+        entryRow.sha != entryHash ||
+        entryRow.size != await entryFile.length()) {
       throw const MiniAppCacheException('METADATA_MISMATCH');
     }
     for (final name in expected.keys) {
-      if (_qappCoreFiles.contains(name)) continue;
+      if (_webappCoreFiles.contains(name)) continue;
       if (!name.startsWith('assets/') ||
-          !_qappAssetExtensions.contains(p.extension(name).toLowerCase())) {
+          !_webappAssetExtensions.contains(p.extension(name).toLowerCase())) {
         throw const MiniAppCacheException('UNEXPECTED_FILE');
       }
     }
@@ -416,7 +428,13 @@ class MiniAppCache {
       final name = p
           .relative(entity.path, from: directory.path)
           .replaceAll('\\', '/');
-      if (name == _readyFile || name == 'metadata.json') continue;
+      if (name == _readyFile) continue;
+      // `manifest.json` and `permissions.json` are checked above and are not
+      // payload rows in `metadata.json`; `metadata.json` is not a payload row
+      // either. `index.html` is the one core file that is both.
+      if (_webappCoreFiles.contains(name) && !expected.containsKey(name)) {
+        continue;
+      }
       final row = expected[name];
       if (row == null) {
         throw const MiniAppCacheException('UNEXPECTED_FILE');

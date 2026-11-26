@@ -1,0 +1,1 @@
+<button class="qchat-button qchat-button--{{size}} qchat-button--{{type}} {{plain ? 'qchat-button--plain' : ''}} {{disabled ? 'qchat-button--disabled' : ''}}" disabled="{{disabled}}" bindtap="onTap"><span wx:if="{{loading}}" class="qchat-button__loading"></span><slot /></button>

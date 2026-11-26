@@ -107,8 +107,8 @@ export async function loadPreviewBundle(
       appId: `preview.${slugify(basename(project.path)) || "app"}`,
       name: manifest.name,
       version: manifest.version,
-      runtimeVersion: manifest.sdkVersion,
-      minRuntimeVersion: manifest.minRuntimeVersion,
+      runtimeVersion: manifest.minRuntimeVersion ?? "1.0.0",
+      minRuntimeVersion: manifest.minRuntimeVersion ?? "1.0.0",
       permissions: manifest.requestedPermissions ?? [],
     },
   };

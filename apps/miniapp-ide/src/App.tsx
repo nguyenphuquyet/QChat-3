@@ -92,7 +92,7 @@ export default function App() {
   const openProject = useStudio((state) => state.openProject);
   const saveActive = useStudio((state) => state.saveActive);
   const buildProject = useStudio((state) => state.buildProject);
-  const runTests = useStudio((state) => state.runTests);
+  const validateProject = useStudio((state) => state.validateProject);
   const startDev = useStudio((state) => state.startDev);
   const stopDev = useStudio((state) => state.stopDev);
   const devRunning = useStudio((state) => state.devRunning);
@@ -159,7 +159,7 @@ export default function App() {
   }, [bootstrap]);
 
   // Disk watcher: pickup edits made outside the studio (other editors, the
-  // qapp CLI, git). Cheap stat-based polling keeps the tabs, the explorer and
+  // qchat CLI, git). Cheap stat-based polling keeps the tabs, the explorer and
   // manifest.json in sync while a project is open.
   useEffect(() => {
     if (!projectPath || !api.isDesktop()) return;
@@ -292,15 +292,15 @@ export default function App() {
         event.preventDefault();
         if (!project) return;
         void runAction(
-          () => buildProject(event.shiftKey),
-          event.shiftKey ? t("common.bundleBuilt") : t("common.packageBuilt"),
+          () => buildProject(),
+          t("common.packageBuilt"),
         );
         return;
       }
       if (mod && key === "t") {
         event.preventDefault();
         if (!project) return;
-        void runAction(() => runTests(), t("common.runtimePassed"));
+        void runAction(() => validateProject(), t("common.projectValid"));
         return;
       }
       if (mod && key === "s") {
@@ -325,7 +325,7 @@ export default function App() {
     project,
     devRunning,
     buildProject,
-    runTests,
+    validateProject,
     saveActive,
     startDev,
     stopDev,

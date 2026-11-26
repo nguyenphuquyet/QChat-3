@@ -4,8 +4,8 @@
 // source. The "miniapp" group is the real repository documentation, imported as
 // raw strings so the IDE and the repo can never drift apart. This module is
 // deliberately free of React imports: it is plain data.
-import miniappsRaw from "../../../../docs/MINIAPPS.md?raw";
-import guideRaw from "../../../../docs/MINIAPP-DEVELOPER-GUIDE.md?raw";
+import wxmlRaw from "../../../../docs/WXML-COMPILER-INTEGRATION.md?raw";
+import builtinsRaw from "../../../../docs/BUILTIN-COMPONENTS-AUDIT.md?raw";
 import architectureRaw from "../../../../docs/ARCHITECTURE.md?raw";
 import deploymentRaw from "../../../../docs/DEPLOYMENT.md?raw";
 
@@ -22,17 +22,17 @@ export interface DocGroup {
   sections: DocSection[];
 }
 
-const STUDIO_OVERVIEW = `QChat Mini App Studio (\`apps/miniapp-ide\`, gói \`@qchat/miniapp-ide\`) là IDE desktop để viết, build và kiểm tra mini app TSX chạy trên runtime QuickJS của QChat. Đây **không** phải WebView host: bảng xem trước chạy chính bundle mà runtime sẽ chạy, bên trong một \`iframe\` sandbox, rồi vẽ cây render bằng DOM; giao diện cuối cùng vẫn do Flutter vẽ nên bản xem trước là gần đúng chứ không pixel-perfect.
+const STUDIO_OVERVIEW = `QChat Mini App Studio (\`apps/miniapp-ide\`, gói \`@qchat/miniapp-ide\`) là IDE desktop để viết, build và kiểm tra **WeChat Mini Program** chạy trong QChat. Dự án là một project WeChat thật — \`app.json\`, \`app.js\`, \`app.wxss\`, \`pages/<route>/{js,json,wxml,wxss}\` và \`components/<name>/…\` — nên Studio không có định dạng riêng và không tự biên dịch WXML/WXSS. Nó mở project, sửa tệp, rồi gọi đúng CLI \`qchat\`; pipeline Webpack chính thức của \`glass-easel\` mới là thứ tạo ra gói \`.japp\`.
 
 ## Kiến trúc
 
 | Lớp | Công nghệ | Nhiệm vụ |
 | --- | --- | --- |
-| Vỏ desktop | Tauri 2 (Rust) | Cửa sổ không viền, lệnh filesystem, chạy CLI, phát sự kiện dev |
-| Giao diện | React 19 + Vite 8 + TypeScript | Explorer, tab Monaco, panel build, hộp thoại |
-| Trình soạn thảo | Monaco Editor 0.57 | TSX, định nghĩa kiểu SDK và JSON schema cho \`manifest.json\` |
+| Vỏ desktop | Tauri 2 (Rust) | Cửa sổ không viền, filesystem, chạy CLI, giữ tiến trình \`qchat dev\` |
+| Giao diện | React 19 + Vite 8 + TypeScript | Explorer, tab Monaco, panel build, simulator, hộp thoại |
+| Trình soạn thảo | Monaco Editor 0.57 | WXML/WXSS (Monarch), JS/TS, JSON schema cho \`app.json\`, page, component và \`manifest.json\` |
 | Trạng thái | Zustand 5 | \`useStudio\` — một store duy nhất, persist vào \`localStorage\` |
-| Đóng gói | \`qapp\` CLI (\`packages/miniapp-framework/dist/cli.js\`) | Typecheck, esbuild cho QuickJS, ghi \`.japp\` |
+| Đóng gói | \`qchat\` CLI (\`packages/miniapp-framework/dist/cli.js\`) | Webpack + \`glass-easel\` loaders, kiểm tra project, ghi \`.japp\` |
 
 Luồng dữ liệu một chiều: React gọi \`lib/api.ts\` → \`invoke\` lệnh Rust → Rust chạy \`node cli.js ...\` → kết quả trả về store → panel cập nhật.
 
@@ -42,26 +42,29 @@ Luồng dữ liệu một chiều: React gọi \`lib/api.ts\` → \`invoke\` l�
 apps/miniapp-ide/
   src/
     App.tsx                 khung ứng dụng, phím tắt, vòng poll đồng bộ
-    components/             ActivityBar, Sidebar, EditorArea, DevicePanel, hộp thoại
+    components/             ActivityBar, Sidebar, EditorArea, PreviewPanel, BottomPanel, hộp thoại
     lib/
       api.ts                cầu nối Tauri (invoke, chọn tệp, mở URL)
-      store.ts              store Zustand: dự án, tab, log, build, artifact
+      miniapp.ts            mô hình project WeChat, chẩn đoán tĩnh, JSON schema, typings
+      templates.ts          starter/counter/blank dưới dạng project WeChat đầy đủ
+      monaco.ts             ngôn ngữ WXML/WXSS, completion/hover, schema, TS/JSON service
+      store.ts              store Zustand: project, tab, chẩn đoán, build, dev, artifact
       i18n.ts, useI18n.ts   đa ngôn ngữ, tiếng Việt mặc định
-      utils.ts, templates.ts, monaco.ts
   src-tauri/
-    src/lib.rs              lệnh Rust và vòng đời tiến trình qapp dev
+    src/lib.rs              lệnh Rust và vòng đời tiến trình qchat dev
     tauri.conf.json         cấu hình cửa sổ, bundle và NSIS
     icons/                  icon.ico, icon.icns và các PNG
-  scripts/prepare-cli.mjs   sao chép CLI + esbuild + TypeScript vào resources
+  scripts/prepare-cli.mjs   sao chép CLI framework vào resources
   scripts/generate-icons.py tạo icon.ico/icns/png từ một ảnh PNG gốc
-  src-tauri/icons/source/  ảnh gốc qchat-app-icon.png để tái tạo icon
 \`\`\`
 
 ## Store chính (\`src/lib/store.ts\`)
 
 - Vòng đời dự án: \`bootstrap\`, \`detect\`, \`openProject\`, \`closeProject\`, \`refreshTree\`, \`refreshArtifacts\`.
-- Tệp và tab: \`openFile\`, \`setActive\`, \`updateTab\`, \`saveFile\`, \`saveActive\`, \`closeTab\`, \`createEntry\`, \`renameEntry\`, \`deleteEntry\`.
-- Build và kiểm tra: \`buildProject\`, \`runTests\`, \`validateArtifact\`, \`inspectArtifact\`, \`startDev\`, \`stopDev\`, \`runTerminal\`.
+- Tệp và tab: \`openFile\`, \`setActive\`, \`updateTab\`, \`saveFile\`, \`saveActive\`, \`closeTab\`, \`createEntry\`, \`renameEntry\`, \`deleteEntry\`, \`revealLocation\`/\`consumeReveal\`.
+- Chẩn đoán: \`diagnostics\`, \`runDiagnostics\` — chạy lại sau khi mở/lưu/build/validate/tạo/xóa tệp và khi tệp dự án đổi trên đĩa.
+- Build và kiểm tra: \`buildProject\`, \`validateProject\`, \`inspectArtifact\`, \`startDev\`, \`stopDev\`, \`runTerminal\`.
+- Thiết bị: \`devUrl\`, \`devRevision\`, \`devEvents\`, \`reloadDev\`, \`bumpPreview\`.
 - Giao diện: \`setSidebarTab\`, \`setSidebarOpen\`, \`setBottomTab\`, \`setBottomOpen\`, \`setPreviewOpen\`, \`setCursor\`, \`updateSettings\`, \`appendLog\`, \`clearLogs\`.
 
 ## Luồng build
@@ -70,50 +73,101 @@ apps/miniapp-ide/
 Ctrl+B → buildProject()
   → api.runCli(["build", "--dir", <project>])
   → Rust run_cli → node cli.js build --dir <project>
-  → typecheck + esbuild (mục tiêu QuickJS) + băm SHA-256
+  → glass-easel Webpack pipeline (WXML + WXSS loader, official compilers)
   → dist/<slug>-<version>.japp
-  → listArtifacts() → inspectArtifact() → qapp inspect
-  → DevicePanel: manifest, quyền, kích thước, SHA-256
+  → listArtifacts() → inspectArtifact() → qchat inspect
+  → Packages: manifest, quyền, kích thước, tệp trong gói
 \`\`\`
 
-\`Ctrl+Shift+B\` build bỏ qua typecheck (\`--no-typecheck\`), \`Ctrl+T\` chạy \`qapp test\`, \`F5\` bật watcher \`qapp dev\`. Tên gói luôn là \`dist/<slug>-<version>.japp\`. Bảng xem trước gọi \`qchat bundle\` trên cùng pipeline esbuild đó, nên nó không bao giờ lệch khỏi bản build thật; chỉ phần vẽ giao diện là khác runtime.
+\`Ctrl+T\` chạy \`qchat validate --dir <project>\` để kiểm tra \`app.json\`, page, component và asset mà không đóng gói. \`F5\` bật/tắt \`qchat dev\`. Không còn build "bỏ typecheck": pipeline chính thức không typecheck JS của tác giả, còn \`validate\` là bước kiểm tra project thật. Tên gói luôn là \`dist/<slug>-<version>.japp\`.
 
-> Nếu CLI chưa sẵn sàng, hãy chạy \`corepack pnpm --filter @mna/qchat build\` rồi chọn **Tools → Re-detect CLI**.`;
+> Nếu CLI chưa sẵn sàng, hãy chạy \`pnpm --filter @mna/qchat build\` (hoặc \`pnpm prepare:cli\`) rồi chọn **Tools → Re-detect CLI**.`;
 
-const STUDIO_LIVE_PREVIEW = `Panel thiết bị (**Ctrl+Shift+P** bật/tắt) chạy mini app thật ngay trong IDE. Mỗi lần lưu tệp hoặc build thành công, store tăng \`previewRevision\` và panel build lại.
+const STUDIO_LIVE_PREVIEW = `Panel xem trước (**Ctrl+Shift+P** bật/tắt) hiển thị đúng trang mà \`qchat dev\` đang phục vụ. Khi bấm **Dev** (hoặc **F5**), Studio chạy \`qchat dev --dir <project> --port 5273\` và trỏ iframe vào \`http://127.0.0.1:5273/\`. Không có renderer riêng: WXML/WXSS được biên dịch bởi pipeline chính thức, còn \`glass-easel\` chạy trong WebView.
 
-## Luồng một lần xem trước
+## Luồng xem trước
 
 \`\`\`text
-previewRevision đổi
-  → saveAllDirty() (nếu bật autoSave)
-  → qchat bundle --dir <project> --no-typecheck
-  → đọc dist/app.js + assets/** (base64, data URL)
-  → iframe sandbox="allow-scripts" nạp bootstrap + app.js
-  → app gọi host bridge → render frame → React vẽ cây thành DOM
+F5 → startDev() → qchat dev --dir <project>
+  → buildMiniProgram() ghi .qchat-dev/preview.japp
+  → HTTP server 127.0.0.1:5273 (CSP: script/style/img self, connect none)
+  → PreviewPanel nạp iframe http://127.0.0.1:5273/
+  → host runtime chạy App()/Page()/Component(), gửi sự kiện qua postMessage
+  → Studio lọc source === "qchat-miniapp" và hiện ở Console / Network
 \`\`\`
 
-## Ranh giới
+Lưu tệp trong project sẽ khiến \`qchat dev\` rebuild (debounce 120 ms); store bắt dòng \`rebuilt …\` trong log, làm mới danh sách gói và remount iframe để thấy bản mới. **Reload** trong panel chỉ remount iframe; **Open in browser** mở cùng URL ra ngoài Studio.
 
-- **Cùng bundle**: \`qchat bundle\` dùng đúng pipeline esbuild của \`qchat build\`, chỉ dừng trước bước zip. Cái bạn thấy là cái sẽ chạy.
-- **Không cùng công cụ vẽ**: runtime thật vẽ bằng Flutter/TDesign. Bản xem trước vẽ bằng DOM/CSS nên vẫn lệch vài pixel, vài hiệu ứng cuộn, vài chi tiết glyph.
-- **Sandbox**: \`sandbox="allow-scripts"\` \`iframe\` không có \`allow-same-origin\`, nên app không chạm được DOM của Studio. Mọi host method đi qua \`postMessage\` có token.
-- **Quyền**: manifest quyết định. Gọi API chưa xin quyền sẽ nhận lỗi \`PERMISSION_DENIED\` giống trên máy thật.
-- **Giới hạn**: 60 lời gọi/10 giây và 30 lời gọi/phương thức (5 với \`chooseImage\`), body request 32 KB, response 1 MB, ảnh 5 MB, storage 64 KB/giá trị và 512 KB/app, tối đa 128 khoá.
-- **Storage**: dùng \`localStorage\` của Studio với tiền tố \`qapp-preview:<appId>:\`, nên dữ liệu xem trước không lẫn với app khác.
-- **Timer**: SDK thay \`setTimeout\`/\`clearTimeout\` bằng hàng đợi của nó; host giữ bản native trước khi SDK cài đặt để đồng hồ không tự gọi lại chính nó.
-- **Mạng**: \`request\` trả \`NOT_SUPPORTED\`; \`fetch\` HTTPS đi qua Studio. Nếu máy không có mạng, app thấy lỗi mạng như trên thiết bị.
+## Ba tab của panel
+
+| Tab | Nội dung |
+| --- | --- |
+| Simulator | iframe trỏ tới \`qchat dev\`; chỉ có nội dung trang, chrome native do app QChat vẽ khi chạy thật |
+| Console | \`console.*\` do host chuyển tiếp: \`{ level, message, at }\` |
+| Network | \`wx.request\`/\`fetch\` do host chuyển tiếp: \`request\`, \`response\`, \`error\` kèm method, URL, status, duration |
+
+Mọi message đều có \`source: "qchat-miniapp"\`; Studio cũng kiểm tra \`event.origin\` trước khi nhận, nên một iframe khác không thể giả log.
+
+## Ranh giới và giới hạn
+
+- **Cùng pipeline**: \`qchat dev\` gọi đúng \`buildMiniProgram()\` mà \`qchat build\` dùng, chỉ đổi đích ghi và bỏ bước đóng gói cuối.
+- **Không phải thiết bị thật**: WebView của Studio không có thanh điều hướng, tab bar, capsule hay quyền hệ điều hành của app QChat. Những phần đó do Flutter host cung cấp trên máy thật.
+- **Không fake API**: API chưa có trong capability registry trả lỗi kèm lý do; app không được giả lập hành vi OS trong JS.
+- **Mạng bị chặn bởi CSP**: iframe chỉ cho \`connect-src 'none'\`; \`wx.request\` đi qua bridge của host, còn ảnh \`src\` từ xa chưa được proxy (chỉ \`self\`, \`data:\`, \`blob:\`).
+- **Storage**: bản sync (\`wx.getStorageSync\`) chỉ đọc được cache đồng bộ trong phiên; bridge native là async nên không hydrate được lúc khởi động.
+- **Built-in**: 21 component trong \`packages/miniapp-framework/builtin\` (view, text, image, button, scroll-view, input, textarea, switch, checkbox, radio, slider, navigator, progress, swiper, picker, form, label, rich-text cùng các group liên quan). Hành vi chưa hoàn chỉnh được ghi trong \`BUILTIN-COMPONENTS-AUDIT.md\`, không được coi là tương thích đầy đủ.
 
 ## Khi bản xem trước không chạy
 
 | Hiện tượng | Nguyên nhân thường gặp |
 | --- | --- |
-| "Live preview needs the desktop Studio" | Đang chạy \`pnpm dev\` trong trình duyệt; CLI chỉ có trong shell Tauri |
-| Lỗi đỏ ngay khi mở | \`src/main.tsx\` ném lỗi lúc khởi động; xem tab Console trong panel |
-| Trắng màn hình, không lỗi | App gọi \`close()\` hoặc không render gì; Console ghi lại sự kiện đó |
-| Ảnh hiện khung xám | Đường dẫn không phải \`assets/…\`, hoặc tệp quá 4 MB / tổng quá 12 MB |
+| "Dev server is not running" | Chưa bấm **Dev**, hoặc \`qchat dev\` thoát vì lỗi build; xem tab Output |
+| iframe trắng, Console trống | \`qchat dev\` chưa rebuild xong, hoặc trang không render gì; xem Output của CLI |
+| Lỗi đỏ ngay khi mở | \`app.js\`/\`Page()\` ném lỗi lúc khởi động; xem Console và tab Problems |
+| Ảnh hiện khung xám | Đường dẫn không nằm trong gói, hoặc URL ngoài bị CSP chặn |
+| Sửa tệp mà không đổi | \`qchat dev\` đang build dở; đợi dòng \`rebuilt\` rồi **Reload** |
 
-> Bản xem trước dùng theme sáng/tối của Studio và thông báo cùng theme đó qua \`getSystemInfo\`, nên hãy kiểm tra cả hai chế độ trước khi gửi duyệt.`;
+> Trình mô phỏng dùng theme sáng/tối của Studio cho khung ngoài; màu bên trong trang do WXSS của app quyết định.`;
+
+const STUDIO_PROJECT_MODEL = `Studio hiểu dự án theo đúng quy ước WeChat. \`src/lib/miniapp.ts\` là nguồn sự thật cho mô hình này; \`src/lib/templates.ts\` sinh project mẫu và \`src/lib/monaco.ts\` cấu hình trình soạn thảo từ cùng dữ liệu đó.
+
+## Bố cục dự án
+
+| Tệp | Vai trò |
+| --- | --- |
+| \`app.json\` | Bắt buộc; \`pages\` là danh sách route, thêm \`window\`, \`tabBar\`, \`usingComponents\` |
+| \`app.js\` | Gọi \`App({...})\`; chạy một lần khi Mini Program khởi động |
+| \`app.wxss\` | Style toàn cục |
+| \`pages/<route>/<name>.{js,json,wxml,wxss}\` | Một page: script, cấu hình, markup, style |
+| \`components/<name>/<name>.{js,json,wxml,wxss}\` | Custom component; \`<name>.json\` phải có \`"component": true\` |
+| \`manifest.json\` | Metadata cửa hàng QChat: name, version, description, requestedPermissions |
+| \`project.config.json\`, \`sitemap.json\` | Tùy chọn, giữ tương thích công cụ WeChat |
+
+\`qchat create\` tạo khung tối thiểu; ba template **starter**, **counter**, **blank** trong Studio ghi đè bằng project đầy đủ (nhiều page, tab bar, custom component ở starter) nên không còn template TSX.
+
+## Chẩn đoán tĩnh
+
+\`diagnoseProject(files)\` chạy sau mỗi lần mở, lưu, build, validate, tạo/xóa tệp và khi project đổi trên đĩa:
+
+- \`app.json\` phải parse được và có \`pages\`; mỗi route phải có \`.wxml\`, \`.js\`, \`.json\`, \`.wxss\`.
+- Thẻ WXML phải đóng đúng; \`wx:for\` thiếu \`wx:key\` là cảnh báo.
+- Handler trong \`bindtap\`, \`catchtap\`, \`bind:change\`… phải tồn tại trong script cùng page/component, nếu không là cảnh báo.
+- \`usingComponents\` phải trỏ tới component thật (đường dẫn tương đối hoặc tuyệt đối trong project).
+- Khối WXSS phải đóng đủ ngoặc.
+- \`requestedPermissions\` trong \`manifest.json\` phải nằm trong capability registry.
+
+Kết quả nằm ở \`diagnostics\`, hiện trong tab **Problems** cùng output của CLI (\`problems\`). Bấm một dòng sẽ mở đúng tệp và cuộn tới dòng qua \`revealLocation\`.
+
+## Monaco
+
+- \`wxml\` và \`wxss\` là ngôn ngữ riêng, có tokenizer, completion thẻ/thuộc tính và hover cho thẻ built-in.
+- \`app.json\`, page JSON, component JSON và \`manifest.json\` có JSON schema riêng, gắn qua \`fileMatch\`.
+- JavaScript/TypeScript dùng dịch vụ của Monaco với typings Mini Program (\`wx.*\`, \`Page\`, \`Component\`, \`App\`).
+- Marker của chẩn đoán dùng owner \`qchat\`, nên không đè lỗi của TypeScript/JSON service.
+
+## Kiểm thử
+
+\`apps/miniapp-ide/test/miniapp.test.ts\` kiểm tra template, override manifest, danh sách built-in khớp các thư mục \`packages/miniapp-framework/builtin\`, ánh xạ phần mở rộng/ngôn ngữ, schema và từng quy tắc chẩn đoán. Chạy bằng \`pnpm --filter @qchat/miniapp-ide test\`; CI chạy cùng bước này trước khi build web.`;
 
 const STUDIO_REALTIME = `Studio không khóa dự án của bạn: bạn có thể sửa tệp bằng trình soạn thảo bên ngoài (VS Code, \`git checkout\`, script sinh mã) và IDE sẽ tự phát hiện thay đổi.
 
@@ -131,8 +185,8 @@ Vòng poll gọi \`tree_signature\` trước; chỉ khi chữ ký thay đổi m�
 Khi cửa sổ đang mở và có dự án, \`App.tsx\` chạy \`setInterval\` khoảng **1.5 giây**:
 
 1. Gọi \`tree_signature(project.path)\`. Nếu chữ ký không đổi thì dừng — không đọc tệp nào.
-2. Nếu chữ ký đổi, gọi \`file_stamps\` cho các tab đang mở (và cả \`manifest.json\`, kể cả khi tệp này chưa mở trong tab) rồi \`refreshTree()\` để cập nhật Explorer cùng panel Packages.
-3. So sánh mốc sửa đổi/kích thước mới với giá trị IDE đã lưu cho từng tab.
+2. Nếu chữ ký đổi, gọi \`file_stamps\` cho các tab đang mở (và cả \`app.json\`/\`manifest.json\`, kể cả khi chưa mở trong tab) rồi \`refreshTree()\` để cập nhật Explorer cùng panel Packages.
+3. So sánh mốc sửa đổi/kích thước mới với giá trị IDE đã lưu cho từng tab; sau đó \`runDiagnostics()\` phân tích lại project.
 
 Mỗi nhịp bị bỏ qua khi cửa sổ đang ẩn (\`document.visibilityState === "hidden"\`), và một cờ chống chồng lấn bảo đảm không có hai vòng poll chạy song song trên cây thư mục lớn.
 
@@ -215,10 +269,11 @@ corepack pnpm install                                    # tại gốc monorepo
 corepack pnpm --filter @qchat/miniapp-ide dev            # UI trong trình duyệt (localhost:1420)
 corepack pnpm --filter @qchat/miniapp-ide tauri dev      # ứng dụng desktop đầy đủ
 corepack pnpm --filter @qchat/miniapp-ide typecheck      # tsc --noEmit
+corepack pnpm --filter @qchat/miniapp-ide test           # mô hình project + chẩn đoán
 corepack pnpm --filter @qchat/miniapp-ide build          # typecheck + vite build
 \`\`\`
 
-\`beforeDevCommand\` và \`beforeBuildCommand\` tự chạy \`prepare:cli\` để sao chép CLI, esbuild và TypeScript vào \`src-tauri/resources/qapp\`. Thêm \`-- --with-node\` (hoặc đặt \`QAPP_BUNDLE_NODE=1\`) nếu muốn đóng gói kèm Node để máy đích không cần cài Node.
+\`beforeDevCommand\` và \`beforeBuildCommand\` tự chạy \`prepare:cli\` để sao chép CLI framework vào \`src-tauri/resources/qapp\`. Thêm \`-- --with-node\` (hoặc đặt \`QAPP_BUNDLE_NODE=1\`) nếu muốn đóng gói kèm Node để máy đích không cần cài Node.
 
 Khi chỉ chạy trong trình duyệt, các thao tác tệp và CLI bị vô hiệu hóa với thông báo "desktop runtime required".
 
@@ -231,7 +286,7 @@ Khi chỉ chạy trong trình duyệt, các thao tác tệp và CLI bị vô hi�
 | \`QCHAT_CLI\` | Đường dẫn \`cli.js\` của framework |
 | \`QAPP_BUNDLE_NODE\` | Tương đương \`prepare:cli --with-node\` |
 
-## Chạy \`qapp\` CLI trong repo
+## Chạy \`qchat\` CLI trong repo
 
 Build framework trước, sau đó gọi trực tiếp CLI đã biên dịch:
 
@@ -240,10 +295,23 @@ corepack pnpm --filter @mna/qchat build
 node packages/miniapp-framework/dist/cli.js version
 node packages/miniapp-framework/dist/cli.js create my-app
 node packages/miniapp-framework/dist/cli.js build --dir my-app
+node packages/miniapp-framework/dist/cli.js dev --dir my-app
+node packages/miniapp-framework/dist/cli.js validate --dir my-app
 node packages/miniapp-framework/dist/cli.js inspect my-app/dist/my-app-1.0.0.japp
 \`\`\`
 
-Từ gốc repo cũng có thể dùng script \`qapp\` (\`corepack pnpm qapp <lệnh>\`). IDE dò CLI theo thứ tự: đường dẫn trong **Cài đặt → CLI & Studio** → biến \`QCHAT_NODE\`/\`QCHAT_CLI\` → tài nguyên đi kèm (\`resources/qapp/cli.js\`) → checkout repo (\`packages/miniapp-framework/dist/cli.js\`) → \`node\` trong \`PATH\`.`;
+\`--dir\` là dạng tường minh của tham số thư mục; Studio luôn dùng nó và nó thắng tham số vị trí. IDE dò CLI theo thứ tự: đường dẫn trong **Cài đặt → CLI & Studio** → biến \`QCHAT_NODE\`/\`QCHAT_CLI\` → tài nguyên đi kèm (\`resources/qapp/cli.js\`) → checkout repo (\`packages/miniapp-framework/dist/cli.js\`) → \`node\` trong \`PATH\`.
+
+## Kiểm thử trước khi gửi PR
+
+\`\`\`sh
+corepack pnpm --filter @mna/qchat test        # framework, chạy tuần tự
+corepack pnpm --filter @qchat/miniapp-ide test
+corepack pnpm --filter @qchat/miniapp-ide typecheck
+corepack pnpm --filter @qchat/miniapp-ide build:web
+\`\`\`
+
+Thiết bị Android/iOS cần chạy thật trên máy ảo hoặc máy thật; máy build không có thiết bị thì không được tuyên bố tương thích.`;
 
 export const DOC_GROUPS: DocGroup[] = [
   {
@@ -254,21 +322,28 @@ export const DOC_GROUPS: DocGroup[] = [
         id: "studio-overview",
         title: "Tổng quan QChat Mini App Studio",
         summary:
-          "Kiến trúc Tauri 2 + React 19, cây thư mục source, store Zustand và luồng build .japp.",
+          "Kiến trúc Tauri 2 + React 19, cây thư mục source, store Zustand, luồng build .japp và validate project WeChat.",
         content: STUDIO_OVERVIEW,
+      },
+      {
+        id: "studio-project-model",
+        title: "Mô hình dự án WeChat & chẩn đoán",
+        summary:
+          "Bố cục app/pages/components, template starter/counter/blank, quy tắc chẩn đoán tĩnh, Monaco và kiểm thử.",
+        content: STUDIO_PROJECT_MODEL,
       },
       {
         id: "studio-live-preview",
         title: "Xem trước trực tiếp trong Studio",
         summary:
-          "Bảng thiết bị chạy bundle thật trong iframe sandbox: host method, quyền, giới hạn và cách xử lý khi lỗi.",
+          "Simulator trỏ tới qchat dev, ba tab Simulator/Console/Network, sự kiện host và các giới hạn đã biết.",
         content: STUDIO_LIVE_PREVIEW,
       },
       {
         id: "studio-realtime",
         title: "Đồng bộ tệp theo thời gian thực",
         summary:
-          "Phát hiện thay đổi từ đĩa qua file_stamps/tree_signature, vòng poll ~1.5 giây và xử lý xung đột.",
+          "Phát hiện thay đổi từ đĩa qua file_stamps/tree_signature, vòng poll ~1.5 giây, chẩn đoán lại và xử lý xung đột.",
         content: STUDIO_REALTIME,
       },
       {
@@ -282,7 +357,7 @@ export const DOC_GROUPS: DocGroup[] = [
         id: "studio-dev-setup",
         title: "Môi trường phát triển",
         summary:
-          "Node 20+, pnpm 10, Rust, các lệnh pnpm của IDE và cách chạy qapp CLI trong repo.",
+          "Node 20+, pnpm 10, Rust, các lệnh pnpm của IDE, qchat CLI với --dir và bộ kiểm thử trước khi gửi PR.",
         content: STUDIO_DEV_SETUP,
       },
     ],
@@ -292,18 +367,18 @@ export const DOC_GROUPS: DocGroup[] = [
     titleKey: "docs.groupMiniapp",
     sections: [
       {
-        id: "miniapp-developer-guide",
-        title: "Hướng dẫn phát triển Mini App",
+        id: "wxml-integration",
+        title: "Tích hợp WXML & glass-easel",
         summary:
-          "Hướng dẫn đầy đủ bằng tiếng Việt: kiến trúc, CLI, manifest, vòng đời, JSX, hooks, sự kiện, từng component, API host, đóng gói và kiểm thử.",
-        content: guideRaw,
+          "Quyết định dùng hệ sinh thái WeChat chính thức: pipeline build, compiler, bằng chứng kiểm chứng và những gì không được phép làm.",
+        content: wxmlRaw,
       },
       {
-        id: "miniapps",
-        title: "Mini App & nền tảng qapp",
+        id: "builtin-audit",
+        title: "Kiểm toán component built-in",
         summary:
-          "Vòng đời gói .japp, Store API, Developer API, định dạng gói và SDK @mna/qchat.",
-        content: miniappsRaw,
+          "Danh sách 21 component host, thuộc tính/sự kiện đã có, phần chưa hoàn chỉnh và API chưa hỗ trợ.",
+        content: builtinsRaw,
       },
       {
         id: "architecture",

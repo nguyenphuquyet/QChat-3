@@ -1,0 +1,1 @@
+<span class="qchat-navigator" bindtap="onTap"><slot /></span>

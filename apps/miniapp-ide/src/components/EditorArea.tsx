@@ -43,6 +43,10 @@ function TabIcon({ language }: { language: string }) {
       return <FileCode2 size={13} className="text-cyan-300" />;
     case "json":
       return <FileJson2 size={13} className="text-amber-300" />;
+    case "wxml":
+      return <FileCode2 size={13} className="text-orange-300" />;
+    case "wxss":
+      return <Braces size={13} className="text-violet-300" />;
     case "markdown":
     case "plaintext":
       return <FileText size={13} className="text-studio-300" />;
@@ -343,6 +347,9 @@ export function EditorArea() {
   const openFile = useStudio((state) => state.openFile);
   const reloadTabFromDisk = useStudio((state) => state.reloadTabFromDisk);
   const dismissExternalChange = useStudio((state) => state.dismissExternalChange);
+  const diagnostics = useStudio((state) => state.diagnostics);
+  const revealRequest = useStudio((state) => state.revealRequest);
+  const consumeReveal = useStudio((state) => state.consumeReveal);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const { t } = useI18n();
 
@@ -355,6 +362,61 @@ export function EditorArea() {
   useEffect(() => {
     configureMonaco();
   }, []);
+
+  // Project analysis is the single source of truth for the Problems panel and
+  // for the squiggles in the editor. The markers use the `qchat` owner so the
+  // TypeScript and JSON language services keep their own diagnostics.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const byFile = new Map<string, typeof diagnostics>();
+      for (const diagnostic of diagnostics) {
+        const list = byFile.get(diagnostic.file) ?? [];
+        list.push(diagnostic);
+        byFile.set(diagnostic.file, list);
+      }
+      for (const model of monaco.editor.getModels()) {
+        const modelPath = model.uri.path.replace(/\\/g, "/");
+        let matched: typeof diagnostics = [];
+        for (const [file, list] of byFile) {
+          if (modelPath.endsWith(`/${file}`)) {
+            matched = list;
+            break;
+          }
+        }
+        monaco.editor.setModelMarkers(
+          model,
+          "qchat",
+          matched.map((diagnostic) => ({
+            severity:
+              diagnostic.severity === "error"
+                ? monaco.MarkerSeverity.Error
+                : monaco.MarkerSeverity.Warning,
+            message: diagnostic.message,
+            startLineNumber: diagnostic.line ?? 1,
+            startColumn: 1,
+            endLineNumber: diagnostic.line ?? 1,
+            endColumn: 1000,
+          })),
+        );
+      }
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [diagnostics, tabs, activePath]);
+
+  useEffect(() => {
+    if (!revealRequest || !active || revealRequest.path !== active.path) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    const model = editor.getModel();
+    const line = Math.max(
+      1,
+      Math.min(revealRequest.line, model?.getLineCount() ?? revealRequest.line),
+    );
+    editor.setPosition({ lineNumber: line, column: revealRequest.column });
+    editor.revealLineInCenter(line);
+    editor.focus();
+    consumeReveal();
+  }, [revealRequest, active, consumeReveal]);
 
   useEffect(() => {
     if (!settings.autoSave || !active || active.content === active.saved) return;
@@ -586,20 +648,20 @@ function EmptyEditor() {
         </div>
       </div>
       <div className="flex gap-2">
-        {tree.find((entry) => entry.relative === "src/main.tsx") ? (
+        {tree.find((entry) => entry.relative === "app.json") ? (
           <button
             className="btn btn-primary h-7 text-[10.5px]"
             onClick={() => {
-              const entry = tree.find((item) => item.relative === "src/main.tsx");
+              const entry = tree.find((item) => item.relative === "app.json");
               if (entry) void openFile(entry.path);
             }}
           >
-            <FileCode2 size={12} /> {t("editor.openMain")}
+            <FileJson2 size={12} /> {t("editor.openApp")}
           </button>
         ) : null}
         <button
           className="btn btn-secondary h-7 text-[10.5px]"
-          onClick={() => void runAction(() => buildProject(false), t("common.packageBuilt"))}
+          onClick={() => void runAction(() => buildProject(), t("common.packageBuilt"))}
           disabled={!project}
         >
           <Hammer size={12} /> {t("editor.buildProject")}
