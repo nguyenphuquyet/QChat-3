@@ -122,6 +122,21 @@ WeChat-shaped project (unchanged)
   Flutter native chrome: status bar, NavBar, TabBar, capsule, back
 ```
 
+### Serving the package
+
+WeChat serves a build at the origin root, and both `index.html` and the WXML
+asset rewriter address package files that way (`/assets/app-service.js`,
+`/assets/pages/…/pic.png`). The phone host cannot do that — it mounts exactly one
+verified cache directory under a random token path on loopback
+(`http://127.0.0.1:<port>/<token>/`) so another app on the device cannot read it.
+
+The host therefore rebases root-absolute `/assets/…` URLs in the text it serves
+(HTML, CSS, JS) onto the token before handing them to the WebView. Without that
+step the document requests `/assets/app-service.js` and `/assets/app-wxss.css`
+from the origin root, gets a 404 from the token check, and the Mini App opens to
+a blank screen. `apps/mobile/test/miniapp_web_server_test.dart` pins both the
+rebasing and the refusal to serve anything outside the token path.
+
 ## 6. Gaps that QChat must implement
 
 These are integration, not framework rewrites:

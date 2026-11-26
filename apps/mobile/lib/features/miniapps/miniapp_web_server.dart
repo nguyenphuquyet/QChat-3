@@ -13,6 +13,12 @@ import 'package:path/path.dart' as p;
 /// app on the device can enumerate it. Every response carries a restrictive CSP
 /// and the bridge script is injected into the entry document, which means a
 /// package does not have to know how the host talks to it.
+///
+/// A WeChat build addresses its own files from the package root (`/assets/…`),
+/// which is where WeChat itself serves them. This host mounts the package under
+/// the token instead, so text responses are rebased onto `/<token>/assets/…`;
+/// without that the entry document asks the origin root for its script and
+/// stylesheet, gets a 404 and the WebView stays blank.
 class MiniAppWebServer {
   MiniAppWebServer._(this._server, this.directory, this._token);
 
@@ -20,6 +26,11 @@ class MiniAppWebServer {
   final String directory;
   final String _token;
   bool _closed = false;
+
+  /// Text payloads may point at package files with a root-absolute URL
+  /// (`src="/assets/app-service.js"`, `url(/assets/pic.png)`); see
+  /// `_rebasePackageUrls`.
+  static const _textExtensions = {'.html', '.htm', '.css', '.js', '.mjs'};
 
   static const _loopback = '127.0.0.1';
 
@@ -93,16 +104,17 @@ class MiniAppWebServer {
       final requested = relative.isEmpty ? 'index.html' : relative.join('/');
       final file = await _resolve(requested);
       if (file != null) {
-        if (p.extension(file.path).toLowerCase() == '.html' ||
-            p.extension(file.path).toLowerCase() == '.htm') {
-          final html = utf8.decode(
-            await file.readAsBytes(),
-            allowMalformed: true,
+        final extension = p.extension(file.path).toLowerCase();
+        if (_textExtensions.contains(extension)) {
+          final body = _rebasePackageUrls(
+            utf8.decode(await file.readAsBytes(), allowMalformed: true),
           );
           _write(
             response,
-            _injectBridge(html),
-            'text/html; charset=utf-8',
+            extension == '.html' || extension == '.htm'
+                ? _injectBridge(body)
+                : body,
+            _contentType(file.path),
             request.method == 'HEAD',
           );
           return;
@@ -125,9 +137,8 @@ class MiniAppWebServer {
       if (_isNavigation(request, requested)) {
         final entry = File(p.join(directory, 'index.html'));
         if (await entry.exists()) {
-          final html = utf8.decode(
-            await entry.readAsBytes(),
-            allowMalformed: true,
+          final html = _rebasePackageUrls(
+            utf8.decode(await entry.readAsBytes(), allowMalformed: true),
           );
           _write(
             response,
@@ -175,6 +186,17 @@ class MiniAppWebServer {
     if (requested.contains('.')) return false;
     final accept = request.headers.value(HttpHeaders.acceptHeader) ?? '';
     return accept.contains('text/html') || accept.contains('*/*');
+  }
+
+  /// Text payloads may point at package files with a root-absolute URL
+  /// (`src="/assets/app-service.js"`, `url(/assets/pic.png)`). The package is
+  /// mounted under the token, so those URLs are rebased onto it. A URL that
+  /// already has a host or a protocol-relative prefix is left alone.
+  String _rebasePackageUrls(String body) {
+    return body.replaceAllMapped(
+      RegExp(r'''(["'`(,\s=])/assets/'''),
+      (match) => '${match[1]}/$_token/assets/',
+    );
   }
 
   String _injectBridge(String html) {
