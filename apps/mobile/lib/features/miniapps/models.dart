@@ -143,7 +143,6 @@ class MiniAppManifest {
     required this.requestedPermissions,
     this.format = 'qapp',
     this.sdkVersion,
-    this.networkDomains = const [],
     this.buildHash,
   });
 
@@ -158,7 +157,6 @@ class MiniAppManifest {
   /// Internal package format id. Native `.japp` packages always use `qapp`.
   final String format;
   final String? sdkVersion;
-  final List<String> networkDomains;
   final String? buildHash;
 
   factory MiniAppManifest.fromJson(Map<String, dynamic> json) {
@@ -178,7 +176,6 @@ class MiniAppManifest {
           ? (schemaVersion >= 2 ? 'qapp' : 'webview')
           : declared,
       sdkVersion: json['sdkVersion']?.toString(),
-      networkDomains: _strings(json['networkDomains']),
       buildHash: json['buildHash']?.toString(),
     );
   }
@@ -197,7 +194,6 @@ class MiniAppBuild {
     required this.url,
     this.format = 'qapp',
     this.sdkVersion,
-    this.networkDomains = const [],
     this.expiresAt,
   });
 
@@ -212,7 +208,6 @@ class MiniAppBuild {
   final String url;
   final String format;
   final String? sdkVersion;
-  final List<String> networkDomains;
   final DateTime? expiresAt;
 
   factory MiniAppBuild.fromJson(Map<String, dynamic> json) {
@@ -237,9 +232,6 @@ class MiniAppBuild {
       url: _string(json['url']),
       format: format,
       sdkVersion: json['sdkVersion']?.toString() ?? parsed.sdkVersion,
-      networkDomains: _strings(json['networkDomains']).isEmpty
-          ? parsed.networkDomains
-          : _strings(json['networkDomains']),
       expiresAt: _date(json['expiresAt']),
     );
   }

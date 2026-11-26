@@ -10,6 +10,7 @@ export const ADMIN_SECTIONS = [
   "feedback",
   "landing",
   "audit",
+  "devices",
   "system",
 ] as const;
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];

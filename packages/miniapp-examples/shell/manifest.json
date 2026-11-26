@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "format": "qapp",
+  "name": "Shell",
+  "description": "Four-tab shell with an owned header, TabBar, form controls and storage.",
+  "version": "1.0.0",
+  "entry": "app.js",
+  "sdkVersion": "1.0.0",
+  "minRuntimeVersion": "1.0.0",
+  "requestedPermissions": ["storage", "toast"],
+  "source": "src/main.tsx"
+}

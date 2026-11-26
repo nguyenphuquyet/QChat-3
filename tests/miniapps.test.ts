@@ -141,18 +141,14 @@ function qappZip(options: {
     sdkVersion: "1.0.0",
     minRuntimeVersion: "1.0.0",
     requestedPermissions: ["toast"] as string[],
-    networkDomains: [] as string[],
     appSha256: hash(appJs),
     ...options.overrides,
   };
   const requestedPermissions =
     (manifest.requestedPermissions as string[] | undefined) ?? [];
-  const networkDomains =
-    (manifest.networkDomains as string[] | undefined) ?? [];
   const manifestBytes = JSON.stringify(manifest);
   const permissionsBytes = JSON.stringify({
     requestedPermissions,
-    networkDomains,
   });
   const files = [
     { path: "manifest.json", data: Buffer.from(manifestBytes) },
@@ -375,7 +371,7 @@ test("qapp inspection rejects appId, bad permissions and tampered files", () => 
   assert.throws(
     () =>
       inspectBuild(
-        qappZip({ overrides: { requestedPermissions: ["network"] } }),
+        qappZip({ overrides: { requestedPermissions: ["admin"] } }),
         { version: "1.0.0" },
       ),
     (error: unknown) =>
@@ -406,16 +402,29 @@ test("qapp inspection rejects appId, bad permissions and tampered files", () => 
   );
 });
 
-test("qapp inspection accepts a declared HTTPS network allowlist", () => {
+test("qapp inspection accepts the network permission without a host list", () => {
   const bytes = qappZip({
     overrides: {
       requestedPermissions: ["network", "storage"],
-      networkDomains: ["api.example.com", "*.example.org"],
     },
   });
   const inspected = inspectBuild(bytes, { version: "1.0.0" });
   assert.equal(inspected.format, "qapp");
   assert.deepEqual(inspected.permissions, ["network", "storage"]);
+});
+
+test("qapp inspection rejects the removed host allowlist field", () => {
+  const bytes = qappZip({
+    overrides: {
+      requestedPermissions: ["network"],
+      networkDomains: ["api.example.com"],
+    },
+  });
+  assert.throws(
+    () => inspectBuild(bytes, { version: "1.0.0" }),
+    (error: unknown) =>
+      error instanceof PackageError && error.code === "MANIFEST_INVALID",
+  );
 });
 
 test("permission catalog and API allowlist stay in sync", () => {

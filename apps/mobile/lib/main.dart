@@ -1,14 +1,15 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPage;
+import 'package:flutter/widgets.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import 'app/providers.dart';
 import 'core/network/connection_banner.dart';
-import 'core/design_system/qchat_theme.dart';
 import 'core/design_system/components.dart';
 import 'core/design_system/reference_widgets.dart';
 import 'features/auth/auth_screen.dart';
@@ -17,12 +18,23 @@ import 'features/chats/chat_screen.dart';
 import 'features/chats/media_screen.dart';
 import 'features/contacts/friends_screen.dart';
 import 'features/groups/group_screen.dart';
+import 'features/groups/groups_screen.dart';
 import 'features/moments/moments_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/profile/user_profile_screen.dart';
+import 'features/profile/contact_note_screen.dart';
+import 'features/profile/contact_settings_screen.dart';
+import 'features/scan/scan_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/calls/call_screen.dart';
 import 'features/payments/payments_screen.dart';
+import 'features/payments/red_packet_covers_screen.dart';
+import 'features/payments/red_packet_cover_studio_screen.dart';
+import 'features/payments/red_packet_designer_screen.dart';
+import 'features/stickers/sticker_import_screen.dart';
+import 'features/stickers/sticker_library_screen.dart';
+import 'features/stickers/sticker_pack_screen.dart';
+import 'features/chats/red_packet_design.dart';
 import 'features/payments/money_screen.dart';
 import 'features/payments/wallet_screen.dart';
 import 'features/payments/transfer_screen.dart';
@@ -75,6 +87,7 @@ class QChatApp extends ConsumerStatefulWidget {
 
 class _QChatAppState extends ConsumerState<QChatApp> {
   late final GoRouter router;
+  String? _pendingConversation;
   @override
   void initState() {
     super.initState();
@@ -103,6 +116,7 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => const FriendsScreen(requestsOnly: true),
         ),
         qchatRoute(path: '/groups/new', builder: (_, s) => const GroupScreen()),
+        qchatRoute(path: '/groups', builder: (_, s) => const GroupsScreen()),
         qchatRoute(
           path: '/moments',
           builder: (_, s) =>
@@ -119,6 +133,16 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         qchatRoute(
           path: '/user/:id',
           builder: (_, s) => UserProfileScreen(id: s.pathParameters['id']),
+        ),
+        qchatRoute(
+          path: '/user/:id/note',
+          builder: (_, s) =>
+              ContactNoteScreen(userId: s.pathParameters['id']!),
+        ),
+        qchatRoute(
+          path: '/user/:id/settings',
+          builder: (_, s) =>
+              ContactSettingsScreen(userId: s.pathParameters['id']!),
         ),
         qchatRoute(
           path: '/qr',
@@ -141,8 +165,53 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           path: '/payments/transfer',
           builder: (_, s) => TransferScreen(
             to: s.uri.queryParameters['to'] ?? '',
+            name: s.uri.queryParameters['name'] ?? '',
+            avatarId: s.uri.queryParameters['avatar'] ?? '',
             conversationId: s.uri.queryParameters['conversation'],
             redPacket: s.uri.queryParameters['red'] == '1',
+            group: s.uri.queryParameters['group'] == '1',
+          ),
+        ),
+        qchatRoute(
+          path: '/red-packets/covers',
+          builder: (_, s) => RedPacketCoversScreen(
+            pick: s.uri.queryParameters['pick'] == '1',
+          ),
+        ),
+        qchatRoute(
+          path: '/red-packets/covers/market',
+          builder: (_, s) => const RedPacketCoverMarketScreen(),
+        ),
+        qchatRoute(
+          path: '/red-packets/designer',
+          builder: (_, s) => const RedPacketDesignerScreen(),
+        ),
+        qchatRoute(
+          path: '/red-packets/designer/cover',
+          builder: (_, s) => RedPacketCoverStudioScreen(
+            cover: s.extra is RedPacketCoverData
+                ? s.extra as RedPacketCoverData
+                : null,
+          ),
+        ),
+        qchatRoute(
+          path: '/stickers',
+          builder: (_, _) => const StickerLibraryScreen(),
+        ),
+        qchatRoute(
+          path: '/stickers/:id',
+          builder: (_, s) =>
+              StickerPackScreen(packId: s.pathParameters['id']!),
+        ),
+        qchatRoute(
+          path: '/stickers/:id/import',
+          builder: (_, s) =>
+              StickerImportScreen(packId: s.pathParameters['id']!),
+        ),
+        qchatRoute(
+          path: '/red-packets/designers/:id',
+          builder: (_, s) => RedPacketDesignerProfileScreen(
+            designerId: s.pathParameters['id']!,
           ),
         ),
         qchatRoute(
@@ -221,13 +290,38 @@ class _QChatAppState extends ConsumerState<QChatApp> {
         ),
       ],
     );
+    final client = ref.read(clientProvider);
+    final push = ref.read(pushProvider);
+    push.openConversation = _openFromPush;
+    push.isConversationOpen = (id) =>
+        router.routerDelegate.currentConfiguration.uri.path == '/chat/$id';
+    client.onBeforeLogout = push.unregister;
+    // A tap that happened while the sign-in screen was up opens once the
+    // account is usable.
+    client.session.addListener(_flushPushRoute);
+    unawaited(push.start());
     restore();
+  }
+
+  /// A notification tapped before the saved session finished restoring is
+  /// remembered and opened as soon as the app knows who is signed in.
+  void _openFromPush(String conversationId) {
+    _pendingConversation = conversationId;
+    _flushPushRoute();
+  }
+
+  void _flushPushRoute() {
+    final id = _pendingConversation;
+    if (id == null || ref.read(clientProvider).userId == null) return;
+    _pendingConversation = null;
+    router.go('/chat/$id');
   }
 
   Future<void> restore() async {
     try {
       if (await ref.read(clientProvider).restore() && mounted) {
         router.go('/home');
+        _flushPushRoute();
       }
     } catch (_) {}
   }
@@ -241,20 +335,33 @@ class _QChatAppState extends ConsumerState<QChatApp> {
   @override
   Widget build(BuildContext c) {
     final prefs = ref.watch(preferencesProvider);
-    return MaterialApp.router(
+    final dark = prefs.dark;
+    return WidgetsApp.router(
       title: 'QChat',
       debugShowCheckedModeBanner: false,
-      builder: (context, child) => Material(
-        type: MaterialType.transparency,
+      color: dark ? QChatColors.darkBackground : QChatColors.background,
+      textStyle: TextStyle(
+        color: dark ? QChatColors.darkInk : QChatColors.ink,
+        fontSize: 16,
+        height: 1.35,
+        decoration: TextDecoration.none,
+      ),
+      builder: (context, child) => QChatTheme(
+        dark: dark,
         child: ConnectionBanner(
           client: ref.read(clientProvider),
           child: child ?? const SizedBox.shrink(),
         ),
       ),
-      theme: qchatTheme(prefs.dark),
       locale: Locale(prefs.locale),
       supportedLocales: const [Locale('en'), Locale('vi'), Locale('zh')],
-      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      localizationsDelegates: const [
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        // The photo picker is drawn by wechat_assets_picker, whose Material
+        // widgets look their labels up through MaterialLocalizations.
+        GlobalMaterialLocalizations.delegate,
+      ],
       routerConfig: router,
     );
   }

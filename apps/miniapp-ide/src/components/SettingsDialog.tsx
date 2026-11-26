@@ -6,15 +6,20 @@ import {
   Cpu,
   FolderOpen,
   Info,
+  Languages,
+  Moon,
   RefreshCw,
   RotateCcw,
   Save,
   Settings,
+  Sun,
   Terminal,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useStudio } from "../lib/store";
 import { api } from "../lib/api";
+import { LANGUAGES } from "../lib/i18n";
+import { useI18n } from "../lib/useI18n";
 import { cn, joinPath } from "../lib/utils";
 import type { Settings as StudioSettings } from "../types";
 import { Dialog, DialogHeader, Spinner, Toggle } from "./ui";
@@ -23,11 +28,13 @@ const DEFAULTS: StudioSettings = {
   nodePath: "",
   cliPath: "",
   projectsDir: "",
-  autoSave: false,
+  autoSave: true,
   fontSize: 13,
   minimap: false,
   wordWrap: true,
   confirmDelete: true,
+  language: "vi",
+  theme: "dark",
 };
 
 export function SettingsDialog({
@@ -43,13 +50,17 @@ export function SettingsDialog({
   const updateSettings = useStudio((state) => state.updateSettings);
   const detect = useStudio((state) => state.detect);
   const desktop = api.isDesktop();
+  const { t } = useI18n();
 
   const [draft, setDraft] = useState<StudioSettings>(settings);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // Only re-seed when the dialog opens: re-running on every `settings`
+    // identity change would discard edits while the user is typing.
     if (open) setDraft(settings);
-  }, [open, settings]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const set = <K extends keyof StudioSettings>(key: K, value: StudioSettings[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -60,28 +71,94 @@ export function SettingsDialog({
     updateSettings(draft);
     const info = await detect();
     setSaving(false);
-    if (info?.ready) toast.success("CLI connected");
-    else toast.error(info?.error || "CLI not found — check the paths");
+    if (info?.ready) toast.success(t("settings.cliConnectedToast"));
+    else toast.error(info?.error || t("settings.cliNotFoundToast"));
     if (close) onClose();
   };
 
   const copy = async (value: string) => {
     await navigator.clipboard.writeText(value);
-    toast.success("Copied");
+    toast.success(t("common.copied"));
   };
 
   return (
     <Dialog open={open} onClose={onClose} width="max-w-3xl">
       <DialogHeader
         icon={<Settings size={16} />}
-        title="Studio settings"
-        subtitle="Toolchain paths, editor preferences and workspace defaults."
+        title={t("settings.title")}
+        subtitle={t("settings.subtitle")}
         onClose={onClose}
       />
 
       <div className="max-h-[72vh] overflow-auto">
         <div className="grid gap-0 md:grid-cols-[1fr_280px]">
           <div className="space-y-5 p-5">
+            <section>
+              <div className="label">{t("settings.appearance")}</div>
+              <div className="space-y-3 rounded border border-white/[0.06] bg-white/[0.015] p-3">
+                <div>
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-studio-400">
+                    <Languages size={11} /> {t("settings.language")}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {LANGUAGES.map((item) => {
+                      const active = draft.language === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          className={cn(
+                            "flex items-center justify-between gap-1 rounded border px-2.5 py-1.5 text-[10.5px] font-medium transition",
+                            active
+                              ? "border-accent-500/40 bg-accent-500/[0.12] text-accent-300"
+                              : "border-white/[0.07] bg-white/[0.02] text-studio-300 hover:border-white/15 hover:text-studio-100",
+                          )}
+                          onClick={() => set("language", item.id)}
+                        >
+                          <span className="truncate">{item.label}</span>
+                          <span className="text-[8.5px] font-semibold opacity-70">{item.short}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[9px] leading-4 text-studio-500">
+                    {t("settings.languageHint")}
+                  </p>
+                </div>
+
+                <div>
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-studio-400">
+                    <Sun size={11} /> {t("settings.theme")}
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {([
+                      ["dark", t("settings.themeDark"), <Moon key="dark" size={12} />],
+                      ["light", t("settings.themeLight"), <Sun key="light" size={12} />],
+                    ] as const).map(([value, label, icon]) => {
+                      const active = draft.theme === value;
+                      return (
+                        <button
+                          key={value}
+                          className={cn(
+                            "flex items-center justify-center gap-1.5 rounded border px-2.5 py-1.5 text-[10.5px] font-medium transition",
+                            active
+                              ? "border-accent-500/40 bg-accent-500/[0.12] text-accent-300"
+                              : "border-white/[0.07] bg-white/[0.02] text-studio-300 hover:border-white/15 hover:text-studio-100",
+                          )}
+                          onClick={() => set("theme", value)}
+                        >
+                          {icon}
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-1.5 text-[9px] leading-4 text-studio-500">
+                    {t("settings.themeHint")}
+                  </p>
+                </div>
+              </div>
+            </section>
+
             <section>
               <div className="mb-2 flex items-center justify-between">
                 <span className="label mb-0">QChat CLI</span>
@@ -94,18 +171,18 @@ export function SettingsDialog({
                   )}
                 >
                   <span className={cn("h-1.5 w-1.5 rounded-full", cli?.ready ? "bg-mint-400" : "bg-amber-400")} />
-                  {cli?.ready ? "Connected" : "Not connected"}
+                  {cli?.ready ? t("settings.cliConnected") : t("settings.cliNotConnected")}
                 </span>
               </div>
 
-              <label className="label" htmlFor="node-path">Node.js executable</label>
+              <label className="label" htmlFor="node-path">{t("settings.nodeExe")}</label>
               <div className="flex gap-1.5">
                 <input
                   id="node-path"
                   className="field font-mono text-[10px]"
                   value={draft.nodePath}
                   onChange={(event) => set("nodePath", event.target.value)}
-                  placeholder="Auto-detect (node on PATH or bundled runtime)"
+                  placeholder={t("settings.nodePlaceholder")}
                 />
                 <button
                   className="btn btn-secondary h-[34px] px-2.5"
@@ -114,20 +191,20 @@ export function SettingsDialog({
                       if (path) set("nodePath", path);
                     });
                   }}
-                  title="Browse"
+                  title={t("common.browse")}
                 >
                   <FolderOpen size={12} />
                 </button>
               </div>
 
-              <label className="label mt-3" htmlFor="cli-path">CLI script (cli.js)</label>
+              <label className="label mt-3" htmlFor="cli-path">{t("settings.cliScript")}</label>
               <div className="flex gap-1.5">
                 <input
                   id="cli-path"
                   className="field font-mono text-[10px]"
                   value={draft.cliPath}
                   onChange={(event) => set("cliPath", event.target.value)}
-                  placeholder="Auto-detect packages/miniapp-framework/dist/cli.js"
+                  placeholder={t("settings.cliPlaceholder")}
                 />
                 <button
                   className="btn btn-secondary h-[34px] px-2.5"
@@ -136,20 +213,20 @@ export function SettingsDialog({
                       if (path) set("cliPath", path);
                     });
                   }}
-                  title="Browse"
+                  title={t("common.browse")}
                 >
                   <FolderOpen size={12} />
                 </button>
               </div>
 
-              <label className="label mt-3" htmlFor="projects-dir">Default project location</label>
+              <label className="label mt-3" htmlFor="projects-dir">{t("settings.defaultLocation")}</label>
               <div className="flex gap-1.5">
                 <input
                   id="projects-dir"
                   className="field font-mono text-[10px]"
                   value={draft.projectsDir}
                   onChange={(event) => set("projectsDir", event.target.value)}
-                  placeholder="Choose a folder for new projects"
+                  placeholder={t("settings.defaultLocationPlaceholder")}
                 />
                 <button
                   className="btn btn-secondary h-[34px] px-2.5"
@@ -158,7 +235,7 @@ export function SettingsDialog({
                       if (path) set("projectsDir", path);
                     });
                   }}
-                  title="Browse"
+                  title={t("common.browse")}
                 >
                   <FolderOpen size={12} />
                 </button>
@@ -166,36 +243,36 @@ export function SettingsDialog({
             </section>
 
             <section>
-              <div className="label">Editor</div>
-              <div className="rounded-xl border border-white/[0.06] bg-white/[0.015] px-3 py-1">
+              <div className="label">{t("settings.editor")}</div>
+              <div className="rounded border border-white/[0.06] bg-white/[0.015] px-3 py-1">
                 <Toggle
                   checked={draft.autoSave}
                   onChange={(value) => set("autoSave", value)}
-                  label="Auto save"
-                  description="Write changed files after a short delay."
+                  label={t("settings.autoSave")}
+                  description={t("settings.autoSaveDesc")}
                 />
                 <Toggle
                   checked={draft.wordWrap}
                   onChange={(value) => set("wordWrap", value)}
-                  label="Word wrap"
-                  description="Wrap long lines instead of horizontal scrolling."
+                  label={t("settings.wordWrap")}
+                  description={t("settings.wordWrapDesc")}
                 />
                 <Toggle
                   checked={draft.minimap}
                   onChange={(value) => set("minimap", value)}
-                  label="Minimap"
-                  description="Show a compact document map on the right."
+                  label={t("settings.minimap")}
+                  description={t("settings.minimapDesc")}
                 />
                 <Toggle
                   checked={draft.confirmDelete}
                   onChange={(value) => set("confirmDelete", value)}
-                  label="Confirm deletes"
-                  description="Ask before removing a file or folder."
+                  label={t("settings.confirmDelete")}
+                  description={t("settings.confirmDeleteDesc")}
                 />
               </div>
 
-              <div className="mt-3 flex items-center gap-3 rounded-xl border border-white/[0.06] bg-white/[0.015] p-3">
-                <span className="text-[10px] text-studio-400">Font size</span>
+              <div className="mt-3 flex items-center gap-3 rounded border border-white/[0.06] bg-white/[0.015] p-3">
+                <span className="text-[10px] text-studio-400">{t("settings.fontSize")}</span>
                 <input
                   type="range"
                   min={11}
@@ -212,7 +289,7 @@ export function SettingsDialog({
             </section>
 
             <section>
-              <div className="label">Commands</div>
+              <div className="label">{t("settings.commands")}</div>
               <div className="space-y-1.5">
                 {[
                   "corepack pnpm install",
@@ -220,7 +297,7 @@ export function SettingsDialog({
                 ].map((command) => (
                   <div
                     key={command}
-                    className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-black/25 px-2.5 py-1.5"
+                    className="flex items-center gap-2 rounded border border-white/[0.06] bg-black/25 px-2.5 py-1.5"
                   >
                     <Terminal size={11} className="shrink-0 text-mint-400" />
                     <code className="min-w-0 flex-1 truncate font-mono text-[9.5px] text-studio-300">
@@ -236,55 +313,54 @@ export function SettingsDialog({
           </div>
 
           <aside className="border-t border-white/[0.065] bg-black/15 p-5 md:border-l md:border-t-0">
-            <div className="label">Detected toolchain</div>
+            <div className="label">{t("settings.detected")}</div>
             <div className="space-y-2.5">
-              <InfoRow icon={<Cpu size={11} />} label="Node" value={cli?.nodeVersion || "Not detected"} ok={Boolean(cli?.nodeVersion)} />
-              <InfoRow icon={<Terminal size={11} />} label="CLI" value={cli?.cliVersion || "Not detected"} ok={Boolean(cli?.ready)} />
-              <InfoRow icon={<Settings size={11} />} label="Platform" value={`${cli?.platform || "—"} ${cli?.arch || ""}`} ok />
+              <InfoRow icon={<Cpu size={11} />} label={t("settings.node")} value={cli?.nodeVersion || t("common.notDetected")} ok={Boolean(cli?.nodeVersion)} />
+              <InfoRow icon={<Terminal size={11} />} label={t("settings.cli")} value={cli?.cliVersion || t("common.notDetected")} ok={Boolean(cli?.ready)} />
+              <InfoRow icon={<Settings size={11} />} label={t("settings.platform")} value={`${cli?.platform || "—"} ${cli?.arch || ""}`} ok />
             </div>
 
             <div className="mt-3">
-              <div className="text-[8.5px] uppercase tracking-wider text-studio-500">Resolved CLI</div>
-              <div className="mt-1 break-all rounded-lg border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
-                {cli?.cliPath || "Not found"}
+              <div className="text-[8.5px] uppercase tracking-wider text-studio-500">{t("settings.resolvedCli")}</div>
+              <div className="mt-1 break-all rounded border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
+                {cli?.cliPath || t("common.notFound")}
               </div>
             </div>
 
             {cli?.workspace ? (
               <div className="mt-3">
-                <div className="text-[8.5px] uppercase tracking-wider text-studio-500">Workspace</div>
-                <div className="mt-1 break-all rounded-lg border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
+                <div className="text-[8.5px] uppercase tracking-wider text-studio-500">{t("settings.workspace")}</div>
+                <div className="mt-1 break-all rounded border border-white/[0.06] bg-black/20 p-2 font-mono text-[8.5px] leading-4 text-studio-400">
                   {cli.workspace}
                 </div>
               </div>
             ) : null}
 
-            <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+            <div className="mt-3 rounded border border-white/[0.06] bg-white/[0.02] p-3">
               <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-wider text-studio-500">
-                <Info size={10} /> Fresh checkout?
+                <Info size={10} /> {t("settings.freshCheckout")}
               </div>
               <p className="mt-1.5 text-[9px] leading-4 text-studio-500">
-                Build the framework once so <span className="font-mono">dist/cli.js</span> exists.
-                Studio also bundles the CLI in packaged builds.
+                {t("settings.freshCheckoutDesc")}
               </p>
               <p className="mt-1.5 break-all font-mono text-[8.5px] leading-4 text-studio-400">
                 {joinPath(cli?.workspace || "…", "packages", "miniapp-framework", "dist", "cli.js")}
               </p>
               <button
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.04] py-1.5 text-[9px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded border border-white/[0.08] bg-white/[0.04] py-1.5 text-[9px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
                 onClick={() => void copy(joinPath(cli?.workspace || "", "packages", "miniapp-framework", "dist", "cli.js"))}
               >
-                <Copy size={10} /> Copy CLI path
+                <Copy size={10} /> {t("settings.copyCliPath")}
               </button>
             </div>
 
             {!desktop ? (
-              <div className="mt-3 flex gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[9px] leading-4 text-amber-200/90">
+              <div className="mt-3 flex gap-2 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[9px] leading-4 text-amber-200/90">
                 <CircleAlert size={12} className="mt-0.5 shrink-0" />
-                Browser preview cannot access the filesystem or spawn the CLI.
+                {t("settings.browserWarning")}
               </div>
             ) : cli?.error ? (
-              <div className="mt-3 flex gap-2 rounded-lg border border-rose-400/20 bg-rose-400/[0.06] p-2.5 text-[9px] leading-4 text-rose-200/90">
+              <div className="mt-3 flex gap-2 rounded border border-rose-400/20 bg-rose-400/[0.06] p-2.5 text-[9px] leading-4 text-rose-200/90">
                 <CircleAlert size={12} className="mt-0.5 shrink-0" />
                 {cli.error}
               </div>
@@ -297,27 +373,27 @@ export function SettingsDialog({
         <button
           className="btn btn-ghost h-8 px-2 text-[10px]"
           onClick={() => setDraft(DEFAULTS)}
-          title="Reset to defaults"
+          title={t("settings.resetTitle")}
         >
-          <RotateCcw size={11} /> Reset
+          <RotateCcw size={11} /> {t("common.reset")}
         </button>
         <div className="flex items-center gap-2">
           <button className="btn btn-ghost h-8 px-3" onClick={onClose} disabled={saving}>
-            Cancel
+            {t("common.cancel")}
           </button>
           <button
             className="btn btn-secondary h-8 px-3"
             onClick={() => void apply(false)}
             disabled={saving}
           >
-            {saving ? <Spinner size={11} /> : <RefreshCw size={11} />} Apply & detect
+            {saving ? <Spinner size={11} /> : <RefreshCw size={11} />} {t("settings.applyDetect")}
           </button>
           <button
             className="btn btn-primary h-8 px-4"
             onClick={() => void apply(true)}
             disabled={saving}
           >
-            {saving ? <Spinner size={11} /> : <Save size={11} />} Save settings
+            {saving ? <Spinner size={11} /> : <Save size={11} />} {t("settings.save")}
           </button>
         </div>
       </div>

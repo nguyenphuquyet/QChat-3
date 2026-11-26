@@ -149,6 +149,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get --enforce-lockfile
+      - name: Patch ONNX Runtime Extensions download URL
+        run: bash tool/patch_onnxruntime_spm.sh
       - name: Build simulator app
         run: >-
           flutter build ios --simulator --debug --no-codesign
@@ -182,6 +184,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get --enforce-lockfile
+      - name: Patch ONNX Runtime Extensions download URL
+        run: bash tool/patch_onnxruntime_spm.sh
       - name: Build iOS device app without signing
         run: >-
           flutter build ios --release --no-codesign -v

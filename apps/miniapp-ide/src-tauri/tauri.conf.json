@@ -22,7 +22,8 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "decorations": true,
+        "decorations": false,
+        "shadow": true,
         "theme": "Dark",
         "backgroundColor": "#080a0f"
       }
@@ -38,7 +39,11 @@
     "shortDescription": "Desktop IDE for QChat TSX mini apps",
     "longDescription": "QChat Mini App Studio compiles TSX mini apps with the real qapp CLI, inspects immutable .japp packages and ships native QuickJS apps for the QChat runtime.",
     "copyright": "Copyright © QChat",
-    "resources": ["resources/qapp/**/*", "resources/node/**/*"],
+    "resources": [
+      "resources/qapp/**/*",
+      "resources/node/**/*",
+      "resources/types/**/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -56,7 +61,11 @@
     },
     "windows": {
       "nsis": {
-        "installMode": "currentUser"
+        "installMode": "currentUser",
+        "languages": ["Vietnamese", "English"],
+        "displayLanguageSelector": true,
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
       }
     }
   }

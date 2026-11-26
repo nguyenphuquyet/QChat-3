@@ -1,4 +1,4 @@
-import { type HostBridge, type HostResponse } from "./protocol.js";
+import { type HostBridge, type HostResponse, type HostSendKind } from "./protocol.js";
 interface NativeHost {
     send(kind: string, payload: unknown): void;
     call(method: string, params: unknown): Promise<HostResponse> | HostResponse;
@@ -24,6 +24,6 @@ export declare function host(): HostBridge;
 /** Used only by tests and the dev harness. */
 export declare function setHostForTesting(value: HostBridge | null): void;
 export declare function callHost<T = unknown>(method: Parameters<HostBridge["call"]>[0], params?: Record<string, unknown>): Promise<T>;
-export declare function emit(kind: "ready" | "log" | "lifecycle", payload: unknown): void;
+export declare function emit(kind: Extract<HostSendKind, "ready" | "log" | "lifecycle">, payload: unknown): void;
 export {};
 //# sourceMappingURL=host.d.ts.map

@@ -2,7 +2,7 @@
 import { existsSync, watch } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { compileProject, validateQapp, COMPILER_VERSION } from "./compiler.js";
+import { bundleProject, compileProject, typecheckProject, validateQapp, COMPILER_VERSION } from "./compiler.js";
 import { SDK_VERSION } from "./protocol.js";
 import { findNode, runQapp, textContent } from "./tester.js";
 function usage() {
@@ -14,9 +14,13 @@ Usage:
   qchat build [--dir <project>] [--out <file.japp>] [--no-typecheck]
   qchat validate <file.japp>
   qchat test [--dir <project>]
+  qchat bundle [--dir <project>] [--out <file.js>] [--no-typecheck]
   qchat package [--dir <project>] [--out <file.japp>]
   qchat inspect <file.japp>
   qchat version
+
+\`bundle\` writes the raw app.js the runtime executes, for Studio's live preview;
+it does not produce a .japp.
 `);
 }
 function argValue(args, name) {
@@ -46,17 +50,30 @@ function projectDir(args) {
 function outFile(args) {
     return argValue(args, "--out");
 }
-const helloSource = `import { useState } from "@mna/qchat";
+const helloSource = `import "@mna/qchat/env/auto";
+import { start, useEffect, useState } from "@mna/qchat";
 import { Button, Text, View } from "@mna/qchat/ui";
-import { start } from "@mna/qchat";
 
 export default function App() {
   const [count, setCount] = useState(0);
+  const [seconds, setSeconds] = useState(0);
+
+  // QuickJS has no timers of its own: importing the environment installs
+  // setTimeout/setInterval, and the host wakes the app on time.
+  useEffect(() => {
+    const timer = setInterval(() => setSeconds((value) => value + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    console.log("counter is now", count);
+  }, [count]);
 
   return (
     <View style={{ flex: 1, padding: 24, gap: 12, justifyContent: "center" }}>
       <Text style={{ fontSize: 28, fontWeight: "bold" }}>QChat Mini App</Text>
       <Text>Count: {count}</Text>
+      <Text>Running for {seconds}s</Text>
       <Button onPress={() => setCount(count + 1)}>Increment</Button>
     </View>
   );
@@ -118,7 +135,7 @@ async function create(args) {
         dependencies: { "@mna/qchat": `^${SDK_VERSION}` },
         devDependencies: { typescript: "5.9.3" },
     }, null, 2)}\n`);
-    await writeFile(path.join(directory, "README.md"), `# ${name}\n\nQChat Mini App created with \`qchat create\`.\n\n\`\`\`sh\nnpm install\nnpx qchat build\n\`\`\`\n\nThe build writes an immutable \`.japp\` package to \`dist/\`.\n`);
+    await writeFile(path.join(directory, "README.md"), `# ${name}\n\nQChat Mini App created with \`qchat create\`.\n\n\`\`\`sh\nnpm install\nnpx qchat build\n\`\`\`\n\nThe build writes an immutable \`.japp\` package to \`dist/\`.\n\n\`src/main.tsx\` starts with \`import "@mna/qchat/env/auto"\`, which installs the\nQuickJS environment (timers, console, structuredClone, URL, TextEncoder,\nAbortController and the vi-VN/en-US Intl polyfill). Remove that import and the\nbundle only contains what the app installs explicitly.\n`);
     console.log(`Created ${name} in ${directory}`);
     console.log("Create the app in Developer Center to get its app id, then upload the built .japp there.");
 }
@@ -159,6 +176,23 @@ async function inspect(args) {
         files: result.files,
     }, null, 2));
 }
+/**
+ * Writes the raw `app.js` the runtime executes, without packaging it. Studio's
+ * live preview loads exactly this bundle, so what it renders and what ships can
+ * never be two different builds.
+ */
+async function bundleOnly(args) {
+    const directory = projectDir(args);
+    if (!args.includes("--no-typecheck"))
+        typecheckProject(directory);
+    const { appJs, manifest } = await bundleProject(directory, { minify: false });
+    const output = path.resolve(outFile(args) ?? path.join(directory, "dist", "app.js"));
+    await mkdir(path.dirname(output), { recursive: true });
+    await writeFile(output, appJs, "utf8");
+    const kilobytes = (Buffer.byteLength(appJs, "utf8") / 1024).toFixed(1);
+    console.log(`${output}`);
+    console.log(`${manifest.name}@${manifest.version} · ${kilobytes} KB`);
+}
 async function testProject(args) {
     const temporary = path.join(projectDir(args), "dist", "qchat-test.japp");
     const result = await compileProject({
@@ -167,6 +201,12 @@ async function testProject(args) {
         typecheck: !args.includes("--no-typecheck"),
     });
     const harness = runQapp(result.bytes);
+    // Run everything the app scheduled for "right now" (requestAnimationFrame,
+    // queueMicrotask) before judging the frame.
+    harness.timers.advance(0);
+    for (const entry of harness.logs) {
+        console.log(`  [${entry.level}] ${entry.message}`);
+    }
     const tree = harness.latest();
     if (!tree?.root)
         throw new Error("TEST_FAILED: no render tree was produced");
@@ -262,6 +302,9 @@ async function main() {
             break;
         case "test":
             await testProject(args);
+            break;
+        case "bundle":
+            await bundleOnly(args);
             break;
         case "inspect":
             await inspect(args);

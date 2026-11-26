@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
@@ -87,7 +87,7 @@ void main() {
     await mount(tester, client, const ChatDetailsScreen(id: 'chat'));
     final cell = find.byWidgetPredicate(
       (w) =>
-          w is TCell &&
+          w is QChatCell &&
           w.subtitle is Text &&
           (w.subtitle as Text).data ==
               'Chỉ chủ nhóm và quản trị viên được đổi hình nền.',
@@ -97,7 +97,7 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(tester.widget<TCell>(cell).onTap, isNull);
+    expect(tester.widget<QChatCell>(cell).onTap, isNull);
   });
   testWidgets('owner can appoint an admin through the member menu', (
     tester,
@@ -109,7 +109,7 @@ void main() {
       client,
       const GroupMembersScreen(conversationId: 'chat'),
     );
-    await tester.tap(find.byTooltip('Quản lý thành viên').first);
+    await tester.tap(find.byWidgetPredicate((w) => w is QChatIconButton && w.label == 'Quản lý thành viên').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bổ nhiệm quản trị viên'));
     await tester.pumpAndSettle();
@@ -126,7 +126,7 @@ void main() {
       client,
       const GroupMembersScreen(conversationId: 'chat'),
     );
-    await tester.tap(find.byTooltip('Quản lý thành viên').first);
+    await tester.tap(find.byWidgetPredicate((w) => w is QChatIconButton && w.label == 'Quản lý thành viên').first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Bổ nhiệm quản trị viên'));
     await tester.pumpAndSettle();

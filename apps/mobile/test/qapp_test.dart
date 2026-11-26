@@ -31,12 +31,10 @@ Map<String, List<int>> qappFiles({
     'sdkVersion': '1.0.0',
     'minRuntimeVersion': '1.0.0',
     'requestedPermissions': ['toast'],
-    'networkDomains': [],
     ...?manifestOverride,
   };
   final permissions = <String, dynamic>{
     'requestedPermissions': manifest['requestedPermissions'],
-    'networkDomains': manifest['networkDomains'],
     ...?permissionsOverride,
   };
   final appBytes = utf8.encode(appJs);
@@ -89,7 +87,7 @@ List<int> zipFiles(Map<String, List<int>> files) {
   for (final file in files.entries) {
     archive.addFile(ArchiveFile(file.key, file.value.length, file.value));
   }
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encode(archive);
 }
 
 MiniAppBuild qappBuild(
@@ -97,7 +95,6 @@ MiniAppBuild qappBuild(
   String version = '1.0.0',
   String url = '',
   List<String> permissions = const ['toast'],
-  List<String> networkDomains = const [],
 }) {
   final files = ZipDecoder().decodeBytes(bytes);
   final manifest =
@@ -122,7 +119,6 @@ MiniAppBuild qappBuild(
     url: url,
     format: 'qapp',
     sdkVersion: '1.0.0',
-    networkDomains: networkDomains,
   );
 }
 
@@ -152,6 +148,7 @@ void main() {
       final tree = QappTree.fromJson({
         'v': 1,
         'appId': _appId,
+        'screen': '1.2.3',
         'revision': 3,
         'root': {
           'id': 'n0',
@@ -191,6 +188,7 @@ void main() {
       });
       expect(tree.revision, 3);
       expect(tree.nodeCount, 5);
+      expect(tree.screen, '1.2.3');
       expect(tree.root!.type, 'View');
       expect(tree.root!.children.first.type, 'Text');
       expect(qappTextContent(tree.root!.children.first), 'Hello TSX');

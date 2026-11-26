@@ -83,6 +83,26 @@ struct Artifact {
     modified_ms: Option<u64>,
 }
 
+/// One openable Mini App discovered by [`find_projects`].
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCandidate {
+    path: String,
+    name: String,
+    version: Option<String>,
+}
+
+/// Cheap "has this file changed on disk?" probe used by the studio to pick up
+/// edits made outside the app (another editor, a CLI run, git checkout...).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FileStamp {
+    path: String,
+    exists: bool,
+    size: u64,
+    modified_ms: Option<u64>,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DevLog {
@@ -388,7 +408,13 @@ fn run_cli_blocking(
     command.arg(&cli_path).args(args);
 
     if !cwd.trim().is_empty() {
-        command.current_dir(cwd);
+        // Spawning with a missing working directory fails with an opaque OS error
+        // (ERROR_DIRECTORY / os error 267 on Windows), so report it clearly.
+        let cwd_path = PathBuf::from(cwd);
+        if !cwd_path.is_dir() {
+            return Err(format!("The working directory does not exist: {cwd}"));
+        }
+        command.current_dir(cwd_path);
     }
 
     let output = command
@@ -630,6 +656,105 @@ fn list_tree(root: String) -> Result<Vec<FsEntry>, String> {
     Ok(entries)
 }
 
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+fn fnv1a(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(FNV_PRIME);
+    }
+}
+
+fn file_stamp(path: &str) -> FileStamp {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => FileStamp {
+            path: path.to_string(),
+            exists: true,
+            size: metadata.len(),
+            modified_ms: modified_ms(&metadata),
+        },
+        _ => FileStamp {
+            path: path.to_string(),
+            exists: false,
+            size: 0,
+            modified_ms: None,
+        },
+    }
+}
+
+/// Size + modification time for a batch of files. The studio polls this while a
+/// project is open so edits made outside the app are picked up in near real
+/// time (and so an unsaved tab can be flagged as conflicting instead of being
+/// overwritten).
+#[tauri::command]
+fn file_stamps(paths: Vec<String>) -> Vec<FileStamp> {
+    paths.iter().map(|path| file_stamp(path)).collect()
+}
+
+/// Folds every entry name (plus the directory/file bit) of a folder tree into a
+/// hash, so the studio can tell whether files were added, removed or renamed
+/// without shipping the whole listing over IPC on every poll.
+fn fold_structure(root: &Path, dir: &Path, hash: &mut u64, count: &mut usize, depth: usize) {
+    if depth > MAX_TREE_DEPTH || *count >= MAX_TREE_ENTRIES {
+        return;
+    }
+
+    let Ok(read_dir) = fs::read_dir(dir) else {
+        return;
+    };
+
+    let mut children: Vec<fs::DirEntry> = read_dir.filter_map(Result::ok).collect();
+    children.sort_by_key(|entry| entry.file_name().to_string_lossy().to_lowercase());
+
+    for child in children {
+        if *count >= MAX_TREE_ENTRIES {
+            return;
+        }
+
+        let name = child.file_name().to_string_lossy().to_string();
+        let Ok(file_type) = child.file_type() else {
+            continue;
+        };
+        let is_dir = file_type.is_dir();
+
+        if is_dir && IGNORED_DIRECTORIES.contains(&name.as_str()) {
+            continue;
+        }
+        if !is_dir && IGNORED_FILES.contains(&name.as_str()) {
+            continue;
+        }
+
+        *count += 1;
+        let path = child.path();
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+        fnv1a(hash, relative.as_bytes());
+        fnv1a(hash, if is_dir { b"d" } else { b"f" });
+
+        if is_dir {
+            fold_structure(root, &path, hash, count, depth + 1);
+        }
+    }
+}
+
+#[tauri::command]
+fn tree_signature(root: String) -> Result<String, String> {
+    let path = PathBuf::from(&root);
+    if !path.is_dir() {
+        return Err(format!("{root} is not a folder"));
+    }
+
+    let mut hash = FNV_OFFSET;
+    let mut count = 0usize;
+    fold_structure(&path, &path, &mut hash, &mut count, 0);
+    // Hex, so the 64 bit hash survives the JSON number round-trip in JS.
+    Ok(format!("{hash:016x}"))
+}
+
 #[tauri::command]
 fn read_text_file(path: String) -> Result<String, String> {
     let file = PathBuf::from(&path);
@@ -658,9 +783,55 @@ fn read_text_file(path: String) -> Result<String, String> {
     Ok(text)
 }
 
+/// Base64 for the asset protocol the live preview uses: an `<img>` needs a
+/// data URL, and the webview cannot read a local path the CLI produced.
+fn base64_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] =
+        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((bytes.len() + 2) / 3 * 4);
+    for chunk in bytes.chunks(3) {
+        let first = chunk[0] as u32;
+        let second = chunk.get(1).copied().unwrap_or(0) as u32;
+        let third = chunk.get(2).copied().unwrap_or(0) as u32;
+        let combined = (first << 16) | (second << 8) | third;
+        out.push(ALPHABET[((combined >> 18) & 0x3f) as usize] as char);
+        out.push(ALPHABET[((combined >> 12) & 0x3f) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            ALPHABET[((combined >> 6) & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            ALPHABET[(combined & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Reads an image asset for the live preview. Only the packed `assets/` tree is
+/// ever passed in, and the cap keeps a stray huge file from freezing the IPC.
 #[tauri::command]
-fn write_text_file(path: String, contents: String) -> Result<(), String> {
+fn read_binary_file(path: String) -> Result<String, String> {
     let file = PathBuf::from(&path);
+    let metadata = fs::metadata(&file).map_err(|error| format!("Cannot read {path}: {error}"))?;
+    if !metadata.is_file() {
+        return Err(format!("{path} is not a file"));
+    }
+    const MAX_ASSET_BYTES: u64 = 8 * 1024 * 1024;
+    if metadata.len() > MAX_ASSET_BYTES {
+        return Err(format!(
+            "{path} is larger than {} MB and cannot be previewed",
+            MAX_ASSET_BYTES / 1024 / 1024
+        ));
+    }
+    let bytes = fs::read(&file).map_err(|error| format!("Cannot read {path}: {error}"))?;
+    Ok(base64_encode(&bytes))
+}
+
+#[tauri::command]
+fn write_text_file(path: String, contents: String) -> Result<(), String> {    let file = PathBuf::from(&path);
     if let Some(parent) = file.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent)
@@ -668,6 +839,14 @@ fn write_text_file(path: String, contents: String) -> Result<(), String> {
         }
     }
     fs::write(&file, contents).map_err(|error| format!("Cannot write {path}: {error}"))
+}
+
+#[tauri::command]
+fn ensure_directory(path: String) -> Result<(), String> {
+    if path.trim().is_empty() {
+        return Err("No directory path was provided.".into());
+    }
+    fs::create_dir_all(&path).map_err(|error| format!("Cannot create {path}: {error}"))
 }
 
 #[tauri::command]
@@ -734,6 +913,92 @@ fn delete_entry(path: String) -> Result<(), String> {
     }
 }
 
+/// Reads `manifest.json` and returns it only when it looks like a Mini App
+/// manifest. The studio itself can open any folder, but the project finder
+/// must not treat every folder that happens to contain a `manifest.json` as a
+/// Mini App.
+fn project_manifest(dir: &Path) -> Option<serde_json::Value> {
+    let raw = fs::read(dir.join("manifest.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&raw).ok()?;
+    let object = value.as_object()?;
+    let is_qapp = object.get("format").and_then(|v| v.as_str()) == Some("qapp");
+    let has_entry = object.get("entry").and_then(|v| v.as_str()).is_some();
+    if is_qapp || has_entry {
+        Some(value)
+    } else {
+        None
+    }
+}
+
+fn project_candidate(dir: &Path, manifest: &serde_json::Value) -> ProjectCandidate {
+    let name = manifest
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| {
+            dir.file_name()
+                .map(|name| name.to_string_lossy().to_string())
+                .unwrap_or_else(|| dir.to_string_lossy().to_string())
+        });
+    let version = manifest
+        .get("version")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    ProjectCandidate {
+        path: dir.to_string_lossy().to_string(),
+        name,
+        version,
+    }
+}
+
+/// Turns whatever folder the user picked into Mini App projects:
+///
+/// 1. the folder itself,
+/// 2. one of its parents (the user picked `src/` inside a project),
+/// 3. its direct children (the user picked a folder that holds projects).
+///
+/// Returning every match lets the UI show a chooser instead of failing when a
+/// parent folder with several projects was picked.
+#[tauri::command]
+fn find_projects(path: String) -> Vec<ProjectCandidate> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    let dir = Path::new(trimmed);
+    if !dir.is_dir() {
+        return Vec::new();
+    }
+
+    if let Some(manifest) = project_manifest(dir) {
+        return vec![project_candidate(dir, &manifest)];
+    }
+
+    // Picking `<project>/src` should still resolve to `<project>`.
+    for ancestor in dir.ancestors().skip(1).take(4) {
+        if let Some(manifest) = project_manifest(ancestor) {
+            return vec![project_candidate(ancestor, &manifest)];
+        }
+    }
+
+    let mut found: Vec<ProjectCandidate> = fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|entry| entry.is_dir())
+                .filter_map(|entry| {
+                    project_manifest(&entry)
+                        .map(|manifest| project_candidate(&entry, &manifest))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    found.sort_by_key(|candidate| candidate.name.to_lowercase());
+    found
+}
+
 #[tauri::command]
 fn list_artifacts(project: String) -> Result<Vec<Artifact>, String> {
     let dist = PathBuf::from(&project).join("dist");
@@ -767,9 +1032,56 @@ fn list_artifacts(project: String) -> Result<Vec<Artifact>, String> {
     Ok(artifacts)
 }
 
+/// Keeps the frameless shell looking native on Windows 11: the window has no
+/// decorations, so DWM would otherwise draw a square silhouette and a 1px
+/// outline around it. The app paints its own title bar, so only the corner
+/// rounding is kept and the outline is switched off entirely.
+#[cfg(windows)]
+fn apply_window_chrome(window: &tauri::WebviewWindow) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use std::ffi::c_void;
+
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: *mut c_void,
+            attribute: u32,
+            value: *const c_void,
+            size: u32,
+        ) -> i32;
+    }
+
+    let Ok(handle) = window.window_handle() else {
+        return;
+    };
+    let RawWindowHandle::Win32(win32) = handle.as_raw() else {
+        return;
+    };
+    let hwnd = win32.hwnd.get() as *mut c_void;
+
+    // DWMWA_WINDOW_CORNER_PREFERENCE (33) with DWMWCP_ROUND (2).
+    let rounded: u32 = 2;
+    // DWMWA_BORDER_COLOR (34) with DWMWA_COLOR_NONE, so DWM draws no outline at
+    // all. It used to be pinned to the dark studio background, which is why a
+    // light theme still showed a black 1px frame around the whole window.
+    let no_border: u32 = 0xFFFF_FFFE;
+
+    unsafe {
+        DwmSetWindowAttribute(hwnd, 33, &rounded as *const u32 as *const c_void, 4);
+        DwmSetWindowAttribute(hwnd, 34, &no_border as *const u32 as *const c_void, 4);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(windows)]
+            if let Some(window) = app.get_webview_window("main") {
+                apply_window_chrome(&window);
+            }
+            Ok(())
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(DevState::default())
@@ -779,12 +1091,17 @@ pub fn run() {
             start_dev,
             stop_dev,
             list_tree,
+            tree_signature,
+            file_stamps,
             read_text_file,
+            read_binary_file,
             write_text_file,
+            ensure_directory,
             create_entry,
             rename_entry,
             delete_entry,
-            list_artifacts
+            list_artifacts,
+            find_projects
         ])
         .run(tauri::generate_context!())
         .expect("error while running QChat Mini App Studio");

@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/app/providers.dart';
@@ -12,6 +11,7 @@ import 'package:qchat/core/network/client.dart';
 import 'package:qchat/core/network/connection_banner.dart';
 import 'package:qchat/core/storage/database.dart';
 import 'package:qchat/features/chats/home_screen.dart';
+import 'test_app.dart';
 
 class DelayedTransport implements HttpClientAdapter {
   final started = Completer<RequestOptions>();
@@ -235,10 +235,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [clientProvider.overrideWithValue(client)],
-        child: MaterialApp(
-          home: Material(
-            child: ConnectionBanner(client: client, child: const HomeScreen()),
-          ),
+        child: qchatHarness(
+          ConnectionBanner(client: client, child: const HomeScreen()),
         ),
       ),
     );
@@ -247,8 +245,8 @@ void main() {
     expect(find.byType(QChatSearchBar), findsOneWidget);
     expect(find.byType(QChatError), findsNothing);
     // Banner retry button removed – offline state is now shown silently via
-    // the header title change ("Đã ngắt kết nối") instead of a Material banner.
-    expect(find.byType(TextButton), findsNothing);
+    // the header title change ("Đã ngắt kết nối") instead of a banner action.
+    expect(find.text('Retry'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

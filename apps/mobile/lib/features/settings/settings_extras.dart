@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/reference_widgets.dart';
@@ -72,9 +72,9 @@ class _SettingsExtrasState extends ConsumerState<SettingsExtras> {
               children: [
                 Text(tr(c, 'feedbackNote')),
                 const SizedBox(height: 16),
-                TInput(
+                QChatTextInput(
                   controller: feedback,
-                  hintText: tr(c, 'feedbackHint'),
+                  hint: tr(c, 'feedbackHint'),
                   minLines: 5,
                   maxLines: 10,
                   maxLength: 2000,

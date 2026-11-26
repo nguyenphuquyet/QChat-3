@@ -1,18 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/network/client.dart';
-import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/features/chats/home_screen.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/profile/profile_screen.dart';
 import 'package:qchat/features/settings/settings_screen.dart';
 import 'package:qchat/features/contacts/friends_screen.dart';
+import 'test_app.dart';
 
 class PreviewClient extends QChatClient {
   final today = DateTime.now();
@@ -128,14 +127,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [clientProvider.overrideWithValue(client)],
-          child: MaterialApp(
+          child: qchatHarness(
+            RepaintBoundary(key: captureKey, child: screen),
             locale: const Locale('vi'),
-            supportedLocales: const [Locale('vi')],
-            localizationsDelegates: GlobalMaterialLocalizations.delegates,
-            theme: qchatTheme(false),
-            home: Material(
-              child: RepaintBoundary(key: captureKey, child: screen),
-            ),
           ),
         ),
       );
@@ -185,8 +179,136 @@ void main() {
     // TODO: bật lại khi có tính năng Thẻ liên hệ
     // expect(find.text('Thẻ liên hệ'), findsOneWidget);
     await snapshot('attachments');
+    await mount(const _ShareSheetPreview());
+    await snapshot('share-sheet');
+    await mount(const _ForwardPickerPreview());
+    await snapshot('forward-picker');
+    await mount(const _SendConfirmPreview());
+    await snapshot('send-confirm');
     await tester.pumpWidget(const SizedBox());
     await client.changes.close();
     await client.messageChanges.close();
   });
 }
+
+class _ShareSheetPreview extends StatelessWidget {
+  const _ShareSheetPreview();
+  @override
+  Widget build(BuildContext c) => Stack(
+    children: [
+      const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
+      Align(
+        alignment: Alignment.bottomCenter,
+        child: QChatShareSheet(
+          title: 'Chuyển tiếp đến',
+          targets: const [
+            QChatShareTarget(
+              id: 'a',
+              name: 'Quyết',
+              avatar: QChatAvatar('Quyết', size: 60),
+            ),
+            QChatShareTarget(
+              id: 'b',
+              name: 'Linh',
+              avatar: QChatAvatar('Linh', size: 60),
+            ),
+          ],
+          onAdd: _noop,
+          actions: const [
+            QChatShareAction(
+              icon: 'share',
+              label: 'Gửi đến Trò chuyện',
+              color: QChatColors.green,
+            ),
+            QChatShareAction(
+              icon: 'favorites',
+              label: 'Mục ưa thích',
+              color: Color(0xfff0a020),
+            ),
+            QChatShareAction(
+              icon: 'copy',
+              label: 'Sao chép',
+              color: Color(0xff168fe5),
+            ),
+            QChatShareAction(
+              icon: 'report',
+              label: 'Báo cáo',
+              color: Color(0xffff9c38),
+              badge: 'Mới',
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _ForwardPickerPreview extends StatelessWidget {
+  const _ForwardPickerPreview();
+  @override
+  Widget build(BuildContext c) => Stack(
+    children: [
+      const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
+      Positioned.fill(
+        child: QChatForwardPicker(
+          recent: const [
+            QChatShareTarget(
+              id: 'a',
+              name: 'Quyết',
+              avatar: QChatAvatar('Quyết', size: 56),
+            ),
+          ],
+          entries: const [
+            QChatForwardEntry(
+              id: 'a',
+              name: 'Quyết',
+              avatar: QChatAvatar('Quyết', size: 48),
+              note: 'Trò chuyện hiện tại',
+              disabled: true,
+            ),
+            QChatForwardEntry(
+              id: 'b',
+              name: 'Linh',
+              avatar: QChatAvatar('Linh', size: 48),
+            ),
+            QChatForwardEntry(
+              id: 'c',
+              name: 'Minh',
+              avatar: QChatAvatar('Minh', size: 48),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// The send sheet: recipient, preview card, note field and the two buttons.
+class _SendConfirmPreview extends StatelessWidget {
+  const _SendConfirmPreview();
+  @override
+  Widget build(BuildContext c) => Stack(
+    children: [
+      const Positioned.fill(child: ColoredBox(color: QChatColors.background)),
+      Align(
+        alignment: Alignment.bottomCenter,
+        child: QChatSendConfirmSheet(
+          recipient: const QChatShareTarget(
+            id: 'a',
+            name: 'Quyết',
+            avatar: QChatAvatar('Quyết', size: 48),
+          ),
+          preview: const QChatSendPreview(
+            source: '安徽省科技馆',
+            sourceIcon: QChatAvatar('安', size: 14),
+            title: '安徽省科技馆',
+            image: ColoredBox(color: Color(0xff8899cc)),
+            footer: 'Chương trình nhỏ',
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+void _noop() {}

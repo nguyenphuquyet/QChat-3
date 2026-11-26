@@ -443,16 +443,10 @@ class MiniAppCache {
       throw const MiniAppCacheException('PERMISSIONS_INVALID');
     }
     final requested = permissions['requestedPermissions'];
-    final domains = permissions['networkDomains'];
     if (requested is! List ||
-        domains is! List ||
         !_sameStrings(
           requested.map((item) => item.toString()).toList(),
           manifest.requestedPermissions,
-        ) ||
-        !_sameStrings(
-          domains.map((item) => item.toString()).toList(),
-          manifest.networkDomains,
         )) {
       throw const MiniAppCacheException('PERMISSIONS_MISMATCH');
     }

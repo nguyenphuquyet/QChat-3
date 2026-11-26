@@ -2,16 +2,16 @@ import 'conversation_time.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
-import '../../core/design_system/qchat_glass.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/dialogs.dart';
 import '../../core/localization/strings.dart';
 import 'money_message.dart';
+import '../stickers/emoji_text.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -199,9 +199,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     child: QChatGlass(
                                       key: searchKey,
                                       border: false,
-                                      color: Theme.of(
-                                        c,
-                                      ).scaffoldBackgroundColor,
+                                      color: qchatBackground(c),
                                       opacity: .88,
                                       child: QChatSearchBar(
                                         controller: search,
@@ -292,33 +290,31 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final date = DateTime.tryParse(last?['createdAt'] ?? '')?.toLocal();
     final now = DateTime.now();
     final time = conversationTime(date, now, (key) => tr(c, key));
-    return TSwipeCell(
+    return QChatSwipeCell(
       key: ValueKey(item['id']),
-      end: TSwipeCellPanel(
-        children: [
-          TSwipeCellAction(
-            backgroundColor: const Color(0xff168fe5),
-            label: tr(
-              c,
-              member?['markedUnread'] == true ? 'markRead' : 'markUnread',
-            ),
-            onPressed: (_) => conversationAction(
-              item,
-              member?['markedUnread'] == true ? 'read' : 'unread',
-            ),
+      actions: [
+        QChatSwipeAction(
+          backgroundColor: const Color(0xff168fe5),
+          label: tr(
+            c,
+            member?['markedUnread'] == true ? 'markRead' : 'markUnread',
           ),
-          TSwipeCellAction(
-            backgroundColor: const Color(0xffff9c38),
-            label: tr(c, 'hideChat'),
-            onPressed: (_) => conversationAction(item, 'hide'),
+          onPressed: () => conversationAction(
+            item,
+            member?['markedUnread'] == true ? 'read' : 'unread',
           ),
-          TSwipeCellAction(
-            backgroundColor: const Color(0xfffa5151),
-            label: tr(c, 'delete'),
-            onPressed: (_) => conversationAction(item, 'delete'),
-          ),
-        ],
-      ),
+        ),
+        QChatSwipeAction(
+          backgroundColor: const Color(0xffff9c38),
+          label: tr(c, 'hideChat'),
+          onPressed: () => conversationAction(item, 'hide'),
+        ),
+        QChatSwipeAction(
+          backgroundColor: const Color(0xfffa5151),
+          label: tr(c, 'delete'),
+          onPressed: () => conversationAction(item, 'delete'),
+        ),
+      ],
       child: QChatConversationTile(
         name: conversationName(item),
         avatar: item['kind'] == 'DIRECT'
@@ -333,6 +329,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ? ''
             : last['recalledAt'] != null
             ? tr(c, 'recalled')
+            : last['kind'] == 'STICKER'
+            ? tr(c, 'sticker')
             : (last['kind'] == 'IMAGE' || last['media']?['mime']?.toString().startsWith('image/') == true)
             ? 'Ảnh'
             : (last['kind'] == 'VIDEO' || last['media']?['mime']?.toString().startsWith('video/') == true)
@@ -342,7 +340,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : last['kind'] == 'TRANSFER' || last['kind'] == 'RED_PACKET'
             ? moneySummary(last)
             : last['text']?.toString().isNotEmpty == true
-            ? last['text']
+            ? emojiPlainText(last['text'].toString())
             : '[${last['kind']}]',
         time: time,
         unread: member?['markedUnread'] == true
@@ -445,7 +443,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               icon: 'groups',
               boxed: true,
               color: QChatColors.green,
-              onTap: () => c.push('/groups/new'),
+              onTap: () => c.push('/groups'),
             ),
             const MenuRow('tags', icon: 'tag', boxed: true),
             const MenuRow(
@@ -638,6 +636,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         color: QChatColors.green,
         onTap: () => c.push('/payments'),
       ),
+      MenuRow(
+        'designerHub',
+        icon: 'palette',
+        color: const Color(0xff7c70ec),
+        onTap: () => c.push('/red-packets/designer'),
+      ),
       sectionGap,
       MenuRow(
         'favorites',
@@ -658,7 +662,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           );
         },
       ),
-      const MenuRow('stickers', icon: 'emoji', color: Color(0xffeeb714)),
+      MenuRow(
+        'stickers',
+        icon: 'emoji',
+        color: const Color(0xffeeb714),
+        onTap: () => c.push('/stickers'),
+      ),
       sectionGap,
       MenuRow('settings', icon: 'settings', onTap: () => c.push('/settings')),
     ],

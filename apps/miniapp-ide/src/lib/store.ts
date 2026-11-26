@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 import type {
   Artifact,
   CliInfo,
@@ -15,6 +16,7 @@ import type {
   Settings,
 } from "../types";
 import { api, inspectPackage } from "./api";
+import { translate } from "./i18n";
 import { TEMPLATE_LABELS } from "./templates";
 import {
   basename,
@@ -53,14 +55,18 @@ const DEFAULT_SETTINGS: Settings = {
   nodePath: "",
   cliPath: "",
   projectsDir: "",
-  autoSave: false,
+  autoSave: true,
   fontSize: 13,
   minimap: false,
   wordWrap: true,
   confirmDelete: true,
+  language: "vi",
+  theme: "dark",
 };
 
 let logCounter = 0;
+/** Guards `pollDisk` against overlapping ticks (slow disks, big trees). */
+let diskPollInFlight = false;
 function nextId(prefix: string): string {
   logCounter += 1;
   return `${prefix}-${Date.now().toString(36)}-${logCounter}`;
@@ -127,6 +133,10 @@ export interface StudioState {
   project: Project | null;
   tree: FsEntry[];
   treeLoading: boolean;
+  /** Structure hash of the open project, refreshed by the disk watcher. */
+  treeSignature: string | null;
+  /** Last observed mtime per watched file (open tabs + manifest.json). */
+  diskStamps: Record<string, number | null>;
   tabs: EditorTab[];
   activePath: string | null;
   cursor: { line: number; column: number };
@@ -143,6 +153,8 @@ export interface StudioState {
   sidebarOpen: boolean;
   bottomOpen: boolean;
   previewOpen: boolean;
+  /** Bumped whenever a saved file or a build can change the rendered app. */
+  previewRevision: number;
 
   buildStatus: "idle" | "running" | "success" | "error";
   buildMessage: string;
@@ -159,11 +171,19 @@ export interface StudioState {
   closeProject: () => void;
   refreshTree: () => Promise<void>;
   refreshArtifacts: () => Promise<void>;
+  /** One watcher tick: picks up files edited outside the studio. */
+  pollDisk: () => Promise<void>;
+  /** Force-reload a tab from disk, discarding local edits. */
+  reloadTabFromDisk: (path: string) => Promise<void>;
+  /** Keep the local edits and drop the "changed outside" warning. */
+  dismissExternalChange: (path: string) => void;
   openFile: (path: string) => Promise<void>;
   setActive: (path: string) => void;
   updateTab: (path: string, content: string) => void;
   saveActive: () => Promise<void>;
   saveFile: (path: string) => Promise<void>;
+  /** Write every tab with unsaved edits (used by auto save + before build). */
+  saveAllDirty: () => Promise<void>;
   closeTab: (path: string) => void;
   createProject: (input: NewProjectInput) => Promise<string>;
   buildProject: (noTypecheck?: boolean) => Promise<void>;
@@ -181,6 +201,7 @@ export interface StudioState {
   setSidebarOpen: (open: boolean) => void;
   setBottomOpen: (open: boolean) => void;
   setPreviewOpen: (open: boolean) => void;
+  bumpPreview: () => void;
   setCursor: (line: number, column: number) => void;
   runTerminal: (command: string) => Promise<void>;
   createEntry: (parent: string, name: string, directory: boolean) => Promise<void>;
@@ -202,6 +223,8 @@ export const useStudio = create<StudioState>()(
       project: null,
       tree: [],
       treeLoading: false,
+      treeSignature: null,
+      diskStamps: {},
       tabs: [],
       activePath: null,
       cursor: { line: 1, column: 1 },
@@ -218,6 +241,7 @@ export const useStudio = create<StudioState>()(
       sidebarOpen: true,
       bottomOpen: true,
       previewOpen: true,
+      previewRevision: 0,
 
       buildStatus: "idle",
       buildMessage: "",
@@ -231,6 +255,12 @@ export const useStudio = create<StudioState>()(
         if (get().booted) return;
         set({ booted: true, detecting: true });
         try {
+          if (!get().settings.projectsDir) {
+            const projectsDir = await api.defaultProjectsDir();
+            if (projectsDir) {
+              set({ settings: { ...get().settings, projectsDir } });
+            }
+          }
           const info = await api.detectCli(
             get().settings.nodePath,
             get().settings.cliPath,
@@ -240,7 +270,7 @@ export const useStudio = create<StudioState>()(
             info.ready ? "system" : "stderr",
             info.ready
               ? `QChat CLI ${info.cliVersion ?? ""} ready\nNode ${info.nodeVersion ?? ""}\n${info.cliPath ?? ""}`
-              : info.error || "QChat CLI was not found.",
+              : info.error || translate(get().settings.language, "store.cliNotFound"),
           );
           const last = get().lastProject;
           if (last && info.ready) {
@@ -267,8 +297,11 @@ export const useStudio = create<StudioState>()(
           get().appendLog(
             info.ready ? "system" : "stderr",
             info.ready
-              ? `Detected QChat CLI ${info.cliVersion ?? ""} at ${info.cliPath ?? ""}`
-              : info.error || "QChat CLI was not found.",
+              ? translate(get().settings.language, "store.cliDetected", {
+                  version: info.cliVersion ?? "",
+                  path: info.cliPath ?? "",
+                })
+              : info.error || translate(get().settings.language, "store.cliNotFound"),
           );
           return info;
         } catch (error) {
@@ -283,7 +316,14 @@ export const useStudio = create<StudioState>()(
       },
 
       async openProject(path) {
-        set({ project: null, treeLoading: true, tabs: [], activePath: null });
+        set({
+          project: null,
+          treeLoading: true,
+          treeSignature: null,
+          diskStamps: {},
+          tabs: [],
+          activePath: null,
+        });
         try {
           const manifest = await readManifest(path);
           const project: Project = {
@@ -333,6 +373,8 @@ export const useStudio = create<StudioState>()(
         set({
           project: null,
           tree: [],
+          treeSignature: null,
+          diskStamps: {},
           tabs: [],
           activePath: null,
           artifacts: [],
@@ -369,6 +411,224 @@ export const useStudio = create<StudioState>()(
         }
       },
 
+      /**
+       * One watcher tick. Files can be edited outside the studio (another
+       * editor, `qapp` on the CLI, git checkout...), so we poll cheap
+       * size+mtime stamps for the open tabs plus manifest.json, and a
+       * structure hash for the explorer.
+       *
+       * - a clean tab is updated in place and the change is announced;
+       * - a tab with unsaved edits is only flagged, never overwritten;
+       * - a deleted/moved file is flagged as missing.
+       */
+      async pollDisk() {
+        const project = get().project;
+        if (!project || !api.isDesktop()) return;
+        if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+        if (diskPollInFlight) return;
+        diskPollInFlight = true;
+        const language = get().settings.language;
+        const sameProject = () => get().project?.path === project.path;
+
+        try {
+          const signature = await api.treeSignature(project.path);
+          if (!sameProject()) return;
+          if (get().treeSignature === null) {
+            set({ treeSignature: signature });
+          } else if (get().treeSignature !== signature) {
+            set({ treeSignature: signature });
+            await get().refreshTree();
+            await get().refreshArtifacts();
+            if (!sameProject()) return;
+          }
+
+          const manifestPath = joinPath(project.path, "manifest.json");
+          const watched = Array.from(
+            new Set([manifestPath, ...get().tabs.map((tab) => tab.path)]),
+          );
+          const stamps = await api.fileStamps(watched);
+          if (!sameProject()) return;
+
+          for (const stamp of stamps) {
+            const baseline = get().diskStamps[stamp.path];
+            const onDisk = stamp.exists ? stamp.modifiedMs : null;
+            const record = (value: number | null) =>
+              set({ diskStamps: { ...get().diskStamps, [stamp.path]: value } });
+            const patchTab = (values: Partial<EditorTab>) =>
+              set({
+                tabs: get().tabs.map((item) =>
+                  item.path === stamp.path ? { ...item, ...values } : item,
+                ),
+              });
+
+            // manifest.json is watched even when it is not open in a tab.
+            if (stamp.path === manifestPath && !get().tabs.some((tab) => tab.path === manifestPath)) {
+              record(onDisk);
+              if (baseline === undefined || baseline === onDisk || !stamp.exists) continue;
+              const manifest = await readManifest(project.path);
+              const current = get().project;
+              if (!manifest || !current || current.path !== project.path) continue;
+              if (JSON.stringify(current.manifest ?? null) === JSON.stringify(manifest)) continue;
+              set({
+                project: { ...current, manifest, name: manifest.name, isQapp: manifest.format === "qapp" },
+              });
+              toast.info(translate(language, "sync.manifestReloaded"));
+              continue;
+            }
+
+            const tab = get().tabs.find((item) => item.path === stamp.path);
+            if (!tab) {
+              record(onDisk);
+              continue;
+            }
+
+            if (!stamp.exists) {
+              record(null);
+              if (baseline !== undefined && baseline !== null && !tab.missing) {
+                patchTab({ missing: true, externalChange: true });
+                toast.error(translate(language, "sync.missing", { name: tab.name }));
+              }
+              continue;
+            }
+
+            // First observation (or the file came back): only take a baseline.
+            if (baseline === undefined || baseline === null) {
+              record(onDisk);
+              if (tab.missing) patchTab({ missing: false, externalChange: false });
+              continue;
+            }
+
+            if (baseline === onDisk) continue;
+
+            if (tab.content !== tab.saved) {
+              record(onDisk);
+              if (!tab.externalChange) {
+                patchTab({ externalChange: true, missing: false });
+                toast.warning(translate(language, "sync.conflict", { name: tab.name }), {
+                  action: {
+                    label: translate(language, "sync.reload"),
+                    onClick: () => void get().reloadTabFromDisk(stamp.path),
+                  },
+                });
+              }
+              continue;
+            }
+
+            let fresh: string | null = null;
+            try {
+              fresh = await api.readText(stamp.path);
+            } catch {
+              fresh = null;
+            }
+            record(onDisk);
+            if (fresh === null) continue;
+
+            const latest = get().tabs.find((item) => item.path === stamp.path);
+            if (!latest) continue;
+            if (latest.content !== latest.saved) {
+              // The user started typing while we were reading: never clobber it.
+              if (!latest.externalChange) {
+                set({
+                  tabs: get().tabs.map((item) =>
+                    item.path === stamp.path
+                      ? { ...item, externalChange: true, missing: false }
+                      : item,
+                  ),
+                });
+                toast.warning(translate(language, "sync.conflict", { name: latest.name }));
+              }
+              continue;
+            }
+            if (fresh === latest.content) {
+              set({
+                tabs: get().tabs.map((item) =>
+                  item.path === stamp.path
+                    ? { ...item, externalChange: false, missing: false }
+                    : item,
+                ),
+              });
+              continue;
+            }
+
+            set({
+              tabs: get().tabs.map((item) =>
+                item.path === stamp.path
+                  ? { ...item, content: fresh, saved: fresh, externalChange: false, missing: false }
+                  : item,
+              ),
+            });
+            if (stamp.path === manifestPath) {
+              try {
+                const manifest = JSON.parse(fresh) as ProjectManifest;
+                const current = get().project;
+                if (manifest && current) {
+                  if (!Array.isArray(manifest.requestedPermissions)) {
+                    manifest.requestedPermissions = [];
+                  }
+                  set({
+                    project: {
+                      ...current,
+                      manifest,
+                      name: manifest.name,
+                      isQapp: manifest.format === "qapp",
+                    },
+                  });
+                }
+              } catch {
+                // An in-progress (invalid) manifest on disk: keep the text only.
+              }
+            }
+            toast.info(translate(language, "sync.reloaded", { name: latest.name }));
+          }
+        } catch {
+          // Transient failures (folder removed, permissions) are ignored: the
+          // next tick retries.
+        } finally {
+          diskPollInFlight = false;
+        }
+      },
+
+      async reloadTabFromDisk(path) {
+        const language = get().settings.language;
+        try {
+          const content = await api.readText(path);
+          set({
+            tabs: get().tabs.map((item) =>
+              item.path === path
+                ? { ...item, content, saved: content, externalChange: false, missing: false }
+                : item,
+            ),
+          });
+          const [stamp] = await api.fileStamps([path]);
+          set({
+            diskStamps: {
+              ...get().diskStamps,
+              [path]: stamp && stamp.exists ? stamp.modifiedMs : null,
+            },
+          });
+          if (basename(path) === "manifest.json") {
+            const manifest = await readManifest(get().project?.path ?? "");
+            const current = get().project;
+            if (manifest && current) {
+              set({
+                project: { ...current, manifest, name: manifest.name, isQapp: manifest.format === "qapp" },
+              });
+            }
+          }
+          toast.success(translate(language, "sync.reloaded", { name: basename(path) }));
+        } catch (error) {
+          toast.error(errorMessage(error));
+        }
+      },
+
+      dismissExternalChange(path) {
+        set({
+          tabs: get().tabs.map((item) =>
+            item.path === path ? { ...item, externalChange: false } : item,
+          ),
+        });
+      },
+
       async openFile(path) {
         const existing = get().tabs.find((tab) => tab.path === path);
         if (existing) {
@@ -385,8 +645,19 @@ export const useStudio = create<StudioState>()(
             language: languageFor(path),
           };
           set({ tabs: [...get().tabs, tab], activePath: path });
+          // Remember the on-disk mtime so the watcher only reacts to changes
+          // made after the file was opened.
+          const [stamp] = await api.fileStamps([path]);
+          if (stamp) {
+            set({
+              diskStamps: { ...get().diskStamps, [path]: stamp.exists ? stamp.modifiedMs : null },
+            });
+          }
         } catch (error) {
-          get().appendLog("stderr", `Cannot open ${path}: ${errorMessage(error)}`);
+          get().appendLog("stderr", translate(get().settings.language, "store.cannotOpen", {
+            path,
+            error: errorMessage(error),
+          }));
           throw error;
         }
       },
@@ -416,8 +687,17 @@ export const useStudio = create<StudioState>()(
           await api.writeText(path, tab.content);
           set({
             tabs: get().tabs.map((item) =>
-              item.path === path ? { ...item, saved: item.content } : item,
+              item.path === path
+                ? { ...item, saved: item.content, externalChange: false, missing: false }
+                : item,
             ),
+          });
+          const [stamp] = await api.fileStamps([path]);
+          set({
+            diskStamps: {
+              ...get().diskStamps,
+              [path]: stamp && stamp.exists ? stamp.modifiedMs : null,
+            },
           });
           if (basename(path) === "manifest.json") {
             const manifest = await readManifest(get().project?.path ?? "");
@@ -428,16 +708,39 @@ export const useStudio = create<StudioState>()(
               });
             }
           }
+          get().bumpPreview();
         } catch (error) {
-          get().appendLog("stderr", `Cannot save ${path}: ${errorMessage(error)}`);
+          get().appendLog("stderr", translate(get().settings.language, "store.cannotSave", {
+            path,
+            error: errorMessage(error),
+          }));
           throw error;
+        }
+      },
+
+      async saveAllDirty() {
+        const dirty = get().tabs.filter((tab) => tab.content !== tab.saved);
+        for (const tab of dirty) {
+          try {
+            await get().saveFile(tab.path);
+          } catch {
+            // saveFile already logged the failure; keep saving the rest.
+          }
         }
       },
 
       closeTab(path) {
         const tab = get().tabs.find((item) => item.path === path);
         if (tab && tab.content !== tab.saved) {
-          if (!window.confirm(`Discard unsaved changes in ${tab.name}?`)) return;
+          if (
+            !window.confirm(
+              translate(get().settings.language, "store.discardChanges", {
+                name: tab.name,
+              }),
+            )
+          ) {
+            return;
+          }
         }
         const tabs = get().tabs.filter((item) => item.path !== path);
         let activePath = get().activePath;
@@ -449,56 +752,105 @@ export const useStudio = create<StudioState>()(
 
       async createProject(input) {
         const cli = get().cli;
-        if (!cli?.ready) throw new Error("QChat CLI is not ready. Open Settings and detect it first.");
-        const projectPath = joinPath(input.directory, input.name);
-        get().appendLog("system", `$ qapp create ${input.name} --dir ${projectPath}`);
+        const language = get().settings.language;
+        if (!cli?.ready) throw new Error(translate(language, "store.cliNotReady"));
+        const name = slugify(input.name);
+        const directory = input.directory.replace(/[\\/]+$/, "");
+        if (!name) throw new Error(translate(language, "store.enterName"));
+        if (!directory) throw new Error(translate(language, "store.chooseLocation"));
+        // Scaffold exactly one folder below the chosen location: <location>/<name>.
+        const projectPath = joinPath(directory, name);
+        // The parent folder may not exist yet (for example the default projects
+        // folder). Create it first so the CLI has a valid working directory.
+        await api.ensureDirectory(directory);
+        get().appendLog("system", `$ qapp create ${name} --dir ${projectPath}`);
         const result = await api.runCli(
-          ["create", input.name, "--dir", projectPath],
-          input.directory,
+          ["create", name, "--dir", projectPath],
+          directory,
           get().settings.nodePath,
           get().settings.cliPath,
         );
         if (result.stdout) get().appendLog("stdout", result.stdout);
         if (result.stderr) get().appendLog("stderr", result.stderr);
         if (result.code !== 0) {
-          throw new Error(result.stderr.trim() || "qapp create failed");
+          throw new Error(result.stderr.trim() || translate(language, "store.createFailed"));
         }
 
         const manifestPath = joinPath(projectPath, "manifest.json");
         const raw = await api.readText(manifestPath);
         const manifest = JSON.parse(raw) as ProjectManifest;
-        manifest.name = input.name;
+        manifest.name = name;
         manifest.description = input.description;
         manifest.version = input.version;
         manifest.requestedPermissions = input.permissions;
-        if (input.permissions.includes("network")) {
-          manifest.networkDomains = input.networkDomains;
-        } else {
-          delete manifest.networkDomains;
-        }
         await api.writeText(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
         await api.writeText(
           joinPath(projectPath, "src", "main.tsx"),
           TEMPLATE_LABELS[input.template].source,
         );
-        get().appendLog("system", `Created ${projectPath}`);
+        get().appendLog("system", translate(language, "store.created", { path: projectPath }));
         await get().openProject(projectPath);
         return projectPath;
       },
 
       async buildProject(noTypecheck = false) {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
-        if (!get().cli?.ready) throw new Error("QChat CLI is not ready.");
+        const language = get().settings.language;
+        if (!project) throw new Error(translate(language, "store.openFirst"));
+        const cli = get().cli;
+        if (!cli?.ready) {
+          get().appendLog(
+            "stderr",
+            cli?.error || translate(language, "build.hintCli"),
+          );
+          throw new Error(translate(language, "store.cliNotReadyShort"));
+        }
+        // The CLI reads the files from disk: flush unsaved editors first.
+        if (get().settings.autoSave) await get().saveAllDirty();
         set({
           buildStatus: "running",
-          buildMessage: noTypecheck ? "Bundling without typecheck…" : "Typechecking and bundling…",
+          buildMessage: translate(
+            language,
+            noTypecheck ? "store.bundling" : "store.typechecking",
+          ),
           bottomOpen: true,
           bottomTab: "output",
         });
+
+        // Preflight: explain what will run and fail early with an actionable
+        // message instead of a raw CLI stack trace.
+        get().appendLog("system", translate(language, "build.preflight"));
+        get().appendLog(
+          "system",
+          translate(language, "build.node", { version: cli.nodeVersion ?? "—" }),
+        );
+        get().appendLog(
+          "system",
+          translate(language, "build.cli", {
+            version: cli.cliVersion ?? cli.cliPath ?? "—",
+          }),
+        );
+        const tree = get().tree;
+        const hasManifest = tree.some((entry) => entry.relative === "manifest.json");
+        const hasEntry = tree.some((entry) => entry.relative === "src/main.tsx");
+        if (!hasManifest) {
+          const message = translate(language, "build.missingManifest");
+          get().appendLog("stderr", message);
+          set({ buildStatus: "error", buildMessage: message });
+          throw new Error(message);
+        }
+        if (!hasEntry) {
+          const message = translate(language, "build.missingEntry");
+          get().appendLog("stderr", message);
+          set({ buildStatus: "error", buildMessage: message });
+          throw new Error(message);
+        }
+
         const args = ["build", "--dir", project.path];
         if (noTypecheck) args.push("--no-typecheck");
-        get().appendLog("system", `$ qapp ${args.join(" ")}`);
+        const command = `qapp ${args.join(" ")}`;
+        get().appendLog("system", translate(language, "build.command", { command }));
+        get().appendLog("system", `$ ${command}`);
         try {
           const result = await api.runCli(
             args,
@@ -510,12 +862,20 @@ export const useStudio = create<StudioState>()(
           if (result.stderr) get().appendLog("stderr", result.stderr);
           const problems = outputProblems(result.stdout, result.stderr, "build");
           if (result.code !== 0) {
+            const combined = `${result.stdout}\n${result.stderr}`;
+            if (/cannot find module|ERR_MODULE_NOT_FOUND/i.test(combined)) {
+              get().appendLog("system", translate(language, "build.hintCli"));
+            } else if (/tsc|typescript|TS\d{4}/i.test(combined)) {
+              get().appendLog("system", translate(language, "build.hintTypecheck"));
+            } else if (/ENOENT|not recognized|is not recognized/i.test(combined)) {
+              get().appendLog("system", translate(language, "build.hintNode"));
+            }
             set({
               buildStatus: "error",
-              buildMessage: "Build failed. Check the output panel.",
+              buildMessage: translate(language, "store.buildFailedCheck"),
               problems,
             });
-            throw new Error(result.stderr.trim() || "Build failed");
+            throw new Error(result.stderr.trim() || translate(language, "store.buildFailed"));
           }
           const artifacts = await api.listArtifacts(project.path);
           set({ artifacts, lastBuildAt: Date.now(), problems });
@@ -534,9 +894,10 @@ export const useStudio = create<StudioState>()(
           set({
             buildStatus: "success",
             buildMessage: match
-              ? `Built ${match.name}`
-              : "Build completed.",
+              ? translate(language, "store.built", { name: match.name })
+              : translate(language, "store.buildCompleted"),
           });
+          get().bumpPreview();
         } catch (error) {
           set({
             buildStatus: "error",
@@ -548,7 +909,9 @@ export const useStudio = create<StudioState>()(
 
       async runTests() {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
+        const language = get().settings.language;
+        if (!project) throw new Error(translate(language, "store.openFirst"));
+        if (get().settings.autoSave) await get().saveAllDirty();
         set({ bottomOpen: true, bottomTab: "output", buildStatus: "running" });
         const args = ["test", "--dir", project.path];
         get().appendLog("system", `$ qapp ${args.join(" ")}`);
@@ -564,10 +927,10 @@ export const useStudio = create<StudioState>()(
           const problems = outputProblems(result.stdout, result.stderr, "test");
           set({ problems });
           if (result.code !== 0) {
-            set({ buildStatus: "error", buildMessage: "Tests failed." });
-            throw new Error(result.stderr.trim() || "Tests failed");
+            set({ buildStatus: "error", buildMessage: translate(language, "store.testsFailed") });
+            throw new Error(result.stderr.trim() || translate(language, "store.testsFailed"));
           }
-          set({ buildStatus: "success", buildMessage: "Runtime test passed." });
+          set({ buildStatus: "success", buildMessage: translate(language, "store.testPassed") });
         } catch (error) {
           set({ buildStatus: "error", buildMessage: errorMessage(error) });
           throw error;
@@ -599,15 +962,19 @@ export const useStudio = create<StudioState>()(
             problems: outputProblems(result.stdout, result.stderr, "validate"),
           });
         } else {
+          const invalidPackage = translate(
+            get().settings.language,
+            "store.invalidPackage",
+          );
           set({
             validation: {
               status: "fail",
-              text: result.stderr.trim() || "Package is not valid.",
+              text: result.stderr.trim() || invalidPackage,
               at: Date.now(),
             },
             problems: outputProblems(result.stdout, result.stderr, "validate"),
           });
-          throw new Error(result.stderr.trim() || "Package is not valid.");
+          throw new Error(result.stderr.trim() || invalidPackage);
         }
       },
 
@@ -629,8 +996,9 @@ export const useStudio = create<StudioState>()(
 
       async startDev() {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
+        if (!project) throw new Error(translate(get().settings.language, "store.openFirst"));
         if (get().devRunning) return;
+        if (get().settings.autoSave) await get().saveAllDirty();
         set({ bottomOpen: true, bottomTab: "output" });
         get().appendLog("system", `$ qapp dev --dir ${project.path}`);
         try {
@@ -649,7 +1017,7 @@ export const useStudio = create<StudioState>()(
       async stopDev() {
         await api.stopDev();
         set({ devPid: null, devRunning: false, buildStatus: "idle" });
-        get().appendLog("system", "Dev watcher stopped.");
+        get().appendLog("system", translate(get().settings.language, "store.devStopped"));
       },
 
       appendLog(stream, text) {
@@ -678,7 +1046,7 @@ export const useStudio = create<StudioState>()(
         set({ devRunning: false, devPid: null });
         get().appendLog(
           event.code === 0 ? "system" : "stderr",
-          `Dev watcher exited with code ${event.code}.`,
+          translate(get().settings.language, "store.devExited", { code: event.code }),
         );
       },
 
@@ -702,6 +1070,10 @@ export const useStudio = create<StudioState>()(
         set({ previewOpen: open });
       },
 
+      bumpPreview() {
+        set({ previewRevision: get().previewRevision + 1 });
+      },
+
       setCursor(line, column) {
         set({ cursor: { line, column } });
       },
@@ -713,7 +1085,10 @@ export const useStudio = create<StudioState>()(
         if (!tokens.length) return;
         if (tokens[0] === "qapp" || tokens[0] === "qchat") tokens.shift();
         if (!tokens.length) {
-          get().appendLog("stderr", "Type a qapp command, for example: build --dir .");
+          get().appendLog(
+            "stderr",
+            translate(get().settings.language, "store.typeCommand"),
+          );
           return;
         }
         set({
@@ -735,7 +1110,12 @@ export const useStudio = create<StudioState>()(
             await get().refreshArtifacts();
           }
           if (result.code !== 0) {
-            get().appendLog("system", `Process exited with code ${result.code}.`);
+            get().appendLog(
+              "system",
+              translate(get().settings.language, "store.processExited", {
+                code: result.code,
+              }),
+            );
           }
         } catch (error) {
           get().appendLog("stderr", errorMessage(error));
@@ -781,7 +1161,7 @@ export const useStudio = create<StudioState>()(
 
       async saveManifest(manifest) {
         const project = get().project;
-        if (!project) throw new Error("Open a project first.");
+        if (!project) throw new Error(translate(get().settings.language, "store.openFirst"));
         await api.writeText(
           joinPath(project.path, "manifest.json"),
           `${JSON.stringify(manifest, null, 2)}\n`,
@@ -808,6 +1188,17 @@ export const useStudio = create<StudioState>()(
         recent: state.recent,
         lastProject: state.lastProject,
       }),
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<StudioState>;
+        return {
+          ...current,
+          ...saved,
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...(saved.settings ?? {}),
+          },
+        };
+      },
     },
   ),
 );

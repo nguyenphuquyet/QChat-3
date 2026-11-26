@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, X } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useI18n } from "../lib/useI18n";
 
 export function Spinner({ size = 14, className }: { size?: number; className?: string }) {
   return <Loader2 size={size} className={cn("animate-spin", className)} />;
@@ -32,14 +33,14 @@ export function Dialog({
   if (!open) return null;
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6 backdrop-blur-[6px] animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-6 animate-fade-in"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) onClose();
       }}
     >
       <div
         className={cn(
-          "panel relative w-full overflow-hidden rounded-2xl shadow-panel animate-slide-up",
+          "panel relative w-full overflow-hidden rounded shadow-panel animate-slide-up",
           width,
         )}
         onMouseDown={(event) => event.stopPropagation()}
@@ -62,10 +63,11 @@ export function DialogHeader({
   subtitle?: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-start gap-3 border-b border-white/[0.065] px-6 py-5">
       {icon ? (
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-accent-500/25 bg-accent-500/10 text-accent-300">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded border border-accent-500/25 bg-accent-500/10 text-accent-300">
           {icon}
         </div>
       ) : null}
@@ -73,7 +75,7 @@ export function DialogHeader({
         <h2 className="text-[15px] font-semibold tracking-tight text-white">{title}</h2>
         {subtitle ? <p className="mt-0.5 text-xs text-studio-400">{subtitle}</p> : null}
       </div>
-      <button className="icon-btn -mr-1 -mt-1" onClick={onClose} aria-label="Close">
+      <button className="icon-btn -mr-1 -mt-1" onClick={onClose} aria-label={t("common.close")}>
         <X size={16} />
       </button>
     </div>
@@ -92,7 +94,7 @@ export function Toggle({
   description?: string;
 }) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-lg px-1 py-2">
+    <label className="flex cursor-pointer items-center justify-between gap-4 rounded px-1 py-2">
       <span>
         <span className="block text-xs font-medium text-studio-200">{label}</span>
         {description ? (
@@ -112,6 +114,7 @@ export function Toggle({
         )}
       >
         <span
+          data-keep-white
           className={cn(
             "absolute top-0.5 h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
             checked ? "translate-x-[18px]" : "translate-x-0.5",

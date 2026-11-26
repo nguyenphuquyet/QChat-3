@@ -1,13 +1,15 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qchat/app/providers.dart';
+import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/features/chats/media_screen.dart';
 import 'package:qchat/main.dart';
 
 import 'reference_ui_test.dart' show PreviewClient;
+import 'test_app.dart';
 
 class DelayedMediaClient extends PreviewClient {
   final access = Completer<Map<String, dynamic>>();
@@ -28,8 +30,9 @@ void main() {
         routes: [
           GoRoute(
             path: '/home',
-            builder: (_, _) => const Scaffold(
-              body: Align(
+            builder: (_, _) => const ColoredBox(
+              color: QChatColors.background,
+              child: Align(
                 alignment: Alignment.bottomLeft,
                 child: Hero(
                   tag: 'message-first',
@@ -37,7 +40,7 @@ void main() {
                     key: ValueKey('source-frame'),
                     width: 100,
                     height: 150,
-                    child: ColoredBox(color: Colors.red),
+                    child: ColoredBox(color: QChatColors.danger),
                   ),
                 ),
               ),
@@ -50,7 +53,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [clientProvider.overrideWithValue(client)],
-          child: MaterialApp.router(routerConfig: router),
+          child: qchatRouterHarness(routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
@@ -83,7 +86,10 @@ void main() {
       routes: [
         GoRoute(
           path: '/home',
-          builder: (_, _) => const Scaffold(body: Text('home')),
+          builder: (_, _) => const ColoredBox(
+            color: QChatColors.background,
+            child: Center(child: Text('home')),
+          ),
         ),
         qchatMediaRoute(),
       ],
@@ -93,7 +99,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [clientProvider.overrideWithValue(PreviewClient())],
-        child: MaterialApp.router(routerConfig: router),
+        child: qchatRouterHarness(routerConfig: router),
       ),
     );
     await tester.pumpAndSettle();

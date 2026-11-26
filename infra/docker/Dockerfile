@@ -7,6 +7,9 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/realtime/package.json apps/realtime/package.json
 RUN pnpm install --frozen-lockfile
 COPY . .
+# The Firebase service account is copied from the host checkout when it exists.
+# COPY makes it root-owned while the app runs as `node`, so hand it over.
+RUN if [ -d apps/server/secrets ]; then chown -R node:node apps/server/secrets; fi
 ARG BUILD_NODE_OPTIONS=--max-old-space-size=1536
 RUN pnpm db:generate && NODE_OPTIONS="$BUILD_NODE_OPTIONS" pnpm build
 ENV NODE_ENV=production

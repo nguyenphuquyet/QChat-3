@@ -1,5 +1,30 @@
 import { type VNode, type VNodeChild } from "./runtime.js";
-import type { BaseProps } from "./protocol.js";
+import type { BaseProps, QappBoxShadow, QappGradient, QappNumberEvent, QappScrollEvent, QappTabEvent, QappTextEvent, QappToggleEvent, Style } from "./protocol.js";
+export type StackAlignment = "topLeft" | "topCenter" | "topRight" | "centerLeft" | "center" | "centerRight" | "bottomLeft" | "bottomCenter" | "bottomRight";
+export type ImageFit = "cover" | "contain" | "fill" | "fitWidth" | "fitHeight";
+export type KeyboardType = "text" | "number" | "email" | "phone" | "url";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "text" | "danger";
+export type ControlSize = "sm" | "md" | "lg";
+export type TagTone = "neutral" | "success" | "warning" | "danger" | "info";
+export type AvatarShape = "circle" | "rounded";
+export type SafeAreaEdge = "top" | "right" | "bottom" | "left";
+export type ModalAnimation = "none" | "fade" | "slide";
+export type AnimateKind = "fadeIn" | "slideUp" | "scaleIn";
+export interface ScrollOffset {
+    x: number;
+    y: number;
+}
+export interface TabItem {
+    key: string;
+    label: string;
+    icon?: string;
+    badge?: string;
+}
+export interface TabChangePayload {
+    index: number;
+    key: string;
+    value: string;
+}
 export interface ViewProps extends BaseProps {
     children?: VNodeChild;
 }
@@ -8,20 +33,73 @@ export interface TextProps extends BaseProps {
     numberOfLines?: number;
     selectable?: boolean;
 }
+/**
+ * Inline text with mixed styles. Children are `Text`, `Link` or plain strings;
+ * they are flattened into one native paragraph. No HTML is accepted.
+ */
+export interface RichTextProps extends BaseProps {
+    children?: VNodeChild;
+    numberOfLines?: number;
+    selectable?: boolean;
+}
+/**
+ * Tappable text. `href` navigates inside the Mini App through the host router,
+ * so the path is validated on the native side. `external` links are reported to
+ * the app through `onPress` with the URL in the payload; the host does not open
+ * other applications yet.
+ */
+export interface LinkProps extends BaseProps {
+    children?: VNodeChild;
+    href?: string;
+    external?: boolean;
+    onPress?: () => void;
+    disabled?: boolean;
+}
+/**
+ * A count, a status dot, or both, drawn over `children` (usually an icon or an
+ * avatar). A count of zero hides the badge, like a chat app would.
+ */
+export interface BadgeProps extends BaseProps {
+    children?: VNodeChild;
+    count?: number;
+    max?: number;
+    dot?: boolean;
+    visible?: boolean;
+    tone?: TagTone;
+}
+export interface TagProps extends BaseProps {
+    children?: VNodeChild;
+    tone?: TagTone;
+    size?: ControlSize;
+}
+export interface AvatarProps extends BaseProps {
+    src?: string;
+    /** Used for the initials shown while the image loads or when `src` is empty. */
+    name?: string;
+    size?: number;
+    shape?: AvatarShape;
+}
 export interface ButtonProps extends BaseProps {
     children?: VNodeChild;
     onPress?: () => void;
     onLongPress?: () => void;
     disabled?: boolean;
-    variant?: "primary" | "secondary" | "text" | "danger";
+    variant?: ButtonVariant;
+    size?: ControlSize;
     loading?: boolean;
     icon?: string;
+}
+export interface PressableProps extends BaseProps {
+    children?: VNodeChild;
+    onPress?: () => void;
+    onLongPress?: () => void;
+    disabled?: boolean;
 }
 export interface ImageProps extends BaseProps {
     src?: string;
     width?: number;
     height?: number;
-    fit?: "cover" | "contain" | "fill" | "fitWidth" | "fitHeight";
+    fit?: ImageFit;
     borderRadius?: number;
     onPress?: () => void;
 }
@@ -33,24 +111,33 @@ export interface IconProps extends BaseProps {
 export interface TextFieldProps extends BaseProps {
     value?: string;
     placeholder?: string;
+    /** Low-level hook that receives the raw text. */
     onInput?: (value: string) => void;
-    onChange?: (value: string) => void;
-    onSubmit?: (value: string) => void;
+    onChange?: (event: QappTextEvent) => void;
+    onSubmit?: (event: QappTextEvent) => void;
+    onFocus?: () => void;
+    onBlur?: () => void;
     secureTextEntry?: boolean;
     multiline?: boolean;
     maxLength?: number;
-    keyboardType?: "text" | "number" | "email" | "phone" | "url";
+    keyboardType?: KeyboardType;
     editable?: boolean;
     autoFocus?: boolean;
 }
 export interface CheckboxProps extends BaseProps {
     checked?: boolean;
-    onCheckedChange?: (checked: boolean) => void;
+    onChange?: (event: QappToggleEvent) => void;
+    /** Alias of `onChange`; both fire the same `change` event. */
+    onCheckedChange?: (event: QappToggleEvent) => void;
     label?: string;
+    disabled?: boolean;
 }
 export interface SwitchProps extends BaseProps {
     value?: boolean;
-    onValueChange?: (value: boolean) => void;
+    /** Fires the `change` event. */
+    onChange?: (event: QappToggleEvent) => void;
+    /** Fires the `valueChange` event. */
+    onValueChange?: (event: QappToggleEvent) => void;
     disabled?: boolean;
 }
 export interface SliderProps extends BaseProps {
@@ -58,33 +145,42 @@ export interface SliderProps extends BaseProps {
     min?: number;
     max?: number;
     step?: number;
-    onValueChange?: (value: number) => void;
+    onChange?: (event: QappNumberEvent) => void;
+    onValueChange?: (event: QappNumberEvent) => void;
+    disabled?: boolean;
 }
 export interface ScrollViewProps extends BaseProps {
     children?: VNodeChild;
     horizontal?: boolean;
+    vertical?: boolean;
     showsScrollIndicator?: boolean;
-    onScroll?: (offset: {
-        x: number;
-        y: number;
-    }) => void;
+    onScroll?: (event: QappScrollEvent) => void;
+    grid?: boolean;
+    numColumns?: number;
 }
 export interface ListViewProps<T = unknown> extends BaseProps {
-    data?: T[];
-    renderItem?: (item: T, index: number) => VNodeChild;
-    keyExtractor?: (item: T, index: number) => string;
+    data?: readonly T[];
     horizontal?: boolean;
     empty?: VNodeChild;
+    /** Items rendered in the first frame; the rest is built lazily by Flutter. */
+    initialCount?: number;
+    renderItem?: (item: T, index: number) => VNodeChild;
+    keyExtractor?: (item: T, index: number) => string;
+    /** Called when the list is scrolled near its end; the framework then reveals more items. */
+    onEndReached?: () => void;
 }
 export interface GridViewProps<T = unknown> extends BaseProps {
-    data?: T[];
-    renderItem?: (item: T, index: number) => VNodeChild;
+    data?: readonly T[];
     numColumns?: number;
     empty?: VNodeChild;
+    initialCount?: number;
+    renderItem?: (item: T, index: number) => VNodeChild;
+    /** Called when the grid is scrolled near its end; the framework then reveals more items. */
+    onEndReached?: () => void;
 }
 export interface StackProps extends BaseProps {
     children?: VNodeChild;
-    alignment?: "topLeft" | "topCenter" | "topRight" | "centerLeft" | "center" | "centerRight" | "bottomLeft" | "bottomCenter" | "bottomRight";
+    alignment?: StackAlignment;
 }
 export interface PositionedProps extends BaseProps {
     children?: VNodeChild;
@@ -99,6 +195,10 @@ export interface SpacerProps extends BaseProps {
 export interface DividerProps extends BaseProps {
     color?: string;
     thickness?: number;
+    /** A vertical rule for a `Row`. */
+    vertical?: boolean;
+    /** Leading inset: left for a horizontal rule, top for a vertical one. */
+    inset?: number;
 }
 export interface ActivityIndicatorProps extends BaseProps {
     size?: number;
@@ -106,17 +206,11 @@ export interface ActivityIndicatorProps extends BaseProps {
 }
 export interface SafeAreaProps extends BaseProps {
     children?: VNodeChild;
-    edges?: Array<"top" | "right" | "bottom" | "left">;
-}
-export interface PressableProps extends BaseProps {
-    children?: VNodeChild;
-    onPress?: () => void;
-    onLongPress?: () => void;
-    disabled?: boolean;
+    edges?: readonly SafeAreaEdge[];
 }
 export interface AnimatedViewProps extends BaseProps {
     children?: VNodeChild;
-    animate?: "fadeIn" | "slideUp" | "scaleIn";
+    animate?: AnimateKind;
     duration?: number;
 }
 export interface CustomPaintProps extends BaseProps {
@@ -124,10 +218,107 @@ export interface CustomPaintProps extends BaseProps {
     width?: number;
     height?: number;
 }
+export interface ModalProps extends BaseProps {
+    children?: VNodeChild;
+    visible?: boolean;
+    onClose?: () => void;
+    transparent?: boolean;
+    animationType?: ModalAnimation;
+}
+export interface BottomSheetProps extends BaseProps {
+    children?: VNodeChild;
+    visible?: boolean;
+    onClose?: () => void;
+    height?: number;
+}
+export interface DialogProps extends BaseProps {
+    children?: VNodeChild;
+    visible?: boolean;
+    title?: string;
+    onClose?: () => void;
+    onConfirm?: () => void;
+    confirmText?: string;
+    cancelText?: string;
+}
+export interface NavBarProps extends BaseProps {
+    children?: VNodeChild;
+    title?: string;
+    subtitle?: string;
+    onBack?: () => void;
+    showBack?: boolean;
+    safeArea?: boolean;
+    reserveRight?: number;
+    /**
+     * Draws no surface, so the page artwork runs under the header. The title and
+     * the host capsule keep their place.
+     */
+    transparent?: boolean;
+    /** Blurs what is behind the header instead of painting a solid surface. */
+    blur?: boolean;
+    /**
+     * Hairline under the header. On by default for a solid or blurred surface, so
+     * a white header does not blend into the white card below it. Ignored when
+     * `transparent` is set.
+     */
+    border?: boolean;
+}
+export interface TabBarProps extends BaseProps {
+    tabs?: readonly TabItem[];
+    activeKey?: string;
+    activeIndex?: number;
+    onChange?: (event: QappTabEvent) => void;
+    safeArea?: boolean;
+    /**
+     * Keeps the bar glued to the bottom edge of the screen while the keyboard is
+     * up. On by default: the host shrinks the whole mini program when a field
+     * takes focus, so a bar left in the flow would be lifted off the bottom edge
+     * and float right above the keys. Pinned instead, it gives its height back to
+     * the page and the keys cover it, then uncover it as they retract. Turn it off
+     * for a page that wants the bar to ride above the keyboard.
+     */
+    hideOnKeyboard?: boolean;
+}
+/**
+ * The screen frame every page should use: header above the body, footer below
+ * it, overlays on top of everything.
+ *
+ * A mini program draws the whole screen itself, so the body has to be given the
+ * space the header leaves. A `NavBar` painted inside a `Stack` over a
+ * `height: "100%"` scroller looks right until the first card starts at y = 0 and
+ * slides under the header. `Page` is the layout that cannot make that mistake:
+ *
+ * ```tsx
+ * <Page
+ *   header={<NavBar title="Vé" showBack onBack={back} />}
+ *   footer={<TabBar tabs={tabs} activeIndex={index} onChange={…} />}
+ *   overlays={<Dialog visible={open} … />}
+ * >
+ *   <ScrollView>…</ScrollView>
+ * </Page>
+ * ```
+ *
+ * The body always fills the space between the header and the footer, whatever it
+ * is: a scroller, a `ListView`, or a `View` with `flex: 1`. Overlays are painted
+ * over the whole page, header included, which is what a dialog barrier needs.
+ */
+export interface PageProps extends BaseProps {
+    children?: VNodeChild;
+    /** Rows drawn above the body, usually one `NavBar`. */
+    header?: VNodeChild;
+    /** Rows drawn below the body, usually one `TabBar`. */
+    footer?: VNodeChild;
+    /** `Dialog`, `Modal`, `BottomSheet` or a toast, painted over the whole page. */
+    overlays?: VNodeChild;
+}
 export declare function View(props: ViewProps): VNode;
 export declare function Row(props: ViewProps): VNode;
 export declare function Column(props: ViewProps): VNode;
 export declare function Text(props: TextProps): VNode;
+export declare function RichText(props: RichTextProps): VNode;
+export declare function Link(props: LinkProps): VNode;
+export declare function Badge(props: BadgeProps): VNode;
+export declare function Tag(props: TagProps): VNode;
+export declare function Avatar(props: AvatarProps): VNode;
 export declare function Button(props: ButtonProps): VNode;
 export declare function Pressable(props: PressableProps): VNode;
 export declare function Image(props: ImageProps): VNode;
@@ -137,6 +328,18 @@ export declare function Checkbox(props: CheckboxProps): VNode;
 export declare function Switch(props: SwitchProps): VNode;
 export declare function Slider(props: SliderProps): VNode;
 export declare function ScrollView(props: ScrollViewProps): VNode;
+/**
+ * A windowed list.
+ *
+ * The frame carries a window of items, not the whole array: Flutter builds
+ * those rows lazily, and when the user scrolls near the end the host reports
+ * `endReached`, the window grows by one step and the frame is resent. A long
+ * list therefore stays small on the wire while every item stays reachable, and
+ * the app can page its own data from `onEndReached` at the same time.
+ *
+ * The state lives in a component of its own so two lists never share a window
+ * and a list keeps its window across unrelated re-renders.
+ */
 export declare function ListView<T>(props: ListViewProps<T>): VNode;
 export declare function GridView<T>(props: GridViewProps<T>): VNode;
 export declare function Stack(props: StackProps): VNode;
@@ -146,10 +349,22 @@ export declare function Divider(props?: DividerProps): VNode;
 export declare function ActivityIndicator(props?: ActivityIndicatorProps): VNode;
 export declare function SafeArea(props: SafeAreaProps): VNode;
 export declare function AnimatedView(props: AnimatedViewProps): VNode;
+export declare function Modal(props: ModalProps): VNode;
+export declare function BottomSheet(props: BottomSheetProps): VNode;
+export declare function Dialog(props: DialogProps): VNode;
+export declare function NavBar(props: NavBarProps): VNode;
+export declare function TabBar(props: TabBarProps): VNode;
+export declare function Page(props: PageProps): VNode;
 /**
  * Custom drawing uses a deliberately small, declarative path language rather
  * than arbitrary Dart code: `M x y L x y Q cx cy x y C ... Z` plus optional
- * `fill:` and `stroke:` prefixes. The Flutter renderer owns the painter.
+ * `fill:`, `stroke:`, `strokeWidth:` and `cap:` prefixes. The Flutter renderer
+ * owns the painter.
+ *
+ * `cap:` is `round` (the default), `butt` or `square`. Arcs should ask for
+ * `butt`: a round cap extends half the stroke width past the end angle, so a
+ * gauge bleeds over its own track where the arc starts.
  */
 export declare function CustomPaint(props: CustomPaintProps): VNode;
+export type { QappBoxShadow, QappGradient, Style };
 //# sourceMappingURL=ui.d.ts.map

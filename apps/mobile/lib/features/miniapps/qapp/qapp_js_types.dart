@@ -64,5 +64,17 @@ abstract class QappJsRuntime {
   /// Delivers a host lifecycle event (`resume`, `pause`, `navigate`, `back`).
   void lifecycle(String event, [Object? payload]);
 
+  /// Stops running `setTimeout`/`setInterval` callbacks until [resumeTicks].
+  ///
+  /// The engine executes JavaScript on the Flutter UI thread, so a timer that
+  /// fires while the user is dragging or flinging the content renders a whole
+  /// new frame in the middle of the animation: that is the single hitch that is
+  /// felt while scrolling. The host pauses the timer queue for the duration of
+  /// the gesture and the pending delay is resumed afterwards.
+  void pauseTicks();
+
+  /// Resumes the timer queue paused by [pauseTicks].
+  void resumeTicks();
+
   void dispose();
 }

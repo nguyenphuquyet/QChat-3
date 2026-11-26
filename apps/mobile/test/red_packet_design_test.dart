@@ -1,0 +1,315 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:qchat/features/chats/red_packet_cover.dart';
+import 'package:qchat/features/chats/red_packet_design.dart';
+
+import 'test_app.dart';
+
+void main() {
+  test('a cover design round-trips through its JSON form', () {
+    const design = CoverDesign(
+      background: CoverBackground(
+        type: 'gradient',
+        colors: [Color(0xffd93b30), Color(0xfff3d19c)],
+      ),
+      bottomColor: Color(0xffc0342a),
+      topHeight: .62,
+      receiptHeight: .55,
+      overlayColor: Color(0x99000000),
+      openColor: Color(0xffe8b323),
+      openLabel: 'Nhận',
+      decorations: [
+        CoverDecoration(
+          id: 'blossom',
+          value: '🌸',
+          x: .2,
+          y: .4,
+          size: .3,
+          rotation: .5,
+          animation: 'float',
+          area: 'all',
+        ),
+      ],
+      effects: CoverEffects(sparkles: true, float: true),
+      message: CoverMessage(
+        imageId: 'message-photo',
+        startColor: Color(0xfff2a63a),
+        endColor: Color(0xfff7c65a),
+      ),
+    );
+
+    final parsed = CoverDesign.fromJson(design.toJsonString());
+
+    expect(parsed.topHeight, .62);
+    expect(parsed.receiptHeight, .55);
+    expect(parsed.bottomColor, const Color(0xffc0342a));
+    expect(parsed.overlayColor, const Color(0x99000000));
+    expect(parsed.openLabel, 'Nhận');
+    expect(parsed.background.type, 'gradient');
+    expect(parsed.background.colors, const [
+      Color(0xffd93b30),
+      Color(0xfff3d19c),
+    ]);
+    expect(parsed.decorations.single.value, '🌸');
+    expect(parsed.decorations.single.animation, 'float');
+    expect(parsed.decorations.single.area, 'all');
+    expect(parsed.effects.sparkles, isTrue);
+    expect(parsed.effects.float, isTrue);
+    expect(parsed.effects.pulse, isFalse);
+    expect(parsed.message.imageId, 'message-photo');
+    expect(parsed.message.startColor, const Color(0xfff2a63a));
+    expect(parsed.message.endColor, const Color(0xfff7c65a));
+    expect(parsed.message.hasImage, isTrue);
+  });
+
+  test('a video cover keeps its clip and legacy GIF covers still parse', () {
+    const design = CoverDesign(
+      background: CoverBackground(type: 'video', mediaId: 'clip-1'),
+    );
+    final parsed = CoverDesign.fromJson(design.toJsonString());
+
+    expect(parsed.background.type, 'video');
+    expect(parsed.background.mediaId, 'clip-1');
+    expect(parsed.background.isVideo, isTrue);
+    expect(parsed.background.isImage, isFalse);
+    expect(parsed.background.hasMedia, isTrue);
+
+    final legacy = CoverDesign.fromJson({
+      'background': {'type': 'gif', 'mediaId': 'old-gif'},
+    });
+    expect(legacy.background.type, 'gif');
+    expect(legacy.background.isImage, isTrue);
+    expect(legacy.background.isVideo, isFalse);
+
+    // Covers saved while the design was called `mp4` read as `video`.
+    final older = CoverDesign.fromJson({
+      'background': {'type': 'mp4', 'mediaId': 'old-mp4'},
+    });
+    expect(older.background.type, 'video');
+    expect(older.background.isVideo, isTrue);
+  });
+
+  test('a cover without a message design falls back to warm gold', () {
+    final parsed = CoverDesign.fromJson({'topHeight': .7});
+
+    expect(parsed.message.hasImage, isFalse);
+    expect(parsed.message.startColor, redPacketGold);
+    expect(parsed.message.endColor, const Color(0xfff7c65a));
+  });
+
+  test('out-of-range heights and colours fall back safely', () {
+    final parsed = CoverDesign.fromJson({
+      'topHeight': 5,
+      'receiptHeight': 0,
+      'overlayColor': 'not-a-colour',
+    });
+
+    expect(parsed.topHeight, .92);
+    expect(parsed.receiptHeight, .12);
+    expect(parsed.overlayColor, const Color(0x80000000));
+    expect(CoverDesign.fromJson('{broken').topHeight, .80);
+  });
+
+  test('colour parsing accepts #rrggbb and #aarrggbb', () {
+    expect(
+      coverColor('#ff0000', const Color(0xff000000)),
+      const Color(0xffff0000),
+    );
+    expect(
+      coverColor('#80d93b30', const Color(0xff000000)),
+      const Color(0x80d93b30),
+    );
+    expect(
+      coverColor('nope', const Color(0xff123456)),
+      const Color(0xff123456),
+    );
+  });
+
+  test('cover metadata reads the designer identity and ownership', () {
+    final cover = RedPacketCoverData.fromJson({
+      'id': 'cover-1',
+      'name': 'Mai vàng',
+      'status': 'PUBLISHED',
+      'claimCount': 12,
+      'selected': true,
+      'owned': true,
+      'designer': {
+        'userId': 'designer-1',
+        'displayName': 'Lan',
+        'user': {'qchatId': 'lan01', 'avatarId': 'avatar-1'},
+      },
+      'design': {'topHeight': .7},
+    });
+
+    expect(cover, isNotNull);
+    expect(cover!.designerName, 'Lan');
+    expect(cover.designerId, 'designer-1');
+    expect(cover.designerQchatId, 'lan01');
+    // Without a designer picture the card borrows the QChat avatar.
+    expect(cover.designerAvatar, 'avatar-1');
+    expect(cover.selected, isTrue);
+    expect(cover.owned, isTrue);
+    expect(cover.published, isTrue);
+    expect(cover.design.topHeight, .7);
+
+    // A designer's own picture wins over the linked account avatar.
+    final branded = RedPacketCoverData.fromJson({
+      'id': 'cover-2',
+      'designer': {
+        'userId': 'designer-1',
+        'displayName': 'Lan',
+        'avatarId': 'designer-pic',
+        'user': {'qchatId': 'lan01', 'avatarId': 'avatar-1'},
+      },
+    });
+    expect(branded!.designerAvatar, 'designer-pic');
+  });
+
+  test(
+    'a picture keeps its zoom and pan through JSON and clamps wild values',
+    () {
+      const design = CoverDesign(
+        background: CoverBackground(
+          type: 'image',
+          mediaId: 'photo-1',
+          imageScale: 2.2,
+          imageOffsetX: .18,
+          imageOffsetY: -.12,
+        ),
+        message: CoverMessage(
+          imageId: 'message-1',
+          imageScale: 1.6,
+          imageOffsetX: -.2,
+          imageOffsetY: .1,
+        ),
+      );
+
+      final parsed = CoverDesign.fromJson(design.toJsonString());
+
+      expect(parsed.background.imageScale, closeTo(2.2, 1e-9));
+      expect(parsed.background.imageOffsetX, closeTo(.18, 1e-9));
+      expect(parsed.background.imageOffsetY, closeTo(-.12, 1e-9));
+      expect(parsed.background.hasMediaCrop, isTrue);
+      expect(parsed.message.imageScale, closeTo(1.6, 1e-9));
+      expect(parsed.message.imageOffsetX, closeTo(-.2, 1e-9));
+      expect(parsed.message.imageOffsetY, closeTo(.1, 1e-9));
+      expect(parsed.message.hasImageCrop, isTrue);
+
+      // A saved value can never zoom out past the frame or leave it entirely.
+      final wild = CoverDesign.fromJson({
+        'background': {
+          'type': 'image',
+          'imageScale': 9,
+          'imageOffsetX': -5,
+          'imageOffsetY': 7,
+        },
+        'message': {'imageScale': .2, 'imageOffsetX': 4},
+      });
+      expect(wild.background.imageScale, 3);
+      expect(wild.background.imageOffsetX, -1);
+      expect(wild.background.imageOffsetY, 1);
+      expect(wild.message.imageScale, 1);
+      expect(wild.message.imageOffsetX, 1);
+      expect(const CoverBackground().hasMediaCrop, isFalse);
+      expect(const CoverMessage().hasImageCrop, isFalse);
+    },
+  );
+
+  test('a new message picture starts centred instead of inheriting a crop', () {
+    const reframed = CoverMessage(
+      imageId: 'old',
+      imageScale: 2,
+      imageOffsetX: .3,
+      imageOffsetY: -.4,
+    );
+
+    final replaced = reframed.withImage('new');
+    expect(replaced.imageId, 'new');
+    expect(replaced.imageScale, 1);
+    expect(replaced.imageOffsetX, 0);
+    expect(replaced.imageOffsetY, 0);
+
+    final centred = reframed.withCentredImage();
+    expect(centred.imageId, 'old');
+    expect(centred.imageScale, 1);
+    expect(centred.hasImageCrop, isFalse);
+  });
+
+  test('a cover background resets its crop without dropping the file', () {
+    const background = CoverBackground(
+      type: 'image',
+      mediaId: 'photo-1',
+      imageScale: 1.8,
+      imageOffsetX: .2,
+      imageOffsetY: .1,
+    );
+
+    final centred = background.withCentredMedia();
+    expect(centred.mediaId, 'photo-1');
+    expect(centred.type, 'image');
+    expect(centred.imageScale, 1);
+    expect(centred.imageOffsetX, 0);
+    expect(centred.imageOffsetY, 0);
+  });
+
+  testWidgets('the arch follows the design top height', (tester) async {
+    Future<double> seam(double topHeight) async {
+      await tester.pumpWidget(
+        qchatHarness(
+          RedPacketCover(
+            design: CoverDesign(topHeight: topHeight),
+            sender: const {'nickname': 'Lan'},
+            senderName: 'Lan',
+            greeting: 'Best wishes',
+            mine: false,
+            opening: false,
+            onOpen: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      return tester
+          .getBottomLeft(find.byKey(const ValueKey('red-packet-cover-top')))
+          .dy;
+    }
+
+    final high = await seam(.5);
+    final low = await seam(.9);
+    expect(low, greaterThan(high));
+  });
+
+  testWidgets('decorations render on the half their area names', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      qchatHarness(
+        const CoverArtwork(
+          design: CoverDesign(
+            decorations: [
+              CoverDecoration(
+                id: 'top',
+                value: '🧧',
+                x: .5,
+                y: .3,
+                size: .2,
+                area: 'top',
+              ),
+              CoverDecoration(
+                id: 'bottom',
+                value: '🍊',
+                x: .5,
+                y: .8,
+                size: .2,
+                area: 'bottom',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('🧧'), findsOneWidget);
+    expect(find.text('🍊'), findsOneWidget);
+  });
+}

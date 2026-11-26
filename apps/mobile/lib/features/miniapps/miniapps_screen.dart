@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -43,7 +43,7 @@ const _appTints = [
 /// Tint used while a card is held down; the app avoids ripples, so the press
 /// is shown by darkening the surface instead.
 Color _pressedSurface(BuildContext c) =>
-    Theme.of(c).brightness == Brightness.dark
+    qchatDark(c)
     ? const Color(0xff262626)
     : const Color(0xfff2f2f2);
 
@@ -94,11 +94,13 @@ class _MiniAppsScreenState extends ConsumerState<MiniAppsScreen> {
     super.dispose();
   }
 
-  Future<void> _load({bool more = false}) async {
+  Future<void> _load({bool more = false, bool pull = false}) async {
     if (more && (_loadingMore || _items.length >= _total)) return;
     if (!more) {
       setState(() {
-        _loading = true;
+        // A pull keeps the current list on screen: swapping it for the skeleton
+        // reset the scroll offset and made the page jump on every pull.
+        _loading = !pull;
         _error = null;
         _page = 1;
       });
@@ -344,7 +346,7 @@ class _MiniAppsScreenState extends ConsumerState<MiniAppsScreen> {
     final more = _items.length < _total;
     final count = featured.isEmpty ? _total : _total - featured.length;
     return QChatRefresh(
-      onRefresh: () => _load(),
+      onRefresh: () => _load(pull: true),
       child: CustomScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
@@ -911,7 +913,7 @@ class _AppIcon extends StatelessWidget {
           fontSize: size * .4,
           height: 1,
           fontWeight: FontWeight.w600,
-          color: Colors.white,
+          color: QChatColors.white,
         ),
       ),
     );

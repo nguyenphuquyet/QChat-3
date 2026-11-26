@@ -48,7 +48,10 @@ function createTestHost() {
     };
 }
 function nativeBridge() {
-    if (!globalThis.__qchatNative && typeof process !== "undefined") {
+    // `"process" in globalThis` instead of `typeof process`: the SDK source is
+    // also what a freshly created project type-checks against, and a qapp project
+    // has no Node types at all.
+    if (!globalThis.__qchatNative && "process" in globalThis) {
         globalThis.__qchatTestHost = globalThis.__qchatTestHost ?? createTestHost();
     }
     if (!globalThis.__qchatNative && globalThis.__qchatTestHost) {

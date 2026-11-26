@@ -1,4 +1,3 @@
-import '../../core/design_system/qchat_glass.dart';
 import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'dart:async';
 import 'dart:io';
@@ -7,16 +6,18 @@ import '../../core/design_system/dialogs.dart';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:dio/dio.dart';
 import 'package:record/record.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 import 'message_status.dart';
+import 'share_targets.dart';
 import 'message_actions_menu.dart';
 import 'chat_composer.dart';
 import 'attachment_preview.dart';
@@ -29,6 +30,67 @@ import '../../core/design_system/media_widgets.dart';
 import '../../core/design_system/qchat_animations.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/network/media_upload.dart';
+import '../stickers/emoji_text.dart';
+import '../stickers/sticker_api.dart';
+import '../stickers/sticker_models.dart';
+import '../stickers/sticker_panel.dart';
+import '../stickers/wechat_emoji.dart';
+
+/// Chiều cao bàn phím đã đứng yên gần nhất trong phiên chạy này, tính bằng
+/// đơn vị logic. Nhờ nó, một cuộc trò chuyện vừa mở (chưa từng thấy bàn phím)
+/// vẫn biết trước bàn phím sẽ dừng ở đâu khi nó thay chỗ cho panel, nên thanh
+/// nhập tụt xuống cùng lúc bàn phím trượt lên.
+///
+/// Số này còn được ghi lại trên máy: mở app lần sau, ngay lần bấm bàn phím đầu
+/// tiên đã biết đích đến, nên không còn cảnh bàn phím lên xong thanh nhập mới
+/// tụt xuống.
+double _keyboardRestInset = 0;
+
+const _keyboardRestKey = 'chat.keyboardRest';
+
+/// Đã hỏi bộ nhớ của máy chưa.
+bool _keyboardRestLoaded = false;
+
+Future<void> _loadKeyboardRest() async {
+  if (_keyboardRestLoaded) return;
+  _keyboardRestLoaded = true;
+  try {
+    final saved = await SharedPreferences.getInstance();
+    final stored = saved.getDouble(_keyboardRestKey);
+    if (stored != null && stored > 0 && _keyboardRestInset <= 0) {
+      _keyboardRestInset = stored;
+    }
+  } catch (_) {
+    // Không đọc được thì lần bàn phím đầu tiên của phiên chạy này đi theo
+    // bàn phím từng khung hình; lần sau thì đã học được.
+  }
+}
+
+/// Nhớ chiều cao bàn phím vừa đứng yên, và giữ nó lại cho lần mở app sau.
+void _rememberKeyboardHeight(double height) {
+  if (height <= 0) return;
+  final changed = (height - _keyboardRestInset).abs() > .5;
+  _keyboardRestInset = height;
+  if (!changed) return;
+  unawaited(
+    () async {
+      try {
+        final saved = await SharedPreferences.getInstance();
+        await saved.setDouble(_keyboardRestKey, height);
+      } catch (_) {
+        // Ghi không được cũng chỉ là lần mở app sau chậm hơn một nhịp.
+      }
+    }(),
+  );
+}
+
+/// Quên chiều cao bàn phím đã học, để trạng thái "lần đầu mở bàn phím trong
+/// app" kiểm tra được trong test.
+@visibleForTesting
+void forgetKeyboardRest() {
+  _keyboardRestInset = 0;
+  _keyboardRestLoaded = false;
+}
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key, required this.id});
@@ -39,7 +101,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 
 class _ChatScreenState extends ConsumerState<ChatScreen>
     with WidgetsBindingObserver {
-  final input = TextEditingController(), scroll = ScrollController();
+  final input = EmojiTextEditingController(), scroll = ScrollController();
   List<Map<String, dynamic>> messages = [];
   final selected = <String>{};
   final recalling = <String>{};
@@ -53,6 +115,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   List<dynamic> members = [];
   int readSequence = 0;
   String title = 'QChat';
+
+  /// Set from the conversation kind, so the red packet screen can offer the
+  /// group split options.
+  bool groupChat = false;
   String? error, reply;
   bool loading = true, emoji = false, uploading = false, pickingMedia = false;
   bool attachments = false, voice = false;
@@ -64,20 +130,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   int wallpaperRequest = 0;
   bool wallpaperLoaded = false;
   final inputFocus = FocusNode();
-  final recorder = AudioRecorder();
+  /// The microphone plugin is only built on first use, so simply opening a
+  /// chat never reaches the platform channel (and widget tests stay quiet).
+  AudioRecorder? _recorder;
+  AudioRecorder get recorder => _recorder ??= AudioRecorder();
   bool recordingVoice = false;
   DateTime? voiceStartedAt;
   Timer? voiceHoldTimer;
   int voiceHoldToken = 0;
   final composerKey = GlobalKey();
+  final stickerPanel = GlobalKey<StickerPanelState>();
   double lastKeyboardInset = 0;
   double composerHeight = 56;
+  bool wasPanelOpen = false;
+  /// Panel đang nhường chỗ cho bàn phím: vùng đáy trượt ngay tới chỗ bàn phím
+  /// sẽ dừng, thay vì đứng yên chờ bàn phím lên hẳn.
+  bool panelSliding = false;
+  bool wasPanelSliding = false;
   Timer? panelTimer;
+  Timer? panelSlideTimer;
+  Timer? keyboardRestTimer;
   Timer? voiceLimitTimer;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(_loadKeyboardRest());
     inputFocus.addListener(() {
       if (mounted) setState(() {});
       settlePanels();
@@ -117,12 +195,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     messageUpdates?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     panelTimer?.cancel();
+    panelSlideTimer?.cancel();
+    keyboardRestTimer?.cancel();
     voiceHoldTimer?.cancel();
     voiceLimitTimer?.cancel();
     ++voiceHoldToken;
     highlightTimer?.cancel();
-    if (recordingVoice) unawaited(recorder.stop());
-    recorder.dispose();
+    final recorder = _recorder;
+    if (recorder != null) {
+      if (recordingVoice) unawaited(recorder.stop());
+      recorder.dispose().ignore();
+    }
     inputFocus.dispose();
     input.dispose();
     scroll.dispose();
@@ -141,20 +224,79 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   @override
   void didChangeMetrics() {
     if (!mounted) return;
+    rememberKeyboardRest();
     settlePanels();
   }
 
-  /// Khi người dùng bấm lại vào ô nhập lúc panel đang mở, đợi bàn phím lên hẳn
-  /// rồi mới đóng panel -> chiều cao vùng đáy luôn liên tục, không nhảy.
+  /// Bàn phím vừa đứng yên thì nhớ chiều cao của nó. Lần sau đóng panel giữa
+  /// lúc bàn phím đang lên, số này cho biết vùng đáy sẽ trượt tới đâu. Cũng
+  /// chính lúc đó panel đã nhường chỗ xong, nên vùng đáy trở lại bám bàn phím.
+  void rememberKeyboardRest() {
+    keyboardRestTimer?.cancel();
+    if ((emoji || attachments) && !panelSliding) return;
+    keyboardRestTimer = Timer(const Duration(milliseconds: 140), () {
+      if (!mounted) return;
+      if ((emoji || attachments) && !panelSliding) return;
+      final live = liveKeyboardInset();
+      if (live > 0) _rememberKeyboardHeight(live);
+      if (panelSliding) endPanelSlide();
+    });
+  }
+
+  /// Bàn phím đang lên để thay chỗ cho panel.
+  ///
+  /// Đóng panel ngay từ khung hình bàn phím đầu tiên: vùng đáy trượt xuống
+  /// cùng lúc bàn phím trượt lên thay vì đứng yên rồi tụt sau khi bàn phím lên
+  /// hẳn. Biết chiều cao bàn phím (đã học, hoặc đã lưu từ lần mở app trước) thì
+  /// trượt thẳng tới đó; chưa biết thì panel đứng yên cho bàn phím che dần
+  /// (xem `build`).
   void settlePanels() {
     panelTimer?.cancel();
+    panelTimer = null;
     if (!(emoji || attachments) || !inputFocus.hasFocus) return;
+    // Cú trượt đã bắt đầu thì nó tự dọn panel khi bàn phím đứng yên.
+    if (panelSliding) return;
+    if (liveKeyboardInset() > 0) {
+      slidePanelIntoKeyboard();
+      return;
+    }
     panelTimer = Timer(const Duration(milliseconds: 280), () {
       if (!mounted || !inputFocus.hasFocus) return;
       setState(() {
         emoji = false;
         attachments = false;
       });
+    });
+  }
+
+  /// Bàn phím đang lên đo bằng đơn vị logic, đọc thẳng từ view để có số của
+  /// khung hình này (MediaQuery mới chỉ cập nhật ở lần build sau).
+  double liveKeyboardInset() {
+    final view = View.of(context);
+    return view.viewInsets.bottom / view.devicePixelRatio;
+  }
+
+  /// Đóng panel ngay và để vùng đáy trượt tới chỗ bàn phím sẽ dừng, trong khi
+  /// bàn phím trượt lên che dần panel đang tụt xuống.
+  void slidePanelIntoKeyboard() {
+    panelTimer?.cancel();
+    panelTimer = null;
+    setState(() => panelSliding = true);
+    // Lưới an toàn: nếu không còn khung hình bàn phím nào để biết nó đã dừng,
+    // dọn panel sau khi cú trượt đã xong.
+    panelSlideTimer?.cancel();
+    panelSlideTimer = Timer(const Duration(milliseconds: 600), endPanelSlide);
+  }
+
+  /// Panel đã tụt hẳn xuống dưới bàn phím: bỏ nó khỏi cây và trả vùng đáy về
+  /// bám bàn phím.
+  void endPanelSlide() {
+    panelSlideTimer?.cancel();
+    if (!mounted || !panelSliding) return;
+    setState(() {
+      panelSliding = false;
+      emoji = false;
+      attachments = false;
     });
   }
 
@@ -169,6 +311,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       voice = !voice;
       emoji = false;
       attachments = false;
+      panelSliding = false;
     });
     voice ? inputFocus.unfocus() : inputFocus.requestFocus();
   }
@@ -263,10 +406,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       inputFocus.requestFocus();
       return;
     }
+    panelSlideTimer?.cancel();
     stickyState(() {
       emoji = true;
       attachments = false;
       voice = false;
+      panelSliding = false;
     });
     inputFocus.unfocus();
   }
@@ -276,21 +421,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       inputFocus.requestFocus();
       return;
     }
+    panelSlideTimer?.cancel();
     stickyState(() {
       attachments = true;
       emoji = false;
       voice = false;
       attachPage = 0;
+      panelSliding = false;
     });
     inputFocus.unfocus();
   }
 
   void dismissInput() {
     inputFocus.unfocus();
-    if (emoji || attachments) {
+    panelSlideTimer?.cancel();
+    if (emoji || attachments || panelSliding) {
       stickyState(() {
         emoji = false;
         attachments = false;
+        panelSliding = false;
       });
     }
   }
@@ -307,24 +456,64 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     setState(() {});
   }
 
-  static const emojis = [
-    '😀',
-    '😊',
-    '😂',
-    '🥰',
-    '😍',
-    '🤔',
-    '😢',
-    '😎',
-    '👍',
-    '👏',
-    '🙏',
-    '💚',
-    '❤️',
-    '🎉',
-    '🌻',
-    '☕',
-  ];
+  /// Deletes one character from the composer, or a whole `[emoji]` token, the
+  /// way the reference panel's backspace key behaves.
+  void backspaceInput() {
+    final text = input.text;
+    final sel = input.selection;
+    final start = sel.isValid ? sel.start : text.length;
+    final end = sel.isValid ? sel.end : text.length;
+    var from = start;
+    if (start == end) {
+      if (start <= 0) return;
+      from = start - 1;
+      if (from > 0) {
+        final unit = text.codeUnitAt(from);
+        if (unit >= 0xDC00 && unit <= 0xDFFF) from -= 1;
+      }
+      final before = text.substring(0, start);
+      if (before.endsWith(']')) {
+        final open = before.lastIndexOf('[');
+        if (open >= 0) {
+          final code = before.substring(open + 1, before.length - 1);
+          if (wechatEmojiSet.any((emoji) => emoji.code == code)) from = open;
+        }
+      }
+    }
+    input.value = TextEditingValue(
+      text: text.replaceRange(from, end, ''),
+      selection: TextSelection.collapsed(offset: from),
+    );
+    setState(() {});
+  }
+
+  /// Sends a sticker as its own message kind: the bubble carries no canvas, so
+  /// the artwork floats over the chat like it does in the reference app.
+  Future<void> sendSticker(Sticker sticker) async {
+    final client = ref.read(clientProvider);
+    try {
+      await client.send(widget.id, '', kind: 'STICKER', mediaId: sticker.mediaId);
+      unawaited(
+        StickerApi(client).markUsed(sticker.id).catchError((_) {}),
+      );
+      scrollToEnd();
+    } catch (_) {
+      if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  /// Opens the sticker studio from the panel. Returning refreshes the library,
+  /// so a pack created or published a moment ago is usable immediately.
+  Future<void> openStickerStudio({String? packId, bool create = false}) async {
+    await context.push<void>(
+      packId != null
+          ? '/stickers/$packId'
+          : create
+          ? '/red-packets/designer'
+          : '/stickers',
+    );
+    if (mounted) stickerPanel.currentState?.reload();
+  }
 
   void scrollToEnd() {
     if (locatingQuote) return;
@@ -384,8 +573,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (original['recalledAt'] != null) return tr(context, 'recalled');
     final kind = original['kind'];
     if (kind == 'TRANSFER' || kind == 'RED_PACKET') return moneySummary(original);
+    if (kind == 'STICKER') return tr(context, 'sticker');
     final text = original['text']?.toString() ?? '';
-    return text.isEmpty ? tr(context, 'reply') : text;
+    return text.isEmpty ? tr(context, 'reply') : emojiPlainText(text);
   }
 
   String quoteSender(String id) {
@@ -501,7 +691,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Future<void> load() async {
+  Future<void> load({bool fresh = false}) async {
     if (fetching) {
       reload = true;
       return;
@@ -511,6 +701,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         !locatingQuote && (!scroll.hasClients || scroll.offset < 100);
     try {
       final client = ref.read(clientProvider);
+      if (fresh) {
+        // A sync that started before a send can still be in flight; `messages`
+        // below would hand back its stale page instead of the new row.
+        final running = client.syncing[widget.id];
+        if (running != null) {
+          try {
+            await running;
+          } catch (_) {}
+        }
+      }
       if (!wallpaperLoaded) {
         final cachedConversation = await client.local?.read(
           '/conversations/${widget.id}',
@@ -567,6 +767,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               : others.isEmpty
               ? 'QChat'
               : others.first['user']['nickname'];
+          groupChat = c['kind'] == 'GROUP';
           error = null;
         });
       }
@@ -737,6 +938,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         : '${d.day}/${d.month} $time';
   }
 
+  /// A wallpaper puts a photo under the small grey labels, so the time and the
+  /// send status get a light plate behind them; a plain chat background leaves
+  /// them bare.
+  Widget timedLabel(Widget child) =>
+      chatBackgroundImage == null ? child : WallpaperPlate(child: child);
+
   bool showTime(int i) {
     if (i == 0) return true;
     final a = DateTime.tryParse(messages[i]['createdAt']?.toString() ?? '');
@@ -755,14 +962,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     return null;
   }
 
-  void openMoney(BuildContext c, {bool redPacket = false}) {
+  Map? get peerUser {
+    final me = ref.read(clientProvider).userId;
+    for (final member in members) {
+      if (member is! Map) continue;
+      if (member['userId'] == me) continue;
+      final user = member['user'];
+      if (user is Map) return user;
+    }
+    return null;
+  }
+
+  Future<void> openMoney(BuildContext c, {bool redPacket = false}) async {
     final peer = peerQchatId;
-    c.push(
+    final user = peerUser;
+    final name = user?['nickname']?.toString() ?? '';
+    final avatar = user?['avatarId']?.toString() ?? '';
+    final sent = await c.push<bool>(
       '/payments/transfer'
       '?to=${Uri.encodeQueryComponent(peer ?? '')}'
       '${peer == null ? '' : '&conversation=${widget.id}'}'
-      '${redPacket ? '&red=1' : ''}',
+      '&name=${Uri.encodeQueryComponent(name)}'
+      '&avatar=${Uri.encodeQueryComponent(avatar)}'
+      '${redPacket ? '&red=1' : ''}'
+      '${redPacket && groupChat ? '&group=1' : ''}',
     );
+    // A transfer or a red packet is written by the wallet API, so there is no
+    // optimistic bubble like `send()` has. The socket's `message:new` normally
+    // adds it, but if that event is missed (or the list was scrolled up) the
+    // row only appeared after reopening the chat. Pull the newest page and
+    // jump to it as soon as the sheet reports a successful send.
+    if (sent == true && mounted) {
+      await load(fresh: true);
+      if (mounted) scrollToEnd();
+    }
   }
 
   void callPeer(BuildContext c, bool video) =>
@@ -803,11 +1036,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         .refreshMoneyMessage(Map<String, dynamic>.from(m));
     if (!mounted) return;
     if (m['kind'] == 'RED_PACKET') {
+      // The designer picks the scrim colour, so the popup tint matches the
+      // cover instead of always being plain black.
+      final cover = MoneyPayload.parse(message['text']).cover;
       final result = await Navigator.of(context).push<String>(
         PageRouteBuilder(
           opaque: false,
           barrierDismissible: true,
-          barrierColor: const Color(0x80000000),
+          barrierColor: cover?.overlayColor ?? const Color(0x80000000),
           barrierLabel: 'Hồng bao',
           transitionDuration: const Duration(milliseconds: 220),
           reverseTransitionDuration: const Duration(milliseconds: 180),
@@ -841,7 +1077,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       return;
     }
     await Navigator.of(context).push<void>(
-      MaterialPageRoute(
+      CupertinoPageRoute(
         builder: (_) => TransferReceiptScreen(
           message: message,
           mine: mine,
@@ -946,71 +1182,169 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     );
   }
 
-  Widget emojiPanel(BuildContext c, double safeBottom) => GridView.count(
-    padding: EdgeInsets.fromLTRB(12, 8, 12, 8 + safeBottom),
-    crossAxisCount: 8,
-    children: [
-      for (final e in emojis)
-        GestureDetector(
-          onTap: () => insertEmoji(e),
-          child: Center(child: Text(e, style: const TextStyle(fontSize: 26))),
-        ),
-    ],
-  );
-
-  Future<void> forward(List<Map<String, dynamic>> rows) async {
-    try {
-      final client = ref.read(clientProvider);
-      final chats = await client.get('/conversations', cached: false) as List;
-      if (!mounted) return;
-      final target = await showQChatDialog<String>(
-        context,
-        title: tr(context, 'forward'),
-        content: Builder(
-          builder: (c) => ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 320),
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                for (final chat in chats)
-                  TCell(
-                    title: Text(
-                      chat['kind'] == 'GROUP'
-                          ? chat['title']
-                          : (chat['members'] as List)
-                                .where((m) => m['userId'] != client.userId)
-                                .map((m) => m['user']['nickname'])
-                                .join(', '),
-                    ),
-                    onTap: () => Navigator.pop(c, chat['id'] as String),
-                  ),
-              ],
-            ),
+  Widget _selectionAction(
+    BuildContext c,
+    String label,
+    VoidCallback? onTap,
+  ) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: onTap,
+    child: SizedBox(
+      height: 44,
+      child: Center(
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 15,
+            color: onTap == null ? qchatMuted(c) : QChatColors.green,
           ),
         ),
-        actions: [QChatDialogAction(label: tr(context, 'cancel'))],
-      );
-      if (target == null) return;
-      for (final row in rows) {
-        // A money bubble cannot be copied as a real transfer: forward the
-        // receipt as text so the new chat still shows what was sent.
-        if (row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET') {
-          await client.send(target, moneySummary(row));
-        } else {
-          await client.post('/messages/${row['id']}/forward', {
-            'conversationId': target,
-            'clientId': const Uuid().v4(),
-          });
-        }
-      }
-      if (mounted) {
-        setState(() {
-          selecting = false;
-          selected.clear();
-        });
-      }
+      ),
+    ),
+  );
+
+  /// "Chuyển tiếp": straight to the recipient picker, which hands over to the
+  /// send sheet. The share panel is for sharing content (Mini Apps, links);
+  /// favourite, copy, quote, search, select and delete already live in the
+  /// message menu, and reporting lives in the chat details page.
+  Future<void> forward(List<Map<String, dynamic>> rows) async {
+    try {
+      final chats =
+          await ref.read(clientProvider).get('/conversations', cached: false)
+              as List;
+      if (!mounted) return;
+      await _pickForwardTarget(rows, chats);
     } catch (_) {
       if (mounted) setState(() => error = tr(context, 'networkError'));
+    }
+  }
+
+  /// The line shown on the send card as the forwarded content: the first
+  /// message's text, or the summary of a money bubble.
+  String _forwardQuery(List<Map<String, dynamic>> rows) {
+    for (final row in rows) {
+      final text =
+          row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET'
+          ? moneySummary(row)
+          : (row['text'] ?? '').toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
+  }
+
+  /// Pick receivers, then confirm on the send sheet. Nothing leaves the chat
+  /// until the green button is tapped, and the chevron can swap receivers.
+  Future<void> _pickForwardTarget(
+    List<Map<String, dynamic>> rows,
+    List chats,
+  ) async {
+    if (!mounted) return;
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+    final picked = await _pickChats(chats, selfId);
+    if (!mounted || picked == null) return;
+    // An empty result is the "Cuộc trò chuyện mới" link, not a forward.
+    if (picked.isEmpty) {
+      context.push('/groups/new');
+      return;
+    }
+
+    Map? chatById(String id) {
+      for (final chat in chats) {
+        if (chat is Map && chat['id'] == id) return chat;
+      }
+      return null;
+    }
+
+    var targets = picked;
+    while (true) {
+      if (!mounted) return;
+      final first = chatById(targets.first);
+      if (first == null) return;
+      final result = await showQChatSendConfirmSheet(
+        context,
+        recipient: conversationShareTarget(first, selfId),
+        extra: targets.length - 1,
+        preview: QChatSendPreview(
+          source: title,
+          title: _forwardPreview(rows),
+          footer: tr(context, 'forward'),
+          footerIcon: 'share',
+        ),
+      );
+      if (!mounted || result == null) return;
+      if (result.outcome == QChatSendOutcome.cancelled) return;
+      if (result.outcome == QChatSendOutcome.changeRecipient) {
+        final next = await _pickChats(chats, selfId);
+        if (!mounted || next == null) return;
+        if (next.isEmpty) {
+          context.push('/groups/new');
+          return;
+        }
+        targets = next;
+        continue;
+      }
+      final note = result.message.trim();
+      for (final target in targets) {
+        await _forwardTo(target, rows);
+        if (note.isNotEmpty) await client.send(target, note);
+      }
+      return;
+    }
+  }
+
+  Future<List<String>?> _pickChats(List chats, String selfId) =>
+      showQChatForwardPicker(
+        context,
+        title: tr(context, 'pickChatTitle'),
+        recent: [
+          for (final chat in chats.where((c) => c['id'] != widget.id).take(8))
+            conversationShareTarget(chat as Map, selfId),
+        ],
+        entries: [
+          for (final chat in chats)
+            QChatForwardEntry(
+              id: chat['id'] as String,
+              name: conversationShareName(chat as Map, selfId),
+              avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
+              note: chat['id'] == widget.id ? tr(context, 'currentChat') : null,
+              disabled: chat['id'] == widget.id,
+            ),
+        ],
+      );
+
+  /// The headline of the confirm card: the message itself, or how many are
+  /// travelling when the user forwarded a selection.
+  String _forwardPreview(List<Map<String, dynamic>> rows) {
+    if (rows.length > 1) {
+      return tr(context, 'forwardCount').replaceAll('{n}', '${rows.length}');
+    }
+    final text = _forwardQuery(rows);
+    return text.isEmpty ? tr(context, 'forward') : text;
+  }
+
+  Future<void> _forwardTo(
+    String target,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    final client = ref.read(clientProvider);
+    for (final row in rows) {
+      // A money bubble cannot be copied as a real transfer: forward the
+      // receipt as text so the new chat still shows what was sent.
+      if (row['kind'] == 'TRANSFER' || row['kind'] == 'RED_PACKET') {
+        await client.send(target, moneySummary(row));
+      } else {
+        await client.post('/messages/${row['id']}/forward', {
+          'conversationId': target,
+          'clientId': const Uuid().v4(),
+        });
+      }
+    }
+    if (mounted) {
+      setState(() {
+        selecting = false;
+        selected.clear();
+      });
     }
   }
 
@@ -1190,26 +1524,66 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
           message['recalledAt'] == null,
     );
     final keyboard = MediaQuery.viewInsetsOf(c).bottom;
-    final keyboardRising = keyboard > lastKeyboardInset;
+    final previousKeyboard = lastKeyboardInset;
+    final keyboardRising = keyboard > previousKeyboard;
+    final keyboardFalling = keyboard < previousKeyboard;
     lastKeyboardInset = keyboard;
     final safeBottom = MediaQuery.viewPaddingOf(c).bottom;
     // The glass bar floats over the list, so reserve its height at the top of
     // the content instead of letting the newest messages sit under the blur.
     final headerInset = MediaQuery.paddingOf(c).top + 54;
     final panelOpen = emoji || attachments;
-    // Panel luôn thấp, cố định; chỉ bàn phím thật mới đẩy thanh nhập lên cao.
-    // Không ghi nhớ chiều cao bàn phím trước đó, nếu không panel (khi bàn phím
-    // đã đóng) sẽ bị kéo cao bằng bàn phím và để lại một khoảng trống xấu.
-    final panelHeight = 250 + safeBottom;
+    // Một lần đóng/mở panel đổi hẳn vùng đáy (panel cao hơn bàn phím), nên nó
+    // phải trượt có animation. Chỉ những khung hình bàn phím đang chạy mới bám
+    // theo tức thời, nếu không thanh nhập tụt một phát khi panel đóng lúc bàn
+    // phím chưa lên hết.
+    final panelChanged = panelOpen != wasPanelOpen;
+    wasPanelOpen = panelOpen;
+    final slidingChanged = panelSliding != wasPanelSliding;
+    wasPanelSliding = panelSliding;
+    // Nhớ chiều cao bàn phím khi nó đã đứng yên: đó là đích mà vùng đáy sẽ co
+    // tới trong lần bàn phím thay chỗ cho panel kế tiếp.
+    if (!panelOpen &&
+        !panelSliding &&
+        keyboard > 0 &&
+        !keyboardRising &&
+        !keyboardFalling) {
+      _keyboardRestInset = keyboard;
+    }
+    // The sticker panel needs more room than the attachment grid, so the two
+    // keep their own heights instead of sharing one reserved band.
+    final panelHeight = (emoji ? 320 : 250) + safeBottom;
+    // Trong lúc bàn phím thay chỗ cho panel, vùng đáy nhắm thẳng tới chiều cao
+    // bàn phím đã dừng lần trước và trượt tới đó ngay từ khung hình đầu, cùng
+    // lúc với bàn phím đang lên. Panel vẫn còn trong cây nên nó tụt xuống theo
+    // thanh nhập và bị bàn phím che dần, thay vì biến mất rồi mới tụt.
+    final slideTarget = math.max(_keyboardRestInset, safeBottom);
+    // Lần đầu mở app mà chưa có số nào lưu lại: chưa biết bàn phím cao bao
+    // nhiêu, nên panel giữ nguyên chỗ cũ và bị bàn phím che dần; nếu bàn phím
+    // cao hơn panel thì thanh nhập đi lên cùng bàn phím. Phần chênh lệch còn
+    // lại (panel cao hơn bàn phím) trượt nốt khi bàn phím đứng yên.
+    final unknownRest = panelSliding && _keyboardRestInset <= 0;
+    final panelBand = panelOpen ? panelHeight : safeBottom;
+    final band = panelSliding
+        ? (unknownRest ? panelHeight : slideTarget)
+        : panelBand;
     // Vùng đáy nằm trong lớp kính của thanh nhập: bàn phím | panel | safe area.
     // Dùng max() để khi bàn phím đóng dần, ô nhập vẫn nằm trên safe area chứ
-    // không tụt xuống sát đáy rồi bật ngược lên.
-    final reserved = math.max(keyboard, panelOpen ? panelHeight : safeBottom);
+    // không tụt xuống sát đáy rồi bật ngược lên. Bàn phím đang lên cũng luôn
+    // được tính, để thanh nhập không bao giờ nằm dưới mép bàn phím.
+    final reserved = math.max(band, keyboard);
     // Bàn phím đã tự chạy animation của hệ thống nên bám theo nó ngay từng
-    // khung hình khi nó đang lên hoặc đang xuống. Riêng lúc chuyển từ bàn phím
-    // sang panel (panel thấp hơn bàn phím) thì trượt xuống có animation để
-    // thanh nhập không bị giật một phát.
-    final insetDuration = keyboardRising || (!panelOpen && keyboard > 0)
+    // khung hình, cả lúc nó đang lên lẫn lúc đang xuống — kể cả khung hình nó
+    // vừa đóng hẳn. Cho khung cuối đó thêm một cú animation 180ms thì thanh
+    // nhập tụt nốt sau khi bàn phím đã mất, nhìn như bị giật. Riêng lúc panel
+    // đóng/mở, và lúc panel nhường chỗ cho bàn phím, thì trượt có animation để
+    // thanh nhập không nhảy một phát. Chưa biết chiều cao bàn phím thì cũng bám
+    // từng khung hình, vì đích đến chính là bàn phím đang lên.
+    final insetDuration = unknownRest
+        ? Duration.zero
+        : panelSliding || panelChanged || slidingChanged
+        ? qchatDuration(c)
+        : !panelOpen
         ? Duration.zero
         : qchatDuration(c);
     measureComposer();
@@ -1318,7 +1692,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         ? QChatColors.green.withValues(
                                             alpha: .18,
                                           )
-                                        : Colors.transparent,
+                                        : QChatColors.transparent,
                                     child: Column(
                                       children: [
                                         if (showTime(i))
@@ -1326,27 +1700,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             padding: const EdgeInsets.symmetric(
                                               vertical: 16,
                                             ),
-                                            child: Text(
-                                              messageTime(m['createdAt']),
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                color: QChatColors.muted,
+                                            child: timedLabel(
+                                              Text(
+                                                messageTime(m['createdAt']),
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  color: QChatColors.muted,
+                                                ),
                                               ),
                                             ),
                                           ),
                                         if (selecting && m['pending'] != true)
-                                          TButton(
-                                            variant: TButtonVariant.text,
-                                            onPressed: () => setState(
+                                          GestureDetector(
+                                            onTap: () => setState(
                                               () => selected.contains(m['id'])
                                                   ? selected.remove(m['id'])
                                                   : selected.add(m['id']),
                                             ),
-                                            child: TIcon(
-                                              selected.contains(m['id'])
-                                                  ? TIcons.check_circle_filled
-                                                  : TIcons.circle,
-                                              color: QChatColors.green,
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(8),
+                                              child: Icon(
+                                                selected.contains(m['id'])
+                                                    ? TIcons.check_circle_filled
+                                                    : TIcons.circle,
+                                                color: QChatColors.green,
+                                              ),
                                             ),
                                           ),
                                         QChatChatBubble(
@@ -1354,7 +1732,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               m['mediaId'] != null &&
                                               m['recalledAt'] == null &&
                                               (m['kind'] == 'IMAGE' ||
-                                                  m['kind'] == 'VIDEO') ||
+                                                  m['kind'] == 'VIDEO' ||
+                                                  m['kind'] == 'STICKER') ||
                                               money,
                                           bubbleWrapper: (bubble) => Builder(
                                             builder: (anchor) => GestureDetector(
@@ -1367,6 +1746,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                     : CrossAxisAlignment.start,
                                                 children: [
                                                   Stack(
+                                                    clipBehavior: Clip.none,
                                                     alignment: Alignment.center,
                                                     children: [
                                                       Opacity(
@@ -1384,11 +1764,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                         const SizedBox(
                                                           width: 16,
                                                           height: 16,
-                                                          child:
-                                                              CircularProgressIndicator(
-                                                                strokeWidth:
-                                                                    1.5,
-                                                              ),
+                                                          child: QChatLoading(
+                                                            size: 14,
+                                                          ),
                                                         ),
                                                     ],
                                                   ),
@@ -1425,27 +1803,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             children: [
                                               if (m['mediaId'] != null &&
                                                   m['recalledAt'] == null)
-                                                GestureDetector(
-                                                  onTap: () => context.push(
-                                                    '/media/${m['mediaId']}',
-                                                    extra: "message-${m['id']}",
-                                                  ),
-                                                  child: MessageAttachment(
-                                                    sourceTag:
-                                                        "message-${m['id']}",
-                                                    key: ValueKey(m['mediaId']),
+                                                if (m['kind'] == 'STICKER')
+                                                  MessageAttachment(
+                                                    key: ValueKey(
+                                                      'sticker-message-${m['id']}',
+                                                    ),
                                                     id: m['mediaId'].toString(),
-                                                    kind: m['kind'] ?? 'FILE',
-                                                    name: m['text'] ?? '',
+                                                    kind: 'STICKER',
+                                                    name: '',
+                                                  )
+                                                else
+                                                  GestureDetector(
+                                                    onTap: () => context.push(
+                                                      '/media/${m['mediaId']}',
+                                                      extra: "message-${m['id']}",
+                                                    ),
+                                                    child: MessageAttachment(
+                                                      sourceTag:
+                                                          "message-${m['id']}",
+                                                      key: ValueKey(
+                                                        m['mediaId'],
+                                                      ),
+                                                      id: m['mediaId'].toString(),
+                                                      kind: m['kind'] ?? 'FILE',
+                                                      name: m['text'] ?? '',
+                                                    ),
                                                   ),
-                                                ),
-                                              if (m['mediaId'] == null ||
-                                                  m['recalledAt'] != null)
-                                                Text(
-                                                  m['recalledAt'] != null
-                                                      ? tr(c, 'recalled')
-                                                      : m['text'] ?? '',
-                                                ),
+                                              if (m['recalledAt'] != null)
+                                                Text(tr(c, 'recalled'))
+                                              else if (m['mediaId'] == null)
+                                                QChatEmojiText(m['text'] ?? ''),
                                             ],
                                           ),
                                         ),
@@ -1457,6 +1844,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                             onRetry: () => ref
                                                 .read(clientProvider)
                                                 .flush(),
+                                            plated: chatBackgroundImage != null,
                                           ),
                                       ],
                                     ),
@@ -1486,9 +1874,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               Row(
                                 children: [
                                   Expanded(
-                                    child: TButton(
-                                      variant: TButtonVariant.text,
-                                      onPressed: selected.isEmpty
+                                    child: _selectionAction(
+                                      c,
+                                      tr(c, 'forward'),
+                                      selected.isEmpty
                                           ? null
                                           : () => forward(
                                               messages
@@ -1499,13 +1888,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                   )
                                                   .toList(),
                                             ),
-                                      child: Text(tr(c, 'forward')),
                                     ),
                                   ),
                                   Expanded(
-                                    child: TButton(
-                                      variant: TButtonVariant.text,
-                                      onPressed: selected.isEmpty
+                                    child: _selectionAction(
+                                      c,
+                                      tr(c, 'delete'),
+                                      selected.isEmpty
                                           ? null
                                           : () => deleteMessages(
                                               messages
@@ -1516,17 +1905,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                   )
                                                   .toList(),
                                             ),
-                                      child: Text(tr(c, 'delete')),
                                     ),
                                   ),
                                   Expanded(
-                                    child: TButton(
-                                      variant: TButtonVariant.text,
-                                      onPressed: () => setState(() {
+                                    child: _selectionAction(
+                                      c,
+                                      tr(c, 'cancel'),
+                                      () => setState(() {
                                         selecting = false;
                                         selected.clear();
                                       }),
-                                      child: Text(tr(c, 'cancel')),
                                     ),
                                   ),
                                 ],
@@ -1538,7 +1926,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               voice: voice,
                               hasText: input.text.trim().isNotEmpty,
                               voiceLabel: tr(c, 'voice'),
-                              emojiLabel: 'Emoji',
+                              emojiLabel: tr(c, 'stickerPanel'),
                               plusLabel: tr(c, 'file'),
                               sendLabel: tr(c, 'send'),
                               holdLabel: recordingVoice ? tr(c, 'recording') : tr(c, 'holdToTalk'),
@@ -1568,18 +1956,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                           duration: insetDuration,
                           curve: Curves.easeOut,
                           height: reserved,
-                          child: panelOpen
+                          child: panelOpen || panelSliding
                               ? ClipRect(
                                   child: OverflowBox(
                                     alignment: Alignment.topCenter,
                                     minHeight: 0,
-                                    maxHeight: panelHeight,
-                                    child: SizedBox(
-                                      height: panelHeight,
-                                      child: emoji
-                                          ? emojiPanel(c, safeBottom)
-                                          : attachmentPanel(c, safeBottom),
-                                    ),
+                                    maxHeight: panelHeight,                                      child: SizedBox(
+                                        height: panelHeight,
+                                        child: emoji
+                                            ? StickerPanel(
+                                                key: stickerPanel,
+                                                safeBottom: safeBottom,
+                                                onEmoji: insertEmoji,
+                                                onSticker: sendSticker,
+                                                onOpenStudio: openStickerStudio,
+                                                onOpenLibrary: () async {
+                                                  await context.push<void>(
+                                                    '/stickers',
+                                                  );
+                                                  if (mounted) {
+                                                    stickerPanel.currentState
+                                                        ?.reload();
+                                                  }
+                                                },
+                                                onBackspace: backspaceInput,
+                                                onSend: send,
+                                                canSend: input.text
+                                                    .trim()
+                                                    .isNotEmpty,
+                                              )
+                                            : attachmentPanel(c, safeBottom),
+                                      ),
                                   ),
                                 )
                               : null,

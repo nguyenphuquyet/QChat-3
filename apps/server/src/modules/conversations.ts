@@ -45,6 +45,7 @@ export async function conversationsRoute(
                   createdAt: true,
                   claimedCount: true,
                   recipientCount: true,
+                  splitMode: true,
                   claims: {
                     where: { userId },
                     select: { amount: true, status: true, claimedAt: true },
@@ -175,6 +176,7 @@ export async function conversationsRoute(
               createdAt: true,
               claimedCount: true,
               recipientCount: true,
+              splitMode: true,
               claims: {
                 where: { userId },
                 select: { amount: true, status: true, claimedAt: true },

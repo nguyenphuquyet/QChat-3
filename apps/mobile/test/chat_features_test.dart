@@ -1,20 +1,24 @@
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/design_system/components.dart';
 import 'package:qchat/core/design_system/media_widgets.dart';
-import 'package:qchat/core/design_system/qchat_theme.dart';
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/core/network/video_meta.dart';
 import 'package:qchat/features/chats/chat_screen.dart';
 import 'package:qchat/features/chats/chat_details_screen.dart';
+import 'package:qchat/features/chats/chat_composer.dart';
 import 'package:qchat/features/chats/home_screen.dart';
+import 'package:qchat/features/chats/message_status.dart';
+import 'package:qchat/features/groups/groups_screen.dart';
 import 'package:qchat/features/chats/message_attachment.dart';
 import 'package:qchat/features/profile/user_profile_screen.dart';
 import 'package:qchat/features/moments/moments_screen.dart';
+import 'test_app.dart';
 
 class FakeClient extends QChatClient {
   FakeClient({this.isFriend = false, this.group = false, this.owner = false}) {
@@ -98,16 +102,50 @@ Future<void> mount(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [clientProvider.overrideWithValue(client)],
-      child: MaterialApp(
-        locale: const Locale('vi'),
-        supportedLocales: const [Locale('vi')],
-        localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: qchatTheme(false),
-        home: Material(child: screen),
-      ),
+      child: qchatHarness(screen, locale: const Locale('vi')),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+class ForwardClient extends FakeClient {
+  static const second = {
+    'id': 'chat2',
+    'kind': 'DIRECT',
+    'sequence': 0,
+    'members': [
+      {
+        'userId': 'self',
+        'user': {'id': 'self', 'nickname': 'Tôi'},
+      },
+      {
+        'userId': 'peer2',
+        'user': {'id': 'peer2', 'nickname': 'Linh'},
+      },
+    ],
+    'messages': <Map<String, dynamic>>[],
+  };
+
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async {
+    if (path == '/conversations') return [conversation, second];
+    return super.get(path, cached: cached);
+  }
+
+  /// The note typed on the send sheet, per conversation.
+  final sent = <String, String>{};
+
+  @override
+  Future<void> send(
+    String conversation,
+    String text, {
+    String kind = 'TEXT',
+    String? mediaId,
+    String? replyToId,
+  }) async {
+    sent[conversation] = text;
+    calls.add('/messages/$conversation');
+  }
 }
 
 class RequestsClient extends FakeClient {
@@ -118,6 +156,48 @@ class RequestsClient extends FakeClient {
       return [
         {'id': 'request-1', 'sender': peer},
         {'id': 'request-2', 'sender': peer},
+      ];
+    }
+    return super.get(path, cached: cached);
+  }
+}
+
+class GroupsClient extends FakeClient {
+  @override
+  Future<dynamic> get(String path, {bool cached = true}) async {
+    if (path == '/conversations') {
+      calls.add(path);
+      return [
+        {
+          'id': 'g1',
+          'kind': 'GROUP',
+          'title': 'Nhóm cũ',
+          'sequence': 1,
+          'messages': [],
+          'members': [
+            {
+              'userId': 'self',
+              'role': 'MEMBER',
+              'readSequence': 1,
+              'user': {'id': 'self', 'nickname': 'Tôi'},
+            },
+          ],
+        },
+        {
+          'id': 'd1',
+          'kind': 'DIRECT',
+          'sequence': 1,
+          'messages': [],
+          'members': [
+            {
+              'userId': 'self',
+              'role': 'MEMBER',
+              'readSequence': 1,
+              'user': {'id': 'self', 'nickname': 'Tôi'},
+            },
+            {'userId': 'peer', 'role': 'MEMBER', 'readSequence': 0, 'user': peer},
+          ],
+        },
       ];
     }
     return super.get(path, cached: cached);
@@ -157,14 +237,14 @@ void main() {
     expect(client.calls, contains('/moments?authorId=peer'));
     expect(find.text('A moment'), findsOneWidget);
     expect(find.text('Legacy comment'), findsNothing);
-    expect(find.byType(TInput), findsNothing);
+    expect(find.byType(CupertinoTextField), findsNothing);
     expect(
       find.byWidgetPredicate((w) => w is QChatIconButton && w.icon == 'plus'),
       findsNothing,
     );
   });
   testWidgets(
-    'three dots opens TDesign details and message avatars use media IDs',
+    'three dots opens details and message avatars use media IDs',
     (tester) async {
       final client = FakeClient();
       await mount(tester, client, const ChatScreen(id: 'chat'));
@@ -175,7 +255,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Chi tiết'), findsOneWidget);
-      expect(find.byType(TSwitch), findsOneWidget);
+      expect(find.byType(QChatSwitch), findsOneWidget);
       expect(find.text('Xóa lịch sử trò chuyện'), findsOneWidget);
       expect(find.text('Giải tán nhóm'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -250,6 +330,82 @@ void main() {
     expect(find.text('Hủy'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
+  testWidgets('forward opens the recipient picker, then the send sheet', (
+    tester,
+  ) async {
+    final client = ForwardClient();
+    await mount(tester, client, const ChatScreen(id: 'chat'));
+    await tester.longPress(find.text('Xin chào'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('message-action-forward')));
+    await tester.pumpAndSettle();
+
+    // Forwarding goes straight to the recipient list, not through the share
+    // panel: the panel is for sharing content such as Mini Apps and links.
+    expect(find.byType(QChatShareSheet), findsNothing);
+    expect(find.byType(QChatForwardPicker), findsOneWidget);
+    expect(find.text('Chọn cuộc trò chuyện'), findsOneWidget);
+    // The chat the user is already in cannot receive the forward.
+    expect(find.text('Trò chuyện hiện tại'), findsOneWidget);
+    // The picker is a sheet that climbs from the bottom, not a pushed page.
+    expect(
+      tester.getRect(find.byType(QChatForwardPicker)).top,
+      lessThan(120),
+    );
+
+    await tester.tap(find.text('Linh').last);
+    await tester.pumpAndSettle();
+
+    // The picker hands over to the send sheet, which previews the message and
+    // waits for the green button before anything leaves the chat.
+    expect(find.byType(QChatSendConfirmSheet), findsOneWidget);
+    expect(find.text('Gửi đến'), findsOneWidget);
+    expect(find.text('Gửi tin nhắn'), findsOneWidget);
+    expect(client.calls, isNot(contains('/messages/message/forward')));
+    // The sheet hugs its content on the bottom edge instead of filling the
+    // screen and leaving a grey void under the buttons.
+    final sheet = tester.getRect(find.byType(QChatSendConfirmSheet));
+    expect(sheet.bottom, tester.view.physicalSize.height);
+    expect(sheet.top, greaterThan(200));
+
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(QChatSendConfirmSheet),
+        matching: find.byType(CupertinoTextField),
+      ),
+      'Kèm lời nhắn',
+    );
+
+    // Tapping the note field raises the keyboard. The sheet must ride above
+    // it, with the field and the green button still on screen, instead of
+    // leaving only its title visible behind the keyboard.
+    addTearDown(tester.view.resetViewInsets);
+    tester.view.viewInsets = const FakeViewPadding(bottom: 320);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    const keyboardTop = 844.0 - 320;
+    final field = find.descendant(
+      of: find.byType(QChatSendConfirmSheet),
+      matching: find.byType(CupertinoTextField),
+    );
+    expect(
+      tester.getRect(find.byType(QChatSendConfirmSheet)).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    expect(tester.getRect(field).bottom, lessThanOrEqualTo(keyboardTop));
+    expect(
+      tester.getRect(find.text('Gửi')).bottom,
+      lessThanOrEqualTo(keyboardTop),
+    );
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Gửi'));
+    await tester.pumpAndSettle();
+    expect(client.calls, contains('/messages/message/forward'));
+    expect(client.sent['chat2'], 'Kèm lời nhắn');
+    expect(tester.takeException(), isNull);
+  });
   testWidgets('message action popover animates and keeps a screen margin', (
     tester,
   ) async {
@@ -271,11 +427,14 @@ void main() {
           .value,
       1,
     );
-    // TDesign surface plus a tap region so taps outside dismiss it.
+    // QChat surface plus a tap region so taps outside dismiss it.
     final panel = tester.widget<Container>(
       find.byKey(const Key('message-action-menu')),
     );
-    expect((panel.decoration! as BoxDecoration).color, const Color(0xff25282d));
+    expect(
+      (panel.decoration! as BoxDecoration).color,
+      QChatColors.white,
+    );
     expect(
       find.byKey(const ValueKey('message-action-tap-region')),
       findsOneWidget,
@@ -406,7 +565,7 @@ void main() {
       const Offset(-300, 0),
     );
     await tester.pumpAndSettle();
-    expect(find.byType(TSwipeCellAction), findsNWidgets(3));
+    expect(find.byType(QChatSwipeCell), findsOneWidget);
     expect(find.text('Đánh dấu chưa đọc'), findsOneWidget);
     expect(find.text('Ẩn'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -419,7 +578,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) => const Material(child: HomeScreen()),
+          builder: (_, _) =>
+              const ColoredBox(color: QChatColors.background, child: HomeScreen()),
         ),
         GoRoute(
           path: '/moments',
@@ -438,12 +598,9 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [clientProvider.overrideWithValue(client)],
-        child: MaterialApp.router(
-          locale: const Locale('vi'),
-          supportedLocales: const [Locale('vi')],
-          localizationsDelegates: GlobalMaterialLocalizations.delegates,
-          theme: qchatTheme(false),
+        child: qchatRouterHarness(
           routerConfig: router,
+          locale: const Locale('vi'),
         ),
       ),
     );
@@ -455,6 +612,211 @@ void main() {
     expect(opened, '/moments?authorId=self');
     expect(tester.takeException(), isNull);
   });
+  testWidgets('group chats in Contacts lists the groups already joined', (
+    tester,
+  ) async {
+    final client = GroupsClient();
+    String? opened;
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) =>
+              const ColoredBox(color: QChatColors.background, child: HomeScreen()),
+        ),
+        GoRoute(path: '/groups', builder: (_, _) => const GroupsScreen()),
+        GoRoute(
+          path: '/chat/:id',
+          builder: (_, s) {
+            opened = s.pathParameters['id'];
+            return const SizedBox();
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [clientProvider.overrideWithValue(client)],
+        child: qchatRouterHarness(
+          routerConfig: router,
+          locale: const Locale('vi'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Danh bạ').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trò chuyện nhóm'));
+    await tester.pumpAndSettle();
+
+    // Only groups this account joined: direct chats stay in the Chats tab.
+    expect(find.text('Nhóm cũ'), findsOneWidget);
+    expect(find.byType(QChatListTile), findsOneWidget);
+    await tester.tap(find.text('Nhóm cũ'));
+    await tester.pumpAndSettle();
+    expect(opened, 'g1');
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('the keyboard takes over the attachment panel while it rises', (
+    tester,
+  ) async {
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+
+    // The keyboard has been up once, so the composer knows where it settles.
+    // That height is the target the band aims at when the panel steps aside.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    tester.view.viewInsets = FakeViewPadding.zero;
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pumpAndSettle();
+    final open = tester.getRect(find.byType(ChatInputBar)).bottom;
+    expect(find.byType(PageView), findsOneWidget);
+
+    // Tapping "+" again asks for the keyboard to replace the panel.
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pump(); // the tap's focus request lands this frame
+
+    // The keyboard rises over the panel, frame by frame. The panel must start
+    // sliding away on the first frame, so the bar is already on its way down
+    // while the keyboard is still rising, not after it has settled.
+    for (final bottom in [40.0, 90.0, 140.0, 200.0]) {
+      tester.view.viewInsets = FakeViewPadding(bottom: bottom);
+      await tester.pump(const Duration(milliseconds: 25));
+    }
+    final middle = tester.getRect(find.byType(ChatInputBar)).bottom;
+    // The panel is still in the tree, sliding down behind the keyboard.
+    expect(find.byType(PageView), findsOneWidget);
+    await tester.pumpAndSettle();
+    final done = tester.getRect(find.byType(ChatInputBar)).bottom;
+
+    // The bar ends lower (the keyboard is shorter than the panel) and was
+    // already between the two positions before the keyboard had settled.
+    expect(done, greaterThan(open));
+    expect(middle, greaterThan(open));
+    expect(middle, lessThan(done));
+    // Once the keyboard owns the space, the panel is gone from the tree.
+    expect(find.byType(PageView), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('a keyboard measured once is ready for the next app start', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    forgetKeyboardRest();
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 210);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    final saved = await SharedPreferences.getInstance();
+    expect(
+      saved.getDouble('chat.keyboardRest'),
+      closeTo(210 / tester.view.devicePixelRatio, 0.01),
+    );    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a new app start knows where the keyboard will stop', (
+    tester,
+  ) async {
+    // What the last run left behind: the keyboard's resting height, in logical
+    // pixels (the harness mounts at a pixel ratio of 1).
+    tester.view.devicePixelRatio = 1;
+    SharedPreferences.setMockInitialValues({'chat.keyboardRest': 210.0});
+    forgetKeyboardRest();
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pumpAndSettle();
+    final open = tester.getRect(find.byType(ChatInputBar)).bottom;
+    expect(find.byType(PageView), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('chat-plus')));
+    await tester.pump();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 210);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 40));
+
+    // The bar is already sliding on the first keyboard frame: nothing waits for
+    // the keyboard to settle before the panel steps out of the way.
+    final sliding = tester.getRect(find.byType(ChatInputBar)).bottom;
+    expect(sliding, greaterThan(open));
+
+    await tester.pumpAndSettle();
+    final done = tester.getRect(find.byType(ChatInputBar)).bottom;
+    // The keyboard is 210 px, the panel 250: the bar ends 40 px lower, and it
+    // was already between the two positions before the keyboard had settled.
+    expect(done, closeTo(open + 40, 0.5));
+    expect(done, greaterThan(sliding));
+    expect(find.byType(PageView), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('only a chat wallpaper puts a plate behind the status', (
+    tester,
+  ) async {
+    void retry() {}
+    await mount(
+      tester,
+      FakeClient(),
+      MessageStatus(status: 'sent', onRetry: retry),
+    );
+    expect(find.text('Đã gửi'), findsOneWidget);
+    expect(find.byType(WallpaperPlate), findsNothing);
+
+    // Over a wallpaper the same label gets a light plate so it stays readable.
+    await mount(
+      tester,
+      FakeClient(),
+      MessageStatus(status: 'sent', onRetry: retry, plated: true),
+    );
+    expect(find.byType(WallpaperPlate), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('the composer stays on the keyboard edge until it is gone', (
+    tester,
+  ) async {
+    await mount(tester, FakeClient(), const ChatScreen(id: 'chat'));
+    addTearDown(tester.view.resetViewInsets);
+    final closed = tester.getRect(find.byType(ChatInputBar)).bottom;
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester.getRect(find.byType(ChatInputBar)).bottom,
+      closeTo(closed - 220, .5),
+    );
+
+    // Closing the keyboard is the same story: on every frame the bar sits on
+    // the keyboard's edge, including the frame where the keyboard has just
+    // gone. Animating that last frame glides the bar down for another beat and
+    // reads as a jolt.
+    for (final bottom in [170.0, 120.0, 60.0, 0.0]) {
+      tester.view.viewInsets = FakeViewPadding(bottom: bottom);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(
+        tester.getRect(find.byType(ChatInputBar)).bottom,
+        closeTo(closed - bottom, .5),
+        reason: 'keyboard at $bottom',
+      );
+    }
+    expect(tester.takeException(), isNull);
+  });
+
   test(
     'cleared messages cannot return from confirmed cache and newer messages survive',
     () async {
@@ -479,3 +841,7 @@ void main() {
     },
   );
 }
+
+
+
+

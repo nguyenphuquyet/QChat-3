@@ -16,17 +16,20 @@ import {
   Hammer,
   Image as ImageIcon,
   Package,
+  RefreshCw,
   Rocket,
   Save,
   Settings,
   Sparkles,
   Terminal,
+  TriangleAlert,
   Wand2,
   X,
   Zap,
 } from "lucide-react";
 import { useStudio } from "../lib/store";
 import { api } from "../lib/api";
+import { useI18n } from "../lib/useI18n";
 import { cn, basename, languageFor, timeAgo } from "../lib/utils";
 import { runAction } from "../lib/feedback";
 import { configureMonaco, monaco } from "../lib/monaco";
@@ -57,44 +60,38 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
   const settings = useStudio((state) => state.settings);
   const detecting = useStudio((state) => state.detecting);
   const desktop = api.isDesktop();
+  const { t, language } = useI18n();
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-auto">
-      <div className="grid-bg pointer-events-none absolute inset-0 opacity-40" />
-      <div className="pointer-events-none absolute -left-24 -top-32 h-[420px] w-[420px] rounded-full bg-accent-600/[0.13] blur-[100px]" />
-      <div className="pointer-events-none absolute right-0 top-1/3 h-[360px] w-[360px] rounded-full bg-mint-500/[0.06] blur-[110px]" />
-
+    <div className="relative flex h-full min-h-0 flex-col overflow-auto bg-studio-950">
       <div className="relative z-10 mx-auto flex w-full max-w-[1100px] flex-1 flex-col justify-center px-10 py-10">
         <div className="grid gap-10 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="animate-slide-up">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent-500/25 bg-accent-500/[0.08] px-3 py-1 text-[10px] font-semibold tracking-wide text-accent-300">
+            <div className="mb-5 inline-flex items-center gap-2 rounded border border-accent-500/30 bg-accent-500/[0.08] px-3 py-1 text-[10px] font-semibold tracking-wide text-accent-300">
               <Sparkles size={12} />
-              QCHAT MINI APP PLATFORM · SDK 1.0
+              {t("welcome.badge")}
             </div>
             <h1 className="max-w-[600px] text-[42px] font-semibold leading-[1.06] tracking-[-0.035em] text-white">
-              Build mini apps.
+              {t("welcome.hero1")}
               <br />
-              <span className="gradient-text">Run them natively.</span>
+              <span className="gradient-text">{t("welcome.hero2")}</span>
             </h1>
             <p className="mt-4 max-w-[500px] text-[13.5px] leading-6 text-studio-400">
-              A focused desktop studio for TSX mini apps. Compile with the real
-              QChat CLI, inspect immutable{" "}
-              <span className="font-mono text-[12px] text-studio-300">.japp</span>{" "}
-              packages, and ship a bundle that renders as real Flutter widgets.
+              {t("welcome.desc")}
             </p>
 
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               <button className="btn btn-primary h-9 px-4 text-[12px]" onClick={commands.newProject}>
-                <FilePlus2 size={15} /> New mini app
+                <FilePlus2 size={15} /> {t("welcome.new")}
               </button>
               <button className="btn btn-secondary h-9 px-4 text-[12px]" onClick={commands.openProject}>
-                <FolderOpen size={15} /> Open project
+                <FolderOpen size={15} /> {t("welcome.open")}
               </button>
               <button
                 className="btn btn-ghost h-9 px-3 text-[11px]"
                 onClick={commands.palette}
               >
-                <Command size={14} /> Commands
+                <Command size={14} /> {t("welcome.commands")}
                 <span className="kbd ml-1">Ctrl K</span>
               </button>
             </div>
@@ -102,25 +99,27 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
             <div className="mt-9">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-[9.5px] font-semibold tracking-[0.16em] text-studio-500">
-                  RECENT PROJECTS
+                  {t("welcome.recent")}
                 </span>
                 {recent.length ? (
-                  <span className="text-[9px] text-studio-600">{recent.length} saved</span>
+                  <span className="text-[9px] text-studio-600">
+                    {t("welcome.savedCount", { count: recent.length })}
+                  </span>
                 ) : null}
               </div>
               {recent.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/[0.09] bg-white/[0.015] px-4 py-5 text-[11px] leading-5 text-studio-500">
-                  No recent projects yet. Create your first mini app to see it here.
+                <div className="rounded border border-dashed border-white/[0.09] bg-white/[0.015] px-4 py-5 text-[11px] leading-5 text-studio-500">
+                  {t("welcome.noRecent")}
                 </div>
               ) : (
-                <div className="divide-y divide-white/[0.05] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.02]">
+                <div className="divide-y divide-white/[0.05] overflow-hidden rounded border border-white/[0.07] bg-white/[0.02]">
                   {recent.slice(0, 4).map((item) => (
                     <button
                       key={item.path}
                       className="group flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/[0.045]"
                       onClick={() => void runAction(() => openProject(item.path))}
                     >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[0.07] bg-gradient-to-br from-accent-500/20 to-cyan-400/10 text-[10px] font-bold text-accent-200">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-white/[0.07] bg-accent-500/15 text-[10px] font-bold text-accent-300">
                         {item.name.slice(0, 2).toUpperCase()}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -137,7 +136,7 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                         </span>
                       </span>
                       <span className="shrink-0 text-[9px] text-studio-600">
-                        {timeAgo(item.openedAt)}
+                        {timeAgo(item.openedAt, language)}
                       </span>
                       <ChevronRight
                         size={14}
@@ -151,15 +150,14 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
           </div>
 
           <div className="space-y-3 animate-slide-up" style={{ animationDelay: "70ms" }}>
-            <div className="panel relative overflow-hidden rounded-2xl p-4 shadow-panel">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent-500/10 blur-2xl" />
+            <div className="panel relative overflow-hidden rounded p-4">
               <div className="flex items-center justify-between">
                 <span className="text-[9.5px] font-semibold tracking-[0.16em] text-studio-500">
-                  WORKSPACE STATUS
+                  {t("welcome.status")}
                 </span>
                 <span
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold",
+                    "flex items-center gap-1.5 rounded px-2 py-0.5 text-[9px] font-semibold",
                     cli?.ready
                       ? "bg-mint-400/10 text-mint-400"
                       : "bg-amber-400/10 text-amber-300",
@@ -171,46 +169,48 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                       cli?.ready ? "bg-mint-400" : "bg-amber-400",
                     )}
                   />
-                  {detecting ? "Detecting" : cli?.ready ? "Ready" : "Needs setup"}
+                  {detecting
+                    ? t("welcome.detecting")
+                    : cli?.ready
+                      ? t("welcome.ready")
+                      : t("welcome.needsSetup")}
                 </span>
               </div>
 
               <div className="mt-3 space-y-2.5">
                 <StatusRow
                   icon={<Terminal size={12} />}
-                  label="QChat CLI"
-                  value={cli?.cliVersion || "Not detected"}
+                  label={t("welcome.cli")}
+                  value={cli?.cliVersion || t("common.notDetected")}
                   ok={Boolean(cli?.ready)}
                 />
                 <StatusRow
                   icon={<Cpu size={12} />}
-                  label="Node runtime"
-                  value={cli?.nodeVersion || "Not detected"}
+                  label={t("welcome.node")}
+                  value={cli?.nodeVersion || t("common.notDetected")}
                   ok={Boolean(cli?.nodeVersion)}
                 />
                 <StatusRow
                   icon={<Braces size={12} />}
-                  label="TypeScript"
-                  value="5.9 · strict"
+                  label={t("welcome.ts")}
+                  value={t("welcome.tsValue")}
                   ok={Boolean(cli?.ready)}
                 />
                 <StatusRow
                   icon={<Boxes size={12} />}
-                  label="Packages"
-                  value=".japp · schema v2"
+                  label={t("welcome.packages")}
+                  value={t("welcome.packagesValue")}
                   ok
                 />
               </div>
 
               {!desktop ? (
-                <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
-                  Browser preview. Start the desktop runtime with{" "}
-                  <span className="font-mono text-[9.5px]">corepack pnpm tauri dev</span>{" "}
-                  to connect the CLI and filesystem.
+                <div className="mt-3 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
+                  {t("welcome.browserWarning")}
                 </div>
               ) : !cli?.ready ? (
-                <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
-                  {cli?.error || "Point Studio at your QChat CLI in Settings."}
+                <div className="mt-3 rounded border border-amber-400/20 bg-amber-400/[0.06] p-2.5 text-[10px] leading-4 text-amber-200/90">
+                  {cli?.error || t("welcome.cliMissing")}
                 </div>
               ) : null}
 
@@ -219,30 +219,30 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                   className="btn btn-secondary h-7 flex-1 text-[10px]"
                   onClick={commands.settings}
                 >
-                  <Settings size={11} /> Configure
+                  <Settings size={11} /> {t("welcome.configure")}
                 </button>
                 <button
                   className="btn btn-secondary h-7 px-2 text-[10px]"
                   onClick={() => void useStudio.getState().detect()}
                 >
-                  <Zap size={11} /> Detect
+                  <Zap size={11} /> {t("welcome.detect")}
                 </button>
               </div>
             </div>
 
-            <div className="panel rounded-2xl p-4">
+            <div className="panel rounded p-4">
               <div className="flex items-center gap-2">
                 <Rocket size={14} className="text-mint-400" />
-                <span className="text-[11.5px] font-semibold text-studio-100">Three steps to ship</span>
+                <span className="text-[11.5px] font-semibold text-studio-100">{t("welcome.steps")}</span>
               </div>
               <div className="mt-3 space-y-2.5">
                 {[
-                  ["Create", "Scaffold a TSX project with the CLI."],
-                  ["Build", "Typecheck, bundle and verify the .japp."],
-                  ["Release", "Upload in Developer Center and open in QChat."],
+                  [t("welcome.stepCreate"), t("welcome.stepCreateDetail")],
+                  [t("welcome.stepBuild"), t("welcome.stepBuildDetail")],
+                  [t("welcome.stepRelease"), t("welcome.stepReleaseDetail")],
                 ].map(([title, detail], index) => (
                   <div key={title} className="flex items-start gap-2.5">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-white/[0.08] bg-white/[0.04] font-mono text-[9px] text-studio-300">
+                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-white/[0.08] bg-white/[0.04] font-mono text-[9px] text-studio-300">
                       {index + 1}
                     </span>
                     <span>
@@ -253,14 +253,10 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
                 ))}
               </div>
               <button
-                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.025] py-1.5 text-[10px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
-                onClick={() =>
-                  void api.openUrl(
-                    "https://github.com/nguyenphuquyet/QChat-3/blob/main/docs/MINIAPPS.md",
-                  )
-                }
+                className="mt-3 flex w-full items-center justify-center gap-1.5 rounded border border-white/[0.07] bg-white/[0.025] py-1.5 text-[10px] font-medium text-studio-300 transition hover:border-white/15 hover:text-white"
+                onClick={() => commands.docs("miniapps")}
               >
-                Read the mini app guide <ArrowRight size={11} />
+                {t("welcome.guide")} <ArrowRight size={11} />
               </button>
             </div>
           </div>
@@ -269,18 +265,18 @@ export function Welcome({ commands }: { commands: StudioCommands }) {
         <div className="mt-9 grid gap-2 border-t border-white/[0.055] pt-5 sm:grid-cols-3">
           <MiniFeature
             icon={<Hammer size={13} />}
-            title="Real compiler"
-            detail="esbuild + strict TypeScript"
+            title={t("welcome.featCompiler")}
+            detail={t("welcome.featCompilerDetail")}
           />
           <MiniFeature
             icon={<Package size={13} />}
-            title="Immutable package"
-            detail="Checksums and safe paths"
+            title={t("welcome.featPackage")}
+            detail={t("welcome.featPackageDetail")}
           />
           <MiniFeature
             icon={<Cpu size={13} />}
-            title="Native runtime"
-            detail="QuickJS → Flutter widgets"
+            title={t("welcome.featRuntime")}
+            detail={t("welcome.featRuntimeDetail")}
           />
         </div>
       </div>
@@ -321,8 +317,8 @@ function MiniFeature({
   detail: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.03] text-accent-300">
+    <div className="flex items-center gap-2.5 rounded px-2 py-1.5">
+      <span className="flex h-7 w-7 items-center justify-center rounded border border-white/[0.06] bg-white/[0.03] text-accent-300">
         {icon}
       </span>
       <span>
@@ -345,7 +341,10 @@ export function EditorArea() {
   const setActive = useStudio((state) => state.setActive);
   const setCursor = useStudio((state) => state.setCursor);
   const openFile = useStudio((state) => state.openFile);
+  const reloadTabFromDisk = useStudio((state) => state.reloadTabFromDisk);
+  const dismissExternalChange = useStudio((state) => state.dismissExternalChange);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const { t } = useI18n();
 
   const active = useMemo(
     () => tabs.find((tab) => tab.path === activePath) ?? null,
@@ -389,7 +388,7 @@ export function EditorArea() {
       <div className="flex h-[38px] shrink-0 items-stretch overflow-x-auto border-b border-white/[0.06] bg-studio-950/35">
         {tabs.length === 0 ? (
           <div className="flex items-center px-3 text-[10.5px] text-studio-500">
-            No file open
+            {t("editor.noFile")}
           </div>
         ) : (
           tabs.map((tab) => {
@@ -404,6 +403,17 @@ export function EditorArea() {
               >
                 <TabIcon language={tab.language} />
                 <span className="truncate">{tab.name}</span>
+                {tab.missing ? (
+                  <span
+                    className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400"
+                    title={t("sync.missingShort")}
+                  />
+                ) : tab.externalChange ? (
+                  <span
+                    className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"
+                    title={t("sync.conflictShort")}
+                  />
+                ) : null}
                 {tabDirty ? (
                   <span className="ml-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-400" />
                 ) : null}
@@ -425,7 +435,7 @@ export function EditorArea() {
             className="icon-btn h-6 w-6"
             onClick={() => void saveActive()}
             disabled={!active || !dirty}
-            title="Save (Ctrl+S)"
+            title={t("editor.save")}
           >
             <Save size={13} className={cn(dirty && "text-accent-300")} />
           </button>
@@ -435,12 +445,52 @@ export function EditorArea() {
               editorRef.current?.getAction("editor.action.formatDocument")?.run();
             }}
             disabled={!active}
-            title="Format document"
+            title={t("editor.format")}
           >
             <Wand2 size={13} />
           </button>
         </div>
       </div>
+
+      {active && (active.externalChange || active.missing) ? (
+        <div
+          className={cn(
+            "flex h-8 shrink-0 items-center gap-2 border-b px-3 text-[10px]",
+            active.missing
+              ? "border-rose-400/20 bg-rose-400/[0.07] text-rose-200"
+              : "border-amber-300/20 bg-amber-300/[0.06] text-amber-100",
+          )}
+        >
+          <TriangleAlert size={11} />
+          <span className="truncate">
+            {active.missing ? t("sync.missing") : t("sync.conflict")}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
+            <button
+              className="btn btn-secondary h-6 px-2 text-[9.5px]"
+              onClick={() => void reloadTabFromDisk(active.path)}
+            >
+              <RefreshCw size={10} /> {t("sync.reload")}
+            </button>
+            {active.missing ? (
+              <button
+                className="btn btn-primary h-6 px-2 text-[9.5px]"
+                onClick={() => void saveFile(active.path)}
+                disabled={!dirty}
+              >
+                <Save size={10} /> {t("sync.saveAgain")}
+              </button>
+            ) : (
+              <button
+                className="btn btn-ghost h-6 px-2 text-[9.5px]"
+                onClick={() => dismissExternalChange(active.path)}
+              >
+                {t("sync.keepMine")}
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
 
       {active ? (
         <>
@@ -457,11 +507,11 @@ export function EditorArea() {
             <span className="ml-auto flex items-center gap-2 text-[9px]">
               {dirty ? (
                 <span className="flex items-center gap-1 text-amber-300/90">
-                  <span className="h-1 w-1 rounded-full bg-amber-300" /> Unsaved
+                  <span className="h-1 w-1 rounded-full bg-amber-300" /> {t("common.unsaved")}
                 </span>
               ) : (
                 <span className="flex items-center gap-1 text-studio-500">
-                  <Check size={9} className="text-mint-400" /> Saved
+                  <Check size={9} className="text-mint-400" /> {t("common.saved")}
                 </span>
               )}
               <span className="font-mono text-studio-500">{languageFor(active.path)}</span>
@@ -473,12 +523,12 @@ export function EditorArea() {
               path={active.path}
               language={active.language}
               value={active.content}
-              theme="qchat-studio"
+              theme={settings.theme === "light" ? "qchat-studio-light" : "qchat-studio"}
               onMount={onMount}
               onChange={(value) => updateTab(active.path, value ?? "")}
               loading={
                 <div className="flex h-full items-center justify-center gap-2 text-[11px] text-studio-500">
-                  <Spinner /> Loading editor…
+                  <Spinner /> {t("common.loadingEditor")}
                 </div>
               }
               options={{
@@ -522,16 +572,17 @@ function EmptyEditor() {
   const tree = useStudio((state) => state.tree);
   const openFile = useStudio((state) => state.openFile);
   const buildProject = useStudio((state) => state.buildProject);
+  const { t } = useI18n();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 bg-studio-900/20 p-8">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/[0.08] bg-gradient-to-br from-accent-500/15 to-cyan-400/5 text-accent-300">
+      <div className="flex h-14 w-14 items-center justify-center rounded border border-white/[0.08] bg-accent-500/10 text-accent-300">
         <FileCode2 size={24} />
       </div>
       <div className="text-center">
-        <div className="text-[13px] font-semibold text-studio-200">No editor open</div>
+        <div className="text-[13px] font-semibold text-studio-200">{t("editor.noEditor")}</div>
         <div className="mt-1 text-[11px] text-studio-500">
-          Choose a file from the explorer or open the app entry point.
+          {t("editor.choose")}
         </div>
       </div>
       <div className="flex gap-2">
@@ -543,15 +594,15 @@ function EmptyEditor() {
               if (entry) void openFile(entry.path);
             }}
           >
-            <FileCode2 size={12} /> Open src/main.tsx
+            <FileCode2 size={12} /> {t("editor.openMain")}
           </button>
         ) : null}
         <button
           className="btn btn-secondary h-7 text-[10.5px]"
-          onClick={() => void runAction(() => buildProject(false), "Package built")}
+          onClick={() => void runAction(() => buildProject(false), t("common.packageBuilt"))}
           disabled={!project}
         >
-          <Hammer size={12} /> Build project
+          <Hammer size={12} /> {t("editor.buildProject")}
         </button>
       </div>
     </div>

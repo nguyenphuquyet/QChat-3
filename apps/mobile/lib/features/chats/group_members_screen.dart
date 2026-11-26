@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/detail_page.dart';
@@ -33,6 +34,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
   String? error;
   final searchController = TextEditingController();
   String query = '';
+  int tab = 0;
   StreamSubscription<void>? updates;
 
   @override
@@ -103,7 +105,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
                     shrinkWrap: true,
                     children: [
                       for (final f in available)
-                        TCell(
+                        QChatCell(
                           title: Text(f['friend']['nickname']),
                           image: UserAvatar(f['friend'], size: 42),
                           onTap: () =>
@@ -239,117 +241,123 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
         .where((m) => ['OWNER', 'ADMIN'].contains(m['role']))
         .toList();
 
-    return DefaultTabController(
-      length: 2,
-      child: DetailPage(
-        title: tr(c, 'groupMembers'),
-        glassHeader: false,
-        child: Column(
-          children: [
-            Container(
-              color: surface(c),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Container(
-                height: 34,
-                decoration: BoxDecoration(
-                  color: Theme.of(c).brightness == Brightness.dark
-                      ? const Color(0xff2c2c2c)
-                      : const Color(0xfff0f0f0),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: TextField(
-                  controller: searchController,
-                  onChanged: (v) => setState(() => query = v),
-                  decoration: InputDecoration(
-                    hintText: tr(c, 'searchMembers'),
-                    hintStyle: const TextStyle(
+    return DetailPage(
+      title: tr(c, 'groupMembers'),
+      glassHeader: false,
+      child: Column(
+        children: [
+          Container(
+            color: surface(c),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Container(
+              height: 34,
+              decoration: BoxDecoration(
+                color: qchatDark(c)
+                    ? const Color(0xff2c2c2c)
+                    : const Color(0xfff0f0f0),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CupertinoTextField(
+                    controller: searchController,
+                    onChanged: (v) => setState(() => query = v),
+                    padding: const EdgeInsets.fromLTRB(32, 4, 30, 4),
+                    placeholder: tr(c, 'searchMembers'),
+                    placeholderStyle: const TextStyle(
                       fontSize: 14,
                       color: QChatColors.muted,
                     ),
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      size: 20,
-                      color: QChatColors.muted,
+                    cursorColor: QChatColors.green,
+                    style: TextStyle(fontSize: 14, color: ink(c)),
+                    decoration: const BoxDecoration(
+                      color: QChatColors.transparent,
                     ),
-                    suffixIcon: query.isNotEmpty
-                        ? GestureDetector(
-                            onTap: () {
-                              searchController.clear();
-                              setState(() => query = '');
-                            },
-                            child: const Icon(
-                              Icons.close,
-                              size: 18,
-                              color: QChatColors.muted,
-                            ),
-                          )
-                        : null,
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 6),
-                    isDense: true,
                   ),
-                ),
-              ),
-            ),
-            Container(
-              color: surface(c),
-              child: TabBar(
-                labelColor: QChatColors.primary,
-                unselectedLabelColor: QChatColors.muted,
-                indicatorColor: QChatColors.primary,
-                indicatorWeight: 2.5,
-                tabs: [
-                  Tab(text: '${tr(c, 'allMembers')} (${members.length})'),
-                  Tab(
-                    text:
-                        '${tr(c, 'admins')} (${members.where((m) => ['OWNER', 'ADMIN'].contains(m['role'])).length})',
+                  const Positioned(
+                    left: 10,
+                    child: IgnorePointer(
+                      child: QChatIcon(
+                        'search',
+                        size: 16,
+                        color: QChatColors.muted,
+                      ),
+                    ),
                   ),
+                  if (query.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          searchController.clear();
+                          setState(() => query = '');
+                        },
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: QChatIcon(
+                            'close',
+                            size: 14,
+                            color: QChatColors.muted,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-            const Divider(height: 1, thickness: 0.5),
+          ),
+          Container(
+            color: surface(c),
+            child: QChatTabBar(
+              index: tab,
+              onChanged: (value) => setState(() => tab = value),
+              labels: [
+                '${tr(c, 'allMembers')} (${members.length})',
+                '${tr(c, 'admins')} (${members.where((m) => ['OWNER', 'ADMIN'].contains(m['role'])).length})',
+              ],
+            ),
+          ),
+          Container(height: .5, color: qchatLine(c)),
+          Padding(
+            padding: const EdgeInsets.all(8),
+            child: Text(
+              '${tr(c, 'adminSlots')}: ${members.where((m) => m['role'] == 'ADMIN').length}/3',
+              style: const TextStyle(fontSize: 12, color: QChatColors.muted),
+            ),
+          ),
+          if (error != null)
             Padding(
               padding: const EdgeInsets.all(8),
               child: Text(
-                '${tr(c, 'adminSlots')}: ${members.where((m) => m['role'] == 'ADMIN').length}/3',
-                style: const TextStyle(fontSize: 12, color: QChatColors.muted),
-              ),
-            ),
-            if (error != null)
-              Padding(
-                padding: const EdgeInsets.all(8),
-                child: Text(
-                  error!,
-                  style: const TextStyle(
-                    color: QChatColors.danger,
-                    fontSize: 13,
-                  ),
+                error!,
+                style: const TextStyle(
+                  color: QChatColors.danger,
+                  fontSize: 13,
                 ),
               ),
-            Expanded(
-              child: loading && conversation == null
-                  ? const QChatLoading()
-                  : TabBarView(
-                      children: [
-                        _buildMemberList(
-                          c,
-                          filtered,
-                          canManage: canManage,
-                          currentUserId: client.userId,
-                          showAddButton: canManage && query.isEmpty,
-                        ),
-                        _buildMemberList(
-                          c,
-                          admins,
-                          canManage: canManage,
-                          currentUserId: client.userId,
-                          showAddButton: false,
-                        ),
-                      ],
-                    ),
             ),
-          ],
-        ),
+          Expanded(
+            child: loading && conversation == null
+                ? const QChatLoading()
+                : tab == 0
+                ? _buildMemberList(
+                    c,
+                    filtered,
+                    canManage: canManage,
+                    currentUserId: client.userId,
+                    showAddButton: canManage && query.isEmpty,
+                  )
+                : _buildMemberList(
+                    c,
+                    admins,
+                    canManage: canManage,
+                    currentUserId: client.userId,
+                    showAddButton: false,
+                  ),
+          ),
+        ],
       ),
     );
   }
@@ -378,7 +386,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
         if (showAddButton)
           Container(
             color: surface(c),
-            child: TCell(
+            child: QChatCell(
               image: Container(
                 width: 42,
                 height: 42,
@@ -387,7 +395,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
                   shape: BoxShape.circle,
                 ),
                 child: const Center(
-                  child: TIcon(
+                  child: Icon(
                     TIcons.add,
                     color: QChatColors.primary,
                     size: 22,
@@ -407,7 +415,7 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
         for (final m in list)
           Container(
             color: surface(c),
-            child: TCell(
+            child: QChatCell(
               image: UserAvatar(m['user'], size: 42),
               title: Text(
                 m['user']?['nickname'] ?? '',
@@ -427,14 +435,12 @@ class _GroupMembersScreenState extends ConsumerState<GroupMembersScreen> {
                           m['role'] == 'MEMBER') &&
                       m['role'] != 'OWNER' &&
                       m['userId'] != currentUserId
-                  ? IconButton(
-                      icon: const Icon(
-                        Icons.more_horiz,
-                        color: QChatColors.muted,
-                        size: 20,
-                      ),
-                      tooltip: tr(c, 'manageMember'),
-                      onPressed: managing ? null : () => manageMember(m),
+                  ? QChatIconButton(
+                      'more',
+                      label: tr(c, 'manageMember'),
+                      color: QChatColors.muted,
+                      size: 20,
+                      onTap: managing ? null : () => manageMember(m),
                     )
                   : null,
               onTap: () => c.push('/user/${m['userId']}'),

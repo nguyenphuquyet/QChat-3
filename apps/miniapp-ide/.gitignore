@@ -4,5 +4,6 @@ src-tauri/target
 src-tauri/gen
 src-tauri/resources/qapp
 src-tauri/resources/node
+src-tauri/resources/types
 *.local
 .DS_Store

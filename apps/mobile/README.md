@@ -1,17 +1,36 @@
-# qchat
+# QChat mobile
 
-A new Flutter project.
+Flutter client for QChat.
 
-## Getting Started
+## UI rules — no Google Material
 
-This project is a starting point for a Flutter application.
+This app does **not** use Google's Material design language. There is no
+`MaterialApp`, no Material theme, and no Material widget. Every screen is drawn by
+the QChat design system.
 
-A few resources to get you started if this is your first Flutter project:
+Read [`AGENTS.md`](AGENTS.md) before changing any UI code. It lists the forbidden
+APIs, the QChat replacements, and the checks to run before committing.
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Quick rules:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Never import `package:flutter/material.dart`.
+- Never use `MaterialApp`, `Scaffold`, `AppBar`, `ThemeData`, `ColorScheme`,
+  `Colors.*`, `Icons.*`, Material buttons/inputs/spinners/ripples/sheets/dialogs.
+- Keep `uses-material-design: false` in `pubspec.yaml`.
+- Reuse `lib/core/design_system/components.dart`; add a new `QChat*` widget if
+  something is missing.
+- Tests use `qchatHarness` / `qchatRouterHarness` from `test/test_app.dart`.
+
+## Run
+
+```sh
+flutter pub get
+flutter run
+```
+
+## Verify
+
+```sh
+flutter analyze --no-pub
+flutter test --no-pub
+```

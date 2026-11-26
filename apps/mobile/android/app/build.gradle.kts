@@ -4,19 +4,30 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Firebase reads its project configuration from google-services.json, which is
+// not in the repository because it belongs to one Firebase project. The plugin
+// fails the build when the file is missing, so it is applied only once somebody
+// has dropped it in. Without it the app still builds and runs; the Flutter side
+// skips Firebase initialization (see lib/core/notifications/push_notifications.dart).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
-    namespace = "com.qchat.qchat"
+    namespace = "com.nguyenphuquyet.chat"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // flutter_local_notifications uses java.time on every supported API
+        // level, which needs desugaring on older Android releases.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.qchat.qchat"
+        applicationId = "com.nguyenphuquyet.chat"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
@@ -42,6 +53,10 @@ kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 
 flutter {

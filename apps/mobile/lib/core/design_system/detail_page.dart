@@ -1,8 +1,9 @@
-import 'package:tdesign_flutter/tdesign_flutter.dart';
-import 'components.dart';
-import 'qchat_glass.dart';
+import 'package:flutter/widgets.dart';
 
-/// Shared TDesign navigation, retaining QChat's system-bar handling.
+import '../localization/strings.dart';
+import 'components.dart';
+
+/// Shared QChat navigation page with an optional back button.
 class DetailPage extends StatelessWidget {
   const DetailPage({
     super.key,
@@ -16,67 +17,16 @@ class DetailPage extends StatelessWidget {
   final bool whiteHeader;
   final bool glassHeader;
 
-  Widget _navBar(BuildContext c) => Theme(
-    data: Theme.of(c).copyWith(
-      extensions: [
-        ...Theme.of(c).extensions.values.where((e) => e is! TNavBarThemeData),
-        TNavBarThemeData(
-          backgroundColor: glassHeader
-              ? Colors.transparent
-              : whiteHeader
-              ? surface(c)
-              : Theme.of(c).scaffoldBackgroundColor,
-        ),
-      ],
-    ),
-    child: TNavBar(title: Text(title), height: 54, useDefaultBack: true),
-  );
-
   @override
-  Widget build(BuildContext c) {
-    if (!glassHeader) {
-      return QChatPage(
-        statusBackground: whiteHeader ? surface(c) : null,
-        child: Column(
-          children: [
-            _navBar(c),
-            Expanded(child: child),
-          ],
-        ),
-      );
-    }
-    final media = MediaQuery.of(c);
-    final barColor = whiteHeader
-        ? surface(c)
-        : Theme.of(c).scaffoldBackgroundColor;
-    final inset = media.padding.top + 54;
-    return QChatPage(
-      edgeToEdge: true,
-      child: Stack(
-        children: [
-          // The list keeps a MediaQuery inset instead of being pushed down,
-          // so rows scroll under the floating bar.
-          Positioned.fill(
-            child: MediaQuery(
-              data: media.copyWith(
-                padding: media.padding.copyWith(top: inset, left: 0, right: 0),
-                viewPadding: media.viewPadding.copyWith(top: inset),
-              ),
-              child: child,
-            ),
-          ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: QChatGlass(
-              color: barColor,
-              opacity: .88,
-              child: SafeArea(bottom: false, child: _navBar(c)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext c) => QChatPage(
+    title: title,
+    glassHeader: glassHeader,
+    statusBackground: whiteHeader ? surface(c) : null,
+    leading: QChatIconButton(
+      'back',
+      label: tr(c, 'back'),
+      onTap: () => Navigator.maybePop(c),
+    ),
+    child: child,
+  );
 }

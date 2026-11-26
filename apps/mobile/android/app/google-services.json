@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "998987405915",
+    "project_id": "qchat-6dd06",
+    "storage_bucket": "qchat-6dd06.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:998987405915:android:62cf7c44ff64ae00597d7e",
+        "android_client_info": {
+          "package_name": "com.nguyenphuquyet.chat"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAu8-Z3KlZfsJH4Y6FJxC5lR251TF9lSkM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

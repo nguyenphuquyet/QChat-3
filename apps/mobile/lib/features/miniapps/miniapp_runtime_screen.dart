@@ -1,22 +1,25 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
 
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
 import '../../core/design_system/dialogs.dart';
-import '../../core/design_system/qchat_animations.dart';
 import '../../core/design_system/reference_widgets.dart';
 import '../../core/localization/strings.dart';
+import '../../core/media/media_picker.dart';
+import '../chats/share_targets.dart';
 import 'miniapp_api.dart';
 import 'miniapp_bridge.dart';
 import 'miniapp_cache.dart';
@@ -25,7 +28,30 @@ import 'models.dart';
 import 'qapp/qapp_js_types.dart';
 import 'qapp/qapp_view.dart';
 
-const miniAppRuntimeVersion = '1.0.0';
+/// The host runtime the app is checked against, and the version reported to the
+/// mini program bridge.
+///
+/// 1.1.0 changed how a scroller's `padding` is drawn: it now insets the content
+/// inside the viewport instead of wrapping (and shrinking) the viewport itself.
+/// An app that depends on the corrected layout declares `minRuntimeVersion`
+/// 1.1.0 so it is never served by a 1.0.0 host, which clips the content one
+/// padding short of the header, the footer and the right edge.
+const miniAppRuntimeVersion = '1.1.0';
+
+/// Failures the launch error view can explain in words. Anything else is a
+/// package, download or platform problem, so the view shows the raw code
+/// instead of pretending to know the reason: it is the only diagnostic a
+/// release build can give a support request.
+const _explainedFailures = {
+  'APP_SUSPENDED',
+  'VERSION_REVOKED',
+  'RUNTIME_TOO_OLD',
+  'UNSUPPORTED_FORMAT',
+  'NOT_PUBLISHED',
+  'UNAUTHORIZED',
+  'NETWORK_ERROR',
+  'CONNECTION_ERROR',
+};
 
 class MiniAppRuntimeScreen extends ConsumerStatefulWidget {
   const MiniAppRuntimeScreen({super.key, required this.appId, this.preview});
@@ -52,7 +78,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
   String? _qappDirectory;
   String _qappKey = '';
   int _qappEpoch = 0;
-  Set<String> _qappNetworkHosts = const {};
   CachedMiniApp? _active;
 
   String _name = '';
@@ -177,21 +202,21 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       final installed = await cache.find(build) ?? await cache.install(build);
       _recordedOpen = false;
       await _startQapp(installed);
-    } on MiniAppException catch (error) {
-      await _handleFailure(error, cache);
     } on MiniAppCacheException catch (error) {
+      debugPrint('[miniapps] install failed: ${error.code}');
       await _telemetry('download_failure', error.code);
       if (!mounted) return;
       setState(() {
         _error = MiniAppException(error.code, message: error.code);
         _loading = false;
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = const MiniAppException('SERVICE_ERROR');
-        _loading = false;
-      });
+    } catch (error, stack) {
+      // `MiniAppException.from` turns a raw DioException into the code the
+      // server sent (NOT_PUBLISHED, VERSION_REVOKED, NETWORK_ERROR, â€¦). Without
+      // it every API failure was reported as a generic SERVICE_ERROR, which hid
+      // both the reason and the offline fallback to an installed version.
+      debugPrint('[miniapps] launch failed: $error\n$stack');
+      await _handleFailure(MiniAppException.from(error), cache);
     }
   }
 
@@ -227,6 +252,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
           : 'download_failure',
       error.code,
     );
+    debugPrint('[miniapps] launch failed: ${error.code}');
     if (!mounted) return;
     setState(() {
       _error = error;
@@ -249,10 +275,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       _cacheRoot ?? p.dirname(p.dirname(p.dirname(cached.directory))),
       widget.appId,
     );
-    final prefs = await SharedPreferences.getInstance();
-    final granted =
-        prefs.getStringList('miniapp.permissions.${widget.appId}')?.toSet() ??
-        <String>{};
+    final granted = await _grantedPermissions();
     if (!mounted || _closed) return;
 
     final controller = QappViewController();
@@ -267,8 +290,8 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       api: _api!,
       storage: storage,
       granted: granted,
-      networkDomains: cached.manifest.networkDomains,
       requestPermission: _requestPermission,
+      onChooseImage: _chooseImage,
       onToast: _showToast,
       onShare: _share,
       onNavigate: (path) async {
@@ -285,11 +308,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     setState(() {
       _qappController = controller;
       _qappDirectory = cached.directory;
-      _qappKey =
-          '${cached.appId}@${cached.version}#${++_qappEpoch}';
-      _qappNetworkHosts = cached.manifest.networkDomains
-          .map((domain) => domain.toLowerCase())
-          .toSet();
+      _qappKey = '${cached.appId}@${cached.version}#${++_qappEpoch}';
     });
     _revealTimer?.cancel();
     // The native runtime normally paints within a few frames. The timeout only
@@ -320,6 +339,72 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       );
     } catch (_) {
       // Analytics must never break the runtime.
+    }
+  }
+
+  /// File that remembers which permissions this mini program was granted.
+  ///
+  /// A plain file, not `shared_preferences`: the prompt has to survive a
+  /// restart, and device preferences are the one store that can be missing (a
+  /// stale native plugin made exactly this write fail, so Android asked for
+  /// `storage` again on every single open). The file lives next to the app's own
+  /// storage, outside the directory the mini program can read.
+  File? _grantsFile() {
+    final root = _cacheRoot;
+    if (root == null) return null;
+    return File(p.join(root, 'grants', '${widget.appId}.json'));
+  }
+
+  /// Permissions the user already granted to this mini program.
+  ///
+  /// Nothing here is allowed to stop a mini program from opening: a missing or
+  /// unreadable file only means that nothing was granted yet.
+  Future<Set<String>> _grantedPermissions() async {
+    final file = _grantsFile();
+    if (file == null) return <String>{};
+    try {
+      if (await file.exists()) {
+        final raw = jsonDecode(await file.readAsString());
+        if (raw is List) {
+          return raw.map((value) => value.toString()).toSet();
+        }
+        return <String>{};
+      }
+    } catch (error) {
+      debugPrint('[miniapps] grants unreadable: $error');
+      return <String>{};
+    }
+    // First run after the move from preferences: import whatever older builds
+    // managed to save, then keep using the file from here on.
+    final legacy = await _legacyGrants();
+    if (legacy.isNotEmpty) await _saveGrants(legacy);
+    return legacy;
+  }
+
+  Future<Set<String>> _legacyGrants() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs
+              .getStringList('miniapp.permissions.${widget.appId}')
+              ?.toSet() ??
+          <String>{};
+    } catch (error) {
+      debugPrint('[miniapps] preferences unavailable: $error');
+      return <String>{};
+    }
+  }
+
+  Future<void> _saveGrants(Set<String> granted) async {
+    final file = _grantsFile();
+    if (file == null) return;
+    try {
+      await file.parent.create(recursive: true);
+      await file.writeAsString(
+        jsonEncode(granted.toList()..sort()),
+        flush: true,
+      );
+    } catch (error) {
+      debugPrint('[miniapps] grants not saved: $error');
     }
   }
 
@@ -393,78 +478,200 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       ],
     );
     if (allowed != true) return false;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final granted =
-          prefs.getStringList('miniapp.permissions.${widget.appId}')?.toSet() ??
-          <String>{};
-      granted.add(permission);
-      await prefs.setStringList(
-        'miniapp.permissions.${widget.appId}',
-        granted.toList()..sort(),
-      );
-    } catch (_) {
-      // The grant still applies for this session.
-    }
+    final granted = await _grantedPermissions();
+    granted.add(permission);
+    await _saveGrants(granted);
     return true;
   }
 
   void _showToast(String message, String icon) {
     if (!mounted) return;
-    TToast.showText(
+    showQChatToast(
+      context,
       message,
-      context: context,
-      placement: TToastPlacement.bottom,
       duration: const Duration(milliseconds: 2200),
     );
   }
 
+  /// Reserved sheet results so a copy can be told apart from a chat id.
+  static const _copyResult = 'share:copy';
+  static const _linkResult = 'share:link';
+
+  /// `share`: the same share panel the chat uses. The text can go to a
+  /// conversation through the forward picker, or to the clipboard.
   Future<bool> _share(String text, String url, String title) async {
     if (!mounted) return false;
-    final body = [text, url].where((part) => part.isNotEmpty).join('\n');
-    final copied = await showQChatSheet<bool>(
+    final client = ref.read(clientProvider);
+    final content = _ShareContent(text: text, url: url, title: title);
+    var chats = <dynamic>[];
+    try {
+      chats = await client.get('/conversations', cached: false) as List;
+    } catch (_) {}
+    if (!mounted) return false;
+    final selfId = client.userId ?? '';
+    final picked = await showQChatShareSheet(
       context,
-      (sheet) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              title.isEmpty ? tr(sheet, 'miniAppsShareTitle') : title,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(sheet).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(body, style: const TextStyle(fontSize: 14)),
-            ),
-            const SizedBox(height: 16),
-            QChatButton(
-              tr(sheet, 'miniAppsShareCopy'),
-              onTap: () async {
-                await Clipboard.setData(ClipboardData(text: body));
-                if (sheet.mounted) Navigator.pop(sheet, true);
-              },
-            ),
-            const SizedBox(height: 8),
-            QChatButton(
-              tr(sheet, 'miniAppsDeny'),
-              secondary: true,
-              onTap: () => Navigator.pop(sheet, false),
-            ),
-          ],
+      title: title.isEmpty ? tr(context, 'miniAppsShareTitle') : title,
+      targets: [
+        for (final chat in chats.take(8))
+          conversationShareTarget(chat as Map, selfId),
+      ],
+      onAdd: () => _shareToChat(content, chats),
+      actions: [
+        QChatShareAction(
+          icon: 'share',
+          label: tr(context, 'sendToChat'),
+          color: QChatColors.green,
+          onTap: () => _shareToChat(content, chats),
         ),
-      ),
+        QChatShareAction(
+          icon: 'copy',
+          label: tr(context, 'miniAppsShareCopy'),
+          color: const Color(0xff168fe5),
+          result: _copyResult,
+        ),
+        if (url.isNotEmpty)
+          QChatShareAction(
+            icon: 'miniApps',
+            label: tr(context, 'copyLink'),
+            color: const Color(0xff8a63d2),
+            result: _linkResult,
+          ),
+        QChatShareAction(
+          icon: 'heart',
+          label: tr(
+            context,
+            _favorite ? 'miniAppsUnfavorite' : 'miniAppsFavorite',
+          ),
+          color: const Color(0xfff0a020),
+          onTap: _toggleFavorite,
+        ),
+      ],
     );
-    if (copied == true && mounted) {
-      _showToast(tr(context, 'miniAppsCopied'), 'success');
+    if (!mounted) return false;
+    if (picked == _copyResult || picked == _linkResult) {
+      await Clipboard.setData(
+        ClipboardData(text: picked == _linkResult ? url : content.body),
+      );
+      if (mounted) _showToast(tr(context, 'miniAppsCopied'), 'success');
+      return true;
     }
-    return copied == true;
+    if (picked == null) return false;
+    // A quick avatar is a receiver too: it opens the send sheet, not a
+    // straight send, so the note field and the swap arrow are always there.
+    await _confirmShare([picked], chats, content);
+    return true;
+  }
+
+  /// Pick a receiver from the full list, then hand over to the send sheet.
+  Future<void> _shareToChat(_ShareContent content, List chats) async {
+    if (!mounted) return;
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+    final picked = await _pickShares(chats, selfId);
+    if (!mounted || picked == null || picked.isEmpty) return;
+    await _confirmShare(picked, chats, content);
+  }
+
+  /// The send sheet, opened whether the receiver came from a quick avatar on
+  /// the panel or from the full picker. Its card shows what the Mini App
+  /// actually shared — the text and the link — not a fixed program card, so
+  /// two shares from the same app no longer look identical. The user can add a
+  /// note and swap the conversation before anything is sent.
+  Future<void> _confirmShare(
+    List<String> first,
+    List chats,
+    _ShareContent content,
+  ) async {
+    final client = ref.read(clientProvider);
+    final selfId = client.userId ?? '';
+
+    Map? chatById(String id) {
+      for (final chat in chats) {
+        if (chat is Map && chat['id'] == id) return chat;
+      }
+      return null;
+    }
+
+    var ids = first;
+    while (true) {
+      if (!mounted) return;
+      final chat = chatById(ids.first);
+      if (chat == null) return;
+      final result = await showQChatSendConfirmSheet(
+        context,
+        recipient: conversationShareTarget(chat, selfId),
+        extra: ids.length - 1,
+        preview: QChatSendPreview(
+          source: _name,
+          sourceIcon: _ShareCover(iconUrl: _iconUrl, name: _name, size: 12),
+          // The shared text is the card. Only a link without text still gets
+          // the program artwork, because then the link is all there is.
+          title: content.headline,
+          image: content.hasText
+              ? null
+              : _ShareCover(iconUrl: _iconUrl, name: _name),
+          footer: content.url.isEmpty
+              ? tr(context, 'miniProgram')
+              : content.url,
+        ),
+      );
+      if (!mounted || result == null) return;
+      if (result.outcome == QChatSendOutcome.cancelled) return;
+      if (result.outcome == QChatSendOutcome.changeRecipient) {
+        final next = await _pickShares(chats, selfId);
+        if (!mounted || next == null || next.isEmpty) return;
+        ids = next;
+        continue;
+      }
+      final note = result.message.trim();
+      final text = [if (note.isNotEmpty) note, content.body].join('\n');
+      for (final id in ids) {
+        await _sendShared(id, text);
+      }
+      return;
+    }
+  }
+
+  Future<List<String>?> _pickShares(List chats, String selfId) =>
+      showQChatForwardPicker(
+        context,
+        title: tr(context, 'pickChatTitle'),
+        recent: [
+          for (final chat in chats.take(8))
+            conversationShareTarget(chat as Map, selfId),
+        ],
+        entries: [
+          for (final chat in chats)
+            QChatForwardEntry(
+              id: chat['id'] as String,
+              name: conversationShareName(chat as Map, selfId),
+              avatar: conversationShareTarget(chat, selfId, size: 48).avatar,
+            ),
+        ],
+      );
+
+  Future<void> _sendShared(String chatId, String body) async {
+    try {
+      await ref.read(clientProvider).send(chatId, body);
+      if (mounted) _showToast(tr(context, 'sent'), 'success');
+    } catch (_) {
+      if (mounted) _showToast(tr(context, 'networkError'), 'error');
+    }
+  }
+
+  /// `chooseImage`: opens the same WeChat-style picker as the chat, bounded by
+  /// the size and quality the call asked for.
+  Future<XFile?> _chooseImage({
+    required int maxWidth,
+    required int maxHeight,
+    required double quality,
+  }) async {
+    if (!mounted) return null;
+    return pickQChatImage(
+      context,
+      MediaFit(width: maxWidth, height: maxHeight, quality: quality),
+    );
   }
 
   Map<String, dynamic> _systemInfo() {
@@ -480,9 +687,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'appVersion': '1.1.0',
       'runtimeVersion': miniAppRuntimeVersion,
       'locale': ref.read(preferencesProvider).locale,
-      'theme': Theme.of(context).brightness == Brightness.dark
-          ? 'dark'
-          : 'light',
+      'theme': qchatDark(context) ? 'dark' : 'light',
       'screenWidth': size.width,
       'screenHeight': size.height,
       'pixelRatio': MediaQuery.devicePixelRatioOf(context),
@@ -522,7 +727,9 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     }
   }
 
-  Future<void> _handleBack() async {
+  /// Back leaves the page the mini program is on, and only leaves the mini
+  /// program itself when it has nowhere left to go.
+  void _handleBack() {
     final qapp = _qappController;
     if (qapp != null && qapp.back()) return;
     _close();
@@ -533,33 +740,29 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) unawaited(_handleBack());
+        if (!didPop) _handleBack();
       },
-      // The mini program owns the whole screen; the host only floats a menu
-      // button and a close button in the top right corner.
+      // The mini program owns the whole screen; the host floats the standard
+      // transparent header over it, which is only the capsule in this case.
       child: QChatPage(
         edgeToEdge: true,
         child: Stack(
           children: [
             Positioned.fill(child: _body(context)),
             Positioned(
-              top: MediaQuery.paddingOf(context).top + 8,
-              right: 10,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _FloatButton(
-                    icon: 'more',
-                    label: tr(context, 'more'),
-                    onTap: () => _openMenu(context),
-                  ),
-                  const SizedBox(width: 8),
-                  _FloatButton(
-                    icon: 'close',
-                    label: tr(context, 'miniAppsClose'),
-                    onTap: _close,
-                  ),
-                ],
+              top: 0,
+              left: 0,
+              right: 0,
+              child: QChatHeader(
+                transparent: true,
+                reserveLeading: 0,
+                reserveTrailing: kQChatCapsuleWidth + 14,
+                trailing: QChatCapsule(
+                  menuLabel: tr(context, 'more'),
+                  closeLabel: tr(context, 'miniAppsClose'),
+                  onMenu: () => _openMenu(context),
+                  onClose: _close,
+                ),
               ),
             ),
           ],
@@ -608,7 +811,6 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
             key: ValueKey('qapp:$_qappKey'),
             directory: directory,
             controller: controller,
-            networkHosts: _qappNetworkHosts,
             onHostCall: (method, params) {
               final bridge = _bridge;
               if (bridge == null) {
@@ -668,7 +870,7 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         child: Text(
           tr(context, 'miniAppsOffline'),
           textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 12),
+          style: const TextStyle(color: QChatColors.white, fontSize: 12),
         ),
       ),
     ),
@@ -701,8 +903,10 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
       'UNSUPPORTED_FORMAT' => tr(context, 'miniAppsUnsupported'),
       'NOT_PUBLISHED' => tr(context, 'miniAppsUnavailable'),
       'UNAUTHORIZED' => tr(context, 'sessionExpired'),
+      'NETWORK_ERROR' || 'CONNECTION_ERROR' => tr(context, 'networkError'),
       _ => tr(context, 'miniAppsError'),
     };
+    final reason = _failureReason(error);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -723,6 +927,14 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
                 style: const TextStyle(fontSize: 12, color: QChatColors.muted),
               ),
             ],
+            if (reason != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                reason,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, color: QChatColors.muted),
+              ),
+            ],
             const SizedBox(height: 18),
             QChatButton(tr(context, 'miniAppsRetry'), onTap: _load),
             const SizedBox(height: 8),
@@ -735,6 +947,22 @@ class _MiniAppRuntimeScreenState extends ConsumerState<MiniAppRuntimeScreen>
         ),
       ),
     );
+  }
+
+  /// The one line a release build can put in a support request: the failure
+  /// code plus the underlying exception, for the cases the view cannot explain
+  /// in words. Known codes stay clean.
+  String? _failureReason(MiniAppException error) {
+    if (_explainedFailures.contains(error.code)) return null;
+    final detail = error.message?.trim();
+    if (detail == null || detail.isEmpty || detail == error.code) {
+      return error.code;
+    }
+    final single = detail.replaceAll(RegExp(r'\s+'), ' ');
+    final clipped = single.length > 160
+        ? '${single.substring(0, 160)}â€¦'
+        : single;
+    return '${error.code} Â· $clipped';
   }
 }
 
@@ -777,11 +1005,11 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final dark = qchatDark(context);
     return ColoredBox(
       // The launch page stays plain white (dark in dark mode), matching the
       // mini program splash instead of the app's grey page background.
-      color: dark ? const Color(0xff111111) : Colors.white,
+      color: dark ? const Color(0xff111111) : QChatColors.white,
       child: Align(
         alignment: const Alignment(0, -0.22),
         child: Column(
@@ -805,7 +1033,7 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: .06),
+                          color: QChatColors.black.withValues(alpha: .06),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -873,6 +1101,75 @@ class _MiniAppSplashState extends State<_MiniAppSplash>
         );
 }
 
+/// What a Mini App handed to `share({text, url, title})`, kept apart so the
+/// confirm card can show the content instead of a fixed program card.
+class _ShareContent {
+  const _ShareContent({
+    required this.text,
+    required this.url,
+    required this.title,
+  });
+
+  final String text;
+  final String url;
+  final String title;
+
+  bool get hasText => text.isNotEmpty;
+
+  /// What the conversation receives: the text, then its link on a new line.
+  String get body => [text, url].where((part) => part.isNotEmpty).join('\n');
+
+  /// The line the confirm card leads with: the shared text, or the app's own
+  /// title when the share is only a link, or the link as a last resort.
+  String get headline {
+    if (hasText) return text;
+    if (title.isNotEmpty) return title;
+    return url;
+  }
+}
+
+/// The mini program artwork on the send card: its icon when the store has one,
+/// otherwise a quiet gradient with the first letter of its name.
+class _ShareCover extends StatelessWidget {
+  const _ShareCover({required this.iconUrl, required this.name, this.size});
+
+  final String iconUrl;
+  final String name;
+  final double? size;
+
+  @override
+  Widget build(BuildContext context) {
+    final fallback = DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xff3fbf74), Color(0xff0d8a46)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          name.isEmpty ? 'Q' : name.characters.first.toUpperCase(),
+          style: TextStyle(
+            fontSize: (size ?? 40) * .45,
+            height: 1,
+            fontWeight: FontWeight.w600,
+            color: QChatColors.white,
+          ),
+        ),
+      ),
+    );
+    final art = iconUrl.isEmpty
+        ? fallback
+        : Image.network(
+            iconUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => fallback,
+          );
+    return size == null ? art : SizedBox.square(dimension: size, child: art);
+  }
+}
+
 int _compareVersion(String a, String b) {
   final left = a.split('-').first.split('.').map(int.tryParse).toList();
   final right = b.split('-').first.split('.').map(int.tryParse).toList();
@@ -882,57 +1179,4 @@ int _compareVersion(String a, String b) {
     if (x != y) return x.compareTo(y);
   }
   return 0;
-}
-
-/// Round translucent control floating over the mini program: a white glyph on
-/// a dark tint, tinted further while pressed (the app draws no ripples).
-class _FloatButton extends StatefulWidget {
-  const _FloatButton({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  final String icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  State<_FloatButton> createState() => _FloatButtonState();
-}
-
-class _FloatButtonState extends State<_FloatButton> {
-  bool _pressed = false;
-
-  void _setPressed(bool value) {
-    if (_pressed != value) setState(() => _pressed = value);
-  }
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: widget.label,
-    child: GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => _setPressed(true),
-      onTapUp: (_) => _setPressed(false),
-      onTapCancel: () => _setPressed(false),
-      onTap: widget.onTap,
-      child: AnimatedContainer(
-        duration: qchatDuration(context),
-        width: 34,
-        height: 34,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _pressed ? const Color(0x9e000000) : const Color(0x5e000000),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: .16),
-            width: .5,
-          ),
-        ),
-        child: QChatIcon(widget.icon, size: 17, color: Colors.white),
-      ),
-    ),
-  );
 }

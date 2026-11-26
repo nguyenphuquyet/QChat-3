@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_renderer.dart';
+import 'package:qchat/features/miniapps/qapp/qapp_tdesign.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_style.dart';
 import 'package:qchat/features/miniapps/qapp/qapp_tree.dart';
+import 'test_app.dart';
 
 QappNode node(
   String id,
@@ -21,14 +23,33 @@ QappNode node(
   );
 }
 
-Widget host(QappNode root, void Function(String, String, Object?) onEvent) {
-  return MaterialApp(
-    home: Scaffold(
-      body: QappRenderer(
-        root: root,
-        onEvent: onEvent,
-        loadAsset: (_) async => null,
-      ),
+/// Records compare their fields with `==`, which is identity for a map, so a
+/// record built from a map literal never equals the received one. Compare the
+/// payload on its own instead, where `equals` walks the map by content.
+void expectEvent(
+  List<(String, String, Object?)> events,
+  String id,
+  String event,
+  Object? payload,
+) {
+  final matches = events
+      .where((entry) => entry.$1 == id && entry.$2 == event)
+      .toList();
+  expect(matches, isNotEmpty, reason: 'no $event event for $id in $events');
+  expect(matches.last.$3, payload);
+}
+
+Widget host(
+  QappNode root,
+  void Function(String, String, Object?) onEvent, {
+  String screen = '',
+}) {
+  return qchatHarness(
+    QappRenderer(
+      root: root,
+      screen: screen,
+      onEvent: onEvent,
+      loadAsset: (_) async => null,
     ),
   );
 }
@@ -64,6 +85,9 @@ void main() {
     await tester.pumpWidget(
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
+    // The whole frame lives under the TDesign scope, so its controls can read
+    // the TDesign theme and localizations without touching the host theme.
+    expect(find.byType(QappTDesignScope), findsOneWidget);
     expect(find.text('Hello native'), findsOneWidget);
     await tester.tap(find.text('Tap me'));
     await tester.pump();
@@ -104,19 +128,26 @@ void main() {
     await tester.pumpWidget(
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
-    await tester.enterText(find.byType(TextField), 'Ada');
+    await tester.enterText(find.byType(EditableText), 'Ada');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pump();
-    expect(events, contains(('n0.0', 'input', 'Ada')));
-    expect(events, contains(('n0.0', 'submit', 'Ada')));
+    expectEvent(events, 'n0.0', 'input', 'Ada');
+    expectEvent(events, 'n0.0', 'submit', {
+      'type': 'submit',
+      'value': 'Ada',
+      'text': 'Ada',
+    });
 
     await tester.tap(find.text('Agree'));
-    await tester.pump();
-    expect(events, contains(('n0.1', 'change', true)));
+    await tester.pumpAndSettle();
+    expectEvent(events, 'n0.1', 'change', {'type': 'change', 'value': true});
 
-    await tester.tap(find.byType(Switch));
-    await tester.pump();
-    expect(events, contains(('n0.2', 'valueChange', true)));
+    await tester.tap(find.byType(QappTSwitch));
+    await tester.pumpAndSettle();
+    expectEvent(events, 'n0.2', 'valueChange', {
+      'type': 'valueChange',
+      'value': true,
+    });
   });
 
   testWidgets('renders stacks, scroll views, sliders and custom paint', (
@@ -168,9 +199,99 @@ void main() {
       host(root, (id, event, payload) => events.add((id, event, payload))),
     );
     expect(find.text('Scrolled'), findsOneWidget);
-    expect(find.byType(Slider), findsOneWidget);
+    expect(find.byType(QappTSlider), findsOneWidget);
     expect(find.byType(CustomPaint), findsWidgets);
-    await tester.tap(find.byType(Slider));
+    await tester.tap(find.byType(QappTSlider), warnIfMissed: false);
     await tester.pump();
+  });
+
+  testWidgets('each screen keeps its own scroll offset', (tester) async {
+    // Node ids only encode a position, so the body of every tab arrives as the
+    // same `n0.0` scroll view. The offset belongs to the screen, not to the
+    // position: scrolling one tab must not move the next one, and coming back
+    // must land where the user left it.
+    Widget frame(String screen, String label) => host(
+      node(
+        'n0',
+        'View',
+        props: {
+          'style': {'flexDirection': 'column'},
+        },
+        children: [
+          node(
+            'n0.0',
+            'ScrollView',
+            props: {
+              'vertical': true,
+              'showsScrollIndicator': false,
+              'style': {'flex': 1},
+            },
+            children: [
+              node(
+                'n0.0.0',
+                'View',
+                props: {
+                  'style': {'flexDirection': 'column'},
+                },
+                children: [
+                  for (var index = 0; index < 40; index++)
+                    node(
+                      'n0.0.0.$index',
+                      'View',
+                      props: {
+                        'style': {'height': 40},
+                      },
+                      children: [
+                        node(
+                          'n0.0.0.$index.0',
+                          'Text',
+                          children: [
+                            node(
+                              'n0.0.0.$index.0.0',
+                              '#text',
+                              props: {'text': '$label $index'},
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+      (_, _, _) {},
+      screen: screen,
+    );
+
+    double offset() =>
+        tester.state<ScrollableState>(find.byType(Scrollable)).position.pixels;
+
+    await tester.pumpWidget(frame('2.7.4', 'Tổng quan'));
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -400),
+    );
+    await tester.pumpAndSettle();
+    final overview = offset();
+    expect(overview, greaterThan(300));
+
+    // Another tab is another screen: it starts at its own top.
+    await tester.pumpWidget(frame('2.8.4', 'Giao dịch'));
+    await tester.pumpAndSettle();
+    expect(offset(), 0, reason: 'a new screen must not inherit an offset');
+
+    await tester.drag(
+      find.byType(SingleChildScrollView),
+      const Offset(0, -120),
+    );
+    await tester.pumpAndSettle();
+    expect(offset(), greaterThan(80));
+
+    // Back to the first tab: the offset it had comes back with it.
+    await tester.pumpWidget(frame('2.7.4', 'Tổng quan'));
+    await tester.pumpAndSettle();
+    expect(offset(), closeTo(overview, 0.01));
   });
 }

@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ActivityBar } from "./components/ActivityBar";
 import { AboutDialog } from "./components/AboutDialog";
 import { BottomPanel } from "./components/BottomPanel";
 import { CommandPalette } from "./components/CommandPalette";
+import { DocsPanel } from "./components/DocsPanel";
 import { EditorArea, Welcome } from "./components/EditorArea";
 import { NewProjectDialog } from "./components/NewProjectDialog";
 import { PreviewPanel } from "./components/PreviewPanel";
+import { ProjectChooserDialog } from "./components/ProjectChooserDialog";
 import { ProjectSettingsDialog } from "./components/ProjectSettingsDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar } from "./components/Sidebar";
 import { StatusBar } from "./components/StatusBar";
 import { TitleBar, type StudioCommands } from "./components/TitleBar";
+import { WindowResizeHandles } from "./components/WindowChrome";
 import { api } from "./lib/api";
 import { runAction } from "./lib/feedback";
 import { useStudio } from "./lib/store";
+import { useI18n } from "./lib/useI18n";
 import { cn } from "./lib/utils";
-import type { DevExit, DevLog } from "./types";
+import type { DevExit, DevLog, ProjectCandidate } from "./types";
 
 const SIDEBAR_MIN = 190;
 const SIDEBAR_MAX = 460;
@@ -26,8 +31,18 @@ const PREVIEW_MAX = 520;
 const BOTTOM_MIN = 110;
 const BOTTOM_MAX = 620;
 
+/** How often the studio stats open files to catch edits made outside it. */
+const DISK_POLL_MS = 1500;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+/** Windows paths are case-insensitive and may mix separators. */
+function samePath(left: string, right: string): boolean {
+  const normalize = (value: string) =>
+    value.replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  return normalize(left) === normalize(right);
 }
 
 function Resizer({
@@ -68,6 +83,7 @@ export default function App() {
   const bootstrap = useStudio((state) => state.bootstrap);
   const project = useStudio((state) => state.project);
   const settings = useStudio((state) => state.settings);
+  const { t } = useI18n();
   const sidebarOpen = useStudio((state) => state.sidebarOpen);
   const bottomOpen = useStudio((state) => state.bottomOpen);
   const previewOpen = useStudio((state) => state.previewOpen);
@@ -82,15 +98,23 @@ export default function App() {
   const devRunning = useStudio((state) => state.devRunning);
   const handleDevLog = useStudio((state) => state.handleDevLog);
   const handleDevExit = useStudio((state) => state.handleDevExit);
+  const pollDisk = useStudio((state) => state.pollDisk);
+  const saveAllDirty = useStudio((state) => state.saveAllDirty);
+  const projectPath = project?.path ?? null;
 
   const [sidebarWidth, setSidebarWidth] = useState(264);
   const [previewWidth, setPreviewWidth] = useState(336);
   const [bottomHeight, setBottomHeight] = useState(210);
   const [bottomMax, setBottomMax] = useState(false);
-  const [dialog, setDialog] = useState<null | "new" | "settings" | "project" | "about">(
+  const [dialog, setDialog] = useState<null | "new" | "settings" | "project" | "about" | "docs">(
     null,
   );
+  const [docsId, setDocsId] = useState<string | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [chooser, setChooser] = useState<{
+    picked: string;
+    candidates: ProjectCandidate[];
+  } | null>(null);
   const dragCleanup = useRef<(() => void) | null>(null);
 
   const closeDialog = useCallback(() => setDialog(null), []);
@@ -103,19 +127,56 @@ export default function App() {
           project?.path || settings.projectsDir || undefined,
         );
         if (!path) return;
-        await runAction(() => openProject(path));
+        // Resolve the picked folder to Mini Apps: the folder itself, a parent
+        // (`<project>/src`) or its direct children. A plain folder still opens
+        // as-is, like before.
+        const candidates = await api.findProjects(path).catch(() => []);
+        const projects = candidates.filter((item) => !samePath(item.path, path));
+        if (projects.length === 0) {
+          await runAction(() => openProject(path));
+          return;
+        }
+        if (projects.length === 1) {
+          await runAction(() => openProject(projects[0].path));
+          return;
+        }
+        setChooser({ picked: path, candidates: projects });
       })();
     },
     settings: () => setDialog("settings"),
     projectSettings: () => setDialog("project"),
     about: () => setDialog("about"),
     palette: () => setPaletteOpen(true),
+    docs: (docId?: string) => {
+      setDocsId(docId ?? null);
+      setDialog("docs");
+    },
   };
 
   // Boot: detect the CLI and reopen the last project once.
   useEffect(() => {
     void bootstrap();
   }, [bootstrap]);
+
+  // Disk watcher: pickup edits made outside the studio (other editors, the
+  // qapp CLI, git). Cheap stat-based polling keeps the tabs, the explorer and
+  // manifest.json in sync while a project is open.
+  useEffect(() => {
+    if (!projectPath || !api.isDesktop()) return;
+    const tick = () => {
+      if (document.visibilityState === "hidden") return;
+      void pollDisk();
+    };
+    void pollDisk();
+    const timer = window.setInterval(tick, DISK_POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
+    };
+  }, [projectPath, pollDisk]);
 
   // Tauri dev-watcher event bridge.
   useEffect(() => {
@@ -149,11 +210,31 @@ export default function App() {
   // Close native dev watcher when the window goes away.
   useEffect(() => {
     const onUnload = () => {
+      const state = useStudio.getState();
+      if (state.settings.autoSave) void state.saveAllDirty();
       if (api.isDesktop()) void api.stopDev();
     };
     window.addEventListener("beforeunload", onUnload);
     return () => window.removeEventListener("beforeunload", onUnload);
   }, []);
+
+  // Auto save: besides the idle debounce in the editor, flush dirty tabs when
+  // the window loses focus or is hidden, which is what usually happens right
+  // before the user closes or switches away from the studio.
+  useEffect(() => {
+    if (!settings.autoSave || !projectPath) return;
+    const flush = () => {
+      if (document.visibilityState === "hidden" || document.hasFocus() === false) {
+        void saveAllDirty();
+      }
+    };
+    window.addEventListener("blur", flush);
+    document.addEventListener("visibilitychange", flush);
+    return () => {
+      window.removeEventListener("blur", flush);
+      document.removeEventListener("visibilitychange", flush);
+    };
+  }, [settings.autoSave, projectPath, saveAllDirty]);
 
   const beginResize = useCallback(
     (
@@ -204,7 +285,7 @@ export default function App() {
         event.preventDefault();
         if (!project) return;
         if (devRunning) void stopDev();
-        else void runAction(() => startDev(), "Dev watcher started");
+        else void runAction(() => startDev(), t("common.devStarted"));
         return;
       }
       if (mod && key === "b") {
@@ -212,14 +293,14 @@ export default function App() {
         if (!project) return;
         void runAction(
           () => buildProject(event.shiftKey),
-          event.shiftKey ? "Bundle built without typecheck" : "Package built successfully",
+          event.shiftKey ? t("common.bundleBuilt") : t("common.packageBuilt"),
         );
         return;
       }
       if (mod && key === "t") {
         event.preventDefault();
         if (!project) return;
-        void runAction(() => runTests(), "Runtime test passed");
+        void runAction(() => runTests(), t("common.runtimePassed"));
         return;
       }
       if (mod && key === "s") {
@@ -248,17 +329,47 @@ export default function App() {
     saveActive,
     startDev,
     stopDev,
+    t,
   ]);
 
-  // Persist compact workspace preferences.
+  // Keep the document language, colour scheme and theme class in sync.
   useEffect(() => {
-    document.documentElement.classList.add("dark");
+    const root = document.documentElement;
+    root.lang = settings.language;
+    root.dataset.theme = settings.theme;
+    root.style.colorScheme = settings.theme;
+    root.classList.toggle("dark", settings.theme === "dark");
+    root.classList.toggle("light", settings.theme === "light");
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", settings.theme === "light" ? "#f6f7fb" : "#080a0f");
+    // Windows paints the frame of a decoration-less window from the window's own
+    // theme, not from the page, so a light UI kept a black 1px border until the
+    // native window was switched over too.
+    if (api.isDesktop()) {
+      void getCurrentWindow()
+        .setTheme(settings.theme)
+        .catch(() => undefined);
+    }
+  }, [settings.language, settings.theme]);
+
+  // Block the browser/WebView context menu. Monaco and explicitly opted-in
+  // surfaces keep their own menus.
+  useEffect(() => {
+    const onContextMenu = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".monaco-editor, [data-native-context-menu]")) return;
+      event.preventDefault();
+    };
+    document.addEventListener("contextmenu", onContextMenu);
+    return () => document.removeEventListener("contextmenu", onContextMenu);
   }, []);
 
   useEffect(() => {
-    const name = project?.name ? `${project.name} — QChat Studio` : "QChat Mini App Studio";
-    document.title = name;
-  }, [project?.name]);
+    document.title = project?.name
+      ? t("app.titleWithProject", { name: project.name })
+      : t("app.title");
+  }, [project?.name, t]);
 
   const maximizeBottom = () => {
     if (bottomMax) {
@@ -278,6 +389,7 @@ export default function App() {
           onPalette={() => setPaletteOpen(true)}
           onSettings={() => setDialog("settings")}
           onAbout={() => setDialog("about")}
+          onDocs={() => commands.docs()}
         />
 
         {sidebarOpen ? (
@@ -366,9 +478,29 @@ export default function App() {
       <StatusBar onSettings={() => setDialog("settings")} />
 
       <NewProjectDialog open={dialog === "new"} onClose={closeDialog} />
+      <ProjectChooserDialog
+        open={chooser !== null}
+        picked={chooser?.picked ?? ""}
+        candidates={chooser?.candidates ?? []}
+        onPick={(candidate) => {
+          setChooser(null);
+          void runAction(() => openProject(candidate.path));
+        }}
+        onOpenPicked={() => {
+          const picked = chooser?.picked;
+          setChooser(null);
+          if (picked) void runAction(() => openProject(picked));
+        }}
+        onClose={() => setChooser(null)}
+      />
       <SettingsDialog open={dialog === "settings"} onClose={closeDialog} />
       <ProjectSettingsDialog open={dialog === "project"} onClose={closeDialog} />
       <AboutDialog open={dialog === "about"} onClose={closeDialog} />
+      <DocsPanel
+        open={dialog === "docs"}
+        onClose={closeDialog}
+        initialDocId={docsId}
+      />
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -377,26 +509,32 @@ export default function App() {
 
       {!bottomOpen ? (
         <button
-          className="fixed bottom-8 left-1/2 z-30 -translate-x-1/2 rounded-full border border-white/10 bg-studio-900/90 px-3 py-1 text-[10px] text-studio-300 shadow-panel backdrop-blur transition hover:text-white"
+          className="fixed bottom-8 left-1/2 z-30 -translate-x-1/2 rounded border border-white/10 bg-studio-900 px-3 py-1 text-[10px] text-studio-300 shadow-panel transition hover:text-white"
           onClick={() => setBottomOpen(true)}
         >
-          Show panel
+          {t("common.showingPanel")}
         </button>
       ) : null}
 
+      <WindowResizeHandles />
+
       <Toaster
-        theme="dark"
+        theme={settings.theme}
         position="bottom-right"
         offset={38}
         closeButton
         toastOptions={{
           style: {
-            background: "rgba(14, 18, 26, 0.94)",
-            border: "1px solid rgba(255,255,255,0.09)",
-            color: "#e6e9f2",
+            background:
+              settings.theme === "light" ? "#ffffff" : "#252526",
+            border:
+              settings.theme === "light"
+                ? "1px solid rgba(0, 0, 0, 0.12)"
+                : "1px solid rgba(255,255,255,0.09)",
+            color: settings.theme === "light" ? "#1f1f1f" : "#e8e8e8",
             fontSize: "12px",
-            backdropFilter: "blur(18px)",
-            borderRadius: "12px",
+            borderRadius: "2px",
+            boxShadow: "0 8px 24px rgba(0, 0, 0, 0.35)",
           },
         }}
       />

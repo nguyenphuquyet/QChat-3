@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import 'settings_tools.dart';
@@ -71,7 +71,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           c,
           'switchAccount',
         ).toLowerCase().contains(search.text.toLowerCase()))
-          Material(
+          ColoredBox(
             color: surface(c),
             child: QChatOverlayAction(
               label: tr(c, 'switchAccount'),
@@ -97,7 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         sectionGap,
-        Material(
+        ColoredBox(
           color: surface(c),
           child: QChatOverlayAction(
             label: tr(c, 'logout'),

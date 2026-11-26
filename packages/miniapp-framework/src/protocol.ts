@@ -2,11 +2,67 @@
  * Wire protocol shared by the JavaScript runtime, the compiler and the Dart
  * host. Everything in this file must stay JSON serializable and must not use
  * Node or browser APIs: the same code is bundled into QuickJS.
+ *
+ * The component, event, style and permission lists themselves live in
+ * `packages/contracts/miniapp-ui.contract.json`. `ui-contract.generated.ts` is
+ * produced from that file, so this module is the only place that turns the
+ * generated data into the public protocol types.
  */
+import {
+  EVENT_NAMES,
+  PERMISSION_IDS,
+  PROTOCOL_VERSION as CONTRACT_PROTOCOL_VERSION,
+  RUNTIME_VERSION as CONTRACT_RUNTIME_VERSION,
+  SDK_VERSION as CONTRACT_SDK_VERSION,
+  STYLE_ENUM_ALIASES,
+  STYLE_ENUM_KEYS,
+  STYLE_ENUM_VALUES,
+  STYLE_KEYS,
+  TEXT_NODE_TYPE,
+} from "./ui-contract.generated.js";
 
-export const PROTOCOL_VERSION = 1 as const;
-export const SDK_VERSION = "1.0.0";
-export const RUNTIME_VERSION = "1.0.0";
+export const PROTOCOL_VERSION = CONTRACT_PROTOCOL_VERSION;
+export const SDK_VERSION = CONTRACT_SDK_VERSION;
+export const RUNTIME_VERSION = CONTRACT_RUNTIME_VERSION;
+
+// Re-exported so the rest of the SDK (and tests) read the single source.
+export {
+  EVENT_NAMES,
+  PERMISSION_IDS,
+  STYLE_ENUM_ALIASES,
+  STYLE_ENUM_KEYS,
+  STYLE_ENUM_VALUES,
+  STYLE_KEYS,
+  TEXT_NODE_TYPE,
+};
+
+/** Shapes reused by more than one style key. */
+export interface QappBoxShadow {
+  color?: string;
+  offsetX?: number;
+  offsetY?: number;
+  blurRadius?: number;
+  spreadRadius?: number;
+}
+
+export interface QappGradientStop {
+  offset: number;
+  color: string;
+}
+
+export interface QappLinearGradient {
+  type?: "linear";
+  angle?: number;
+  stops: QappGradientStop[];
+}
+
+export interface QappRadialGradient {
+  type: "radial";
+  stops: QappGradientStop[];
+}
+
+export type QappGradient = QappLinearGradient | QappRadialGradient;
+export type QappGradientType = "linear" | "radial";
 
 /** A style object is intentionally a small, Flutter-oriented subset. */
 export interface Style {
@@ -31,9 +87,12 @@ export interface Style {
   marginBottom?: number;
   marginLeft?: number;
   gap?: number;
+  rowGap?: number;
+  columnGap?: number;
   flex?: number;
   flexGrow?: number;
   flexShrink?: number;
+  flexBasis?: number | string;
   flexDirection?: "row" | "column" | "row-reverse" | "column-reverse";
   flexWrap?: "nowrap" | "wrap";
   alignItems?: "start" | "end" | "center" | "stretch" | "baseline";
@@ -44,12 +103,22 @@ export interface Style {
     | "spaceBetween"
     | "spaceAround"
     | "spaceEvenly";
-  alignSelf?: "auto" | "start" | "end" | "center" | "stretch";
+  alignSelf?: "auto" | "start" | "end" | "center" | "stretch" | "baseline";
+  alignContent?:
+    | "start"
+    | "end"
+    | "center"
+    | "spaceBetween"
+    | "spaceAround"
+    | "spaceEvenly";
   position?: "relative" | "absolute";
   top?: number;
   right?: number;
   bottom?: number;
   left?: number;
+  zIndex?: number;
+  overflow?: "visible" | "hidden" | "clip";
+  aspectRatio?: number;
   backgroundColor?: string;
   color?: string;
   opacity?: number;
@@ -60,8 +129,27 @@ export interface Style {
   borderBottomRightRadius?: number;
   borderWidth?: number;
   borderColor?: string;
+  borderTopWidth?: number;
+  borderTopColor?: string;
+  borderRightWidth?: number;
+  borderRightColor?: string;
+  borderBottomWidth?: number;
+  borderBottomColor?: string;
+  borderLeftWidth?: number;
+  borderLeftColor?: string;
   fontSize?: number;
-  fontWeight?: "normal" | "bold" | "100" | "200" | "300" | "400" | "500" | "600" | "700" | "800" | "900";
+  fontWeight?:
+    | "normal"
+    | "bold"
+    | "100"
+    | "200"
+    | "300"
+    | "400"
+    | "500"
+    | "600"
+    | "700"
+    | "800"
+    | "900";
   fontStyle?: "normal" | "italic";
   fontFamily?: string;
   lineHeight?: number;
@@ -69,18 +157,24 @@ export interface Style {
   textAlign?: "left" | "right" | "center" | "justify";
   textDecoration?: "none" | "underline" | "lineThrough";
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
-  overflow?: "visible" | "hidden" | "clip";
+  numberOfLines?: number;
   shadow?: boolean;
+  boxShadow?: QappBoxShadow | QappBoxShadow[];
   elevation?: number;
-  aspectRatio?: number;
+  gradient?: QappGradient;
   rotate?: number;
   scale?: number;
   translateX?: number;
   translateY?: number;
 }
 
+export type QappRef<T = unknown> =
+  | { current: T | null }
+  | ((value: T | null) => void);
+
 export interface BaseProps {
   key?: string | number;
+  ref?: QappRef;
   style?: Style;
   children?: unknown;
   testID?: string;
@@ -88,20 +182,47 @@ export interface BaseProps {
   pointerEvents?: "auto" | "none";
 }
 
-export type EventName =
-  | "press"
-  | "longPress"
-  | "change"
-  | "input"
-  | "submit"
-  | "valueChange"
-  | "scroll"
-  | "refresh"
-  | "focus"
-  | "blur"
-  | "select";
+export type EventName = (typeof EVENT_NAMES)[number];
 
-export type EventPayload = string | number | boolean | null | Record<string, unknown>;
+export type EventPayload =
+  | string
+  | number
+  | boolean
+  | null
+  | Record<string, unknown>;
+
+/**
+ * Every interactive component reports a single object shape so a handler can
+ * read the event without guessing the component: `{ type, value, ... }`.
+ */
+export interface QappEvent<T = unknown> {
+  type: EventName;
+  value: T;
+}
+
+/** `TextField` change/submit payload; `text` mirrors `value`. */
+export interface QappTextEvent extends QappEvent<string> {
+  text: string;
+}
+
+/** `Switch` and `Checkbox` payload. */
+export interface QappToggleEvent extends QappEvent<boolean> {}
+
+/** `Slider` payload. */
+export interface QappNumberEvent extends QappEvent<number> {}
+
+/** `ScrollView` payload; both flattened and `value` copies are provided. */
+export interface QappScrollEvent extends QappEvent<{ x: number; y: number }> {
+  x: number;
+  y: number;
+}
+
+/** `TabBar` payload. */
+export interface QappTabEvent
+  extends QappEvent<{ index: number; key: string; value: string }> {
+  index: number;
+  key: string;
+}
 
 /** A serialized node. Only plain JSON values are allowed. */
 export interface RenderNode {
@@ -115,6 +236,14 @@ export interface RenderNode {
 export interface RenderTree {
   v: typeof PROTOCOL_VERSION;
   appId: string;
+  /**
+   * Which screen this frame belongs to: the trail of components that produced
+   * its root node. Node ids are positional, so two screens can name different
+   * widgets with the same id; the host uses this to keep per-screen widget state
+   * (a scroll offset, a field's text) apart and to restore it when the screen
+   * comes back. Empty when the runtime cannot tell.
+   */
+  screen: string;
   root: RenderNode | null;
   revision: number;
 }
@@ -146,16 +275,40 @@ export interface HostResponse<T = unknown> {
   error?: HostError;
 }
 
+/**
+ * Fire-and-forget messages. `timer` asks the host to wake the runtime after
+ * `{ delayMs }`, which is how `setTimeout` and friends work in an engine with
+ * no event loop; a negative `delayMs` cancels the pending wake.
+ */
+export type HostSendKind = "render" | "ready" | "log" | "lifecycle" | "timer";
+
+/**
+ * Structural shape of an abort signal. Declared here, next to the protocol, so
+ * the network layer and the environment package agree without either importing
+ * the other.
+ */
+export interface AbortSignalLike {
+  readonly aborted: boolean;
+  readonly reason?: unknown;
+  addEventListener(type: "abort", listener: () => void): void;
+  removeEventListener(type: "abort", listener: () => void): void;
+}
+
 export interface HostBridge {
-  /** Fire-and-forget UI/lifecycle message. */
-  send(kind: "render" | "ready" | "log" | "lifecycle", payload: unknown): void;
+  /** Fire-and-forget UI/lifecycle/timer message. */
+  send(kind: HostSendKind, payload: unknown): void;
   /** Request/response call to a privileged host method. */
-  call(method: HostMethod, params: Record<string, unknown>): Promise<HostResponse>;
+  call(
+    method: HostMethod,
+    params: Record<string, unknown>,
+  ): Promise<HostResponse>;
 }
 
 export interface SerializedTree {
   v: number;
   appId: string;
+  /** Screen identity; see `RenderTree.screen`. */
+  screen: string;
   root: RenderNode | null;
   revision: number;
 }
@@ -170,7 +323,9 @@ export class QChatError extends Error {
   }
 }
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -182,4 +337,21 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 
 export function jsonClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
+}
+
+/**
+ * Normalise a style enum value to its canonical camelCase form. CSS-like
+ * aliases such as `"space-between"` are accepted and mapped in one place, so
+ * every consumer (TS runtime, Dart host, tests) agrees on the same spelling.
+ */
+export function normalizeStyleEnum(
+  enumName: string,
+  value: unknown,
+): string | undefined {
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  const aliases = STYLE_ENUM_ALIASES[enumName];
+  if (aliases && aliases[value]) return aliases[value];
+  const values = STYLE_ENUM_VALUES[enumName];
+  if (values && values.includes(value)) return value;
+  return value;
 }

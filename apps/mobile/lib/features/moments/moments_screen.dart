@@ -1,6 +1,7 @@
 import 'dart:async';
+import 'package:flutter/cupertino.dart' show CupertinoPageRoute;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -64,7 +65,7 @@ class _MomentsScreenState extends ConsumerState<MomentsScreen> {
             label: tr(c, 'post'),
             onTap: () async {
               final posted = await Navigator.of(c).push<bool>(
-                MaterialPageRoute(builder: (_) => const MomentComposer()),
+                CupertinoPageRoute(builder: (_) => const MomentComposer()),
               );
               if (posted == true && mounted) setState(load);
             },
@@ -222,13 +223,13 @@ class _MomentCardState extends ConsumerState<_MomentCard> {
                                           children: [
                                             const QChatIcon(
                                               'videoCall',
-                                              color: Colors.white,
+                                              color: QChatColors.white,
                                               size: 36,
                                             ),
                                             Text(
                                               tr(c, 'play'),
                                               style: const TextStyle(
-                                                color: Colors.white,
+                                                color: QChatColors.white,
                                               ),
                                             ),
                                           ],

@@ -1,20 +1,36 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import '../payments/payments_screen.dart';
+import 'red_packet_cover.dart';
+import 'red_packet_design.dart';
 
-/// Orange of the money bubbles (transfer and red packet share it).
-const moneyOrange = Color(0xfff5a83a);
-const redPacketRed = Color(0xffd93b30);
+export 'red_packet_design.dart' show redPacketRed;
+
+/// Gold of the money bubbles (transfer and red packet share it).
+const moneyOrange = redPacketGold;
 const _deepRed = Color(0xffc0342a);
 const _footerInk = Color(0xfff8d9a8);
 
 /// The message text of TRANSFER / RED_PACKET rows is a small JSON payload:
 /// `{"amount": 520000, "note": "...", "transferId": "..."}`.
 class MoneyPayload {
-  const MoneyPayload(this.amount, this.note, [this.transferId]);
+  const MoneyPayload(
+    this.amount,
+    this.note, [
+    this.transferId,
+    this.cover,
+    this.splitMode,
+  ]);
   final int amount;
   final String note;
   final String? transferId;
+
+  /// Snapshot of the cover the sender chose. It travels inside the message so
+  /// a packet keeps its look even if the designer edits or deletes the cover.
+  final CoverDesign? cover;
+
+  /// `EQUAL` or `RANDOM` for a group packet. Null for a one-person packet.
+  final String? splitMode;
 
   static MoneyPayload parse(Object? text) {
     try {
@@ -24,6 +40,8 @@ class MoneyPayload {
           (value['amount'] as num?)?.toInt() ?? 0,
           value['note']?.toString().trim() ?? '',
           value['transferId']?.toString(),
+          value['cover'] == null ? null : CoverDesign.fromJson(value['cover']),
+          value['splitMode']?.toString(),
         );
       }
     } catch (_) {}
@@ -67,6 +85,17 @@ class MoneyMessageState {
   static int recipientCount(Map message) =>
       ((_transfer(message)?['recipientCount'] as num?)?.toInt() ?? 1);
 
+  /// How a group packet is divided. The transfer row is authoritative; the
+  /// message payload keeps working for messages cached before the column
+  /// existed and for the optimistic bubble right after sending.
+  static String? splitMode(Map message) {
+    final transfer = _transfer(message);
+    final mode = transfer?['splitMode']?.toString();
+    if (mode != null && mode.isNotEmpty) return mode;
+    final payload = MoneyPayload.parse(message['text']).splitMode;
+    return payload == null || payload.isEmpty ? null : payload;
+  }
+
   static bool isRefunded(Map message) =>
       _transfer(message)?['status'] == 'REFUNDED';
 
@@ -84,7 +113,9 @@ class MoneyMessageState {
   static Duration? refundRemaining(Map message) {
     final created = createdAt(message);
     if (created == null) return null;
-    final left = created.add(const Duration(hours: 24)).difference(DateTime.now());
+    final left = created
+        .add(const Duration(hours: 24))
+        .difference(DateTime.now());
     return left.isNegative ? Duration.zero : left;
   }
 
@@ -118,18 +149,56 @@ class MoneyMessageCard extends StatelessWidget {
     required this.message,
     required this.mine,
     required this.onTap,
+    this.onMessageAdjust,
   });
   final Map message;
   final bool mine;
   final VoidCallback onTap;
+
+  /// Studio-only: lets the designer drag or pinch the bubble's own picture.
+  /// Chats leave it null, so a message stays a plain tap target.
+  final void Function(double scale, double offsetX, double offsetY)?
+  onMessageAdjust;
 
   bool get red => message['kind'] == 'RED_PACKET';
 
   String get greeting {
     final note = MoneyPayload.parse(message['text']).note;
     if (note.isNotEmpty) return note;
-    return red ? 'Chúc mừng năm mới' : 'Chuyển tiền';
+    return red ? 'Hồng bao' : 'Chuyển tiền';
   }
+
+  /// The bubble wears the sender's cover artwork: decorations marked "whole
+  /// cover" hang around the message just like they hang around the packet.
+  Widget _art(CoverDesign? cover, Widget child) => red && cover != null
+      ? CoverDecorationOverlay(design: cover, child: child)
+      : child;
+
+  /// The message wears its own design: a gold head, the message's own picture
+  /// fading in towards the tail, and a warm gold wash left over that tail. The
+  /// cover's background picture is deliberately not reused here, so a packet
+  /// can look one way on the packet and another in the conversation.
+  Widget _surface(CoverDesign? cover, double width, Widget child) => Container(
+    width: width,
+    clipBehavior: Clip.antiAlias,
+    decoration: BoxDecoration(
+      color: moneyOrange,
+      borderRadius: BorderRadius.circular(5),
+    ),
+    child: Stack(
+      fit: StackFit.passthrough,
+      children: [
+        if (red && cover != null)
+          Positioned.fill(
+            child: CoverMessageBackdrop(
+              message: cover.message,
+              onAdjust: onMessageAdjust,
+            ),
+          ),
+        child,
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext c) {
@@ -144,147 +213,160 @@ class MoneyMessageCard extends StatelessWidget {
       child: Opacity(
         opacity: completed || refunded ? .48 : 1,
         child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Positioned(
-            top: 16,
-            left: mine ? null : -4,
-            right: mine ? -4 : null,
-            child: Transform.rotate(
-              angle: .785398,
-              child: Container(width: 10, height: 10, color: moneyOrange),
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              top: 16,
+              left: mine ? null : -4,
+              right: mine ? -4 : null,
+              child: Transform.rotate(
+                angle: .785398,
+                child: Container(
+                  width: 10,
+                  height: 10,
+                  // The tail matches the edge it leaves: the gold head on the
+                  // left, the gold-tinted tail on the right.
+                  color: red && payload.cover != null
+                      ? mine
+                            ? payload.cover!.message.endColor
+                            : payload.cover!.message.startColor
+                      : moneyOrange,
+                ),
+              ),
             ),
-          ),
-          Container(
-            width: width,
-            decoration: BoxDecoration(
-              color: moneyOrange,
-              borderRadius: BorderRadius.circular(5),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
-                  child: SizedBox(
-                    height: 46,
-                    child: red
-                        ? Row(
-                            children: [
-                              const _Envelope(),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      greeting,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Color(0xffffffff),
-                                        fontSize: 16,
-                                        height: 1.3,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    if (completed || refunded)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 2),
-                                        child: Text(
-                                          refunded
-                                              ? 'Đã hoàn tiền'
-                                              : 'Đã mở hồng bao',
+            _art(
+              payload.cover,
+              _surface(
+                payload.cover,
+                width,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(11, 10, 11, 9),
+                      child: SizedBox(
+                        height: 46,
+                        child: red
+                            ? Row(
+                                children: [
+                                  _Envelope(opened: completed || refunded),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          greeting,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            color: Color(0xf2ffffff),
-                                            fontSize: 12.5,
+                                            color: Color(0xffffffff),
+                                            fontSize: 16,
+                                            height: 1.3,
+                                            fontWeight: FontWeight.w500,
                                           ),
                                         ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              const _TransferArrows(),
-                              const SizedBox(width: 11),
-                              Expanded(
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      moneyText(payload.amount),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Color(0xffffffff),
-                                        fontSize: 17.5,
-                                        height: 1.2,
-                                        fontWeight: FontWeight.w600,
-                                      ),
+                                        if (completed || refunded)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 2,
+                                            ),
+                                            child: Text(
+                                              refunded
+                                                  ? 'Đã hoàn tiền'
+                                                  : 'Đã mở hồng bao',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                color: Color(0xf2ffffff),
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 2),
-                                    // The reference keeps this caption on one
-                                    // line, shrinking it a touch when needed.
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        alignment: Alignment.centerLeft,
-                                        child: Text(
-                                          refunded
-                                              ? 'Đã hoàn tiền'
-                                              : mine
-                                              ? 'Bạn đã thực hiện chuyển khoản'
-                                              : completed
-                                              ? 'Đã nhận'
-                                              : 'Chấp nhận chuyển tiền',
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  const _TransferArrows(),
+                                  const SizedBox(width: 11),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          moneyText(payload.amount),
                                           maxLines: 1,
-                                          softWrap: false,
+                                          overflow: TextOverflow.ellipsis,
                                           style: const TextStyle(
-                                            color: Color(0xf2ffffff),
-                                            fontSize: 12.5,
+                                            color: Color(0xffffffff),
+                                            fontSize: 17.5,
                                             height: 1.2,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
-                                      ),
+                                        const SizedBox(height: 2),
+                                        // The reference keeps this caption on one
+                                        // line, shrinking it a touch when needed.
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.centerLeft,
+                                            child: Text(
+                                              refunded
+                                                  ? 'Đã hoàn tiền'
+                                                  : mine
+                                                  ? 'Bạn đã thực hiện chuyển khoản'
+                                                  : completed
+                                                  ? 'Đã nhận'
+                                                  : 'Chấp nhận chuyển tiền',
+                                              maxLines: 1,
+                                              softWrap: false,
+                                              style: const TextStyle(
+                                                color: Color(0xf2ffffff),
+                                                fontSize: 12.5,
+                                                height: 1.2,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  child: Container(
-                    width: double.infinity,
-                    height: .5,
-                    color: const Color(0x33ffffff),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 5),
-                  child: Text(
-                    red ? 'QChat Hồng bao' : 'QChat Chuyển tiền',
-                    maxLines: 1,
-                    style: const TextStyle(
-                      color: _footerInk,
-                      fontSize: 11,
+                      ),
                     ),
-                  ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: Container(
+                        width: double.infinity,
+                        height: .5,
+                        color: const Color(0x33ffffff),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 5),
+                      child: Text(
+                        red ? 'QChat Hồng bao' : 'QChat Chuyển tiền',
+                        maxLines: 1,
+                        style: const TextStyle(color: _footerInk, fontSize: 11),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ],
+          ],
         ),
       ),
     );
@@ -292,7 +374,12 @@ class MoneyMessageCard extends StatelessWidget {
 }
 
 class _Envelope extends StatelessWidget {
-  const _Envelope();
+  const _Envelope({this.opened = false});
+
+  /// An opened packet shows a white flap, so a claimed one reads differently
+  /// from one that is still waiting.
+  final bool opened;
+
   @override
   Widget build(BuildContext c) => Container(
     width: 40,
@@ -310,7 +397,7 @@ class _Envelope extends StatelessWidget {
         Positioned.fill(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: CustomPaint(painter: const _EnvelopeFlap()),
+            child: CustomPaint(painter: _EnvelopeFlap(opened: opened)),
           ),
         ),
         Center(
@@ -339,8 +426,12 @@ class _Envelope extends StatelessWidget {
 }
 
 /// Subtle envelope flap so the icon reads as a red packet, not a plain card.
+/// Once the packet is opened the flap turns white.
 class _EnvelopeFlap extends CustomPainter {
-  const _EnvelopeFlap();
+  const _EnvelopeFlap({this.opened = false});
+
+  final bool opened;
+
   @override
   void paint(Canvas canvas, Size size) {
     final flap = Path()
@@ -354,7 +445,11 @@ class _EnvelopeFlap extends CustomPainter {
         size.height * .30,
       )
       ..close();
-    canvas.drawPath(flap, Paint()..color = const Color(0x14ffffff));
+    canvas.drawPath(
+      flap,
+      Paint()
+        ..color = opened ? const Color(0xffffffff) : const Color(0x14ffffff),
+    );
     final edge = Path()
       ..moveTo(0, size.height * .30)
       ..quadraticBezierTo(
@@ -366,14 +461,14 @@ class _EnvelopeFlap extends CustomPainter {
     canvas.drawPath(
       edge,
       Paint()
-        ..color = const Color(0x33ffffff)
+        ..color = opened ? const Color(0x1f000000) : const Color(0x33ffffff)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
   }
 
   @override
-  bool shouldRepaint(_EnvelopeFlap old) => false;
+  bool shouldRepaint(_EnvelopeFlap old) => old.opened != opened;
 }
 
 /// The transfer mark of `weixin-transfer-icon.svg`: a ring with two arrows,

@@ -16,7 +16,9 @@ Profile fields are on User. Membership and per-conversation user state share Con
 
 ## Design
 
-QChat uses original line icons, square avatars with 5px corners, thin separators, neutral headers, a four-tab navigation bar and green/white conversation bubbles. TDesign 1.0.0 provides TButton and TInput. MaterialApp is only the Flutter/TDesign compatibility host; default Material or Cupertino navigation, cards, dialogs, and buttons are not used.
+QChat uses original line icons, square avatars with 5px corners, thin separators, neutral headers, a four-tab navigation bar and green/white conversation bubbles. Every screen is drawn by the QChat design system in `apps/mobile/lib/core/design_system` on top of a plain `WidgetsApp.router`; there is no `MaterialApp`, no Material theme, and no Material widget in the chat UI. Text fields use `CupertinoTextField`, and navigation uses custom routes, so no Google Material visual language reaches the user. Two exceptions are scoped to one file each. A Mini App frame's leaf controls are drawn by TDesign (`tdesign_flutter`) in `apps/mobile/lib/features/miniapps/qapp/qapp_tdesign.dart`, because the UI belongs to the Mini App author, while overlay motion stays Cupertino. The photo picker is `wechat_assets_picker` in `lib/core/media/media_picker_native.dart`: it is the WeChat-style grid, album switcher and viewer the app has always shown, wrapped in a `Theme` built from `QChatColors` so the palette and light/dark switch stay QChat's, and desktop keeps the QChat-drawn file chooser.
+
+This rule is enforced for contributors and coding agents by `AGENTS.md` and `apps/mobile/AGENTS.md`.
 
 ## Boundaries still requiring work
 

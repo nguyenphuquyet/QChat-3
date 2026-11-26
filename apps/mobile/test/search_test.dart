@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qchat/app/providers.dart';
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/features/search/search_screen.dart';
+import 'test_app.dart';
 
 class SearchClient extends QChatClient {
   final requests = <String, Completer<dynamic>>{};
@@ -22,7 +23,7 @@ void main() {
     addTearDown(client.dispose);
     await tester.pumpWidget(ProviderScope(
       overrides: [clientProvider.overrideWithValue(client)],
-      child: const MaterialApp(home: Material(child: SearchScreen())),
+      child: qchatHarness(const SearchScreen()),
     ));
     await tester.enterText(find.byType(EditableText), 'old');
     await tester.pump(const Duration(milliseconds: 400));

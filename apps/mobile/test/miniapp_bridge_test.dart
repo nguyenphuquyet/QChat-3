@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart' show XFile;
 import 'package:qchat/core/network/client.dart';
 import 'package:qchat/features/miniapps/miniapp_api.dart';
 import 'package:qchat/features/miniapps/miniapp_bridge.dart';
@@ -62,7 +64,7 @@ class Harness {
     Set<String> granted = const {},
     bool allowPermission = true,
     bool shareResult = true,
-    List<String> networkDomains = const ['api.example.com'],
+    XFile? image,
   }) {
     bridge = MiniAppBridge(
       appId: _appId,
@@ -75,11 +77,19 @@ class Harness {
       api: api,
       storage: storage,
       granted: granted,
-      networkDomains: networkDomains,
       requestPermission: (permission) async {
         permissionRequests.add(permission);
         return allowPermission;
       },
+      onChooseImage:
+          ({required maxWidth, required maxHeight, required quality}) async {
+            chooseRequests.add({
+              'maxWidth': maxWidth,
+              'maxHeight': maxHeight,
+              'quality': quality,
+            });
+            return image;
+          },
       onToast: (message, icon) =>
           toasts.add({'message': message, 'icon': icon}),
       onShare: (text, url, title) async {
@@ -111,6 +121,7 @@ class Harness {
   final shares = <Map<String, String>>[];
   final navigations = <String>[];
   final permissionRequests = <String>[];
+  final chooseRequests = <Map<String, Object?>>[];
   int closes = 0;
 
   Future<Map<String, dynamic>> call(
@@ -224,6 +235,45 @@ void main() {
     expect(harness.navigations, ['/settings/profile']);
   });
 
+  testWidgets('chooseImage opens the host picker with the requested bounds', (
+    tester,
+  ) async {
+    final bytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAQSURBVBhXY/jPwPCfARkAAB7zAf+x9MCaAAAAAElFTkSuQmCC',
+    );
+    final picked = Harness(
+      harness.storage,
+      image: XFile.fromData(bytes, mimeType: 'image/png', name: 'one.png'),
+    );
+    addTearDown(picked.bridge.dispose);
+    // Image decoding is real engine work, so the fake async clock cannot
+    // complete it; run the call on the real event loop.
+    final response = await tester.runAsync(
+      () =>
+          picked.call('chooseImage', params: {'maxWidth': 800, 'quality': 0.5}),
+    );
+    expect(response, isNotNull);
+    final map = response!;
+    expect(map['ok'], isTrue);
+    expect(picked.chooseRequests.single, {
+      'maxWidth': 800,
+      'maxHeight': 4096,
+      'quality': 0.5,
+    });
+    final result = map['result'] as Map<String, dynamic>;
+    expect(result['mimeType'], 'image/png');
+    expect(result['width'], 2);
+    expect(result['height'], 2);
+    expect(result['size'], bytes.length);
+    expect(result['dataUrl'], startsWith('data:image/png;base64,'));
+  });
+
+  test('chooseImage reports CANCELLED when the picker is dismissed', () async {
+    final response = await harness.call('chooseImage');
+    expect(harness.errorOf(response)?['code'], 'CANCELLED');
+    expect(harness.chooseRequests.single['maxWidth'], 1024);
+  });
+
   test('request rejects paths outside the allowlist', () async {
     final response = await harness.call('request', params: {'path': '/admin'});
     expect(harness.errorOf(response)?['code'], 'PERMISSION_DENIED');
@@ -255,19 +305,18 @@ void main() {
     expect(harness.permissionRequests, ['qchat.api']);
   });
 
-  test('fetch rejects hosts outside the declared allowlist', () async {
+  test('fetch accepts any HTTPS host and rejects plain HTTP', () async {
     final response = await harness.call(
       'fetch',
-      params: {'url': 'https://evil.example.net/data'},
+      params: {'url': 'http://evil.example.net/data'},
     );
-    expect(harness.errorOf(response)?['code'], 'PERMISSION_DENIED');
+    expect(harness.errorOf(response)?['code'], 'INVALID_ARGUMENT');
   });
 
   test('fetch needs the network permission', () async {
     final limited = Harness(
       harness.storage,
       permissions: const ['toast'],
-      networkDomains: const ['api.example.com'],
     );
     addTearDown(limited.bridge.dispose);
     final response = await limited.call(

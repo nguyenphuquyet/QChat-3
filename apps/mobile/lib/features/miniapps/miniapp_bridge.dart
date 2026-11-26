@@ -21,6 +21,18 @@ class MiniAppBridgeException implements Exception {
   String toString() => '$code: $message';
 }
 
+/// Opens the app's photo picker for `chooseImage`.
+///
+/// The bridge holds no `BuildContext`, so the screen that hosts it supplies the
+/// picker. That is what makes a Mini App open the same WeChat-style page as the
+/// chat instead of the operating system's photo picker.
+typedef MiniAppImagePicker =
+    Future<XFile?> Function({
+      required int maxWidth,
+      required int maxHeight,
+      required double quality,
+    });
+
 /// Validates and executes calls from the native Mini App runtime.
 ///
 /// QuickJS can only call the host through [execute]. Every request is checked
@@ -40,12 +52,12 @@ class MiniAppBridge {
     required this.api,
     required this.storage,
     required this.requestPermission,
+    required this.onChooseImage,
     required this.onToast,
     required this.onShare,
     required this.onNavigate,
     required this.onClose,
     required this.systemInfo,
-    this.networkDomains = const [],
     this.onNavigateBack,
     Set<String> granted = const {},
   }) : _granted = {...granted};
@@ -62,12 +74,15 @@ class MiniAppBridge {
 
   /// Asks the user (once per app) and persists the answer.
   final Future<bool> Function(String permission) requestPermission;
+
+  /// Opens the app's photo picker; null means the user cancelled.
+  final MiniAppImagePicker onChooseImage;
+
   final void Function(String message, String icon) onToast;
   final Future<bool> Function(String text, String url, String title) onShare;
   final Future<void> Function(String path) onNavigate;
   final void Function() onClose;
   final Map<String, dynamic> Function() systemInfo;
-  final List<String> networkDomains;
   final Future<void> Function()? onNavigateBack;
 
   final Set<String> _granted;
@@ -369,7 +384,6 @@ class MiniAppBridge {
         'url must be an HTTPS URL',
       );
     }
-    _requireAllowedHost(uri);
     final method = params['method'] ?? 'GET';
     if (method is! String ||
         !const {'GET', 'POST', 'PUT', 'PATCH', 'DELETE'}.contains(method)) {
@@ -453,7 +467,6 @@ class MiniAppBridge {
           'redirects must stay on HTTPS',
         );
       }
-      _requireAllowedHost(next);
       if (status == 303 ||
           ((status == 301 || status == 302) &&
               currentMethod != 'GET' &&
@@ -504,25 +517,6 @@ class MiniAppBridge {
     };
   }
 
-  void _requireAllowedHost(Uri uri) {
-    final host = uri.host.toLowerCase();
-    final allowed = networkDomains.any((rule) {
-      final value = rule.trim().toLowerCase();
-      if (value == host) return true;
-      if (value.startsWith('*.')) {
-        final base = value.substring(1);
-        return host.length > base.length && host.endsWith(base);
-      }
-      return false;
-    });
-    if (!allowed) {
-      throw MiniAppBridgeException(
-        'PERMISSION_DENIED',
-        'This Mini App cannot access $host',
-      );
-    }
-  }
-
   Map<String, String> _requestHeaders(Object? raw) {
     if (raw == null) return const {};
     if (raw is! Map || raw.length > 20) {
@@ -565,11 +559,10 @@ class MiniAppBridge {
     final maxWidth = _int(params['maxWidth'], 'maxWidth', 1, 4096, 1024);
     final maxHeight = _int(params['maxHeight'], 'maxHeight', 1, 4096, 4096);
     final quality = _double(params['quality'], 'quality', 0.1, 1, 0.85);
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: maxWidth.toDouble(),
-      maxHeight: maxHeight.toDouble(),
-      imageQuality: (quality * 100).round(),
+    final picked = await onChooseImage(
+      maxWidth: maxWidth,
+      maxHeight: maxHeight,
+      quality: quality,
     );
     if (picked == null) {
       throw const MiniAppBridgeException('CANCELLED', 'No image was chosen');

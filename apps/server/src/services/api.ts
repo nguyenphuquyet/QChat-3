@@ -10,6 +10,7 @@ import { conversationsRoute } from "../modules/conversations";
 import { messagesRoute } from "../modules/messages";
 import { momentsRoute } from "../modules/moments";
 import { mediaRoute } from "../modules/media";
+import { stickersRoute } from "../modules/stickers";
 import { walletRoute } from "../modules/wallet";
 import { usersRoute } from "../modules/users";
 import { publicUser } from "./messages";
@@ -18,6 +19,7 @@ import { maybeExpireMoneyTransfers } from "./money-expiry";
 import { miniAppsRoute, miniAppReviewRoute } from "../modules/miniapps";
 import { deleteMediaObjects } from "../modules/media";
 import { deleteBuild } from "./miniapp-storage";
+import { pushReady, sendTestPush } from "./push";
 import {
   ADMIN_SECTIONS,
   canManage,
@@ -103,8 +105,11 @@ export async function handle(request: Request) {
       case "media":
         result = await mediaRoute(userId, method, path, body);
         break;
+      case "stickers":
+        result = await stickersRoute(userId, method, path, body);
+        break;
       case "wallet":
-        result = await walletRoute(userId, method, path, body);
+        result = await walletRoute(userId, method, path, body, url);
         break;
       case "miniapps":
         result = await miniAppsRoute(
@@ -201,6 +206,18 @@ export async function handle(request: Request) {
             create: { ...v, userId },
             update: { userId, platform: v.platform },
           });
+        }
+        // Signing out drops the token while the session can still authorize it,
+        // so the device stops receiving the account's messages.
+        if (method === "DELETE") {
+          const v = z
+            .object({ token: z.string().min(16).max(4096) })
+            .strict()
+            .parse(body);
+          await db.pushDevice.deleteMany({
+            where: { token: v.token, userId },
+          });
+          result = { ok: true };
         }
         break;
       case "calls":
@@ -1106,6 +1123,59 @@ export async function handle(request: Request) {
               },
             }),
           ]);
+          result = { ok: true };
+        }
+        // Registered push devices. The console can see which installation ids
+        // belong to an account and send one test notification to each.
+        if (method === "GET" && path[1] === "devices" && !path[2]) {
+          requireCondition(canManage(auth, "devices"), 403, "FORBIDDEN");
+          const [items, total, android, ios, configured] = await Promise.all([
+            db.pushDevice.findMany({
+              take: 200,
+              orderBy: [{ platform: "asc" }, { token: "asc" }],
+              select: {
+                id: true,
+                platform: true,
+                token: true,
+                user: {
+                  select: {
+                    id: true,
+                    qchatId: true,
+                    nickname: true,
+                    email: true,
+                  },
+                },
+              },
+            }),
+            db.pushDevice.count(),
+            db.pushDevice.count({ where: { platform: "android" } }),
+            db.pushDevice.count({ where: { platform: "ios" } }),
+            pushReady(),
+          ]);
+          result = { items, total, android, ios, configured };
+        }
+        if (
+          method === "POST" &&
+          path[1] === "devices" &&
+          path[2] &&
+          path[3] === "test"
+        ) {
+          requireCondition(canManage(auth, "devices"), 403, "FORBIDDEN");
+          const device = isUuid(path[2])
+            ? await db.pushDevice.findUnique({
+                where: { id: path[2] },
+                select: { token: true },
+              })
+            : null;
+          requireCondition(device, 404, "NOT_FOUND");
+          const sent = await sendTestPush(device.token);
+          if (!sent.ok) {
+            console.error("Admin push test failed", {
+              code: sent.code,
+              detail: sent.detail,
+            });
+            throw new ApiError(400, sent.code);
+          }
           result = { ok: true };
         }
         break;

@@ -31,6 +31,11 @@ const types = [
   "image/webp",
   "video/mp4",
   "video/quicktime",
+  "video/x-m4v",
+  "video/webm",
+  "video/x-matroska",
+  "video/x-msvideo",
+  "video/3gpp",
   "audio/mp4",
   "audio/mpeg",
   "application/pdf",
@@ -64,8 +69,19 @@ export function validSignature(mime: string, bytes: Uint8Array) {
       );
     case "video/mp4":
     case "video/quicktime":
+    case "video/x-m4v":
+    case "video/3gpp":
     case "audio/mp4":
       return b.toString("ascii", 4, 8) === "ftyp";
+    case "video/webm":
+    case "video/x-matroska":
+      // EBML magic shared by WebM and Matroska.
+      return b.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+    case "video/x-msvideo":
+      return (
+        b.toString("ascii", 0, 4) === "RIFF" &&
+        b.toString("ascii", 8, 12) === "AVI "
+      );
     case "audio/mpeg":
       return (
         b.toString("ascii", 0, 3) === "ID3" ||
@@ -185,6 +201,13 @@ export async function mediaRoute(
         where: { avatarId: file.id, disabled: false },
         select: { id: true },
       }));
+    // A designer picture is public with the designer's market profile, exactly
+    // like a user avatar.
+    if (!allowed)
+      allowed = !!(await db.redPacketDesigner.findFirst({
+        where: { avatarId: file.id },
+        select: { userId: true },
+      }));
     if (!allowed)
       allowed = !!(await db.conversationMember.findFirst({
         where: {
@@ -204,6 +227,63 @@ export async function mediaRoute(
           break;
         } catch {}
       }
+    // Cover artwork is public with a published cover and travels with every
+    // red packet that used it, so a market viewer or a recipient can load the
+    // same background and decoration pictures as the designer.
+    if (!allowed) {
+      const rows = await db.$queryRaw<{ one: number }[]>`
+        SELECT 1 AS one
+        FROM "RedPacketCover"
+        WHERE status = 'PUBLISHED'
+          AND design::text LIKE ${`%${file.id}%`}
+        LIMIT 1
+      `;
+      allowed = rows.length > 0;
+    }
+    if (!allowed) {
+      const rows = await db.$queryRaw<{ one: number }[]>`
+        SELECT 1 AS one
+        FROM "MoneyTransfer" mt
+        JOIN "Message" m ON m.id = mt."messageId"
+        JOIN "ConversationMember" cm
+          ON cm."conversationId" = m."conversationId"
+        WHERE cm."userId" = ${userId}::uuid
+          AND mt."coverDesign" IS NOT NULL
+          AND mt."coverDesign"::text LIKE ${`%${file.id}%`}
+        LIMIT 1
+      `;
+      allowed = rows.length > 0;
+    }
+    // Sticker artwork travels with its pack: a published pack is readable by
+    // anyone browsing the market, and a pack the user owns or has added is
+    // theirs. Media used by a sent sticker stays readable through the message
+    // membership check above.
+    if (!allowed)
+      allowed = !!(await db.sticker.findFirst({
+        where: {
+          mediaId: file.id,
+          pack: {
+            OR: [
+              { ownerId: userId },
+              { members: { some: { userId } } },
+              { published: true },
+            ],
+          },
+        },
+        select: { id: true },
+      }));
+    if (!allowed)
+      allowed = !!(await db.stickerPack.findFirst({
+        where: {
+          coverMediaId: file.id,
+          OR: [
+            { ownerId: userId },
+            { members: { some: { userId } } },
+            { published: true },
+          ],
+        },
+        select: { id: true },
+      }));
     requireCondition(allowed);
     return {
       mime: file.mime,

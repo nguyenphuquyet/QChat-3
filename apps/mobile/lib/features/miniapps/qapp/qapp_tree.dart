@@ -1,49 +1,15 @@
+import 'qapp_contract.generated.dart';
 import 'qapp_style.dart';
 
-/// Node types the Flutter renderer knows how to draw. `Row`, `Column`,
-/// `ListView` and `GridView` are normalized by the TSX runtime into `View` and
-/// `ScrollView`, but they stay accepted so a future SDK can serialize them
-/// directly.
-const qappNodeTypes = {
-  'View',
-  'Text',
-  'Image',
-  'Icon',
-  'Row',
-  'Column',
-  'Stack',
-  'Positioned',
-  'ScrollView',
-  'ListView',
-  'GridView',
-  'Button',
-  'TextField',
-  'Checkbox',
-  'Switch',
-  'Slider',
-  'Spacer',
-  'Divider',
-  'ActivityIndicator',
-  'SafeArea',
-  'Pressable',
-  'AnimatedView',
-  'CustomPaint',
-  '#text',
-};
-
-const qappEventNames = {
-  'press',
-  'longPress',
-  'change',
-  'input',
-  'submit',
-  'valueChange',
-  'scroll',
-  'refresh',
-  'focus',
-  'blur',
-  'select',
-};
+/// Node types and event names the Flutter renderer accepts are generated from
+/// `packages/contracts/miniapp-ui.contract.json` (see
+/// `corepack pnpm contract:generate`), so the TypeScript SDK, this validator and
+/// the Studio typings can never disagree. `Row`, `Column`, `ListView` and
+/// `GridView` are normalized by the TSX runtime into `View` and `ScrollView` but
+/// stay accepted.
+///
+/// `qappNodeTypes` and `qappEventNames` come from
+/// `qapp_contract.generated.dart`.
 
 class QappTreeException implements Exception {
   const QappTreeException(this.code, this.message);
@@ -62,6 +28,7 @@ class QappTree {
     required this.root,
     required this.revision,
     required this.nodeCount,
+    this.screen = '',
   });
 
   final int version;
@@ -70,6 +37,19 @@ class QappTree {
   final int revision;
   final int nodeCount;
 
+  /// Which screen the frame belongs to.
+  ///
+  /// Node ids are positional (`n0.1.0`), so the same id can name a different
+  /// widget in another screen. The runtime sends the component trail that
+  /// produced the frame's root node, which is stable while the screen stays
+  /// mounted and different for every other screen. The renderer uses it to keep
+  /// per-screen widget state apart — a `ScrollView` in one tab must not inherit
+  /// the offset of another, and the offset must come back when the user returns.
+  ///
+  /// Empty when the runtime is too old to send one; every frame then behaves as
+  /// one screen, which is the previous behaviour.
+  final String screen;
+
   factory QappTree.fromJson(Map<String, dynamic> json) {
     final budget = _TreeBudget();
     final rootValue = json['root'];
@@ -77,6 +57,7 @@ class QappTree {
     return QappTree(
       version: json['v'] is num ? (json['v'] as num).round() : 1,
       appId: json['appId']?.toString() ?? '',
+      screen: json['screen']?.toString() ?? '',
       root: root,
       revision: json['revision'] is num ? (json['revision'] as num).round() : 0,
       nodeCount: budget.nodes,
@@ -199,13 +180,20 @@ QappNode _parseNode(Object? raw, _TreeBudget budget, int depth) {
       for (final child in rawChildren) _parseNode(child, budget, depth + 1),
   ];
 
+  QappStyle style;
+  try {
+    style = QappStyle.fromMap(props['style']);
+  } on QappStyleException catch (error) {
+    throw QappTreeException(error.code, error.message);
+  }
+
   return QappNode(
     id: id,
     type: type,
     props: props,
     events: events,
     children: children,
-    style: QappStyle.fromMap(props['style']),
+    style: style,
   );
 }
 

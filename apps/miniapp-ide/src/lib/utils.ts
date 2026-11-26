@@ -1,8 +1,13 @@
 import { clsx, type ClassValue } from "clsx";
+import { translate } from "./i18n";
+import type { Language } from "../types";
 
 export function cn(...inputs: ClassValue[]): string {
   return clsx(inputs);
 }
+
+/** Default parent folder used for new mini apps. */
+export const DEFAULT_PROJECTS_FOLDER = "QChat Mini App Studio Project";
 
 export function basename(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() || path;
@@ -21,13 +26,17 @@ export function joinPath(base: string, ...parts: string[]): string {
   );
 }
 
+/**
+ * Normalises free-form text into the lowercase slug used for folder names and
+ * manifest names. An empty input stays empty on purpose: callers validate it,
+ * so clearing the field never silently jumps back to a default name.
+ */
 export function slugify(value: string): string {
-  return (
-    value
-      .toLowerCase()
-      .replace(/[^a-z0-9._-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "miniapp"
-  );
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^[-.]+|[-.]+$/g, "");
 }
 
 export function formatBytes(bytes: number): string {
@@ -41,18 +50,22 @@ export function formatBytes(bytes: number): string {
   return `${value >= 10 || exponent === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[exponent]}`;
 }
 
-export function timeAgo(ms: number | null | undefined, now = Date.now()): string {
-  if (!ms) return "unknown";
+export function timeAgo(
+  ms: number | null | undefined,
+  language: Language = "vi",
+  now = Date.now(),
+): string {
+  if (!ms) return translate(language, "time.unknown");
   const delta = Math.max(0, now - ms);
   const seconds = Math.floor(delta / 1000);
-  if (seconds < 45) return "just now";
+  if (seconds < 45) return translate(language, "time.justNow");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return translate(language, "time.minutesAgo", { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return translate(language, "time.hoursAgo", { count: hours });
   const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(ms).toLocaleDateString();
+  if (days < 30) return translate(language, "time.daysAgo", { count: days });
+  return new Date(ms).toLocaleDateString(language === "vi" ? "vi-VN" : language === "zh" ? "zh-CN" : "en-US");
 }
 
 export function clockTime(ms = Date.now()): string {

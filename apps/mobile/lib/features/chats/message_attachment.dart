@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../app/providers.dart';
@@ -11,6 +11,7 @@ import '../../core/network/video_meta.dart';
 import '../../core/network/cached_video.dart';
 import '../../core/network/cached_audio.dart';
 import '../../core/localization/strings.dart';
+import '../stickers/sticker_view.dart';
 import 'media_screen.dart';
 
 class MessageAttachment extends ConsumerStatefulWidget {
@@ -174,6 +175,18 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
 
   @override
   Widget build(BuildContext c) {
+    // A sticker has no bubble and no caption: just the artwork, animated when
+    // the pack holds a GIF.
+    if (widget.kind == 'STICKER') {
+      return Padding(
+        padding: const EdgeInsets.only(right: 12),
+        child: StickerView(
+          key: ValueKey('sticker-media-${widget.id}'),
+          mediaId: widget.id,
+          size: 126,
+        ),
+      );
+    }
     if (widget.kind == 'IMAGE') {
       return Hero(
         tag: widget.sourceTag ?? MediaScreen.heroTag(widget.id),
@@ -221,7 +234,7 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
             child: Stack(
               alignment: Alignment.center,
               children: [
-                const Positioned.fill(child: ColoredBox(color: Colors.black87)),
+                const Positioned.fill(child: ColoredBox(color: QChatColors.black87)),
                 if (ready)
                   AspectRatio(
                     aspectRatio: controller.value.aspectRatio,
@@ -233,12 +246,12 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
                   decoration: BoxDecoration(
                     color: const Color(0x55000000),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white70, width: 1.5),
+                    border: Border.all(color: QChatColors.white70, width: 1.5),
                   ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 40,
+                  child: const QChatIcon(
+                    'play',
+                    color: QChatColors.white,
+                    size: 34,
                   ),
                 ),
                 if (duration != null)
@@ -252,14 +265,14 @@ class _MessageAttachmentState extends ConsumerState<MessageAttachment>
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Colors.black38],
+                          colors: [QChatColors.transparent, QChatColors.black38],
                         ),
                       ),
                       child: Text(
                         '${duration.inMinutes}:${duration.inSeconds.remainder(60).toString().padLeft(2, '0')}',
                         textAlign: TextAlign.right,
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: QChatColors.white,
                           fontSize: 16,
                           decoration: TextDecoration.none,
                         ),

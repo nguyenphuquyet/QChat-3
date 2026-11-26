@@ -31,6 +31,7 @@ export const messageSchema = z
         "AUDIO",
         "FILE",
         "GIF",
+        "STICKER",
         "CONTACT",
         "LOCATION",
         "TRANSFER",

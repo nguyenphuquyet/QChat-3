@@ -12,6 +12,14 @@ export function runBundle(appJs, options = {}) {
     let current = null;
     let treeAtDispatch = null;
     let closed = false;
+    let virtualNow = options.now ?? Date.UTC(2026, 0, 1, 12, 0, 0);
+    let wakeRequest = null;
+    const scheduler = {
+        now: () => virtualNow,
+        wake(delayMs) {
+            wakeRequest = delayMs < 0 ? null : delayMs;
+        },
+    };
     const defaults = {
         getAppInfo: () => ({
             appId: options.appId ?? "mp_test",
@@ -65,6 +73,12 @@ export function runBundle(appJs, options = {}) {
     const storage = new Map();
     const native = {
         send(kind, payload) {
+            if (kind === "timer") {
+                // The app only takes this path when no scheduler hook is available.
+                const delay = payload?.delayMs;
+                wakeRequest = typeof delay === "number" && delay >= 0 ? delay : null;
+                return;
+            }
             if (closed)
                 return;
             if (kind === "render") {
@@ -73,7 +87,13 @@ export function runBundle(appJs, options = {}) {
             }
             if (kind === "log") {
                 const entry = payload;
-                logs.push({ level: entry.level ?? "info", message: entry.message ?? "" });
+                const record = {
+                    level: entry.level ?? "info",
+                    message: entry.message ?? "",
+                };
+                if (entry.stack)
+                    record.stack = entry.stack;
+                logs.push(record);
             }
         },
         async call(method, params) {
@@ -101,42 +121,54 @@ export function runBundle(appJs, options = {}) {
             }
         },
     };
+    // A fresh V8 context already carries the ECMAScript built-ins, which is
+    // exactly what QuickJS gives a bundle. Everything QuickJS lacks is left
+    // undefined on purpose, so a bundle that uses `console`, `setTimeout`, `Intl`
+    // or `URL` without installing `@mna/qchat/env` fails here the same way it
+    // would fail on a device.
     const sandbox = {
         __qchatNative: native,
-        console: {
-            log: (...args) => logs.push({ level: "info", message: args.join(" ") }),
-            warn: (...args) => logs.push({ level: "warn", message: args.join(" ") }),
-            error: (...args) => logs.push({ level: "error", message: args.join(" ") }),
-        },
-        setTimeout,
-        clearTimeout,
-        setInterval,
-        clearInterval,
-        queueMicrotask,
-        Promise,
-        JSON,
-        Math,
-        Date,
-        Object,
-        Array,
-        String,
-        Number,
-        Boolean,
-        Error,
-        TypeError,
-        RegExp,
-        Map,
-        Set,
-        WeakMap,
-        WeakSet,
-        Symbol,
-        Intl,
+        __qchatTimerScheduler: scheduler,
+        console: undefined,
+        setTimeout: undefined,
+        clearTimeout: undefined,
+        setInterval: undefined,
+        clearInterval: undefined,
+        requestAnimationFrame: undefined,
+        cancelAnimationFrame: undefined,
+        queueMicrotask: undefined,
+        structuredClone: undefined,
+        URL: undefined,
+        URLSearchParams: undefined,
+        TextEncoder: undefined,
+        TextDecoder: undefined,
+        AbortController: undefined,
+        AbortSignal: undefined,
+        Intl: undefined,
     };
     const context = createContext(sandbox);
     runInContext(appJs, context, {
         filename: "app.js",
         timeout: options.timeoutMs ?? 5_000,
     });
+    const tickTimers = (now) => {
+        const tick = sandbox.__qchatTickTimers;
+        return typeof tick === "function" ? tick(now) : 0;
+    };
+    const timers = {
+        now: () => virtualNow,
+        advance(milliseconds) {
+            // One advance is one host wake, which is one tick: exactly what the
+            // Flutter host does when the app asks to be woken again.
+            virtualNow += Math.max(0, milliseconds);
+            return tickTimers(virtualNow);
+        },
+        pending() {
+            const probe = sandbox.__qchatTimerPending;
+            return typeof probe === "function" ? probe() : 0;
+        },
+        nextDelay: () => wakeRequest,
+    };
     const dispatch = (id, event, payload) => {
         treeAtDispatch = current;
         const fn = sandbox.__qchatDispatch;
@@ -150,11 +182,15 @@ export function runBundle(appJs, options = {}) {
         renders,
         calls,
         logs,
+        timers,
         dispatch,
         latest: () => current,
         dispose: () => {
             const fn = sandbox.__qchatLifecycle;
             fn?.("destroy");
+            const clearAll = sandbox.__qchatTimerClearAll;
+            if (typeof clearAll === "function")
+                clearAll();
             closed = true;
         },
     };

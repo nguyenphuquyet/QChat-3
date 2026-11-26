@@ -1,4 +1,5 @@
-export const STARTER_SOURCE = `import { start, useState } from "@mna/qchat";
+export const STARTER_SOURCE = `import "@mna/qchat/env/auto";
+import { start, useState } from "@mna/qchat";
 import { showToast } from "@mna/qchat/navigation";
 import { Button, Text, View } from "@mna/qchat/ui";
 
@@ -62,7 +63,8 @@ export default function App() {
 start(App);
 `;
 
-export const COUNTER_SOURCE = `import { start, useEffect, useState } from "@mna/qchat";
+export const COUNTER_SOURCE = `import "@mna/qchat/env/auto";
+import { start, useEffect, useState } from "@mna/qchat";
 import { showToast } from "@mna/qchat/navigation";
 import { getStorage, setStorage } from "@mna/qchat/storage";
 import { Button, Row, Text, View } from "@mna/qchat/ui";
@@ -127,7 +129,8 @@ function App() {
 start(App);
 `;
 
-export const BLANK_SOURCE = `import { start, useState } from "@mna/qchat";
+export const BLANK_SOURCE = `import "@mna/qchat/env/auto";
+import { start, useState } from "@mna/qchat";
 import { Button, Text, View } from "@mna/qchat/ui";
 
 export default function App() {

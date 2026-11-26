@@ -33,6 +33,13 @@ export interface Artifact {
   modifiedMs: number | null;
 }
 
+/** A Mini App folder discovered by the smart open-project resolver. */
+export interface ProjectCandidate {
+  path: string;
+  name: string;
+  version: string | null;
+}
+
 export interface ProjectManifest {
   schemaVersion: number;
   format: string;
@@ -43,7 +50,6 @@ export interface ProjectManifest {
   sdkVersion: string;
   minRuntimeVersion: string;
   requestedPermissions: string[];
-  networkDomains?: string[];
   source?: string;
   [key: string]: unknown;
 }
@@ -78,15 +84,33 @@ export interface Project {
   isQapp: boolean;
 }
 
+/** Size + mtime snapshot used to detect edits made outside the studio. */
+export interface FileStamp {
+  path: string;
+  exists: boolean;
+  size: number;
+  modifiedMs: number | null;
+}
+
 export interface EditorTab {
   path: string;
   name: string;
   content: string;
   saved: string;
   language: string;
+  /** Last modification time observed on disk; `undefined` until first stat. */
+  diskModifiedMs?: number | null;
+  /** The file changed on disk while this tab still has unsaved edits. */
+  externalChange?: boolean;
+  /** The file no longer exists on disk (deleted or moved outside). */
+  missing?: boolean;
 }
 
 export type LogStream = "stdout" | "stderr" | "system";
+
+export type Language = "vi" | "zh" | "en";
+
+export type Theme = "dark" | "light";
 
 export interface LogEntry {
   id: string;
@@ -113,6 +137,8 @@ export interface Settings {
   minimap: boolean;
   wordWrap: boolean;
   confirmDelete: boolean;
+  language: Language;
+  theme: Theme;
 }
 
 export interface NewProjectInput {
@@ -122,7 +148,6 @@ export interface NewProjectInput {
   version: string;
   template: "starter" | "counter" | "blank";
   permissions: string[];
-  networkDomains: string[];
 }
 
 export interface PermissionInfo {

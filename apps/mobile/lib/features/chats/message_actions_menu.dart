@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/widgets.dart';
+
+import '../../core/design_system/qchat_colors.dart';
+import '../../core/design_system/qchat_theme.dart';
 
 /// One entry in the long-press menu for a message.
 class MessageAction {
@@ -22,8 +25,7 @@ class MessageAction {
 
 /// Opens the long-press menu next to [anchorContext]'s bubble. The panel keeps
 /// a margin from the screen edges, aligns to the bubble's side, and animates
-/// in from the arrow so it reads as a TDesign popover instead of a clamped
-/// Material popup.
+/// in from the arrow so it reads as a QChat popover.
 Future<void> showMessageActions(
   BuildContext context, {
   required BuildContext anchorContext,
@@ -200,25 +202,19 @@ class _MessageMenuPopoverState extends State<_MessageMenuPopover>
         if (rect == null) return const SizedBox.shrink();
         final screen = constraints.biggest;
         final mq = MediaQuery.of(context);
-        final theme = Theme.of(context);
-        final tokens = context.tTheme;
-        final popoverTheme =
-            theme.extension<TPopoverThemeData>() ?? const TPopoverThemeData();
-        final background =
-            popoverTheme.backgroundColor ??
-            (theme.brightness == Brightness.dark
-                ? const Color(0xff202020)
-                : Colors.white);
-        final radius =
-            popoverTheme.borderRadius ??
-            BorderRadius.circular(tokens.radiusDefault);
+        final background = qchatDark(context)
+            ? QChatColors.darkSurface
+            : QChatColors.white;
+        final radius = BorderRadius.circular(12);
         final resolvedRadius = radius.resolve(Directionality.of(context));
-        final padding =
-            (popoverTheme.padding ?? const EdgeInsets.all(12)).resolve(
-              Directionality.of(context),
-            );
-        final shadow =
-            popoverTheme.boxShadow ?? tokens.shadow3 ?? const <BoxShadow>[];
+        final padding = const EdgeInsets.all(12);
+        const shadow = <BoxShadow>[
+          BoxShadow(
+            color: QChatColors.black12,
+            blurRadius: 24,
+            offset: Offset(0, 8),
+          ),
+        ];
 
         var separators = 0;
         for (var i = 1; i < widget.actions.length; i++) {
@@ -294,12 +290,11 @@ class _MessageMenuPopoverState extends State<_MessageMenuPopover>
                           horizontal: 8,
                           vertical: 4,
                         ),
-                        color: tokens.textColorAnti.withValues(alpha: .16),
+                        color: qchatMuted(context).withValues(alpha: .4),
                       ),
                     _MenuRow(
                       action: widget.actions[i],
-                      font: tokens.fontBodyMedium,
-                      radius: BorderRadius.circular(tokens.radiusDefault),
+                      radius: BorderRadius.circular(10),
                       onTap: () {
                         widget.onPick(i);
                         close();
@@ -374,13 +369,11 @@ class _MessageMenuPopoverState extends State<_MessageMenuPopover>
 class _MenuRow extends StatefulWidget {
   const _MenuRow({
     required this.action,
-    required this.font,
     required this.radius,
     required this.onTap,
   });
 
   final MessageAction action;
-  final Font? font;
   final BorderRadius radius;
   final VoidCallback onTap;
 
@@ -398,10 +391,9 @@ class _MenuRowState extends State<_MenuRow> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.tTheme;
     final color = widget.action.destructive
-        ? theme.errorColor
-        : theme.textColorAnti;
+        ? QChatColors.danger
+        : qchatInk(context);
     return Semantics(
       button: true,
       child: GestureDetector(
@@ -418,20 +410,20 @@ class _MenuRowState extends State<_MenuRow> {
           alignment: Alignment.centerLeft,
           decoration: BoxDecoration(
             color: _pressed
-                ? theme.textColorAnti.withValues(alpha: .08)
-                : Colors.transparent,
+                ? qchatInk(context).withValues(alpha: .08)
+                : QChatColors.transparent,
             borderRadius: widget.radius,
           ),
           child: Row(
             children: [
-              TIcon(widget.action.icon, size: 18, color: color),
+              Icon(widget.action.icon, size: 18, color: color),
               const SizedBox(width: 10),
               Expanded(
-                child: TText(
+                child: Text(
                   widget.action.label,
-                  font: widget.font,
                   style: TextStyle(
                     color: color,
+                    fontSize: 15,
                     fontWeight: FontWeight.w500,
                     letterSpacing: 0,
                   ),

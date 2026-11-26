@@ -1,12 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
+import { documentDir } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { DEFAULT_PROJECTS_FOLDER, joinPath } from "./utils";
 import type {
   Artifact,
   CliInfo,
   CliOutput,
+  FileStamp,
   FsEntry,
   InspectResult,
+  ProjectCandidate,
 } from "../types";
 
 export function isTauri(): boolean {
@@ -23,6 +27,15 @@ function desktopOnly<T>(value: T): Promise<T> {
 
 export const api = {
   isDesktop: isTauri,
+
+  async defaultProjectsDir(): Promise<string> {
+    if (!isTauri()) return "";
+    try {
+      return joinPath(await documentDir(), DEFAULT_PROJECTS_FOLDER);
+    } catch {
+      return "";
+    }
+  },
 
   detectCli(node = "", cli = ""): Promise<CliInfo> {
     if (!isTauri()) {
@@ -67,9 +80,27 @@ export const api = {
     return invoke<FsEntry[]>("list_tree", { root });
   },
 
+  /** Size + mtime snapshot of the given files; missing files come back with `exists: false`. */
+  fileStamps(paths: string[]): Promise<FileStamp[]> {
+    if (!isTauri() || paths.length === 0) return Promise.resolve([]);
+    return invoke<FileStamp[]>("file_stamps", { paths });
+  },
+
+  /** Hex hash of the folder structure, used to detect external adds/removes/renames. */
+  treeSignature(root: string): Promise<string> {
+    if (!isTauri()) return Promise.resolve("");
+    return invoke<string>("tree_signature", { root });
+  },
+
   readText(path: string): Promise<string> {
     if (!isTauri()) return desktopOnly("");
     return invoke<string>("read_text_file", { path });
+  },
+
+  /** Base64 of a file, used to turn `assets/…` into data URLs for the preview. */
+  readBinary(path: string): Promise<string> {
+    if (!isTauri()) return desktopOnly("");
+    return invoke<string>("read_binary_file", { path });
   },
 
   writeText(path: string, contents: string): Promise<void> {
@@ -80,6 +111,11 @@ export const api = {
   createEntry(path: string, directory: boolean): Promise<void> {
     if (!isTauri()) return desktopOnly(undefined as never);
     return invoke<void>("create_entry", { path, directory });
+  },
+
+  ensureDirectory(path: string): Promise<void> {
+    if (!isTauri()) return desktopOnly(undefined as never);
+    return invoke<void>("ensure_directory", { path });
   },
 
   renameEntry(path: string, next: string): Promise<void> {
@@ -95,6 +131,16 @@ export const api = {
   listArtifacts(project: string): Promise<Artifact[]> {
     if (!isTauri()) return Promise.resolve([]);
     return invoke<Artifact[]>("list_artifacts", { project });
+  },
+
+  /**
+   * Resolves a picked folder to Mini App projects: the folder itself, one of
+   * its parents, or its direct children. Returns every candidate so the UI can
+   * ask which one to open.
+   */
+  findProjects(path: string): Promise<ProjectCandidate[]> {
+    if (!isTauri()) return Promise.resolve([]);
+    return invoke<ProjectCandidate[]>("find_projects", { path });
   },
 
   async pickDirectory(defaultPath?: string): Promise<string | null> {

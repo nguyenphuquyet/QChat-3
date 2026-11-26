@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/providers.dart';
 import '../../core/design_system/components.dart';
@@ -90,14 +91,15 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: ink(c).withValues(alpha: .09)),
           ),
-          child: TInput(
+          child: CupertinoTextField(
             controller: controller,
-            hintText: secret ? '••••••••••••' : '',
+            placeholder: secret ? '••••••••••••' : '',
             obscureText: secret,
-            inputType: keyboardType ?? TextInputType.text,
-            borderless: true,
+            keyboardType: keyboardType ?? TextInputType.text,
             cursorColor: QChatColors.green,
             style: TextStyle(fontSize: 16, color: ink(c)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: const BoxDecoration(color: QChatColors.transparent),
           ),
         ),
       ],
@@ -106,7 +108,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   Widget build(BuildContext c) {
-    final dark = Theme.of(c).brightness == Brightness.dark;
+    final dark = qchatDark(c);
     return QChatPage(
       background: dark ? const Color(0xff171c1a) : const Color(0xfff5f8f6),
       child: SafeArea(
@@ -129,25 +131,33 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       for (final language in ['vi', 'en', 'zh'])
                         Padding(
                           padding: const EdgeInsets.only(left: 4),
-                          child: TButton(
-                            variant: TButtonVariant.text,
-                            onPressed: () => ref
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => ref
                                 .read(preferencesProvider.notifier)
                                 .language(language),
-                            child: Text(
-                              language == 'zh' ? '中文' : language.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight:
-                                    ref.watch(preferencesProvider).locale ==
-                                        language
-                                    ? FontWeight.w700
-                                    : FontWeight.w400,
-                                color:
-                                    ref.watch(preferencesProvider).locale ==
-                                        language
-                                    ? QChatColors.green
-                                    : QChatColors.muted,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 4,
+                              ),
+                              child: Text(
+                                language == 'zh'
+                                    ? '中文'
+                                    : language.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight:
+                                      ref.watch(preferencesProvider).locale ==
+                                          language
+                                      ? FontWeight.w700
+                                      : FontWeight.w400,
+                                  color:
+                                      ref.watch(preferencesProvider).locale ==
+                                          language
+                                      ? QChatColors.green
+                                      : QChatColors.muted,
+                                ),
                               ),
                             ),
                           ),
@@ -183,7 +193,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       border: Border.all(color: ink(c).withValues(alpha: .05)),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(
+                          color: QChatColors.black.withValues(
                             alpha: dark ? .08 : .025,
                           ),
                           blurRadius: 32,
@@ -232,33 +242,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             ),
                           ),
                         const SizedBox(height: 6),
-                        TButton(
-                          onPressed: busy ? null : submit,
-                          style: ButtonStyle(
-                            minimumSize: const WidgetStatePropertyAll(
-                              Size.fromHeight(52),
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: busy ? null : submit,
+                          child: Container(
+                            height: 52,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: QChatColors.green,
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            backgroundColor: const WidgetStatePropertyAll(
-                              QChatColors.green,
-                            ),
-                            foregroundColor: const WidgetStatePropertyAll(
-                              Colors.white,
-                            ),
-                            shape: WidgetStatePropertyAll(
-                              RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                          child: busy
-                              ? const QChatLoading()
-                              : Text(
-                                  tr(c, register ? 'register' : 'login'),
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
+                            child: busy
+                                ? const SizedBox.square(
+                                    dimension: 20,
+                                    child: QChatLoading(),
+                                  )
+                                : Text(
+                                    tr(c, register ? 'register' : 'login'),
+                                    style: const TextStyle(
+                                      color: QChatColors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 16,
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
                       ],
                     ),
@@ -272,19 +279,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       color: QChatColors.muted,
                     ),
                   ),
-                  TButton(
-                    variant: TButtonVariant.text,
-                    onPressed: busy
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: busy
                         ? null
                         : () => setState(() {
                             register = !register;
                             error = null;
                           }),
-                    child: Text(
-                      tr(c, register ? 'login' : 'register'),
-                      style: const TextStyle(
-                        color: QChatColors.green,
-                        fontWeight: FontWeight.w600,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        tr(c, register ? 'login' : 'register'),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: QChatColors.green,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),

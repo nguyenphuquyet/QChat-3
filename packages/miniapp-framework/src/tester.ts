@@ -8,13 +8,38 @@ export interface HarnessOptions {
   timeoutMs?: number;
   /** Extra host responses, keyed by method. */
   responses?: Record<string, (params: Record<string, unknown>) => unknown>;
+  /** Virtual clock start; the harness owns time, negative values are clamped. */
+  now?: number;
+}
+
+/**
+ * The host clock the harness exposes to the app. The bundle keeps the timer
+ * queue and the harness owns the time, so timer tests are deterministic: no
+ * real waiting and no flaky ordering.
+ */
+export interface HarnessTimers {
+  /** Current virtual time in milliseconds. */
+  now(): number;
+  /** Moves the clock forward and runs everything that is due. */
+  advance(milliseconds: number): number;
+  /** Number of timers the app still has scheduled. */
+  pending(): number;
+  /** Delay the app last asked the host to wait for, or `null` when idle. */
+  nextDelay(): number | null;
+}
+
+export interface HarnessLog {
+  level: string;
+  message: string;
+  stack?: string;
 }
 
 export interface HarnessResult {
   tree: SerializedTree | null;
   renders: SerializedTree[];
   calls: Array<{ method: string; params: Record<string, unknown> }>;
-  logs: Array<{ level: string; message: string }>;
+  logs: HarnessLog[];
+  timers: HarnessTimers;
   dispatch(id: string, event: string, payload?: unknown): SerializedTree | null;
   latest(): SerializedTree | null;
   dispose(): void;
@@ -28,10 +53,18 @@ function clone<T>(value: T): T {
 export function runBundle(appJs: string, options: HarnessOptions = {}): HarnessResult {
   const renders: SerializedTree[] = [];
   const calls: Array<{ method: string; params: Record<string, unknown> }> = [];
-  const logs: Array<{ level: string; message: string }> = [];
+  const logs: HarnessLog[] = [];
   let current: SerializedTree | null = null;
   let treeAtDispatch: SerializedTree | null = null;
   let closed = false;
+  let virtualNow = options.now ?? Date.UTC(2026, 0, 1, 12, 0, 0);
+  let wakeRequest: number | null = null;
+  const scheduler = {
+    now: () => virtualNow,
+    wake(delayMs: number) {
+      wakeRequest = delayMs < 0 ? null : delayMs;
+    },
+  };
 
   const defaults: Record<string, (params: Record<string, unknown>) => unknown> = {
     getAppInfo: () => ({
@@ -87,14 +120,25 @@ export function runBundle(appJs: string, options: HarnessOptions = {}): HarnessR
 
   const native = {
     send(kind: string, payload: unknown) {
+      if (kind === "timer") {
+        // The app only takes this path when no scheduler hook is available.
+        const delay = (payload as { delayMs?: unknown } | null)?.delayMs;
+        wakeRequest = typeof delay === "number" && delay >= 0 ? delay : null;
+        return;
+      }
       if (closed) return;
       if (kind === "render") {
         current = clone(payload as SerializedTree);
         renders.push(current);
       }
       if (kind === "log") {
-        const entry = payload as { level?: string; message?: string };
-        logs.push({ level: entry.level ?? "info", message: entry.message ?? "" });
+        const entry = payload as { level?: string; message?: string; stack?: string };
+        const record: HarnessLog = {
+          level: entry.level ?? "info",
+          message: entry.message ?? "",
+        };
+        if (entry.stack) record.stack = entry.stack;
+        logs.push(record);
       }
     },
     async call(method: string, params: unknown) {
@@ -122,42 +166,57 @@ export function runBundle(appJs: string, options: HarnessOptions = {}): HarnessR
     },
   };
 
+  // A fresh V8 context already carries the ECMAScript built-ins, which is
+  // exactly what QuickJS gives a bundle. Everything QuickJS lacks is left
+  // undefined on purpose, so a bundle that uses `console`, `setTimeout`, `Intl`
+  // or `URL` without installing `@mna/qchat/env` fails here the same way it
+  // would fail on a device.
   const sandbox: Record<string, unknown> = {
     __qchatNative: native,
-    console: {
-      log: (...args: unknown[]) => logs.push({ level: "info", message: args.join(" ") }),
-      warn: (...args: unknown[]) => logs.push({ level: "warn", message: args.join(" ") }),
-      error: (...args: unknown[]) => logs.push({ level: "error", message: args.join(" ") }),
-    },
-    setTimeout,
-    clearTimeout,
-    setInterval,
-    clearInterval,
-    queueMicrotask,
-    Promise,
-    JSON,
-    Math,
-    Date,
-    Object,
-    Array,
-    String,
-    Number,
-    Boolean,
-    Error,
-    TypeError,
-    RegExp,
-    Map,
-    Set,
-    WeakMap,
-    WeakSet,
-    Symbol,
-    Intl,
+    __qchatTimerScheduler: scheduler,
+    console: undefined,
+    setTimeout: undefined,
+    clearTimeout: undefined,
+    setInterval: undefined,
+    clearInterval: undefined,
+    requestAnimationFrame: undefined,
+    cancelAnimationFrame: undefined,
+    queueMicrotask: undefined,
+    structuredClone: undefined,
+    URL: undefined,
+    URLSearchParams: undefined,
+    TextEncoder: undefined,
+    TextDecoder: undefined,
+    AbortController: undefined,
+    AbortSignal: undefined,
+    Intl: undefined,
   };
   const context = createContext(sandbox);
   runInContext(appJs, context, {
     filename: "app.js",
     timeout: options.timeoutMs ?? 5_000,
   });
+
+  const tickTimers = (now: number): number => {
+    const tick = sandbox.__qchatTickTimers as
+      | ((nowMs?: number) => number)
+      | undefined;
+    return typeof tick === "function" ? tick(now) : 0;
+  };
+  const timers: HarnessTimers = {
+    now: () => virtualNow,
+    advance(milliseconds) {
+      // One advance is one host wake, which is one tick: exactly what the
+      // Flutter host does when the app asks to be woken again.
+      virtualNow += Math.max(0, milliseconds);
+      return tickTimers(virtualNow);
+    },
+    pending() {
+      const probe = sandbox.__qchatTimerPending as (() => number) | undefined;
+      return typeof probe === "function" ? probe() : 0;
+    },
+    nextDelay: () => wakeRequest,
+  };
 
   const dispatch = (id: string, event: string, payload?: unknown): SerializedTree | null => {
     treeAtDispatch = current;
@@ -174,6 +233,7 @@ export function runBundle(appJs: string, options: HarnessOptions = {}): HarnessR
     renders,
     calls,
     logs,
+    timers,
     dispatch,
     latest: () => current,
     dispose: () => {
@@ -181,6 +241,8 @@ export function runBundle(appJs: string, options: HarnessOptions = {}): HarnessR
         | ((event: string, payload?: unknown) => void)
         | undefined;
       fn?.("destroy");
+      const clearAll = sandbox.__qchatTimerClearAll as (() => void) | undefined;
+      if (typeof clearAll === "function") clearAll();
       closed = true;
     },
   };

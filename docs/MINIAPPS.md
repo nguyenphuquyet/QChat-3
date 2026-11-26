@@ -25,7 +25,7 @@ external mini-app runtime.
 | Storage | `apps/server/src/services/miniapp-storage.ts` | Immutable builds in private S3 or a signed filesystem adapter |
 | Package validation | `apps/server/src/services/zip.ts`, `miniapp-package.ts` | ZIP, manifest, metadata, checksum and permission checks |
 | Native framework | `packages/miniapp-framework` | `@mna/qchat` TSX runtime, components, APIs, compiler and `.japp` CLI |
-| Native examples | `packages/miniapp-examples` | Hello World and counter built through the real compiler |
+| Native examples | `packages/miniapp-examples` | Hello World, counter, shell, env-demo, demo-kit, custom-kit, cafe, rap-pho, so-viec and vi-nho built through the real compiler |
 | Desktop IDE | `apps/miniapp-ide` | Tauri desktop Studio for editing, building, testing and inspecting qapp projects through the real CLI |
 | IDE download | `apps/developer/dashboard.tsx` (IDE tab), admin → landing links (`ide`) | Administrator-configured download link, read from `SiteLink` |
 | Reviewer preview | `apps/server/src/services/miniapp-preview.ts`, `miniAppPreview` | Raw file inspection for `.japp` builds |
@@ -175,8 +175,7 @@ assets/...          (optional)
   "entry": "app.js",
   "sdkVersion": "1.0.0",
   "minRuntimeVersion": "1.0.0",
-  "requestedPermissions": ["storage", "toast"],
-  "networkDomains": []
+  "requestedPermissions": ["storage", "toast"]
 }
 ```
 
@@ -186,8 +185,8 @@ assets/...          (optional)
   and a `files` array of `{ path, sha256, size }`. Every payload file except
   `metadata.json` itself is listed. The device re-verifies these hashes and
   sizes on install and on every open.
-- `permissions.json` repeats `requestedPermissions` and `networkDomains` and
-  must match the manifest exactly.
+- `permissions.json` repeats `requestedPermissions` and must match the manifest
+  exactly.
 - Only allowlisted asset extensions may live under `assets/` (images, fonts,
   JSON/text, audio and video). Undeclared files, symlinks, executables and path
   traversal are rejected.
@@ -204,17 +203,16 @@ Packages may only declare these permissions:
 | `share` | `share` |
 | `storage` | `getStorage`, `setStorage`, `removeStorage` |
 | `qchat.api` | `request("/conversations")` |
-| `network` | `fetch` to HTTPS hosts declared in `networkDomains` |
+| `network` | `fetch` to any HTTPS host |
 
 `getAppInfo`, `getSystemInfo`, `navigateTo` and `closeMiniApp` need no
 permission. Declaring a permission is necessary but not sufficient: the Flutter
 host checks the granted permission on every call.
 
-`networkDomains` accepts at most 10 exact hosts or wildcard hosts such as
-`*.example.com`. The `network` permission and a non-empty `networkDomains` array
-must be declared together. Requests are HTTPS-only, redirects are re-checked
-against the allowlist, responses are capped at 1 MB, and the host never attaches
-a QChat token.
+There is no host allowlist: once `network` is granted, `fetch` reaches any HTTPS
+host. Requests are HTTPS-only (plain HTTP and URLs with embedded credentials are
+rejected), redirects must stay on HTTPS, responses are capped at 1 MB, and the
+host never attaches a QChat token.
 
 ### Upload checks
 
@@ -269,15 +267,231 @@ function App() {
 start(App);
 ```
 
-Components: `View`, `Row`, `Column`, `Text`, `Button`, `Pressable`, `Image`,
-`Icon`, `TextField`, `Checkbox`, `Switch`, `Slider`, `ScrollView`, `ListView`,
-`GridView`, `Stack`, `Positioned`, `Spacer`, `Divider`, `ActivityIndicator`,
-`SafeArea`, `AnimatedView` and `CustomPaint`.
+Components: `View`, `Row`, `Column`, `Text`, `RichText`, `Link`, `Button`,
+`Pressable`, `Image`, `Avatar`, `Icon`, `TextField`, `Checkbox`, `Switch`,
+`Slider`, `ScrollView`, `ListView`, `GridView`, `Stack`, `Positioned`, `Spacer`,
+`Divider`, `Badge`, `Tag`, `ActivityIndicator`, `SafeArea`, `AnimatedView`,
+`CustomPaint`, `Modal`, `BottomSheet`, `Dialog`, `NavBar`, `TabBar` and `Page`.
 
-Hooks: `useState`, `useReducer`, `useRef`, `useMemo`, `useCallback`, `useEffect`
-and `useLifecycle`. Hooks use global slots, so they must be called
-unconditionally; conditional hooks are not supported. State updates re-render
-the tree synchronously.
+`Text` renders a paragraph: `numberOfLines` truncates with an ellipsis and
+`selectable` turns on native selection with a QChat copy bubble. `RichText` takes
+`Text`, `Link` and plain strings as children and flattens them into one
+paragraph, so mixed styles still wrap and align as a single run; it never
+accepts HTML. `Link` draws an underlined label and reports `press` with
+`{ type, href, external }`; an in-app `href` also goes through the host router
+(the path is validated on the native side), while `external: true` only reports
+the URL — opening another application is a privileged host API that is not wired
+yet.
+
+`Button` has `primary`, `secondary`, `outline`, `text` and `danger` variants,
+`sm`/`md`/`lg` sizes, an optional `icon`, `loading` and `disabled`. `Divider`
+takes `color`, `thickness`, `vertical` and a leading `inset`, and `Spacer`
+clamps its `size` so a bad value cannot overflow the layout. `Badge` shows
+`count` (capped at `max`, hidden at zero), a `dot`, or both over its `children`.
+`Tag` has `neutral`, `success`, `warning`, `danger` and `info` tones, and
+`Avatar` shows `src`, falls back to the initials of `name`, and is `circle` or
+`rounded`.
+
+Every component also honours the base props: `testID` becomes the widget key,
+`accessibleLabel` becomes the semantics label, `pointerEvents: "none"` makes the
+subtree ignore pointers, and `SafeArea` reads the real device insets (Flutter
+consumes the padding it applies, so nesting it does not add the inset twice).
+
+Hooks: `useState`, `useReducer`, `useRef`, `useMemo`, `useCallback`, `useEffect`,
+`useLayoutEffect`, `useId`, `useLifecycle`, `createContext` and `useContext`.
+Every component instance owns its own hook slots, keyed by its position in the
+element tree plus its `key`, so a child component has real private state, a
+keyed list keeps its state when it reorders, and `useEffect` cleanups run when a
+child unmounts. All the `setState` calls made during one host event collapse
+into a single render and a single revision sent to Dart. Hooks must still be
+called unconditionally.
+
+Events always arrive as one object so a handler can be written once:
+`{ type, value, ... }`. `change`, `valueChange`, `submit` and `scroll` follow
+this shape (`QappToggleEvent`, `QappNumberEvent`, `QappTextEvent`,
+`QappScrollEvent`), and `press`, `longPress`, `close`, `confirm`, `back` and
+`endReached` carry `{ type }`. `TextField.onInput` remains the low-level string
+hook.
+
+`Modal`, `BottomSheet` and `Dialog` are declarative: they render into the
+current tree when `visible` is true and report `close`/`confirm`. `NavBar` and
+`TabBar` are prebuilt screens: `NavBar` is built on the header standard below,
+and `TabBar` takes a tab list plus the active tab and reports `change` with
+`{ index, key, value }`. The bar itself is a `CupertinoTabBar`, so the icon and
+label metrics, the tab semantics and the blur behind a translucent surface are
+the platform's; the contract still owns the look — `style.backgroundColor` is
+the surface, `style.borderTopWidth`/`borderTopColor` the hairline, `style.color`
+the selected tint and `style.height` the row height (56 by default: the icon
+starts 9 pt under the hairline and the label sits 4 pt beneath it, plus the home
+indicator inset the bar adds itself). A tab `badge` is wrapped into the
+item's icon, because `CupertinoTabBar` has no badge slot.
+`TabBar.hideOnKeyboard` defaults to true: the host shrinks the whole mini
+program when a field takes focus, so a bar left in the flow would be lifted off
+the bottom edge and float right above the keys. Pinned instead, the bar keeps
+painting at the bottom edge of the screen, hands its height back to the page
+while the keys are up, and is uncovered again as the keyboard retracts. Nothing
+pops in late and no content jumps.
+
+### The screen frame: `Page`
+
+```tsx
+<Page
+  header={<NavBar title="Vé điện tử" showBack onBack={back} />}
+  footer={<TabBar tabs={tabs} activeIndex={index} onChange={…} />}
+  overlays={<Dialog visible={confirm} … />}
+>
+  <ScrollView>…</ScrollView>
+</Page>
+```
+
+`Page` is the frame every page should use: the header is a sibling above the
+body, the footer a sibling below it, and the body gets exactly the space they
+leave. It cannot be written the wrong way round — a `NavBar` painted inside a
+`Stack` over a `height: "100%"` scroller looks correct until the page scrolls
+and the first card slides under the header, because the body starts at y = 0.
+
+The body is pinned inside the stack, so it fills the page whether it is a
+`ScrollView`, a `ListView` or a plain `View`. Overlays are siblings of the whole
+column, so they paint over the header and the footer too, not just over the
+body: a dialog or a sheet scrim covers the `NavBar` and the `TabBar` and takes
+their taps. A page with no header or footer is just the body across the full
+screen.
+
+A page that wants its own artwork under the top edge (a poster hero, a
+transparent header that turns solid on scroll) still builds the `Stack` by hand:
+`<Stack style={{ flex: 1 }}><ScrollView style={{ height: "100%" }} … />
+<NavBar transparent … /></Stack>`, and gives the content enough top padding to
+clear the header. `rap-pho`'s movie and discover screens are that shape; its
+ticket screen and `demo-kit`'s tab shell use `Page`.
+
+`ListView`/`GridView` load themselves. A frame carries only a window of items —
+`initialCount` (60 by default) — plus the total count, so a thousand rows never
+travel in one frame. When the user scrolls near the end the host reports
+`endReached`; the framework reveals the next window of the same size and calls
+`onEndReached` as well, so an app that pages its own data can load more at the
+same time. A list nested inside another scroller cannot scroll on its own and
+therefore never reports `endReached`: give it a bounded height, or use a
+`ScrollView` with plain children.
+
+### Header standard
+
+Every screen in QChat uses one header: `QChatHeader`
+(`apps/mobile/lib/core/design_system/qchat_header.dart`).
+
+- The bar is `kQChatHeaderHeight` (44) tall under the status bar. The title is
+  centred on the screen, `leading` and `trailing` are centred vertically on the
+  same line, so a title, an icon and the capsule share one baseline no matter
+  which of them is present.
+- The title keeps a symmetric inset of `max(reserveLeading, reserveTrailing)`, so
+  it stays screen-centred even when the two controls have different widths.
+- `bottom` adds rows under the bar inside the same surface: a search field, tabs,
+  a banner, a picture, anything. The header grows downwards and scrolls with the
+  page instead of floating over it.
+- The surface is solid by default, glass with `blur`, or fully see-through with
+  `transparent`, which is what a mini program needs when its own artwork runs
+  under the top edge. `border` draws the hairline.
+
+The mini program control is `QChatCapsule`: one 94×32 pill with `•••` on the
+left, a hairline divider and `◎` on the right. It is a frosted surface, not a
+solid white block: a translucent tint (white in light mode, dark grey in dark
+mode) over a 12 pt blur, so the page behind it shows through. The two halves are
+independent tap targets, each with its own semantics label; the pill is always
+centred on the header bar.
+
+`NavBar` is `QChatHeader` for Mini Apps: `title`, `subtitle`, `showBack`,
+`safeArea`, `reserveRight`, `transparent`, `blur`, `border` and `children`. Its
+`children` are the lower rows, not title content, so a search field, a tab strip
+or a banner grows the header downwards. `transparent` draws no surface at all;
+`blur` frosts what is behind the header; `transparent` wins when both are set.
+`border` defaults to true for a solid or blurred surface, so a white header does
+not blend into the first white card under it; `border={false}` removes the
+hairline. `reserveRight` defaults to `kQChatCapsuleWidth + 14` (108) so the title
+never slides under the capsule the host floats on the right.
+
+### JavaScript environment (QuickJS)
+
+QuickJS is an ECMAScript engine: it is not a browser and not Node. It has no
+`console`, no timers, no `URL`, no `TextEncoder`, no `AbortController`, no
+`structuredClone` and no `Intl`. The SDK ships those pieces and an app opts in
+once:
+
+```tsx
+import "@mna/qchat/env/auto"; // everything, one line
+// or, when the app wants the result and the options:
+import { installEnv } from "@mna/qchat/env";
+const installed = installEnv({ locale: "vi-VN" });
+```
+
+`installEnv()` returns which parts it installed (`timers`, `console`,
+`structuredClone`, `url`, `encoding`, `abort`, `intl`), can be told to skip any
+of them, and never overwrites a global that already exists, so calling it twice
+is harmless. The polyfills live in separate esbuild modules with no top-level
+side effect, so a bundle only carries what the app imports. Measured in this
+repository: an app that never mentions the environment adds 0 bytes, the `Intl`
+subset about 10 KB and the whole environment about 26 KB to `app.js` (minified,
+before gzip).
+
+The globals keep their web names and behaviour:
+
+| Global | Notes |
+| --- | --- |
+| `console`, `print` | `log`/`info`/`warn`/`error`/`debug`/`trace`. Arguments are formatted onto one line, huge lines are truncated, and every call becomes a host log entry with its level and, for an `Error` argument, the stack. |
+| `setTimeout`, `clearTimeout`, `setInterval`, `clearInterval` | delays are floored, `0` or a negative or non-finite delay means "as soon as possible", an interval is at least 1 ms |
+| `requestAnimationFrame`, `cancelAnimationFrame` | run on the next host tick; the callback receives the frame time |
+| `queueMicrotask` | runs in the same tick, before any timer |
+| `structuredClone` | data only: objects, arrays, `Date`, `RegExp`, `Map`, `Set`, `ArrayBuffer` and typed arrays; cycles are preserved; functions, symbols and class instances throw a `DataCloneError` |
+| `URL`, `URLSearchParams` | parse, resolve relative references, and keep `url.searchParams` in sync with `url.search` and back |
+| `TextEncoder`, `TextDecoder` | UTF-8 only; any other label throws a `RangeError` |
+| `AbortController`, `AbortSignal` | `abort(reason)`, `reason`, `throwIfAborted()`, `addEventListener("abort")`, `AbortSignal.abort()`, `AbortSignal.timeout(ms)` (which needs the timers) |
+| `Intl.NumberFormat`, `Intl.DateTimeFormat` | the subset below; `Number.prototype.toLocaleString` and the three `Date.prototype.toLocale*` methods are routed through it |
+
+Two budgets keep a runaway app from owning the frame: at most 512 timers are
+scheduled at once, and one host tick runs at most 500 callbacks, so a 1 ms
+`setInterval` cannot stall the UI. A timer that throws is reported as an `error`
+log line instead of killing the app. A bundle that type-checks against
+`lib: ["ES2020"]` and these globals is exactly the bundle the compiler accepts:
+the SDK ships the declarations in `types/qchat-env.d.ts`, and `qapp build`, `qapp
+test` and the Studio add them, so `setTimeout`, `console`, `URL`, `TextEncoder`,
+`structuredClone` and `AbortController` type-check without a DOM lib. Adding
+`"DOM"` to `lib` produces a warning instead of a silent mismatch.
+
+#### Intl subset
+
+QuickJS has no ECMA-402, so the SDK ships a small `Intl` for the two locales
+QChat supports:
+
+| | |
+| --- | --- |
+| Locales | `vi-VN` and `en-US`. An unknown locale throws a `RangeError` instead of quietly formatting in a language the user cannot read. |
+| `Intl.NumberFormat` | `decimal`, `percent`, `currency` (`currencyDisplay: "symbol"` or `"code"`, minor units from the locale table), `notation: "compact"`, `minimum/maximumFractionDigits`, `minimumIntegerDigits`, `signDisplay`, `useGrouping`, `formatToParts`, `resolvedOptions` |
+| `Intl.DateTimeFormat` | `dateStyle`/`timeStyle`, the component options (`weekday`, `year`, `month`, `day`, `hour`, `minute`, `second`), `hour12`, `timeZone: "UTC"`, `formatToParts`, `resolvedOptions` |
+
+Only `UTC` (or nothing, which means the device zone) is accepted as a
+`timeZone`: a named zone would need the full IANA database, and silently
+formatting in the wrong zone is worse than an error. On an engine that already
+has a native `Intl` (JavaScriptCore on iOS does) the native implementation is
+kept unless `forceIntl: true` is passed to `installEnv()`.
+
+Timers have no clock of their own inside QuickJS. The JavaScript side keeps the
+queue and asks the host how long to wait with
+`__qchatNative.send("timer", { delayMs })`, where a negative delay means
+"nothing is pending any more". The host answers by calling
+`globalThis.__qchatTickTimers(nowMs)`, which runs everything due at that
+timestamp. Flutter implements that with one `Timer`; the Node test harness
+implements it with a virtual clock, so timer tests never wait for real time.
+
+## UI contract
+
+The component list, props, events, style keys, enums and permissions are
+declared once in `packages/contracts/miniapp-ui.contract.json`. From it,
+`corepack pnpm contract:generate` writes the TypeScript runtime tables, the
+TypeScript prop interfaces' compile-time check, the Dart whitelists
+(`qapp_contract.generated.dart`), the Studio Monaco typings and
+`docs/miniapp-ui-reference.md`. `corepack pnpm test:qapp` fails when a generated
+file is stale, and the generated `ui-contract.typing.ts` fails the TypeScript
+build when a hand-written interface and the contract disagree, so the four
+sides cannot drift apart. Adding a component, prop, event, style key or
+permission means editing the contract and regenerating.
 
 APIs:
 
@@ -307,12 +521,79 @@ corepack pnpm qapp inspect my-app/dist/my-app-1.0.0.japp
 
 `qapp build` runs a TypeScript check, bundles the TSX with esbuild for the
 QuickJS target, embeds the runtime, hashes every file and writes
-`dist/<slug>-<version>.japp`. The `hello-world` and `counter` examples in
-`packages/miniapp-examples` are built this way; they are not hardcoded screens.
+`dist/<slug>-<version>.japp`. The slug is ASCII: Vietnamese names are
+transliterated (`Cà Phê Nhà` → `ca-phe-nha`). The `hello-world`, `counter`, `shell`,
+`demo-kit`, `custom-kit`, `env-demo`, `cafe`, `rap-pho`, `so-viec` and `vi-nho`
+examples
+in `packages/miniapp-examples` are built this way; they are not hardcoded
+screens.
+`cafe` is the header showcase and the most complete product flow: four tabs
+(menu, orders, offers, account), two internal routes (`/drink/:id`, `/legal`),
+a transparent header over the hero that turns glass and then solid while
+scrolling, a second header with a search field and filter chips as lower rows,
+a cart sheet with a tip slider and a points checkbox, a confirm dialog, seeded
+order history with reorder/cancel, voucher claiming persisted through storage,
+`CustomPaint` sparkline, `Intl` money formatting and a `setInterval` countdown.
+`rap-pho` is the second complete product app and the dark-theme counterpart:
+a cinema ticket booking flow with four tabs (discover, movies, tickets, account)
+and three internal routes (`/movie/:id`, `/ticket/:code`, `/legal`). It keeps 30
+movies in memory but pages the `ListView` 12 at a time through `endReached`,
+draws a 72-seat `GridView` (8 rows × 9 columns, VIP rows E/F) with
+`initialCount={72}`, books through a payment sheet that requires the terms
+checkbox, and lands on a ticket page whose 21×21 QR code is three layered
+`CustomPaint` paths. Its header shows all three surfaces: transparent over the
+hero poster, blurred after the first screen, solid after the second; the movies
+tab stacks search, genre and status rows under the title. No image assets are
+shipped — posters are gradients plus a title initial — so the whole package is
+four files.
+`so-viec` is the light-theme task and habit planner and the control showcase:
+four tabs (today, plan, habits, me) and two internal routes
+(`/task/:id`, `/about`). It seeds 27 tasks around the device date (−1…+5 days)
+and four habits, then pages the today list four upcoming tasks at a time through
+`endReached`. The progress rings are `CustomPaint` polylines (the path language
+has no arcs), the quick-add sheet combines a `TextField`, priority chips and a
+`Slider`, and the screens exercise every TDesign-backed control:
+`Checkbox` rows, `Switch` settings, a weekly-goal `Slider`, `ActivityIndicator`
+during a fake sync, plus a `Dialog` behind long-press, habit reset and clear-all.
+Its `Page`-based layout, state store and `createStorage("so-viec")` snapshot make
+it the smallest complete reference that still touches every overlay and host API.
+`vi-nho` is the TDesign control showcase as a money manager: four tabs (overview,
+transactions, budgets, me) and three internal routes (`/giao-dich/:id`,
+`/bo-dieu-khien`, `/about`). It seeds 28 transactions around the device date and
+six category limits (comfortable, near the cap, over the cap), then filters by
+text and flow, pages six at a time through `endReached`, selects rows with
+TDesign `Checkbox` for a `Dialog`-confirmed bulk delete, and edits a transaction
+with a multiline `TextField`, an amount `Slider`, `Tag` pickers and two more
+`Checkbox`es. The two `BottomSheet`s (new transaction and group limit) use
+`Switch`, `Slider`, `Button loading` and a numeric `TextField`; the me tab adds
+host profile, a secure PIN field and a fake sync with `ActivityIndicator`. Its
+`/bo-dieu-khien` route is the explicit gallery: every
+contract control in every state (Button variants and sizes, all five Tag tones,
+Badge count/max/dot/hidden, Checkbox, Switch, Slider, single/multiline/secure
+TextFields, ActivityIndicator, Icon grid and Divider), which makes it the place
+to look when checking what the TDesign renderer draws.
+`shell` is the reference four-tab app:
+it owns a `NavBar` header and a `TabBar`, keeps a `TextField` and a `Switch` on
+the home tab, persists the switch through storage and renders a long `ListView`
+on the discover tab. `demo-kit` is the playground template: five tabs (overview,
+UI kit, form, host API, debug), a pushed `/detail/...` route, one button per host
+method, a shared log store, timers, `console.log`, `Intl`, storage round-trips
+and every component and style key the contract allows. `custom-kit` is the
+opposite exercise: a dark "Aurora" app whose entire UI is hand-drawn from
+`View`, `Text`, `Pressable`, `ScrollView`, `Stack`, `Positioned`, `SafeArea` and
+`CustomPaint` — an owned header, an owned four-tab bar, a bottom sheet, an
+in-app toast, gradient cards, a ring gauge and a sparkline, plus 24 icons stored
+as path strings. It never uses `NavBar`, `TabBar`, `Button`, `Switch`,
+`Checkbox`, `Slider`, `Dialog` or `Icon`, so it shows what a Mini App can look
+like without the host design system. `env-demo` imports the whole environment
+and puts it on screen: `Intl` in both locales, `URL`, `TextEncoder`,
+`structuredClone`, an aborted `AbortController` signal and four timers a real
+host tick has to run.
 
 The framework is built with
 `corepack pnpm --filter @mna/qchat build`; the root `qapp` script runs that
-compiled CLI. Framework tests run with `corepack pnpm test:qapp`.
+compiled CLI. Framework tests run with `corepack pnpm test:qapp`, which first
+checks the generated UI contract artifacts.
 
 ## Desktop IDE
 
@@ -323,6 +604,15 @@ host:
 - Monaco edits TSX with the SDK typings and a `manifest.json` schema.
 - Project creation, build, typecheck, runtime test, validate and inspect call
   `qapp` directly; the artifact stays `dist/<slug>-<version>.japp`.
+- `prepare:cli` copies the whole built SDK — subdirectories included, so
+  `@mna/qchat/env` is part of the bundle — and the QuickJS declarations
+  (`qchat-env.d.ts`) into both `src-tauri/resources/types` and
+  `src-tauri/resources/qapp/types`. The compiler looks in both places, and
+  `tauri.conf.json` ships both, because a Studio that loses the declarations
+  type-checks every `console` and `setTimeout` as `Cannot find name 'console'`.
+  A Studio built before the SDK copy existed rejects `import "@mna/qchat/env/auto"`
+  with `QChat SDK module not found: env/auto`; re-running `prepare:cli` (or
+  reinstalling the Studio) is the fix for both.
 - `qapp dev` runs in the background and streams logs and the exit code over
   Tauri events (`qapp-dev-log`, `qapp-dev-exit`).
 - The device panel shows the manifest, permissions, size and SHA-256 of the
@@ -354,11 +644,12 @@ installers. See `apps/miniapp-ide/README.md` for detection order and details.
    decision. The runtime never receives a QChat access token.
 6. Handle back, close, background/resume events, favorites, recent apps and
    telemetry.
-7. Draw no host header: the mini app owns the whole screen and the host only
-   floats a menu button and a close button over its top right corner. Reload and
+7. Draw no host header: the mini app owns the whole screen. The host only
+   floats the transparent variant of the header standard, whose sole trailing
+   control is the `QChatCapsule` (menu and close) on the top right. Reload and
    favorite live in that menu. `getSystemInfo()` reports `safeAreaTop` and
    `safeAreaBottom` so packages can keep their own content clear of the status
-   bar, the navigation bar and the floating buttons.
+   bar, the navigation bar and the capsule.
 
 The renderer:
 
@@ -370,11 +661,25 @@ The renderer:
    host.
 3. JavaScript sends `{ id, method, params }` over a synchronous channel. The
    host answers asynchronously through `__qchatResolve(id, json)`, and pending
-   promises are flushed with the QuickJS job queue.
+   promises are flushed with the QuickJS job queue. Timers use the same channel
+   the other way round: `send("timer", { delayMs })` asks the host to wake the
+   engine after that delay, Dart sets one `Timer` for it, and the wake calls
+   `globalThis.__qchatTickTimers(nowMs)`. A negative delay cancels the pending
+   wake, and disposing the runtime cancels it too. While a finger is dragging or
+   the list is still flinging the host parks that wake, so no timer callback runs
+   JavaScript on the UI thread in the middle of the animation; the pending delay
+   resumes when the list comes to rest.
 4. The app renders a serialized virtual tree
-   (`{ v, appId, revision, root }`). Dart validates node ids, component types,
-   event names, tree depth and node count, then maps it to real Flutter widgets.
-   No HTML is loaded and no WebView is created.
+   (`{ v, appId, screen, revision, root }`). Dart validates node ids, component
+   types, event names, style keys and enum values, tree depth and node count,
+   then maps it to real Flutter widgets. No HTML is loaded and no WebView is
+   created. The JSON frame is parsed and applied at paint time, and while the
+   content is moving the newest frame is kept and painted once the list stops: a
+   render that landed mid-gesture would otherwise rebuild the tree under the
+   animation. Node ids only encode a position, so `screen` names the component
+   trail that produced the frame: two screens may put different widgets at the
+   same ids, and the host keeps per-screen state — a tab's scroll offset, a
+   field's text — apart by that name and restores it when the screen returns.
 5. Press, input, change, submit and scroll events are sent back to JavaScript.
    A state update re-renders the tree synchronously and sends a new revision.
 6. The first successful frame reveals the app; a JavaScript error or invalid
@@ -383,10 +688,128 @@ The renderer:
 7. Reload disposes the runtime and evaluates the bundle again. Back pops the
    internal route stack first and only then closes the mini app.
 
-The renderer implements flex layout, spacing, colors, typography, borders,
-radius, shadows, opacity, images, safe areas, scroll and grid views, stacks with
-positioned children, simple animations and a declarative `CustomPaint` path
-language. Arbitrary Dart or HTML is never accepted from the package.
+The renderer implements flex layout (direction, wrap, grow, basis, `alignSelf`,
+`alignContent`, per-axis gaps), spacing, colors, typography (align, decoration,
+letter spacing, line count, style, bundled families), per-edge borders, corner
+radii, box shadows, gradients, opacity, `zIndex`, `overflow`, `min/max`,
+`aspectRatio`, absolute positioning, images, safe areas, scroll and lazy list
+and grid views, stacks with positioned children, `Modal`/`BottomSheet`/
+`Dialog`, `NavBar`/`TabBar`, simple animations and a declarative `CustomPaint`
+path language. A scroll view remembers its offset per screen: the `screen` of
+the frame and the node id form a `PageStorageKey`, so switching a tab and coming
+back lands where the user left it while the next tab starts at its own top. A
+style object is validated against the contract: an unknown key
+or an unsupported enum value rejects the frame instead of being ignored. Two
+rendering rules follow from Flutter itself: an edge the app never gave a width
+paints nothing (a `BorderSide.none`, not a hairline), and a per-edge border is
+clipped inside the rounded box rather than handed to Flutter together with the
+corner radius, because Flutter only accepts that combination while every visible
+edge shares one colour. The
+validator keeps its 4000-node, depth-64 frame budget, and the host still checks
+the event name, the node id and every permission. Arbitrary Dart or HTML is
+never accepted from the package.
+
+### Controls: TDesign, motion: Cupertino
+
+The leaf controls in a Mini App frame are [TDesign](https://tdesign.tencent.com/flutter/)
+(`tdesign_flutter` 1.1.0), not the QChat design system: `Button`, `Tag`,
+`Badge`, `Checkbox`, `Switch`, `Slider`, `TextField`, `ActivityIndicator`,
+`Icon` and the horizontal `Divider`. The frame's TDesign theme is the stock
+light token set, so a Mini App gets TDesign's palette, sizing and interaction
+states; anything the app sets through `style.*` (colour, border, radius,
+padding, minimum height) still wins.
+
+A `Button` paints its own surface, so the frame contributes only the shadow
+around it: a square fill painted behind TDesign's rounded button used to show
+through at the four corners, and it spent the app's `padding` twice. Text is
+centred by measurement rather than by padding arithmetic: TDesign's line box
+carries the font's own leading above the baseline, and no `leadingDistribution`
+setting moves it in this Flutter build, so a button label and a field editor are
+lifted by the ascent fraction the font actually added (`_labelLift`), while a
+borderless input is given its natural height so the marks under the baseline are
+not cut in half. `test/qapp_alignment_test.dart` pins both.
+
+The exception is deliberately one file wide:
+
+- `lib/features/miniapps/qapp/qapp_tdesign.dart` is the only file that imports
+  `tdesign_flutter` (or, transitively, Material). It holds the
+  `QappTDesignScope` (localizations, theme and a transparent ink surface) and
+  one thin wrapper per control. The rest of the renderer imports only
+  `flutter/cupertino.dart` and the QChat design system.
+- The chat UI, the app shell and every other screen stay Material-free.
+  `uses-material-design: false` stays in `apps/mobile/pubspec.yaml`; the pub
+  warning that `tdesign_flutter` asks for `true` does not mean the app bundles
+  Material — it does not.
+- Overlay *motion* stays Cupertino: page pushes slide with
+  `CupertinoPageRoute`/`CupertinoPageTransition`, and `Modal`, `BottomSheet`
+  and `Dialog` keep the iOS-style scrim fade, sheet slide and dialog scale.
+  `TabBar` (a `CupertinoTabBar`), `NavBar`, `Avatar` and the vertical `Divider`
+  also stay QChat/Cupertino because TDesign has no faithful equivalent.
+
+The pinning lives in `apps/mobile/test/qapp_tdesign_smoke_test.dart` (TDesign
+controls build inside the Material-free `WidgetsApp` host) and in the renderer
+tests (`Button`, `Tag`, `Badge`, `Slider`, `Switch` and `TextField` map to the
+TDesign wrappers).
+
+### Layout rules
+
+These are the rules the renderer guarantees; each one is covered by a test in
+`apps/mobile/test/qapp_components_test.dart`.
+
+- A `Pressable` is a `View` with a tap handler. `flexDirection`,
+  `justifyContent`, `alignItems`, `gap` and `flex` apply to its children exactly
+  as they do on a `View`, so a cell stays a row and a label centres inside its
+  button. (It used to force a column, which stacked every row and pushed a `−`/`+`
+  glyph into a corner.)
+- An item of a wrapping flex (`flexWrap: "wrap"`) is sized by its own content, so
+  a chip keeps the width of its label instead of taking the whole row.
+- `alignSelf: "stretch"` fills the parent's cross axis whenever that axis is
+  bounded; on an unbounded axis the item keeps its own size.
+- `alignContent` positions the runs of a wrapping flex.
+- A `ScrollView` reports `onScroll` while the finger moves (one event per ~60 ms
+  or 24 px, whichever comes first) and always on settle, so a header that swaps
+  its surface with the offset tracks the page instead of jumping a second later.
+  While the list is moving, a scroll frame is only handed to JavaScript when no
+  render is already waiting: a render frame is painted at rest anyway, and
+  running a whole render on the UI thread for every scroll frame is what made a
+  drag or a bounce past the edge stutter. The newest offset is delivered when
+  the list stops, so the final state is exact.
+- `TextField` reports `focus` and `blur`. `Switch`, `Slider`, `Checkbox` and
+  `ActivityIndicator` are the TDesign controls (`TSwitch`, `TSlider`,
+  `TCheckbox`, `TLoading`), so their motion, thumb and spinner are TDesign's;
+  the contract still owns `value`, `min`/`max`/`step`, `disabled` and the
+  colour. Overlays run the iOS
+  spring (`CASpringAnimation`'s mass 1, stiffness 522.35, damping 45.71, about
+  0.4 s) once when they mount: a `BottomSheet` rises from the bottom edge while
+  the scrim fades on its own beat, a `Dialog` fades in while it scales down from
+  1.3 (like `CupertinoDialogRoute`), and `Modal.animationType` (`none`, `fade`,
+  `slide`) picks the same two motions for a generic overlay.
+- A `ListView`/`GridView` reports `endReached` once per window: within 240 px of
+  the end, or right after the first layout when the content is shorter than the
+  viewport. The latch is released when the window grows or when the user scrolls
+  back up, so a list that cannot grow never repeats the event.
+- `elevation` maps to one soft shadow when no `boxShadow` is given.
+- `flexShrink` is accepted but not applied: Flutter never squeezes a child on its
+  own, so a row that does not fit overflows instead of compressing. Give the
+  flexible child `flex: 1` (and `numberOfLines` on its text) to share the space.
+- The app view shrinks by the keyboard inset while the keyboard is open, so a
+  `TextField` near the bottom is scrolled into view instead of staying under the
+  keys. The inset is a `Padding` that is always there, even at zero: swapping it
+  for the bare child remounted the whole mini program the moment the keyboard
+  appeared, so every field lost its focus node and needed several taps before it
+  stayed open. A `TabBar` is pinned to the bottom edge while the keys are up
+  (`hideOnKeyboard`, on by default) instead of floating above them: it keeps
+  painting at the physical bottom and only the height it reserves shrinks, so
+  the keyboard slides over it and uncovers it again on the way out.
+- A push or a pop inside a mini program runs the platform's Cupertino page
+  transition (400 ms): the new screen slides in from the right with a shadow
+  while the screen under it drifts a third of the way left, and the same motion
+  plays backwards on the way out. The host keeps a snapshot of the screen it is
+  covering, so the app never has to animate the swap itself; a screen that only
+  repaints (a keystroke, a list loading) never animates. Navigation must go
+  through `navigateTo`/`navigateBack`, which is what marks the frame as a route
+  change.
+
 
 ## Local development
 
@@ -402,10 +825,16 @@ pnpm db:migrate
 pnpm dev
 
 # native qapp framework and examples
+corepack pnpm contract:generate        # regenerate typings from the UI contract
 corepack pnpm --filter @mna/qchat build
 corepack pnpm test:qapp
 corepack pnpm qapp build --dir packages/miniapp-examples/hello-world
 corepack pnpm qapp build --dir packages/miniapp-examples/counter
+corepack pnpm qapp build --dir packages/miniapp-examples/shell
+corepack pnpm qapp build --dir packages/miniapp-examples/demo-kit
+corepack pnpm qapp build --dir packages/miniapp-examples/env-demo
+corepack pnpm qapp build --dir packages/miniapp-examples/cafe
+corepack pnpm qapp build --dir packages/miniapp-examples/rap-pho
 
 # desktop Studio (requires Rust; browser-only UI: corepack pnpm dev)
 cd apps/miniapp-ide
@@ -432,9 +861,95 @@ reproducible from Git alone; back them up with the database.
   `corepack pnpm test:qapp` pass in this repository. The framework/compiler
   checks include a tampered bundle, a declared `appId`, ZIP traversal, a legacy
   `schemaVersion: 1` package and the counter's host-event flow.
-- `flutter analyze` reports no issues. Flutter tests cover qapp tree parsing,
-  cache checksum/metadata/permission enforcement, native backend path guards,
-  renderer components and events, plus storage and bridge tests.
+- `corepack pnpm test:qapp` first runs `contract:check`, and the framework tests
+  assert that the TypeScript runtime, the generated Dart whitelists and the
+  Studio typings share one component, event, style and permission list. Adding a
+  component or style key to only one side fails the run. `ui-contract.typing.ts`
+  fails `pnpm typecheck` if a hand-written interface drifts from the contract.
+- The hook and component suites run the compiled bundle through the same
+  synchronous render/dispatch loop the device uses: child-owned state, effect
+  cleanup on unmount, keyed reordering, context, layout effects, `useId`, event
+  batching, the standardized event payloads, the new components and the
+  `ListView` window. `shell` typechecks and packs through the real compiler.
+- The Flutter side of this change (the style parser and renderer, the new
+  components, the timer wake in `qapp_js_runtime_native.dart` and
+  `apps/mobile/test/qapp_style_test.dart`, `qapp_components_test.dart` and the
+  new timer case in `qapp_js_runtime_test.dart`) was written on a host without a
+  Dart or Flutter SDK, so it was never compiled or run on that host.
+  `.github/workflows/flutter.yml` is the authority: it runs `flutter analyze`
+  and `flutter test` on Flutter 3.47.7. Its first run reported two analyzer
+  errors (the flex child wrapper inferred as `_QappNodeView`) and five widget
+  test failures; all seven are addressed here, but the fixes have not been
+  re-run locally for the same missing-SDK reason. The timer case is the
+  end-to-end one: it runs the compiled `env-demo` `.japp` in the real QuickJS
+  bridge and expects the app's own `Timer` to wake the engine and reach
+  `Timers: early,late` and `Ticks: 3`; it skips when the bundle or the flutter_js
+  bridge library is missing, like the existing Hello World test.
+- Flutter tests cover qapp tree parsing, cache checksum/metadata/permission
+  enforcement, native backend path guards, renderer components and events, plus
+  storage and bridge tests. `flutter analyze` was last run before the qapp work,
+  so its clean result does not cover the Dart files added or changed since.
+- Phase 1 (text, links, buttons, dividers, spacers, badges, tags, avatars and the
+  base props) adds `primitives.test.ts`, which builds a real `.japp` through the
+  compiler and runs it in the runtime: it asserts every new node type and prop,
+  that an in-app `Link` asks the host router for its path, and that an external
+  `Link` never does. The suite passes, `node_modules/typescript/bin/tsc
+  --noEmit` is clean and `flutter analyze --no-pub` reports no issues. The new
+  Flutter widget cases in `qapp_components_test.dart` pass locally (20/20 in
+  that file). A full `flutter test` run has one pre-existing failure that this
+  work does not touch: `reference_ui_test.dart` compares goldens on Windows
+  only, and its committed PNGs predate the Material removal (`34af6e8`), so
+  they show the old search field. The same test also hits
+  `MissingPluginException` for the `record` plugin, which has no
+  implementation in a host test binary. CI runs on Linux, skips the golden
+  comparison and does not load that plugin, so both stay green there.
+- The header standard is covered by `apps/mobile/test/qchat_header_test.dart`
+  (capsule size, both halves tapping, one semantics button per half, the frosted
+  translucent fill, the dot and ring geometry, title centred on the capsule
+  line, a `bottom` row starting at 44, and the solid/glass/transparent surfaces)
+  and by the `NavBar` cases in `qapp_components_test.dart` (centred title,
+  children as lower rows, no surface when `transparent`, the glass surface when
+  `blur`, and the default hairline of a solid surface). `components.test.ts`
+  asserts that `transparent`, `blur` and `border` survive the compiler and the
+  runtime. The same file covers the layout rules above: a `Pressable` row keeps
+  its direction and `spaceBetween`, a glyph centres inside a fixed button, a
+  wrapping row keeps each chip at its content width, `alignSelf: stretch` fills
+  the cross axis, a `ScrollView` reports its offset mid-drag, `TextField`
+  reports focus/blur and a `Modal` honours `animationType`. The windowed lists
+  are covered on both sides: `components.test.ts` grows a `ListView` window on
+  `endReached` and checks the app callback still runs, and
+  `qapp_components_test.dart` checks the host reports `endReached` once per
+  window, after the first layout of a list shorter than its viewport, and again
+  for the next window.
+  `qapp_components_test.dart` passes 36/36, `qchat_header_test.dart` 9/9, the
+  framework suite 51/51 (including the Vietnamese package-slug test and the new
+  `page.test.ts`), `tsc --noEmit` and `flutter analyze --no-pub` are clean. The
+  three UI bugs reported after `rap-pho` have a regression test each: the keyboard
+  inset keeps the focused field mounted (element identity, focus retained), a
+  `TabBar` steps aside for the keyboard and can opt out, and a page body sits
+  between the header and the footer instead of starting under the header.
+  The `cafe` example
+  builds, validates and passes `qapp test` (215 nodes, real cart → order →
+  history flow checked with the harness). The `rap-pho` example builds,
+  validates and passes `qapp test` (357 nodes); its harness test pages the movie
+  list from 13 to 25 rows, opens a poster, picks a showtime and a free seat,
+  accepts the terms and asserts the new ticket `RP4790` on `/ticket/:code`.
+- The JavaScript environment runs in a real QuickJS engine in
+  `packages/miniapp-framework/test/env-quickjs.test.ts`: the same bundle the
+  device executes, with only `__qchatNative` and the timer protocol injected,
+  reporting its `Intl`, `URL`, `TextEncoder`/`TextDecoder`, `structuredClone`,
+  `AbortController`, `console` and timer results back over the host log channel.
+  The environment demo app renders, updates through timers and is re-rendered
+  from a real host tick in that engine. Timers are driven by a virtual clock, so
+  the assertions are exact instead of timing-dependent.
+- Environment size is measured, not assumed: `env-bundle.test.ts` bundles a
+  fixture with no environment import, one that installs only `Intl` and one that
+  installs everything, asserts which polyfills are present by their own error
+  strings (`0` / `intl` / all seven) and prints the cost (about 10 KB for the
+  `Intl` subset, 26 KB for the whole environment). A second fixture proves the
+  same source does not compile without the SDK declarations while `qapp
+  build`'s check accepts it with `lib: ["ES2020"]` and no DOM, and that adding
+  the DOM lib is reported as a warning rather than silently accepted.
 - `packages/miniapp-examples/hello-world` and `counter` produce real `.japp`
   files through the compiler; `qapp inspect` confirms `schemaVersion: 2`,
   checksums and no `appId`.
@@ -447,8 +962,14 @@ reproducible from Git alone; back them up with the database.
   migrations compile and their unit tests pass. A live upload → review → release
   smoke run was not performed here because no PostgreSQL/server environment was
   available.
-- The Studio frontend typechecks and builds, and its bundled CLI resources
-  compile `hello-world` into a real `.japp`. `cargo check`, `tauri dev` and
+- The Studio frontend typechecks and builds (`typecheck`, `build:web` — the
+  latter needs a raised `NODE_OPTIONS=--max-old-space-size`, the monaco chunk
+  does not fit the default heap), and its bundled CLI resources compile
+  `hello-world` into a real `.japp`. The packaged resources were exercised the
+  way the Studio runs them: `prepare:cli`, then `create` and `build` of a
+  scaffolded project through `apps/miniapp-ide/src-tauri/resources/qapp/cli.js`,
+  which type-checks and packs a 14.5 KB `.japp` whose entry imports
+  `@mna/qchat/env/auto`. `cargo check`, `tauri dev` and
   installer builds were not run locally because this host has no Rust toolchain;
   `.github/workflows/miniapp-ide.yml` performs those builds on Windows, macOS and
   Linux.

@@ -1,4 +1,6 @@
-import 'package:tdesign_flutter/tdesign_flutter.dart';
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import '../../core/design_system/components.dart';
 
 /// Thanh nhập tin nhắn: [mic tròn] [ô trắng bo góc] [emoji tròn] [+ tròn]
@@ -41,9 +43,9 @@ class ChatInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext c) {
-    final dark = Theme.of(c).brightness == Brightness.dark;
+    final dark = qchatDark(c);
     final decoration = BoxDecoration(
-      color: (dark ? const Color(0xff2c2c2c) : Colors.white).withValues(
+      color: (dark ? const Color(0xff2c2c2c) : QChatColors.white).withValues(
         alpha: .86,
       ),
       borderRadius: BorderRadius.circular(12),
@@ -73,7 +75,7 @@ class ChatInputBar extends StatelessWidget {
         : Container(
             constraints: const BoxConstraints(minHeight: fieldHeight),
             decoration: decoration,
-            child: TextField(
+            child: CupertinoTextField(
               controller: controller,
               focusNode: focusNode,
               onChanged: onChanged,
@@ -83,16 +85,12 @@ class ChatInputBar extends StatelessWidget {
               textInputAction: TextInputAction.newline,
               cursorColor: QChatColors.green,
               style: TextStyle(fontSize: 16, height: 1.35, color: ink(c)),
-              decoration: const InputDecoration(
-                isDense: true,
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 9,
-                ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 9,
+              ),
+              decoration: const BoxDecoration(
+                color: QChatColors.transparent,
               ),
             ),
           );
@@ -159,7 +157,7 @@ class ChatInputBar extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w500,
-                          color: Colors.white,
+                          color: QChatColors.white,
                         ),
                       ),
                     ),

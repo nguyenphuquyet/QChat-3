@@ -37,7 +37,7 @@ try {
     const user = await request('/auth/register', 'POST', {
       qchatId: `deploy_${index}_${suffix}`, email, nickname: 'Deployment test', password,
     });
-    users.push(user);
+    users.push({ ...user, password });
     assert.ok((await request('/auth/login', 'POST', { identifier: email, password })).accessToken);
   }
   const [a, b] = users;
@@ -128,14 +128,18 @@ try {
   await request('/admin/users/' + b.userId, 'PATCH', { disabled: false }, a.accessToken);
   const sessionRows = await db.userSession.findMany({ where: { userId: b.userId } });
   assert.ok(sessionRows.every(row => row.expiresAt === null));
+  // Locking an account revokes its sessions for good, so unlocking does not
+  // bring them back; the user signs in again before the session checks.
+  await request('/auth/refresh', 'POST', { refreshToken: b.refreshToken }, undefined, 401);
+  const relogin = await request('/auth/login', 'POST', { identifier: emails[1], password: b.password });
   for (let attempt = 0; attempt < 2; attempt++) {
-    const refreshed = await request('/auth/refresh', 'POST', { refreshToken: b.refreshToken });
-    assert.equal(refreshed.refreshToken, b.refreshToken);
+    const refreshed = await request('/auth/refresh', 'POST', { refreshToken: relogin.refreshToken });
+    assert.equal(refreshed.refreshToken, relogin.refreshToken);
     await request('/users/me', 'GET', undefined, refreshed.accessToken);
   }
-  await request('/auth/logout', 'POST', {}, b.accessToken);
-  await request('/auth/refresh', 'POST', { refreshToken: b.refreshToken }, undefined, 401);
-  await request('/users/me', 'GET', undefined, b.accessToken, 401);
+  await request('/auth/logout', 'POST', {}, relogin.accessToken);
+  await request('/auth/refresh', 'POST', { refreshToken: relogin.refreshToken }, undefined, 401);
+  await request('/users/me', 'GET', undefined, relogin.accessToken, 401);
   console.log('PASS: admin authorization, user management, persistent refresh and logout revocation');
 } finally {
   socket?.disconnect();
