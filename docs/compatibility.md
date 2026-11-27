@@ -41,7 +41,9 @@ implementation is M4/M3.
 | Bridge client | Allowlist, ids, timeout, cancel, close, binding | Experimental | `packages/miniapp-service-runtime/test/bridge-client.test.ts` | Host side |
 | Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers are M4 |
 | Timers | Tracked `setTimeout`/`setInterval`, cleared on close | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Long-running timing test is M3 |
-| WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only; directives are M3 |
+| WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only |
+| WXML compiler | Directives, templates, events, dataset, typed render tree | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Node only; no device |
+| Expressions | Safe `{{ }}` subset, no calls, no prototype access | Experimental | `packages/miniapp-compiler/test/expression.test.ts` | Never `eval` |
 
 ### 1.1 APIs — MVP (M4/M6)
 
@@ -121,15 +123,15 @@ implementation is M4/M3.
 
 | Feature | Reference | Status | Linked test | Notes |
 |---|---|---|---|---|
-| Data binding `{{ }}` | `/miniprogram/dev/reference/wxml/data.html` | Not started | — | Text interpolation, attributes, expressions |
-| `wx:if` / `wx:elif` / `wx:else` | `/miniprogram/dev/reference/wxml/conditional.html` | Not started | — | |
-| `wx:for`, `wx:for-item`, `wx:for-index`, `wx:key` | `/miniprogram/dev/reference/wxml/list.html` | Not started | — | |
-| `block` | `/miniprogram/dev/reference/wxml/` | Not started | — | |
-| `template` / `import` / `include` | `/miniprogram/dev/reference/wxml/template.html` | Not started | — | |
-| `slot` (single and multiple) | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Not started | — | |
+| Data binding `{{ }}` | `/miniprogram/dev/reference/wxml/data.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Compiler + typed render tree; no device run |
+| `wx:if` / `wx:elif` / `wx:else` | `/miniprogram/dev/reference/wxml/conditional.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Sibling chain, whitespace between branches allowed |
+| `wx:for`, `wx:for-item`, `wx:for-index`, `wx:key` | `/miniprogram/dev/reference/wxml/list.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | `*this` and property keys; arrays and objects |
+| `block` | `/miniprogram/dev/reference/wxml/` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Transparent; attributes are rejected |
+| `template` / `import` / `include` | `/miniprogram/dev/reference/wxml/template.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | `data` supports object and spread form; `import` is not recursive |
+| `slot` (single and multiple) | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Compiles to `wx-slot`; custom components are M7 |
 | `behaviors` | `/miniprogram/dev/framework/custom-component/behaviors.html` | Not started | — | |
-| Event bind / catch | `/miniprogram/dev/framework/view/wxml/event.html` | Not started | — | `bindtap`, `catchtap`, `bindinput`, `bindchange`, … |
-| Two-way binding `model:value` | `/miniprogram/dev/framework/view/two-way-bindings.html` | Not started | — | `UNVERIFIED` scope |
+| Event bind / catch | `/miniprogram/dev/framework/view/wxml/event.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | `bind*`/`catch*`, dynamic handler names; capture phase is rejected |
+| Two-way binding `model:value` | `/miniprogram/dev/framework/view/two-way-bindings.html` | Unsupported | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Rejected with `COMPILER_UNSUPPORTED_DIRECTIVE`, never ignored |
 | `rpx` | `/miniprogram/dev/framework/view/wxss.html` | Not started | — | 750 rpx = screen width |
 | `@import` in WXSS | `/miniprogram/dev/framework/view/wxss.html` | Not started | — | |
 | Page and component styles | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Not started | — | Scoping rules |
