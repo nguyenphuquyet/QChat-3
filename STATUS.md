@@ -578,7 +578,7 @@ Flutter host and the Android module are built. This is recorded, not hidden.
 | Device run | `BLOCKED`: no phone; checklist in §5.4 |
 | Removal progress | 3/54 (rows 6, 13, 26) |
 | Compatibility update | §1.0 M2 rows (engine, SDK, modules, bridge, calls, timers) |
-| Commit and push | `M2: PENDING` on `origin/feat/miniapp-v7` |
+| Commit and push | `42b3929` on `origin/feat/miniapp-v7` |
 
 ### 7.2 What M2 proves
 
