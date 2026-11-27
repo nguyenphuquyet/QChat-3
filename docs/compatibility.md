@@ -31,7 +31,9 @@ implementation is M4/M3.
 | Components | Registry (P0/P1/P2) | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Rendering is M3/M7 |
 | APIs | Registry + bridge allowlist | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Implementation is M4/M7 |
 | Renderer | Typed tree, ops, event binding | Experimental | `packages/miniapp-view-runtime/test/view.test.ts` | Only `wx-*` tags render |
-| Service | `App`/`Page`, lifecycle, stack, `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Engine is ADR 009 |
+| Tree diff | `diffRenderTree`, deterministic op order, no full reload | Experimental | `packages/miniapp-contracts/test/renderer-diff.test.ts` | Removes descending, inserts ascending |
+| Render session | `seq` ordering, tree then ops, stale payload ignored | Experimental | `packages/miniapp-view-runtime/test/session.test.ts` | Ops before a tree are rejected |
+| Service | `App`/`Page`, lifecycle, stack, path-based `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | First visible render is a tree; later updates are ops |
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
 | Theme contract | Fixed/`auto` resolution, no event to fixed | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Device matrix in 1.5 stays `Not started` |
 | Performance | Metric definitions and judge rule | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Values stay `Blocked` |

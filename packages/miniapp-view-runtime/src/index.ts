@@ -25,6 +25,7 @@ import {
 } from "@qchat/miniapp-contracts";
 
 export * from "./components.js";
+export * from "./session.js";
 
 export interface ViewRendererOptions {
   /** Called for every bound event; the host forwards it to the service. */
@@ -232,6 +233,10 @@ export function createViewRenderer(adapter: DomAdapter, options: ViewRendererOpt
   /** Replace the tree root with an updated copy, then let the diff do the work. */
   function patch(ops: readonly RenderOp[]): void {
     if (!tree) throw new Error("patch before render");
+    if (ops.length === 1 && ops[0].op === "replace" && ops[0].path.length === 0) {
+      render(ops[0].node);
+      return;
+    }
     const next = structuredClone(tree);
     for (const operation of ops) {
       applyOp(next, operation);
@@ -274,6 +279,14 @@ export function createViewRenderer(adapter: DomAdapter, options: ViewRendererOpt
       const target = children[index];
       if (target.type !== "element") throw new Error("setProp needs an element");
       target.props[operation.name] = operation.value;
+    } else if (operation.op === "setDataset") {
+      const target = children[index];
+      if (target.type !== "element") throw new Error("setDataset needs an element");
+      target.dataset = { ...operation.dataset };
+    } else if (operation.op === "setEvents") {
+      const target = children[index];
+      if (target.type !== "element") throw new Error("setEvents needs an element");
+      target.events = { ...operation.events };
     } else {
       const target = children[index];
       if (target.type !== "element") throw new Error("removeProp needs an element");

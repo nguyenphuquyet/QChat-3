@@ -5,8 +5,11 @@ import {
   VIEW_DESTROY_EVENT,
   VIEW_RENDER_EVENT,
   VIEW_THEME_EVENT,
+  type BridgeEvent,
   type BridgeMessage,
   type RenderNode,
+  type RenderOp,
+  type RenderPayload,
   type RuntimeIdentity,
   type ViewEvent,
 } from "@qchat/miniapp-contracts";
@@ -73,8 +76,10 @@ function setup(overrides: Partial<Parameters<typeof createServiceRuntime>[0]> = 
   return { runtime, sent, pages };
 }
 
-function renderEvents(sent: BridgeMessage[]) {
-  return sent.filter((message) => message.kind === "event" && message.event === VIEW_RENDER_EVENT);
+function renderEvents(sent: BridgeMessage[]): BridgeEvent[] {
+  return sent.filter(
+    (message): message is BridgeEvent => message.kind === "event" && message.event === VIEW_RENDER_EVENT,
+  );
 }
 
 test("launch calls onLoad/onShow and sends one render event", () => {
@@ -93,8 +98,14 @@ test("launch calls onLoad/onShow and sends one render event", () => {
     assert.equal(event.appId, "qchat.hello");
     assert.equal(event.sessionId, "s1");
     assert.equal(event.pageId, "p1");
-    const tree = event.payload.tree as RenderNode;
-    assert.equal(tree.type, "element");
+    const payload = event.payload as unknown as RenderPayload;
+    assert.equal(payload.pageId, "p1");
+    assert.equal(payload.seq, 1);
+    assert.equal(payload.update.kind, "tree");
+    if (payload.update.kind === "tree") {
+      assert.equal(payload.update.tree.type, "element");
+      assert.equal(payload.update.theme, "light");
+    }
   }
 });
 
@@ -122,6 +133,84 @@ test("a tap handler runs in the service and setData renders the new value", () =
   assert.equal((runtime.pageData() as { meta: { lastAction: string } }).meta.lastAction, "increment");
   const events = renderEvents(sent);
   assert.equal(events.length, 2);
+});
+
+test("setData sends path-based ops, never a full tree", () => {
+  const { runtime, sent } = setup();
+  runtime.launch("pages/index/index");
+  sent.length = 0;
+  const result = runtime.setData({ count: 5 });
+  assert.equal(result.ok, true);
+  const events = renderEvents(sent);
+  assert.equal(events.length, 1);
+  const payload = events[0].payload as unknown as RenderPayload;
+  assert.equal(payload.pageId, "p1");
+  assert.equal(payload.seq, 2);
+  assert.equal(payload.update.kind, "ops");
+  if (payload.update.kind === "ops") {
+    assert.deepEqual(payload.update.ops, [{ op: "setText", path: [1, 0], text: "count:5" }]);
+  }
+});
+
+test("an unchanged setData sends no render event", () => {
+  const { runtime, sent } = setup();
+  runtime.launch("pages/index/index");
+  sent.length = 0;
+  assert.equal(runtime.setData({ count: 0 }).ok, true);
+  assert.equal(renderEvents(sent).length, 0);
+});
+
+test("several setData keys produce one ordered batch", () => {
+  const { runtime, sent, pages } = setup();
+  pages["pages/index/index"] = {
+    data: { flag: false, items: ["a", "b"] },
+    render: (data) => ({
+      type: "element",
+      tag: "wx-view",
+      props: { class: data.flag === true ? "on" : "off" },
+      children: (data.items as string[]).map((item) => ({
+        type: "element",
+        tag: "wx-text",
+        props: {},
+        children: [{ type: "text", text: item }],
+      })),
+    }),
+  };
+  runtime.launch("pages/index/index");
+  sent.length = 0;
+  assert.equal(runtime.setData({ flag: true, items: ["a", "c"] }).ok, true);
+  const payload = renderEvents(sent)[0].payload as unknown as RenderPayload;
+  assert.equal(payload.update.kind, "ops");
+  if (payload.update.kind === "ops") {
+    const ops: RenderOp[] = [...payload.update.ops];
+    assert.deepEqual(ops, [
+      { op: "setProp", path: [], name: "class", value: "on" },
+      { op: "setText", path: [1, 0], text: "c" },
+    ]);
+  }
+});
+
+test("navigateBack sends a full tree for the page that becomes visible", () => {
+  const { runtime, sent } = setup();
+  runtime.launch("pages/index/index");
+  runtime.navigateTo("pages/second/second");
+  sent.length = 0;
+  assert.equal(runtime.navigateBack().ok, true);
+  const events = renderEvents(sent);
+  assert.equal(events.length, 1);
+  const payload = events[0].payload as unknown as RenderPayload;
+  assert.equal(payload.pageId, "p1");
+  assert.equal(payload.update.kind, "tree");
+});
+
+test("render sequence numbers are monotonic across pages and updates", () => {
+  const { runtime, sent } = setup();
+  runtime.launch("pages/index/index");
+  runtime.navigateTo("pages/second/second");
+  runtime.navigateBack();
+  runtime.setData({ count: 3 });
+  const sequences = renderEvents(sent).map((event) => (event.payload as unknown as RenderPayload).seq);
+  assert.deepEqual(sequences, [1, 2, 3, 4]);
 });
 
 test("an unknown handler is reported, never ignored", () => {

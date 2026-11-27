@@ -18,6 +18,7 @@ import {
   VIEW_RENDER_EVENT,
   VIEW_THEME_EVENT,
   canTransitionPage,
+  diffRenderTree,
   followsHost,
   isResolvedTheme,
   miniAppError,
@@ -32,6 +33,7 @@ import {
   type PageInstance,
   type PageState,
   type RenderNode,
+  type RenderUpdate,
   type ResolvedTheme,
   type RuntimeIdentity,
   type ThemeDeclaration,
@@ -187,6 +189,10 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
   let pageCounter = 0;
   let launched = false;
   let closed = false;
+  /** Monotonic `view.render` sequence, shared by every page. */
+  let renderSeq = 0;
+  /** The tree the view currently holds for each page. */
+  const renderedTrees = new Map<string, RenderNode>();
 
   const bindingFor = (page: PageRecord): BridgeBinding => ({
     appId: identity.appId,
@@ -232,7 +238,18 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
       app?.onError?.(error);
       return { ok: false, error };
     }
-    emit(page, VIEW_RENDER_EVENT, { tree: tree as unknown as Record<string, unknown>, theme });
+    const previous = renderedTrees.get(page.instance.pageId);
+    let update: RenderUpdate;
+    if (previous === undefined) {
+      update = { kind: "tree", tree, theme };
+    } else {
+      const ops = diffRenderTree(previous, tree);
+      if (ops.length === 0) return { ok: true, pageId: page.instance.pageId };
+      update = { kind: "ops", ops, theme };
+    }
+    renderSeq += 1;
+    emit(page, VIEW_RENDER_EVENT, { pageId: page.instance.pageId, seq: renderSeq, update });
+    renderedTrees.set(page.instance.pageId, tree);
     return { ok: true, pageId: page.instance.pageId };
   }
 
@@ -279,6 +296,7 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
     };
     stack.push(page);
     transition(page, "loading");
+    renderedTrees.delete(page.instance.pageId);
     try {
       pageOptions.onLoad?.(query);
     } catch (cause) {
@@ -319,6 +337,7 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
       while (stack.length - 1 > target) {
         const page = stack.pop();
         if (!page) break;
+        renderedTrees.delete(page.instance.pageId);
         page.options.onHide?.();
         page.options.onUnload?.();
         transition(page, "unloaded");
@@ -328,6 +347,8 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
       if (current) {
         transition(current, "ready");
         current.options.onShow?.();
+        // The view showed another page, so the visible page starts from a tree.
+        renderedTrees.delete(current.instance.pageId);
         return render(current);
       }
       return { ok: true };
@@ -426,6 +447,7 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
         transition(page, "unloaded");
         emit(page, VIEW_DESTROY_EVENT, {});
       }
+      renderedTrees.clear();
       app?.onHide?.();
     },
   };

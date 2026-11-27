@@ -8,7 +8,7 @@ import {
   type RuntimeIdentity,
 } from "@qchat/miniapp-contracts";
 import { createServiceRuntime } from "@qchat/miniapp-service-runtime";
-import { createViewRenderer } from "../src/index.js";
+import { createRenderSession, createViewRenderer } from "../src/index.js";
 import { FakeDomAdapter } from "./fake-dom.js";
 
 const identity: RuntimeIdentity = {
@@ -32,6 +32,7 @@ test("service render -> view paint -> tap -> service handler -> new render", () 
       service.dispatchViewEvent(event);
     },
   });
+  const session = createRenderSession(view);
 
   const service = createServiceRuntime({
     identity,
@@ -41,9 +42,7 @@ test("service render -> view paint -> tap -> service handler -> new render", () 
       send(message: BridgeMessage) {
         if (message.kind !== "event") return;
         if (message.event === VIEW_RENDER_EVENT) {
-          const payload = message.payload as { tree: RenderNode; theme: "light" | "dark" };
-          view.setTheme(payload.theme);
-          view.render(payload.tree);
+          session.apply(message.payload);
         } else if (message.event === VIEW_THEME_EVENT) {
           const payload = message.payload as { theme: "light" | "dark" };
           view.setTheme(payload.theme);
