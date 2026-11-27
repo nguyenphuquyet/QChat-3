@@ -46,6 +46,10 @@
   globals, string code generation disabled and a wall-clock limit (8 tests), and
   the host bridge client with allowlist, ids, timeout, cancellation, close and
   binding checks (9 tests).
+- M2 slice 2: the in-engine JavaScript SDK (`App`, `Page`, `Component`,
+  `getApp`, `getCurrentPages`, `setData`, tracked timers) and a confined
+  relative module loader; 7 tests, including a nested `require`, a cache hit and
+  a path that escapes the package.
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
@@ -538,10 +542,11 @@ is reused from §5.4 when hardware exists.
 | 1 | Engine interface | Done | `packages/miniapp-service-runtime/src/engine.ts`: evaluate/call, limits, memory report, terminate |
 | 1a | Node engine adapter | Done | `src/node-engine.ts`; `test/engine.test.ts` — **8 pass**: isolation, no `process`/`require`/`Buffer`, no `eval`/`Function`, timeout, call, terminate |
 | 3 | Host bridge client | Done | `src/bridge-client.ts`; `test/bridge-client.test.ts` — **9 pass**: allowlist, response matching, timeout, foreign binding, typed error, close, abort/cancel, events, malformed input |
-| 2 | JavaScript SDK bootstrap | Not started | Next: `App`/`Page`/`Component`, `getApp`, `getCurrentPages`, `setData`, timers, module loading |
+| 2 | JavaScript SDK bootstrap | Done | `src/sdk.ts`, `src/sdk-runtime.ts`, `src/module-loader.ts`; `test/sdk-runtime.test.ts` — **7 pass**: App/Page registration, nested `require`, cache, open/setData/close, unknown handler, escape rejection, forbidden path |
+| 2a | Timers | Done (basic) | SDK wraps `setTimeout`/`setInterval`, tracks handles and clears them on `clearTimers`; a long-running-timer test is M3 |
 | 4 | Android QuickJS build | `BLOCKED` locally | No Android SDK/NDK; CI job and vendored source are next |
 | 5 | Legacy rows 6 and 13 | Not started | Depends on the bridge/SDK replacement |
-| 6 | M2 report + exit check | Not started | After tasks 2–5 |
+| 6 | M2 report + exit check | Not started | After tasks 4–5 |
 
-`pnpm test:miniapp` now runs **78 tests** (41 contracts + 28 service + 9 view),
+`pnpm test:miniapp` now runs **85 tests** (41 contracts + 35 service + 9 view),
 all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.

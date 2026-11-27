@@ -111,6 +111,12 @@ export function createNodeEngine(options: EngineOptions = {}): ServiceEngine {
 
     evaluate,
 
+    defineGlobal(name, value) {
+      if (!/^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/.test(name)) throw new RangeError("invalid global name");
+      if (name === "process" || name === "require" || name === "Buffer") throw new RangeError("reserved global name");
+      (context as unknown as Record<string, unknown>)[name] = value;
+    },
+
     call(functionName, args = []) {
       const invalid = checkEngineArgs(functionName, args);
       if (invalid) return { ok: false, error: invalid, durationMs: 0 };

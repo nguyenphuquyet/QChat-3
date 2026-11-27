@@ -48,6 +48,11 @@ export interface ServiceEngine {
   evaluate(source: string, filename: string): EngineEvaluation;
   /** Call a global function installed by the SDK. */
   call(functionName: string, args?: readonly unknown[]): EngineEvaluation;
+  /**
+   * Install a host-controlled global. Only the SDK bootstrap and the module
+   * loader use it; a Mini App module never receives this handle.
+   */
+  defineGlobal(name: string, value: unknown): void;
   /** Replace the limits; takes effect on the next evaluation. */
   setLimits(limits: Partial<EngineLimits>): void;
   limits(): Readonly<EngineLimits>;

@@ -41,6 +41,9 @@ import {
 export * from "./engine.js";
 export * from "./node-engine.js";
 export * from "./bridge-client.js";
+export * from "./module-loader.js";
+export * from "./sdk.js";
+export * from "./sdk-runtime.js";
 
 export interface ServiceTransport {
   /** Send one validated bridge message to the host. */
