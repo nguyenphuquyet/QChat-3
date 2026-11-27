@@ -2,15 +2,16 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M3 — View Runtime and build tool**
+- **Current milestone:** **M4 — APIs and navigation**
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
 - **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
+- **M3 exit check:** `PASS` (Node); device rendering and theme matrix are `BLOCKED`
 - **PLAN:** `DONE`
 - **M0:** `DONE`
 - **M1:** `DONE` (device evidence `BLOCKED`)
 - **M2:** `DONE` (Android engine build `BLOCKED`)
-- **M3:** `IN PROGRESS`
+- **M3:** `DONE` (device view/theme evidence `BLOCKED`)
 - **Last updated:** 2026-11-27
 
 ## 1. Where the work stands
@@ -52,11 +53,19 @@
   `getApp`, `getCurrentPages`, `setData`, tracked timers) and a confined
   relative module loader; 7 tests, including a nested `require`, a cache hit and
   a path that escapes the package.
+- M3: WXML parser and compiler (directives, templates, events, dataset, typed
+  render tree), safe expression evaluator, WXSS compiler (`rpx`, `@import`,
+  scoping, theme selectors), seven P0 custom elements with a dependency-free
+  bootstrap, path-based `setData` ops with a `seq`-ordered render session, and
+  diagnostics with file/line/column/code — 63 compiler and 36 view tests.
+- M3 sample: `packages/miniapp-examples-v2/qchat-hello` in native source format,
+  compiled and run end to end by `packages/miniapp-test-harness` (engine → SDK →
+  compiler → view → DOM tap → patch); 7 tests.
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
 
-- M3 View Runtime and build tool (task plan in §8).
+- M4 APIs and navigation (task plan written before the first M4 task).
 
 ### Blocked
 
@@ -70,11 +79,11 @@
 
 ### Next task
 
-M3 — View Runtime and build tool (task plan in §8): WXML parser and compiler,
-WXSS compilation with `rpx` and theme selectors, the P0 web components, path-based
-`setData`, event bind/catch, diagnostics with file/line/column/code, and tests.
-The Android QuickJS build from M2 is carried as `BLOCKED` and lands with the
-Flutter host in M5; the phone checklist stays in §5.4.
+M4 — APIs and navigation: write the M4 task plan, then implement the MVP APIs
+(`wx.navigateTo`, `redirectTo`, `switchTab`, `navigateBack`, `reLaunch`,
+storage, `request`, the interaction and system-info calls) over the bridge and
+the page stack in the Service Runtime, each with tests. Device evidence stays
+`BLOCKED`; the Android host lands in M5 and the phone checklist stays in §5.4.
 
 ### How to verify M0
 
@@ -667,10 +676,128 @@ M5; M3 is verified in Node with the DOM adapter.
 | 5 | P0 components | Done | `packages/miniapp-view-runtime/src/components.ts`: `wx-view`, `wx-text`, `wx-image`, `wx-button`, `wx-input`, `wx-scroll-view`, `wx-navigation-bar` as real custom elements with shadow DOM, attribute reflection, hover, text decode/space, image modes and load/error, tap/input/confirm, scroll thresholds, navback; `COMPONENTS_SOURCE` is the dependency-free WebView bootstrap. `test/components.test.ts` — **18 pass** against a minimal DOM shim, plus a renderer pass over every P0 tag |
 | 6 | `setData` path ops | Done | `diffRenderTree` in `packages/miniapp-contracts/src/renderer.ts` (text, props, dataset, events, children; removes descending, inserts ascending); the service sends a full tree once per visible page and path ops after that, with a monotonic `seq`; `createRenderSession` in `packages/miniapp-view-runtime/src/session.ts` applies payloads in order and ignores stale ones. Tests: `renderer-diff.test.ts` — **9 pass**, `session.test.ts` — **9 pass**, plus service and round-trip updates |
 | 7 | Diagnostics | Done | `src/diagnostics.ts`; every parser, compiler and WXSS error carries file, 1-based line/column, registry code and an explanation |
-| 8 | Sample | Done | `packages/miniapp-examples-v2/qchat-hello`: native `app.json`/`app.js`/`app.wxss` + one page with `{{ }}`, `wx:if`, `wx:for`/`wx:key`, `bindtap` and `setData`; `app.wxss` imports `styles/base.wxss`, page WXSS uses `rpx` and `[data-theme="dark"]`. `packages/miniapp-test-harness` loads it from disk, compiles WXML/WXSS, runs the page JS in the Node engine through `createSdkRuntime`, renders through the View Runtime over `MemoryDomAdapter`, and delivers a real DOM tap back to the handler. `test/sample.test.ts` — **6 pass**: compiled CSS (inlined import, rpx `calc()`, theme selector, no `prefers-color-scheme`/`rpx`), initial DOM, first/second tap patch only changed paths (same text handle, status branch created once, no reload), snapshot isolation, closed-host and unknown-route errors |
-| 9 | M3 report + exit check | Not started | |
+| 8 | Sample | Done | `packages/miniapp-examples-v2/qchat-hello`: native `app.json`/`app.js`/`app.wxss` + one page with `{{ }}`, `wx:if`, `wx:for`/`wx:key`, `bindtap` and `setData`; `app.wxss` imports `styles/base.wxss`, page WXSS uses `rpx` and `[data-theme="dark"]`. `packages/miniapp-test-harness` loads it from disk, compiles WXML/WXSS, runs the page JS in the Node engine through `createSdkRuntime`, renders through the View Runtime over `MemoryDomAdapter`, and delivers a real DOM tap back to the handler. `test/sample.test.ts` — **7 pass**: compiled CSS (inlined import, rpx `calc()`, theme selector, no `prefers-color-scheme`/`rpx`), initial DOM, first/second tap patch only changed paths (same text handle, status branch created once, no reload), fixed-light vs dark host, snapshot isolation, closed-host and unknown-route errors |
+| 9 | M3 report + exit check | Done | §9 |
 
-`pnpm test:miniapp` now runs **199 tests** (50 contracts + 63 compiler + 44
-service + 36 view + 6 harness), all passing; `pnpm typecheck` and
+`pnpm test:miniapp` now runs **200 tests** (50 contracts + 63 compiler + 44
+service + 36 view + 7 harness), all passing; `pnpm typecheck` and
 `pnpm check:miniapp` pass. The new packages are in `pnpm-workspace.yaml` and in
 the isolation guard roots (9 module roots).
+
+## 9. M3 phase report
+
+### 9.1 Exit check
+
+**Result:** `PASS` for the M3 done-when condition — "P0 renders; diagnostics with
+file/line/column/code; tests". Rendering is proven in Node through the real
+renderer and a DOM adapter, not in a WebView on a phone. Device rendering and
+the theme matrix stay `BLOCKED` (no Android host until M5, no phone) and are
+carried to M5/M6.
+
+| Checklist item | Evidence |
+|---|---|
+| WXML parser | `packages/miniapp-compiler/src/wxml.ts`; 15 tests, every parse error code |
+| WXML compiler | `src/wxml-compiler.ts`: `{{ }}`, `wx:if`/`elif`/`else`, `wx:for`/`wx:key`, `block`, `template`/`import`/`include`, `slot`; 21 tests |
+| Expressions | `src/expression.ts`: typed safe subset; calls, `new`, `this`, optional chaining, prototype keys rejected; 9 tests |
+| Events | `bind*`, `bind:*`, `catch*`, `catch:*`, `mut-bind*`, dataset; capture phase rejected with a diagnostic |
+| WXSS compiler | `src/wxss.ts`: `rpx` → `calc()` over `--qchat-rpx`, inlined `@import`, scoping, `[data-theme]` kept, `prefers-color-scheme` rejected; 18 tests |
+| P0 components | `packages/miniapp-view-runtime/src/components.ts`: `view`, `text`, `image`, `button`, `input`, `scroll-view`, navigation bar; 18 tests over a DOM shim + renderer pass |
+| `setData` path ops | `diffRenderTree` + `validateRenderOp(s)`; service sends one tree, then ordered ops with `seq`; session ignores stale/duplicate payloads; 9 + 9 tests |
+| Diagnostics | Every parser/compiler/WXSS error: file, 1-based line/column, registry code, explanation |
+| Sample | `packages/miniapp-examples-v2/qchat-hello` + `packages/miniapp-test-harness`; 7 end-to-end tests (compile, launch, tap, patch, theme, close) |
+| Type check | `pnpm typecheck` pass (2 GB heap; 512 MB is not enough for the whole repo) |
+| Isolation guard | `pnpm check:miniapp` pass (9 roots) |
+| Tests | `pnpm test:miniapp` → **200 pass, 0 fail** |
+| Device render/theme | `BLOCKED`: WebView adapter and phone are M5/M6 |
+| Removal progress | 3/54 (rows 6, 13, 26); no new row closes in M3, see §9.4 |
+| Compatibility update | §1.0 rows for the sample; §1.3 P0 rows; §1.4 syntax rows |
+| Commit and push | `494b555` (sample) and the M3 report commit on `origin/feat/miniapp-v7` |
+
+### 9.2 What M3 proves
+
+- A native-format Mini App source tree compiles without a bundler: WXML becomes a
+  typed render tree, WXSS becomes plain CSS, and the JavaScript runs unchanged in
+  the isolated engine.
+- Directives behave as specified for the P0 surface: `wx:if`/`wx:elif`/`wx:else`
+  chains, `wx:for` with `*this`/property keys, `block`, templates, imports and
+  slots; events carry handler names and camelCase datasets.
+- `{{ }}` is evaluated by a purpose-built evaluator, never `eval`. Anything that
+  could reach the prototype or call a function is a compile error with a code,
+  a file and a line/column.
+- `rpx` resolves against the page width, `@import` is inlined inside the package,
+  and theme rules are ordinary `[data-theme="dark"]` selectors, so a theme change
+  is a root attribute change, not a reload.
+- A tap travels DOM → view renderer → service handler → `setData` → path ops →
+  patched DOM. The count text node keeps its identity, the button is not
+  recreated, the `wx:if` branch is inserted once, and the page never reloads.
+
+### 9.3 What M3 does not prove
+
+- No WebView has run the components or the compiled CSS. The DOM shim implements
+  only what the components use; real layout, custom-element upgrade order and
+  shadow-DOM styling are M5/M6.
+- No `data-theme` attribute is written by M3: the adapter receives the resolved
+  theme and the CSS contract is tested, but the WebView root write is M5.
+- No `wx.*` API, no navigation and no package installation; the sample uses only
+  `Page`, `setData` and `bindtap`.
+- No performance number, no WXS, no P1/P2 component.
+- The legacy QApp renderer is untouched and still serves production; M3 builds
+  the replacement, it does not remove the old path.
+
+### 9.4 Removal progress (section 12.2B)
+
+| Decision | Total | Done | Remaining |
+|---|---|---|---|
+| REMOVE | 23 | 0 | 23 |
+| ADAPT | 15 | 1 | 14 |
+| REPLACE | 15 | 2 | 13 |
+| BLOCKED | 1 | 0 | 1 |
+| **Total** | **54** | **3** | **51** |
+
+Past target milestone: 0. Blocked by access/input: 1 (production apps).
+
+M3 does not close a register row. The view-runtime rows (1, 2, 4) target M11 and
+need the legacy renderer deleted only after the new screen is verified on a
+device; deleting them now would break production Mini Apps, which section 12.2
+forbids. The compiler and components are the replacement evidence those rows
+will cite at M11.
+
+### 9.5 Compatibility matrix
+
+Added the sample end-to-end row to §1.0 and the `qxColorScheme` resolution note
+to §1.4. The P0 component rows (§1.3) and the syntax rows (§1.4) were updated as
+each task landed. No WeChat API row changes; the §1.5 theme rows stay
+`Not started` because every one of them is a device/WebView case (M5/M6), and no
+device or performance claim is made.
+
+### 9.6 Open risks / blocked
+
+- Real WebView behaviour (layout, shadow DOM, font metrics, custom-element
+  upgrade) is unverified until M5/M6.
+- The DOM shim is not a browser; a component test can pass while the browser
+  behaves differently.
+- `wx:key` reuse is index-based in the renderer; a keyed reorder test with a real
+  list is M7.
+- Long-running timers and the render budget under load are unmeasured.
+- Android QuickJS build remains `BLOCKED` from M2.
+
+### 9.7 How to verify M3
+
+```powershell
+$env:NODE_OPTIONS="--max-old-space-size=2048"
+pnpm typecheck
+pnpm check:miniapp
+pnpm test:miniapp
+pnpm --filter @qchat/miniapp-compiler test
+pnpm --filter @qchat/miniapp-view-runtime test
+pnpm --filter @qchat/miniapp-test-harness test
+Get-Content docs/compatibility.md
+```
+
+### 9.8 ADRs written in M3
+
+None. M3 implements decisions already recorded: ADR 001/003 (custom view runtime
+and module layout), ADR 006 (theme ownership: `data-theme` + `color-scheme`,
+no reload) and ADR 009 (engine split). The compiler's no-`eval` rule and the
+`rpx`/theme-selector output follow ADR 006 and the specification, and are
+recorded in `docs/compatibility.md` §1.4 rather than in a new ADR.

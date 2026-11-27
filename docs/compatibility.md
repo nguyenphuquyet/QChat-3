@@ -141,7 +141,7 @@ implementation is M4/M3.
 | Page and component styles | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | `scopeSelector` + `:host`; custom components are M7 |
 | `app.json` (`pages`, `window`, `tabBar`, `usingComponents`) | `/miniprogram/dev/reference/configuration/app.html` | Not started | — | |
 | `page.json` | `/miniprogram/dev/reference/configuration/page.html` | Not started | — | |
-| `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Contract only; compiler/view is M3 |
+| `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | `app.json` value validated and resolved by the host (ADR 006); the WebView root write is M5 |
 | `darkmode`, `themeLocation`, `theme.json` | WeChat theme | Unsupported | — | Replaced by `qxColorScheme`; compiler error code |
 | `@media (prefers-color-scheme)` | WXSS | Unsupported | `packages/miniapp-compiler/test/wxss.test.ts` | Rejected with `WXSS_UNSUPPORTED_FEATURE`; use `[data-theme]` |
 | WXS | `/miniprogram/dev/framework/view/wxs/` | Not started | — | M7; isolated, no bridge/native objects |

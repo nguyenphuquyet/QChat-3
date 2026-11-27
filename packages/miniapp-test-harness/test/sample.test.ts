@@ -114,6 +114,17 @@ test("a tap runs the page handler and patches only the changed paths", () => {
   host.close();
 });
 
+test("a fixed light app ignores a dark host", () => {
+  const host = createSampleHost(loadSample(ROOT), { hostTheme: "dark" });
+  host.launch();
+
+  assert.equal(host.sample.app.qxColorScheme, "light");
+  assert.equal(host.theme(), "light", "a fixed scheme never follows the host");
+  assert.equal((host.dom as MemoryDomAdapter).theme, "light");
+
+  host.close();
+});
+
 test("the sample data is a snapshot, not the live page state", () => {
   const host = createSampleHost(loadSample(ROOT));
   host.launch();
