@@ -428,7 +428,7 @@ device-verified.
 | Device proof | `BLOCKED`: no Android SDK, emulator or phone; the Flutter host screen does not exist yet (M5/M6) |
 | Removal progress | 1/54 (row 26, `REPLACE`, done) |
 | Compatibility update | §1.0 contracts/spike table; device theme cases stay `Not started` |
-| Commit and push | `21ed506` on `origin/feat/miniapp-v7` |
+| Commit and push | `f68904c` on `origin/feat/miniapp-v7` |
 
 ### 5.2 What the spike proves
 
