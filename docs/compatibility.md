@@ -98,13 +98,13 @@ implementation is M4/M3.
 
 | Priority | Feature | Reference | Status | Linked test | Notes |
 |---|---|---|---|---|---|
-| P0 | `view` | `/miniprogram/dev/component/view.html` | Not started | — | Web element |
-| P0 | `text` | `/miniprogram/dev/component/text.html` | Not started | — | Text only, never HTML |
-| P0 | `image` | `/miniprogram/dev/component/image.html` | Not started | — | `mode`, `lazy-load` |
-| P0 | `button` | `/miniprogram/dev/component/button.html` | Not started | — | `open-type` subset |
-| P0 | `input` | `/miniprogram/dev/component/input.html` | Not started | — | `bindinput`, `bindconfirm` |
-| P0 | `scroll-view` | `/miniprogram/dev/component/scroll-view.html` | Not started | — | `scroll-y`, `scroll-x`, `bindscrolltolower` |
-| P0 | Navigation bar | `app.json` `window` + `wx.setNavigationBarColor` | Not started | — | Drawn by the View Runtime |
+| P0 | `view` | `/miniprogram/dev/component/view.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `wx-view` custom element; hover-class timings |
+| P0 | `text` | `/miniprogram/dev/component/text.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | Text only, never HTML; `decode`, `space`, `selectable` |
+| P0 | `image` | `/miniprogram/dev/component/image.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `scaleToFill`, `aspectFit`, `aspectFill`, `widthFix`; `lazy-load`; load/error |
+| P0 | `button` | `/miniprogram/dev/component/button.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `size`, `type`, `plain`, `disabled`, `loading`; `open-type` subset |
+| P0 | `input` | `/miniprogram/dev/component/input.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `bindinput`, `bindconfirm`, `password`, `maxlength`; keyboard height is host-side |
+| P0 | `scroll-view` | `/miniprogram/dev/component/scroll-view.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `scroll-y`, `scroll-x`, `scroll-top`, thresholds; `enhanced` is a no-op |
+| P0 | Navigation bar | `app.json` `window` + `wx.setNavigationBarColor` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `wx-navigation-bar` drawn by the View Runtime; host may override |
 | P1 | `textarea` | `/miniprogram/dev/component/textarea.html` | Not started | — | |
 | P1 | `checkbox` / `checkbox-group` | `/miniprogram/dev/component/checkbox.html` | Not started | — | |
 | P1 | `radio` / `radio-group` | `/miniprogram/dev/component/radio.html` | Not started | — | |

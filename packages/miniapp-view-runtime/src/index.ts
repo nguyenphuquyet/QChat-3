@@ -24,6 +24,8 @@ import {
   type ViewRenderer,
 } from "@qchat/miniapp-contracts";
 
+export * from "./components.js";
+
 export interface ViewRendererOptions {
   /** Called for every bound event; the host forwards it to the service. */
   onEvent?: (event: ViewEvent) => void;

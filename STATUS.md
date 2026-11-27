@@ -664,12 +664,12 @@ M5; M3 is verified in Node with the DOM adapter.
 | 2a | Expression evaluator | Done | `src/expression.ts`: literals, member/index access, unary/binary/ternary, array/object/spread; function calls, `new`, `this`, optional chaining and prototype keys are rejected at parse time; `test/expression.test.ts` — **9 pass** |
 | 3 | Event compiler | Done | `bind*`, `bind:*`, `catch*`, `catch:*`, `mut-bind*`, static and `{{ }}` handler names, `data-*` → camelCase dataset; capture-phase bindings are rejected with a diagnostic |
 | 4 | WXSS compiler | Done | `src/wxss.ts`: rules, declarations, comments, `rpx` → `--qchat-rpx` (750 rpx = page width), inlined `@import` with package confinement and cycle detection, `@media`/`@keyframes`/`@font-face`, component scoping with `:host`, `[data-theme]` preserved, `prefers-color-scheme` rejected; `test/wxss.test.ts` — **18 pass** |
-| 5 | P0 components | Not started | Next; compiler already maps registry tags to `wx-*` |
-| 6 | `setData` path ops | Not started | |
-| 7 | Diagnostics | Done (WXML) | `src/diagnostics.ts`; every parser/compiler error carries file, 1-based line/column, registry code and an explanation. WXSS diagnostics follow with task 4 |
+| 5 | P0 components | Done | `packages/miniapp-view-runtime/src/components.ts`: `wx-view`, `wx-text`, `wx-image`, `wx-button`, `wx-input`, `wx-scroll-view`, `wx-navigation-bar` as real custom elements with shadow DOM, attribute reflection, hover, text decode/space, image modes and load/error, tap/input/confirm, scroll thresholds, navback; `COMPONENTS_SOURCE` is the dependency-free WebView bootstrap. `test/components.test.ts` — **18 pass** against a minimal DOM shim, plus a renderer pass over every P0 tag |
+| 6 | `setData` path ops | Not started | Next |
+| 7 | Diagnostics | Done | `src/diagnostics.ts`; every parser, compiler and WXSS error carries file, 1-based line/column, registry code and an explanation |
 | 8 | Sample | Not started | |
 | 9 | M3 report + exit check | Not started | |
 
-`pnpm test:miniapp` now runs **152 tests** (41 contracts + 63 compiler + 39
-service + 9 view), all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
+`pnpm test:miniapp` now runs **170 tests** (41 contracts + 63 compiler + 39
+service + 27 view), all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
 The new package is in `pnpm-workspace.yaml` and in the isolation guard roots.
