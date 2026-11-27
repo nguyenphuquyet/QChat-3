@@ -28,6 +28,7 @@ import {
   stringifyExpressionValue,
   type Expression,
 } from "./expression.js";
+import { resolvePackagePath } from "./paths.js";
 import { parseWxml, type WxmlAttribute, type WxmlDocument, type WxmlElement, type WxmlNode } from "./wxml.js";
 
 export interface CompileOptions {
@@ -273,23 +274,6 @@ function eventBinding(entry: WxmlAttribute, ctx: Context): EventTemplate | null 
   return { type, handler, catch: prefix === "catch", loc: entry.loc };
 }
 
-function resolveRelative(from: string, request: string): string | null {
-  if (request.length === 0 || request.length > 512) return null;
-  if (request.startsWith("/") || request.includes("\\") || request.includes("\0") || /^[A-Za-z]:/.test(request)) return null;
-  const base = from.slice(0, Math.max(0, from.lastIndexOf("/") + 1)) + request;
-  const segments: string[] = [];
-  for (const segment of base.split("/")) {
-    if (segment === "" || segment === ".") continue;
-    if (segment === "..") {
-      if (segments.length === 0) return null;
-      segments.pop();
-      continue;
-    }
-    segments.push(segment);
-  }
-  return segments.length === 0 ? null : segments.join("/");
-}
-
 function loadDocument(
   path: string,
   ctx: Context,
@@ -391,7 +375,7 @@ function compileElement(element: WxmlElement, ctx: Context): TemplateNode[] {
       return [];
     }
     if (ctx.importDepth > 0) return [];
-    const path = resolveRelative(ctx.file, src.value);
+    const path = resolvePackagePath(ctx.file, src.value);
     if (!path) {
       error(ctx, "WXML_INVALID_ATTRIBUTE", `Unsafe import path "${src.value}".`, src.loc);
       return [];
@@ -418,7 +402,7 @@ function compileElement(element: WxmlElement, ctx: Context): TemplateNode[] {
       error(ctx, "WXML_INVALID_ATTRIBUTE", "<include> needs a src.", element.loc);
       return [];
     }
-    const path = resolveRelative(ctx.file, src.value);
+    const path = resolvePackagePath(ctx.file, src.value);
     if (!path) {
       error(ctx, "WXML_INVALID_ATTRIBUTE", `Unsafe include path "${src.value}".`, src.loc);
       return [];

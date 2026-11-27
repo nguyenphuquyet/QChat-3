@@ -44,6 +44,7 @@ implementation is M4/M3.
 | WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only |
 | WXML compiler | Directives, templates, events, dataset, typed render tree | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Node only; no device |
 | Expressions | Safe `{{ }}` subset, no calls, no prototype access | Experimental | `packages/miniapp-compiler/test/expression.test.ts` | Never `eval` |
+| WXSS compiler | `rpx`, `@import`, scoping, theme selectors | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | `prefers-color-scheme` rejected; Node only |
 
 ### 1.1 APIs — MVP (M4/M6)
 
@@ -132,14 +133,14 @@ implementation is M4/M3.
 | `behaviors` | `/miniprogram/dev/framework/custom-component/behaviors.html` | Not started | — | |
 | Event bind / catch | `/miniprogram/dev/framework/view/wxml/event.html` | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | `bind*`/`catch*`, dynamic handler names; capture phase is rejected |
 | Two-way binding `model:value` | `/miniprogram/dev/framework/view/two-way-bindings.html` | Unsupported | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Rejected with `COMPILER_UNSUPPORTED_DIRECTIVE`, never ignored |
-| `rpx` | `/miniprogram/dev/framework/view/wxss.html` | Not started | — | 750 rpx = screen width |
-| `@import` in WXSS | `/miniprogram/dev/framework/view/wxss.html` | Not started | — | |
-| Page and component styles | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Not started | — | Scoping rules |
+| `rpx` | `/miniprogram/dev/framework/view/wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | Compiled to `--qchat-rpx` (750 rpx = page width); host sets the measured width |
+| `@import` in WXSS | `/miniprogram/dev/framework/view/wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | Inlined, package-confined, cycle detected |
+| Page and component styles | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | `scopeSelector` + `:host`; custom components are M7 |
 | `app.json` (`pages`, `window`, `tabBar`, `usingComponents`) | `/miniprogram/dev/reference/configuration/app.html` | Not started | — | |
 | `page.json` | `/miniprogram/dev/reference/configuration/page.html` | Not started | — | |
 | `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Contract only; compiler/view is M3 |
 | `darkmode`, `themeLocation`, `theme.json` | WeChat theme | Unsupported | — | Replaced by `qxColorScheme`; compiler error code |
-| `@media (prefers-color-scheme)` | WXSS | Unsupported | — | Unless a real-device test proves it follows the resolved theme |
+| `@media (prefers-color-scheme)` | WXSS | Unsupported | `packages/miniapp-compiler/test/wxss.test.ts` | Rejected with `WXSS_UNSUPPORTED_FEATURE`; use `[data-theme]` |
 | WXS | `/miniprogram/dev/framework/view/wxs/` | Not started | — | M7; isolated, no bridge/native objects |
 | Subpackages (including independent) | `/miniprogram/dev/framework/subpackages.html` | Not started | — | M7 |
 | npm dependencies (compatible) | WeChat npm support | Not started | — | M7 |

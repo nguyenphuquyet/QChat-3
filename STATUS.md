@@ -663,13 +663,13 @@ M5; M3 is verified in Node with the DOM adapter.
 | 2 | WXML compiler | Done | `src/wxml-compiler.ts`: `{{ }}` in text/attributes with typed whole-value results, `wx:if`/`wx:elif`/`wx:else` chains, `wx:for`/`wx:for-item`/`wx:for-index`/`wx:key` (`*this` and property paths), transparent `block`, `template`/`is`/`data` (object and spread form), `import`, `include`, `slot`; `test/wxml-compiler.test.ts` — **21 pass** |
 | 2a | Expression evaluator | Done | `src/expression.ts`: literals, member/index access, unary/binary/ternary, array/object/spread; function calls, `new`, `this`, optional chaining and prototype keys are rejected at parse time; `test/expression.test.ts` — **9 pass** |
 | 3 | Event compiler | Done | `bind*`, `bind:*`, `catch*`, `catch:*`, `mut-bind*`, static and `{{ }}` handler names, `data-*` → camelCase dataset; capture-phase bindings are rejected with a diagnostic |
-| 4 | WXSS compiler | Not started | Next |
-| 5 | P0 components | Not started | Compiler already maps registry tags to `wx-*`; the web components are next |
+| 4 | WXSS compiler | Done | `src/wxss.ts`: rules, declarations, comments, `rpx` → `--qchat-rpx` (750 rpx = page width), inlined `@import` with package confinement and cycle detection, `@media`/`@keyframes`/`@font-face`, component scoping with `:host`, `[data-theme]` preserved, `prefers-color-scheme` rejected; `test/wxss.test.ts` — **18 pass** |
+| 5 | P0 components | Not started | Next; compiler already maps registry tags to `wx-*` |
 | 6 | `setData` path ops | Not started | |
 | 7 | Diagnostics | Done (WXML) | `src/diagnostics.ts`; every parser/compiler error carries file, 1-based line/column, registry code and an explanation. WXSS diagnostics follow with task 4 |
 | 8 | Sample | Not started | |
 | 9 | M3 report + exit check | Not started | |
 
-`pnpm test:miniapp` now runs **134 tests** (41 contracts + 45 compiler + 39
+`pnpm test:miniapp` now runs **152 tests** (41 contracts + 63 compiler + 39
 service + 9 view), all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
 The new package is in `pnpm-workspace.yaml` and in the isolation guard roots.
