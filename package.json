@@ -8,7 +8,7 @@
     "build": "pnpm --filter @qchat/server build",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:miniapp": "pnpm --filter @qchat/miniapp-contracts test && pnpm --filter @qchat/miniapp-service-runtime test && pnpm --filter @qchat/miniapp-view-runtime test",
+    "test:miniapp": "pnpm --filter @qchat/miniapp-contracts test && pnpm --filter @qchat/miniapp-compiler test && pnpm --filter @qchat/miniapp-service-runtime test && pnpm --filter @qchat/miniapp-view-runtime test",
     "check:miniapp": "node scripts/check-miniapp-isolation.mjs",
     "test:qapp": "node packages/contracts/generate-miniapp-ui.mjs --check && tsx --test packages/miniapp-framework/test/*.test.ts",
     "contract:generate": "node packages/contracts/generate-miniapp-ui.mjs",

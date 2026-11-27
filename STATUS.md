@@ -654,3 +654,21 @@ Get-Content docs/adr/009-service-engine.md
 
 M3 does not start M4 API work before its exit check. The Android host remains
 M5; M3 is verified in Node with the DOM adapter.
+
+### 8.1 M3 progress
+
+| # | Task | State | Evidence |
+|---|---|---|---|
+| 1 | WXML parser | Done | `packages/miniapp-compiler/src/wxml.ts`: elements, attributes (quoted, single-quoted, empty, boolean), text, mustache blocks (including `<` inside `{{ }}`), comments, self-closing tags, 1-based file/line/column on every node; `test/wxml.test.ts` — **15 pass**, including every parse error code |
+| 2 | WXML compiler | Not started | Next |
+| 3 | Event compiler | Not started | |
+| 4 | WXSS compiler | Not started | |
+| 5 | P0 components | Not started | |
+| 6 | `setData` path ops | Not started | |
+| 7 | Diagnostics | Partial | `src/diagnostics.ts` (`Diagnostic`, `CompileResult`, `formatDiagnostic`); the WXML parser reports code/file/line/column. Compiler directive diagnostics are next |
+| 8 | Sample | Not started | |
+| 9 | M3 report + exit check | Not started | |
+
+`pnpm test:miniapp` now runs **104 tests** (41 contracts + 15 compiler + 39
+service + 9 view), all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
+The new package is in `pnpm-workspace.yaml` and in the isolation guard roots.

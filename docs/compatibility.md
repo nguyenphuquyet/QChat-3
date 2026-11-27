@@ -41,6 +41,7 @@ implementation is M4/M3.
 | Bridge client | Allowlist, ids, timeout, cancel, close, binding | Experimental | `packages/miniapp-service-runtime/test/bridge-client.test.ts` | Host side |
 | Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers are M4 |
 | Timers | Tracked `setTimeout`/`setInterval`, cleared on close | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Long-running timing test is M3 |
+| WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only; directives are M3 |
 
 ### 1.1 APIs — MVP (M4/M6)
 

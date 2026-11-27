@@ -4,5 +4,6 @@ packages:
   - apps/miniapp-ide
   - packages/miniapp-framework
   - packages/miniapp-contracts
+  - packages/miniapp-compiler
   - packages/miniapp-service-runtime
   - packages/miniapp-view-runtime
