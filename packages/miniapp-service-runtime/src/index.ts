@@ -38,6 +38,10 @@ import {
   type ViewEvent,
 } from "@qchat/miniapp-contracts";
 
+export * from "./engine.js";
+export * from "./node-engine.js";
+export * from "./bridge-client.js";
+
 export interface ServiceTransport {
   /** Send one validated bridge message to the host. */
   send(message: BridgeMessage): void;

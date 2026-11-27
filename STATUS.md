@@ -42,6 +42,10 @@
   `packages/miniapp-view-runtime` (9 tests, including the round trip).
 - Engine ADR 009; isolation guard `scripts/check-miniapp-isolation.mjs` wired
   into CI; `pnpm test:miniapp` added.
+- M2 slice 1: `ServiceEngine` contract, a real Node `vm` adapter with no host
+  globals, string code generation disabled and a wall-clock limit (8 tests), and
+  the host bridge client with allowlist, ids, timeout, cancellation, close and
+  binding checks (9 tests).
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
@@ -526,3 +530,18 @@ Get-Content docs/adr/009-service-engine.md
 M2 does not start M3 view/compiler work before its exit check. Device execution
 remains `BLOCKED`; the engine build is verified by CI, and the phone checklist
 is reused from §5.4 when hardware exists.
+
+### 6.1 M2 progress
+
+| # | Task | State | Evidence |
+|---|---|---|---|
+| 1 | Engine interface | Done | `packages/miniapp-service-runtime/src/engine.ts`: evaluate/call, limits, memory report, terminate |
+| 1a | Node engine adapter | Done | `src/node-engine.ts`; `test/engine.test.ts` — **8 pass**: isolation, no `process`/`require`/`Buffer`, no `eval`/`Function`, timeout, call, terminate |
+| 3 | Host bridge client | Done | `src/bridge-client.ts`; `test/bridge-client.test.ts` — **9 pass**: allowlist, response matching, timeout, foreign binding, typed error, close, abort/cancel, events, malformed input |
+| 2 | JavaScript SDK bootstrap | Not started | Next: `App`/`Page`/`Component`, `getApp`, `getCurrentPages`, `setData`, timers, module loading |
+| 4 | Android QuickJS build | `BLOCKED` locally | No Android SDK/NDK; CI job and vendored source are next |
+| 5 | Legacy rows 6 and 13 | Not started | Depends on the bridge/SDK replacement |
+| 6 | M2 report + exit check | Not started | After tasks 2–5 |
+
+`pnpm test:miniapp` now runs **78 tests** (41 contracts + 28 service + 9 view),
+all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
