@@ -2,10 +2,13 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M0 — Audit and plan**
-- **Exit check:** `IN PROGRESS` (all documents written; commit/push pending)
+- **Current milestone:** **M2 — Service Runtime and bridge**
+- **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
+- **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
 - **PLAN:** `DONE`
-- **M0:** `IN PROGRESS`
+- **M0:** `DONE`
+- **M1:** `DONE` (device evidence `BLOCKED`)
+- **M2:** `IN PROGRESS`
 - **Last updated:** 2026-11-27
 
 ## 1. Where the work stands
@@ -32,12 +35,18 @@
 - Store policy analysis: `docs/store-policy.md`.
 - Baseline checks: `pnpm typecheck` pass; `pnpm test` 32 pass; `flutter analyze`
   "No issues found!".
+- M1 contracts in `packages/miniapp-contracts` (bridge, lifecycle, permissions,
+  components, APIs, manifest, renderer, theme, performance, errors) with 41
+  tests.
+- M1 spike: `packages/miniapp-service-runtime` (11 tests) and
+  `packages/miniapp-view-runtime` (9 tests, including the round trip).
+- Engine ADR 009; isolation guard `scripts/check-miniapp-isolation.mjs` wired
+  into CI; `pnpm test:miniapp` added.
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
 
-- M0 exit check: documents exist, baseline verified, commit/push and phase
-  report to finish.
+- M2 Service Runtime and bridge (task plan in §6).
 
 ### Blocked
 
@@ -51,19 +60,12 @@
 
 ### Next task
 
-Finish the M0 exit check (commit, push, phase report), set `M0: DONE`, then start
-**M1 — Contracts and technical spike**:
-
-1. Write the M1 contracts in `packages/miniapp-contracts`: runtime/lifecycle,
-   bridge messages and transport, renderer interface, API definition, component
-   definition, package manifest, permissions, error codes, performance method,
-   theme contract.
-2. Write the engine ADR after the spike evidence (QuickJS vs V8 vs platform
-   sandbox).
-3. Create the spike in the new modules (no legacy import): service runtime
-   sends data to the view, a tap returns to the logic.
-4. Run the spike on a real Android phone. No phone → `BLOCKED`, write the spike
-   report with the blocker, close M1 and continue with M2 (the spec allows it).
+M2 — Service Runtime and bridge (task plan in §6): engine interface, JavaScript
+SDK (`App`/`Page`/`Component`/module loading/timers), the real bridge
+(request/response, timeout, cancellation, allowlist, ordering), tests, and the
+removal of legacy bridge rows 6 and 13. Device execution stays `BLOCKED` until an
+Android SDK/phone exists; the SDK and host code are written and unit-tested
+locally, and the Android build runs in CI.
 
 ### How to verify M0
 
@@ -343,7 +345,8 @@ M10 4, M11 22. Nothing is past its target at M0.
 
 ### M0 — Audit and plan
 
-**Exit check:** `IN PROGRESS` — all deliverables exist; commit/push pending.
+**Exit check:** `PASS` — all deliverables exist, baseline verified, committed and
+pushed as `6cd467e` to `origin/feat/miniapp-v7`. Device items are not part of M0.
 
 | Checklist item | Evidence |
 |---|---|
@@ -361,7 +364,7 @@ M10 4, M11 22. Nothing is past its target at M0.
 | Theme plan | ADR 006; this file, §2.11 |
 | Appendix A assumptions | This file, §2.3 |
 | Baseline checks | `pnpm typecheck` pass; `pnpm test` 32 pass; `flutter analyze` clean |
-| Commit and push | Pending in this phase |
+| Commit and push | `6cd467e` on `origin/feat/miniapp-v7` |
 
 **ADRs written:** 001 reuse-versus-build; 002 container integration; 003 module
 layout; 004 minimum Android; 005 pinned base library; 006 theme ownership; 007
@@ -385,3 +388,141 @@ inventory is informational only.
 **Open risks / blocked:** see §1 and §2.16.
 
 **How to verify:** the commands in §1 "How to verify M0".
+
+## 4. M1 task plan
+
+| # | Task | Output | Verification |
+|---|---|---|---|
+| 1 | Contracts package | `packages/miniapp-contracts`: versions, bridge envelope, manifest, permissions, error codes, renderer/component/API registries, theme contract, performance method | `pnpm --filter @qchat/miniapp-contracts test`, typecheck |
+| 2 | Contract tests | Validation tests for envelope, manifest, permissions, theme values, error codes | Node test output |
+| 3 | Spike: service runtime | `packages/miniapp-service-runtime` minimal `App`/`Page`, `setData`, event dispatch, render messages | Node test with a fake bridge |
+| 4 | Spike: view runtime | `packages/miniapp-view-runtime` minimal renderer (text + button) behind a DOM adapter | Node test with a fake DOM adapter |
+| 5 | Spike: bridge round trip | Service → view render → tap → service handler → new render | Node test, same payloads as the device bridge |
+| 6 | Engine ADR | ADR 009 (QuickJS on Android, JavaScriptCore on iOS; evidence, alternatives) | ADR exists |
+| 7 | Device proof | Real Android phone: logic outside the WebView sends data, tap returns | `BLOCKED`: no SDK/device; CI APK + owner checklist prepared |
+| 8 | Spike report + exit check | `STATUS.md` M1 report, ADRs, removal progress, compatibility update | Exit check |
+
+M1 does not start M2 production code before the exit check has passed.
+
+## 5. M1 phase report
+
+### 5.1 Exit check
+
+**Result:** `PASS`. The one item that cannot be produced here — execution on a
+real Android phone — is recorded as `BLOCKED`, with the reason and the checklist
+below. Section 11.1 allows a blocked device item; the phase is not reported as
+device-verified.
+
+| Checklist item | Evidence |
+|---|---|
+| Contracts exist and are versioned | `packages/miniapp-contracts/src/`: `version.ts`, `errors.ts`, `validate.ts`, `bridge.ts`, `lifecycle.ts`, `permissions.ts`, `components.ts`, `apis.ts`, `manifest.ts`, `renderer.ts`, `theme.ts`, `performance.ts`, `index.ts` |
+| Contract tests | `pnpm --filter @qchat/miniapp-contracts test` → **41 pass, 0 fail** |
+| Service runtime spike | `packages/miniapp-service-runtime`; `App`/`Page`, lifecycle, stack, `setData`, path validation, theme, message validation |
+| Service tests | `pnpm --filter @qchat/miniapp-service-runtime test` → **11 pass, 0 fail** |
+| View runtime spike | `packages/miniapp-view-runtime`; typed tree, diffing without reload, event binding, theme root, typed ops |
+| View + round-trip tests | `pnpm --filter @qchat/miniapp-view-runtime test` → **9 pass, 0 fail** (includes the round trip) |
+| Round trip | `packages/miniapp-view-runtime/test/roundtrip.test.ts`: service render → view paint → tap → service handler → new render; state kept across a theme change |
+| Engine ADR | `docs/adr/009-service-engine.md` (QuickJS Android, JavaScriptCore iOS, one SDK) |
+| Type check | `pnpm typecheck` → pass |
+| No legacy import | `pnpm check:miniapp` → pass (9 module roots); CI runs it |
+| Device proof | `BLOCKED`: no Android SDK, emulator or phone; the Flutter host screen does not exist yet (M5/M6) |
+| Removal progress | 1/54 (row 26, `REPLACE`, done) |
+| Compatibility update | §1.0 contracts/spike table; device theme cases stay `Not started` |
+| Commit and push | `21ed506` on `origin/feat/miniapp-v7` |
+
+### 5.2 What the spike proves
+
+- Page logic lives in the service module; the view module never imports it and
+  receives only a typed tree. The two modules meet at `BridgeMessage`.
+- A tap travels view → host transport → service handler → `setData` → render,
+  and the view diffs the tree instead of rebuilding the page (`createdTags`
+  stays constant in the test).
+- A theme change updates the root theme only and keeps page data.
+- A fixed-theme page receives no host theme event; an `auto` page receives one.
+- Untrusted input is rejected: wrong app/session/page binding, unknown message
+  kinds/keys, unknown error codes, oversized messages, unsafe paths, prototype
+  paths, non-`wx-*` tags.
+- The same contract types are used by the contracts, service and view packages.
+
+### 5.3 What the spike does not prove
+
+- It does not run on Android or iOS, and it does not use QuickJS or
+  JavaScriptCore. It runs on Node.
+- It does not compile WXML/WXSS. `render(data)` is a hand-written stand-in for
+  the M3 compiler output.
+- It implements no `wx.*` API, no web component, no package install and no
+  permission prompt.
+- It measures no performance value.
+
+### 5.4 Device checklist (for when a phone and the host exist)
+
+1. Build the CI debug APK and install it on the Android phone.
+2. Open the M1 spike screen (added with the Flutter host in M5): the service
+   sends a render tree, the view paints `count:0`.
+3. Tap the button: the service handler runs and the view shows `count:1`; the
+   page is not reloaded and the log shows no second `onLoad`.
+4. Switch the host theme with an `auto` page open: root `data-theme` changes,
+   state stays, no reload.
+5. Repeat with a `light` page: no theme event reaches the page.
+6. Record device, OS and WebView versions next to the result.
+
+### 5.5 ADRs written in M1
+
+- **ADR 009** — Service Runtime engine: QuickJS on Android, system
+  JavaScriptCore on iOS, one JavaScript SDK and one bridge contract. Device
+  measurement `BLOCKED`.
+
+### 5.6 Removal progress (section 12.2B)
+
+| Decision | Total | Done | Remaining |
+|---|---|---|---|
+| REMOVE | 23 | 0 | 23 |
+| ADAPT | 15 | 0 | 15 |
+| REPLACE | 15 | 1 | 14 |
+| BLOCKED | 1 | 0 | 1 |
+| **Total** | **54** | **1** | **53** |
+
+Past target milestone: 0. Blocked by access/input: 1 (production apps). The two
+M2 items are rows 6 (legacy bridge) and 13 (`flutter_js`).
+
+### 5.7 Compatibility matrix
+
+Added §1.0 “Contracts and M1 spike” (10 entries, `Experimental`, linked tests).
+`qxColorScheme` moved from `Not started` to `Experimental` (contract only). Every
+WeChat API, component, syntax and device theme entry stays `Not started` or
+`Blocked`; no compatibility claim is made.
+
+### 5.8 Open risks / blocked
+
+- Real-device proof for M1 and the M6 MVP: no Android SDK/device, and the
+  Flutter host screen arrives in M5. Owner can install a CI APK later.
+- Engine size and performance: documented in ADR 009 as `BLOCKED` until M2
+  builds the engine and M6 measures it.
+- The iOS half of ADR 009 is untested until M8.
+
+### 5.9 How to verify M1
+
+```powershell
+pnpm typecheck
+pnpm check:miniapp
+pnpm test:miniapp
+pnpm --filter @qchat/miniapp-contracts test
+pnpm --filter @qchat/miniapp-service-runtime test
+pnpm --filter @qchat/miniapp-view-runtime test
+Get-Content docs/adr/009-service-engine.md
+```
+
+## 6. M2 task plan
+
+| # | Task | Output | Verification |
+|---|---|---|---|
+| 1 | Engine interface | `ServiceEngine` contract: evaluate, post message, memory/stack/time limits, terminate; Node and QuickJS/JSC adapters behind it | Type check; Node adapter test |
+| 2 | JavaScript SDK bootstrap | `App`, `Page`, `Component`, `getApp`, `getCurrentPages`, `setData`, module loading (CommonJS subset), timers | Node tests on the SDK, no legacy import |
+| 3 | Host bridge | Request/response ids, allowlist, timeouts, cancellation on page/app close, ordering, origin/session/page binding, bounded queue | Unit tests for timeout, cancel, closed page, foreign binding |
+| 4 | Android engine build | QuickJS vendored by commit, NDK build for the three ABIs, JNI surface limited to the contract; CI build job | CI artifact + size report; local build `BLOCKED` (no NDK) |
+| 5 | Legacy rows 6 and 13 | Remove `miniapp_bridge.dart` usage and `flutter_js`; register status updated | `pnpm check:miniapp`; `flutter analyze` |
+| 6 | M2 report + exit check | `STATUS.md` report, ADR updates, removal progress, compatibility note | Exit check |
+
+M2 does not start M3 view/compiler work before its exit check. Device execution
+remains `BLOCKED`; the engine build is verified by CI, and the phone checklist
+is reused from §5.4 when hardware exists.

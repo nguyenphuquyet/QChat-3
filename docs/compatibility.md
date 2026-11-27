@@ -14,6 +14,26 @@
 
 ## Part 1 — New runtime matrix
 
+### 1.0 Contracts and M1 spike
+
+M1 delivered the shared contracts and a Node spike. These entries describe the
+QChat runtime itself, not a WeChat feature, so they are `Experimental` and are
+not counted in the WeChat denominator. No `wx.*` API and no component changes
+status in M1: the spike implements neither.
+
+| Contract | Entry | Status | Linked test | Notes |
+|---|---|---|---|---|
+| Bridge | Envelope, binding, size limit, unknown keys | Experimental | `packages/miniapp-contracts/test/bridge.test.ts` | Foreign app/session/page rejected |
+| Manifest | `.qxpkg` manifest, pages, files, signature shape | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Hashes/signature verified in M5 |
+| Permissions | Declared permissions, unknown rejected | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Prompt/OS mapping is M4 |
+| Components | Registry (P0/P1/P2) | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Rendering is M3/M7 |
+| APIs | Registry + bridge allowlist | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Implementation is M4/M7 |
+| Renderer | Typed tree, ops, event binding | Experimental | `packages/miniapp-view-runtime/test/view.test.ts` | Only `wx-*` tags render |
+| Service | `App`/`Page`, lifecycle, stack, `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Engine is ADR 009 |
+| Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
+| Theme contract | Fixed/`auto` resolution, no event to fixed | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Device matrix in 1.5 stays `Not started` |
+| Performance | Metric definitions and judge rule | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Values stay `Blocked` |
+
 ### 1.1 APIs — MVP (M4/M6)
 
 | Feature | Reference | Status | Linked test | Notes |
@@ -106,7 +126,7 @@
 | Page and component styles | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Not started | — | Scoping rules |
 | `app.json` (`pages`, `window`, `tabBar`, `usingComponents`) | `/miniprogram/dev/reference/configuration/app.html` | Not started | — | |
 | `page.json` | `/miniprogram/dev/reference/configuration/page.html` | Not started | — | |
-| `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Not started | — | QChat extension |
+| `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Contract only; compiler/view is M3 |
 | `darkmode`, `themeLocation`, `theme.json` | WeChat theme | Unsupported | — | Replaced by `qxColorScheme`; compiler error code |
 | `@media (prefers-color-scheme)` | WXSS | Unsupported | — | Unless a real-device test proves it follows the resolved theme |
 | WXS | `/miniprogram/dev/framework/view/wxs/` | Not started | — | M7; isolated, no bridge/native objects |

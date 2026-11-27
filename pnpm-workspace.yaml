@@ -3,3 +3,6 @@ packages:
   - apps/realtime
   - apps/miniapp-ide
   - packages/miniapp-framework
+  - packages/miniapp-contracts
+  - packages/miniapp-service-runtime
+  - packages/miniapp-view-runtime

@@ -28,8 +28,11 @@
 | M10 | 4 |
 | M11 | 22 |
 
-Removal progress is reported in every phase report (section 12.2B). Nothing is
-past its target milestone at M0.
+Removal progress is reported in every phase report (section 12.2B).
+
+- **M0:** 0/54 done. Nothing past its target milestone.
+- **M1:** 1/54 done (row 26). The one M1-targeted item is complete; the two M2
+  items (rows 6 and 13) are next.
 
 ## Register
 
@@ -47,7 +50,7 @@ past its target milestone at M0.
 | 10 | Legacy models | `models.dart` | directory audit | store/runtime screens | App/version/permission models | REPLACE | M9 | Open | New contracts types |
 | 11 | Store/discovery screen | `miniapps_screen.dart` | directory audit | route `/miniApps` | Discovery, recent, favorites | ADAPT | M11 | Open | Keep the QChat UI shell, replace the data layer and models |
 | 12 | Mini App routes | `apps/mobile/lib/main.dart` (`/miniApps`, `/miniApps/:appId`) | grep | app router | Navigation | ADAPT | M11 | Open | Routes stay; screens and arguments change |
-| 13 | `flutter_js` dependency | `apps/mobile/pubspec.yaml` | pubspec audit | legacy QuickJS host | Engine | ADAPT | M2 | Open | Candidate Android service engine; replace if the M1 spike rejects it |
+| 13 | `flutter_js` dependency | `apps/mobile/pubspec.yaml` | pubspec audit | legacy QuickJS host | Engine | ADAPT | M2 | Open | Engine decided in ADR 009 (QuickJS Android, JavaScriptCore iOS); `flutter_js` is not the long-term wrapper and is removed with the legacy runtime |
 | 14 | `archive`, `crypto` dependencies | `apps/mobile/pubspec.yaml` | pubspec audit | legacy installer | ZIP, SHA-256 | ADAPT | M5 | Open | Reused by the `.qxpkg` installer after review |
 | 15 | qapp widget/runtime tests | `apps/mobile/test/qapp_*.dart` (10 files) | test directory | CI | Regression only | REMOVE | M11 | Open | New view/service tests replace them |
 | 16 | Mini App container tests | `miniapps_test.dart`, `miniapp_bridge_test.dart` | test directory | CI | Regression only | REPLACE | M5 | Open | New installer/bridge tests |
@@ -60,7 +63,7 @@ past its target milestone at M0.
 | 23 | Tracked `.japp` artifacts | `packages/miniapp-examples/*/dist/*.japp` | `git ls-files` | none | None | REMOVE | M11 | Open | Not rebuilt in the new format |
 | 24 | Legacy UI contract | `packages/contracts/miniapp-ui.contract.json` | package audit | generator, renderer, IDE | Legacy component/props contract | REMOVE | M11 | Open | Replaced by `miniapp-contracts` component registry |
 | 25 | Legacy contract generator | `packages/contracts/generate-miniapp-ui.mjs`, `.d.mts` | package audit | root scripts, CI | Generated Dart/TS/Monaco files | REMOVE | M11 | Open | New generator lives in `miniapp-contracts` |
-| 26 | Legacy permission/category/manifest schema | `packages/contracts/miniapps.ts` | package audit | server, clients | Permission catalog | REPLACE | M1 | Open | New manifest/permission schema in `miniapp-contracts` |
+| 26 | Legacy permission/category/manifest schema | `packages/contracts/miniapps.ts` | package audit | server, clients | Permission catalog | REPLACE | M1 | Done (M1) | `packages/miniapp-contracts/src/manifest.ts`, `permissions.ts`, `apis.ts`; tests in `packages/miniapp-contracts/test/` |
 | 27 | Shared package exports | `packages/contracts/index.ts` | package audit | server, clients | Shared types | ADAPT | M9 | Open | Keep shared exports, drop qapp-only ones |
 | 28 | Legacy store/favorites/recents/telemetry endpoints | `apps/server/src/modules/miniapps.ts` (store part) | module audit | mobile store | Users' recents/favorites/telemetry | ADAPT | M9 | Open | Move to `/api/v1` app registry/distribution with a new schema |
 | 29 | Legacy developer app/version/build/permission/key endpoints | `apps/server/src/modules/miniapps.ts` (developer part) | module audit | Developer Center, CI keys | Developer data, builds, keys | ADAPT | M9 | Open | New app registry, build jobs, permissions, API keys |
