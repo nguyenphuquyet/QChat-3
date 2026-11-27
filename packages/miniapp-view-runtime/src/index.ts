@@ -25,6 +25,7 @@ import {
 } from "@qchat/miniapp-contracts";
 
 export * from "./components.js";
+export * from "./memory-dom.js";
 export * from "./session.js";
 
 export interface ViewRendererOptions {

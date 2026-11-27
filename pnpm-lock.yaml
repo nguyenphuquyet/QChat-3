@@ -228,6 +228,31 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/miniapp-test-harness:
+    dependencies:
+      '@qchat/miniapp-compiler':
+        specifier: workspace:*
+        version: link:../miniapp-compiler
+      '@qchat/miniapp-contracts':
+        specifier: workspace:*
+        version: link:../miniapp-contracts
+      '@qchat/miniapp-service-runtime':
+        specifier: workspace:*
+        version: link:../miniapp-service-runtime
+      '@qchat/miniapp-view-runtime':
+        specifier: workspace:*
+        version: link:../miniapp-view-runtime
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      tsx:
+        specifier: 4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/miniapp-view-runtime:
     dependencies:
       '@qchat/miniapp-contracts':

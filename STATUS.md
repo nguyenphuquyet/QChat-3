@@ -667,9 +667,10 @@ M5; M3 is verified in Node with the DOM adapter.
 | 5 | P0 components | Done | `packages/miniapp-view-runtime/src/components.ts`: `wx-view`, `wx-text`, `wx-image`, `wx-button`, `wx-input`, `wx-scroll-view`, `wx-navigation-bar` as real custom elements with shadow DOM, attribute reflection, hover, text decode/space, image modes and load/error, tap/input/confirm, scroll thresholds, navback; `COMPONENTS_SOURCE` is the dependency-free WebView bootstrap. `test/components.test.ts` — **18 pass** against a minimal DOM shim, plus a renderer pass over every P0 tag |
 | 6 | `setData` path ops | Done | `diffRenderTree` in `packages/miniapp-contracts/src/renderer.ts` (text, props, dataset, events, children; removes descending, inserts ascending); the service sends a full tree once per visible page and path ops after that, with a monotonic `seq`; `createRenderSession` in `packages/miniapp-view-runtime/src/session.ts` applies payloads in order and ignores stale ones. Tests: `renderer-diff.test.ts` — **9 pass**, `session.test.ts` — **9 pass**, plus service and round-trip updates |
 | 7 | Diagnostics | Done | `src/diagnostics.ts`; every parser, compiler and WXSS error carries file, 1-based line/column, registry code and an explanation |
-| 8 | Sample | Not started | |
+| 8 | Sample | Done | `packages/miniapp-examples-v2/qchat-hello`: native `app.json`/`app.js`/`app.wxss` + one page with `{{ }}`, `wx:if`, `wx:for`/`wx:key`, `bindtap` and `setData`; `app.wxss` imports `styles/base.wxss`, page WXSS uses `rpx` and `[data-theme="dark"]`. `packages/miniapp-test-harness` loads it from disk, compiles WXML/WXSS, runs the page JS in the Node engine through `createSdkRuntime`, renders through the View Runtime over `MemoryDomAdapter`, and delivers a real DOM tap back to the handler. `test/sample.test.ts` — **6 pass**: compiled CSS (inlined import, rpx `calc()`, theme selector, no `prefers-color-scheme`/`rpx`), initial DOM, first/second tap patch only changed paths (same text handle, status branch created once, no reload), snapshot isolation, closed-host and unknown-route errors |
 | 9 | M3 report + exit check | Not started | |
 
-`pnpm test:miniapp` now runs **193 tests** (50 contracts + 63 compiler + 44
-service + 36 view), all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
-The new package is in `pnpm-workspace.yaml` and in the isolation guard roots.
+`pnpm test:miniapp` now runs **199 tests** (50 contracts + 63 compiler + 44
+service + 36 view + 6 harness), all passing; `pnpm typecheck` and
+`pnpm check:miniapp` pass. The new packages are in `pnpm-workspace.yaml` and in
+the isolation guard roots (9 module roots).
