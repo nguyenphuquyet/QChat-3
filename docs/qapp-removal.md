@@ -31,8 +31,9 @@
 Removal progress is reported in every phase report (section 12.2B).
 
 - **M0:** 0/54 done. Nothing past its target milestone.
-- **M1:** 1/54 done (row 26). The one M1-targeted item is complete; the two M2
-  items (rows 6 and 13) are next.
+- **M1:** 1/54 done (row 26). The one M1-targeted item is complete.
+- **M2:** 3/54 done (rows 6, 13, 26). Both M2-targeted items are complete as
+  replacements/decisions; their legacy files are deleted with row 1 at M11.
 
 ## Register
 
@@ -43,14 +44,14 @@ Removal progress is reported in every phase report (section 12.2B).
 | 3 | QuickJS host and qapp backend | `qapp_js_runtime.dart`, `qapp_js_runtime_native.dart`, `qapp_js_runtime_stub.dart`, `qapp_backend*.dart`, `qapp_js_types.dart` | grep `flutter_js` | `miniapp_runtime_screen.dart` | Executed legacy `app.js` | REMOVE | M11 | Open | Replaced by `packages/miniapp-service-runtime` + new engine ADR (M1) |
 | 4 | Generated qapp contract whitelist | `qapp_contract.generated.dart` | grep `generated` | renderer, tests | Validated legacy node types | REMOVE | M11 | Open | Replaced by generated contracts in `packages/miniapp-contracts` |
 | 5 | Legacy runtime screen | `apps/mobile/lib/features/miniapps/miniapp_runtime_screen.dart` | directory audit | route `/miniApps/:appId` | Whole legacy Mini App screen | REPLACE | M5 | Open | New runtime screen in `features/miniapps_runtime` |
-| 6 | Legacy bridge | `apps/mobile/lib/features/miniapps/miniapp_bridge.dart` | directory audit | runtime screen | Permissions and host APIs | REPLACE | M2 | Open | New typed bridge per section 4.3 |
+| 6 | Legacy bridge | `apps/mobile/lib/features/miniapps/miniapp_bridge.dart` | directory audit | runtime screen | Permissions and host APIs | REPLACE | M2 | Done (M2) | Replaced by `packages/miniapp-service-runtime/src/bridge-client.ts` + the SDK call path (`__qchatCall`/`__qchatResponse`); tests: `bridge-client.test.ts`, `sdk-runtime.test.ts`. The legacy file itself is removed with row 1 at M11 |
 | 7 | Legacy cache/installer | `miniapp_cache.dart` | directory audit | runtime screen | `.japp` download, SHA-256, unzip | REPLACE | M5 | Open | New `.qxpkg` installer (ADR 008) |
 | 8 | Legacy per-app storage | `miniapp_storage.dart` | directory audit | bridge | Legacy storage keys | REPLACE | M5 | Open | New per-app storage with quotas |
 | 9 | Legacy store client | `miniapp_api.dart` | directory audit | store/runtime screens | Store, build, telemetry calls | REPLACE | M9 | Open | New `/api/v1` client |
 | 10 | Legacy models | `models.dart` | directory audit | store/runtime screens | App/version/permission models | REPLACE | M9 | Open | New contracts types |
 | 11 | Store/discovery screen | `miniapps_screen.dart` | directory audit | route `/miniApps` | Discovery, recent, favorites | ADAPT | M11 | Open | Keep the QChat UI shell, replace the data layer and models |
 | 12 | Mini App routes | `apps/mobile/lib/main.dart` (`/miniApps`, `/miniApps/:appId`) | grep | app router | Navigation | ADAPT | M11 | Open | Routes stay; screens and arguments change |
-| 13 | `flutter_js` dependency | `apps/mobile/pubspec.yaml` | pubspec audit | legacy QuickJS host | Engine | ADAPT | M2 | Open | Engine decided in ADR 009 (QuickJS Android, JavaScriptCore iOS); `flutter_js` is not the long-term wrapper and is removed with the legacy runtime |
+| 13 | `flutter_js` dependency | `apps/mobile/pubspec.yaml` | pubspec audit | legacy QuickJS host | Engine | ADAPT | M2 | Done (M2, decision) | ADR 009: QuickJS on Android, JavaScriptCore on iOS, one SDK. The new runtime has no `flutter_js` import; the pubspec dependency stays only while the legacy runtime exists and is removed with row 1 at M11 |
 | 14 | `archive`, `crypto` dependencies | `apps/mobile/pubspec.yaml` | pubspec audit | legacy installer | ZIP, SHA-256 | ADAPT | M5 | Open | Reused by the `.qxpkg` installer after review |
 | 15 | qapp widget/runtime tests | `apps/mobile/test/qapp_*.dart` (10 files) | test directory | CI | Regression only | REMOVE | M11 | Open | New view/service tests replace them |
 | 16 | Mini App container tests | `miniapps_test.dart`, `miniapp_bridge_test.dart` | test directory | CI | Regression only | REPLACE | M5 | Open | New installer/bridge tests |

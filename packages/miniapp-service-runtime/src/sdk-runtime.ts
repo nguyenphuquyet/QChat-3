@@ -12,11 +12,17 @@ import { SDK_SOURCE } from "./sdk.js";
 
 export const SDK_RUNTIME_VERSION = 1 as const;
 
-export type SdkMessageKind = "page.open" | "page.setData" | "page.close";
+export type SdkMessageKind = "page.open" | "page.setData" | "page.close" | "page.show" | "bridge.request";
 
 export interface SdkMessage {
   kind: SdkMessageKind;
   payload: Record<string, unknown>;
+}
+
+export interface SdkBridgeRequest {
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
 }
 
 export interface SdkRuntimeOptions {
@@ -24,6 +30,10 @@ export interface SdkRuntimeOptions {
   source: ModuleSource;
   /** Receives the SDK's outbound events after validation. */
   onMessage?: (message: SdkMessage) => void;
+  /** Receives a validated host-API request from the page. */
+  onRequest?: (request: SdkBridgeRequest) => void;
+  /** Methods the host may answer; a request outside it is rejected. */
+  allowlist?: readonly string[];
 }
 
 export interface SdkRuntime {
@@ -39,13 +49,18 @@ export interface SdkRuntime {
   deliver(event: Record<string, unknown>): EngineEvaluation;
   setData(patch: Record<string, unknown>): EngineEvaluation;
   closePage(pageId: string): EngineEvaluation;
+  back(delta?: number): EngineEvaluation;
   clearTimers(): EngineEvaluation;
+  /** Answer a `bridge.request`; the id is the one the SDK generated. */
+  respond(id: string, response: { ok: true; result?: unknown } | { ok: false; error: { code: string; message: string } }): EngineEvaluation;
+  /** Reject every pending call, used on page/app close. */
+  rejectCalls(): EngineEvaluation;
 }
 
-const MESSAGE_KINDS: readonly SdkMessageKind[] = ["page.open", "page.setData", "page.close"];
+const MESSAGE_KINDS: readonly SdkMessageKind[] = ["page.open", "page.setData", "page.close", "page.show", "bridge.request"];
 
 export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
-  const { engine, source, onMessage } = options;
+  const { engine, source, onMessage, onRequest, allowlist } = options;
   let installed = false;
 
   const host = {
@@ -62,7 +77,21 @@ export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
       const record = parsed as Record<string, unknown>;
       if (typeof record.kind !== "string" || !MESSAGE_KINDS.includes(record.kind as SdkMessageKind)) return;
       if (typeof record.payload !== "object" || record.payload === null || Array.isArray(record.payload)) return;
-      onMessage({ kind: record.kind as SdkMessageKind, payload: record.payload as Record<string, unknown> });
+      const payload = record.payload as Record<string, unknown>;
+      onMessage?.({ kind: record.kind as SdkMessageKind, payload });
+
+      if (record.kind === "bridge.request") {
+        if (typeof payload.id !== "string" || !/^s[0-9]{1,9}$/.test(payload.id)) return;
+        if (typeof payload.method !== "string") return;
+        if (allowlist && !allowlist.includes(payload.method)) {
+          engine.call("__qchatResponse", [
+            JSON.stringify({ id: payload.id, ok: false, error: { code: "BRIDGE_UNKNOWN_METHOD", message: "The bridge method is not allowlisted." } }),
+          ]);
+          return;
+        }
+        if (typeof payload.params !== "object" || payload.params === null || Array.isArray(payload.params)) return;
+        onRequest?.({ id: payload.id, method: payload.method, params: payload.params as Record<string, unknown> });
+      }
     },
   };
 
@@ -133,8 +162,29 @@ export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
       return after(() => engine.call("__qchatClosePage", [pageId]));
     },
 
+    back(delta = 1) {
+      if (!Number.isSafeInteger(delta) || delta < 1) {
+        return { ok: false, error: miniAppError("NAVIGATION_INVALID_ROUTE", "delta must be a positive integer."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatBack", [delta]));
+    },
+
     clearTimers() {
       return after(() => engine.call("__qchatClearTimers", []));
+    },
+
+    respond(id, response) {
+      if (typeof id !== "string" || !/^s[0-9]{1,9}$/.test(id)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid call id."), durationMs: 0 };
+      }
+      const payload = response.ok
+        ? { id, ok: true, result: response.result ?? null }
+        : { id, ok: false, error: response.error };
+      return after(() => engine.call("__qchatResponse", [JSON.stringify(payload)]));
+    },
+
+    rejectCalls() {
+      return after(() => engine.call("__qchatRejectCalls", []));
     },
   };
 }

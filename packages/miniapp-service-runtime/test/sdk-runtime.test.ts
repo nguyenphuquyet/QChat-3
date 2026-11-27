@@ -23,6 +23,20 @@ const SOURCES: Record<string, string> = {
       data: { count: 0, title: "Hello" },
       onLoad: function (query) { this.from = query.from || ""; },
       onTap: function () { this.setData({ count: count.increment(this.data.count) }); },
+      onAsk: function () {
+        var self = this;
+        globalThis.__qchatCall("wx.showToast", { title: "hi" }).then(
+          function (result) { self.setData({ answer: result.value }); },
+          function (error) { self.setData({ failed: error.code }); }
+        );
+      },
+      onAskPrivate: function () {
+        var self = this;
+        globalThis.__qchatCall("wx.privateApi", {}).then(
+          function () { self.setData({ leaked: true }); },
+          function (error) { self.setData({ failed: error.code }); }
+        );
+      },
       onUnload: function () { globalThis.__unloaded = true; }
     });
   `,
@@ -32,15 +46,22 @@ const SOURCES: Record<string, string> = {
   `,
 };
 
-function setup() {
+function setup(allowlist: readonly string[] = ["wx.showToast"]) {
   const engine = createNodeEngine();
   const messages: SdkMessage[] = [];
+  const requests: Array<{ id: string; method: string; params: Record<string, unknown> }> = [];
   const runtime = createSdkRuntime({
     engine,
     source: { read: (path) => SOURCES[path] ?? null },
+    allowlist,
     onMessage: (message) => messages.push(message),
+    onRequest: (request) => requests.push(request),
   });
-  return { engine, runtime, messages };
+  return { engine, runtime, messages, requests };
+}
+
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 test("installs the SDK once and loads App", () => {
@@ -112,6 +133,63 @@ test("module paths resolve relative to the requiring module", () => {
   assert.equal(resolveModulePath("pages/index/index.js", "../../../escape"), null);
   assert.equal(resolveModulePath("pages/index/index.js", "node_modules/x"), null);
   assert.equal(resolveModulePath("pages/index/index.js", "/abs"), null);
+});
+
+test("a page call reaches the host and its response resolves the promise", async () => {
+  const { runtime, messages, requests } = setup();
+  runtime.loadApp();
+  runtime.loadPage("pages/index/index");
+  runtime.open("pages/index/index", {}, "p1");
+  const delivered = runtime.deliver({ handler: "onAsk" });
+  assert.equal(delivered.ok, true, JSON.stringify(delivered.error));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].method, "wx.showToast");
+  assert.deepEqual(requests[0].params, { title: "hi" });
+  const requestMessage = messages.find((message) => message.kind === "bridge.request");
+  assert.ok(requestMessage);
+  assert.equal(requestMessage.payload.id, "s1");
+
+  assert.equal(runtime.respond("s1", { ok: true, result: { value: 7 } }).ok, true);
+  await tick();
+  const update = messages.filter((message) => message.kind === "page.setData").pop();
+  assert.deepEqual(update?.payload.patch, { answer: 7 });
+});
+
+test("a method outside the allowlist is answered with an error, not sent", async () => {
+  const { runtime, messages, requests } = setup();
+  runtime.loadApp();
+  runtime.loadPage("pages/index/index");
+  runtime.open("pages/index/index", {}, "p1");
+  runtime.deliver({ handler: "onAskPrivate" });
+  assert.equal(requests.length, 0);
+  await tick();
+  const update = messages.filter((message) => message.kind === "page.setData").pop();
+  assert.deepEqual(update?.payload.patch, { failed: "BRIDGE_UNKNOWN_METHOD" });
+});
+
+test("closing rejects every pending call", async () => {
+  const { runtime, messages } = setup();
+  runtime.loadApp();
+  runtime.loadPage("pages/index/index");
+  runtime.open("pages/index/index", {}, "p1");
+  runtime.deliver({ handler: "onAsk" });
+  assert.equal(runtime.rejectCalls().ok, true);
+  await tick();
+  const update = messages.filter((message) => message.kind === "page.setData").pop();
+  assert.deepEqual(update?.payload.patch, { failed: "BRIDGE_PAGE_CLOSED" });
+});
+
+test("navigateBack closes the top page and shows the previous one", () => {
+  const { runtime, messages } = setup();
+  runtime.loadApp();
+  runtime.loadPage("pages/index/index");
+  runtime.open("pages/index/index", {}, "p1");
+  runtime.open("pages/index/index", {}, "p2");
+  const result = runtime.back(1);
+  assert.equal(result.ok, true, JSON.stringify(result.error));
+  assert.equal((result.value as { pageId: string }).pageId, "p1");
+  assert.equal(messages.filter((message) => message.kind === "page.close").length, 1);
+  assert.equal(messages.filter((message) => message.kind === "page.show").length, 1);
 });
 
 test("a forbidden setData path throws inside the page handler", () => {

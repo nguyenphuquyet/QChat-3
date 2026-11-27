@@ -2,13 +2,15 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M2 — Service Runtime and bridge**
+- **Current milestone:** **M3 — View Runtime and build tool**
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
+- **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
 - **PLAN:** `DONE`
 - **M0:** `DONE`
 - **M1:** `DONE` (device evidence `BLOCKED`)
-- **M2:** `IN PROGRESS`
+- **M2:** `DONE` (Android engine build `BLOCKED`)
+- **M3:** `IN PROGRESS`
 - **Last updated:** 2026-11-27
 
 ## 1. Where the work stands
@@ -54,7 +56,7 @@
 
 ### In progress
 
-- M2 Service Runtime and bridge (task plan in §6).
+- M3 View Runtime and build tool (task plan in §8).
 
 ### Blocked
 
@@ -68,12 +70,11 @@
 
 ### Next task
 
-M2 — Service Runtime and bridge (task plan in §6): engine interface, JavaScript
-SDK (`App`/`Page`/`Component`/module loading/timers), the real bridge
-(request/response, timeout, cancellation, allowlist, ordering), tests, and the
-removal of legacy bridge rows 6 and 13. Device execution stays `BLOCKED` until an
-Android SDK/phone exists; the SDK and host code are written and unit-tested
-locally, and the Android build runs in CI.
+M3 — View Runtime and build tool (task plan in §8): WXML parser and compiler,
+WXSS compilation with `rpx` and theme selectors, the P0 web components, path-based
+`setData`, event bind/catch, diagnostics with file/line/column/code, and tests.
+The Android QuickJS build from M2 is carried as `BLOCKED` and lands with the
+Flutter host in M5; the phone checklist stays in §5.4.
 
 ### How to verify M0
 
@@ -544,9 +545,112 @@ is reused from §5.4 when hardware exists.
 | 3 | Host bridge client | Done | `src/bridge-client.ts`; `test/bridge-client.test.ts` — **9 pass**: allowlist, response matching, timeout, foreign binding, typed error, close, abort/cancel, events, malformed input |
 | 2 | JavaScript SDK bootstrap | Done | `src/sdk.ts`, `src/sdk-runtime.ts`, `src/module-loader.ts`; `test/sdk-runtime.test.ts` — **7 pass**: App/Page registration, nested `require`, cache, open/setData/close, unknown handler, escape rejection, forbidden path |
 | 2a | Timers | Done (basic) | SDK wraps `setTimeout`/`setInterval`, tracks handles and clears them on `clearTimers`; a long-running-timer test is M3 |
-| 4 | Android QuickJS build | `BLOCKED` locally | No Android SDK/NDK; CI job and vendored source are next |
-| 5 | Legacy rows 6 and 13 | Not started | Depends on the bridge/SDK replacement |
-| 6 | M2 report + exit check | Not started | After tasks 4–5 |
+| 4 | Android QuickJS build | `BLOCKED` locally | No Android SDK/NDK; vendored source and the JNI/Gradle module land with the M5 host. ADR 009 records the decision; M2 does not claim a device build |
+| 5 | Legacy rows 6 and 13 | Done | Rows 6 and 13 marked done in `docs/qapp-removal.md`; the legacy files stay until row 1/M11 because the legacy runtime still uses them |
+| 6 | M2 report + exit check | Done | §7 |
 
-`pnpm test:miniapp` now runs **85 tests** (41 contracts + 35 service + 9 view),
+`pnpm test:miniapp` now runs **89 tests** (41 contracts + 39 service + 9 view),
 all passing; `pnpm typecheck` and `pnpm check:miniapp` pass.
+
+## 7. M2 phase report
+
+### 7.1 Exit check
+
+**Result:** `PASS` for the M2 done-when condition — “contracts and tests pass;
+engine ADR”. The Android QuickJS adapter build and any device execution are
+`BLOCKED` (no Android SDK/NDK, no phone) and are carried into M5, where the
+Flutter host and the Android module are built. This is recorded, not hidden.
+
+| Checklist item | Evidence |
+|---|---|
+| Engine contract | `packages/miniapp-service-runtime/src/engine.ts`: evaluate, call, limits, memory report, terminate |
+| Node engine adapter | `src/node-engine.ts`: separate V8 context, no `process`/`require`/`Buffer`, no `eval`/`Function`, timeout; **8 tests** |
+| JavaScript SDK | `src/sdk.ts`: `App`, `Page`, `Component`, `getApp`, `getCurrentPages`, `setData`, tracked timers |
+| Module loading | `src/module-loader.ts`: relative `require`, cache, package-root confinement, nested modules; **4 tests** |
+| SDK host wiring | `src/sdk-runtime.ts`: install, app/page load, open, deliver, setData, close, back, respond, reject; **7 more tests** |
+| Host bridge | `src/bridge-client.ts`: allowlist, ids, timeout, cancel, close, binding; **9 tests** |
+| Service call path | SDK `__qchatCall` → host `onRequest` → `respond` → promise settles; unknown method answered with `BRIDGE_UNKNOWN_METHOD` |
+| Engine ADR | `docs/adr/009-service-engine.md` |
+| Type check | `pnpm typecheck` pass |
+| Isolation guard | `pnpm check:miniapp` pass (9 roots) |
+| Tests | `pnpm test:miniapp` → **89 pass, 0 fail** |
+| Android QuickJS build | `BLOCKED`: no SDK/NDK; M5 |
+| Device run | `BLOCKED`: no phone; checklist in §5.4 |
+| Removal progress | 3/54 (rows 6, 13, 26) |
+| Compatibility update | §1.0 M2 rows (engine, SDK, modules, bridge, calls, timers) |
+| Commit and push | `M2: PENDING` on `origin/feat/miniapp-v7` |
+
+### 7.2 What M2 proves
+
+- Page code runs in an isolated context that has no host object, no file access,
+  no `require` from Node and no dynamic code generation. A runaway loop is
+  stopped by the wall-clock limit.
+- `App`/`Page`/`Component` register inside the engine; `setData` updates page
+  data and emits a validated message; relative modules load once and are cached.
+- A page can call a host API and receive a typed response; a method outside the
+  allowlist is rejected by the host without reaching the transport.
+- The host bridge matches responses by id, rejects a foreign app/session/page,
+  times out, cancels and rejects everything on close.
+
+### 7.3 What M2 does not prove
+
+- No Android or iOS engine has been built or run. The Node adapter is real but
+  it is not QuickJS or JavaScriptCore.
+- No `wx.*` API is implemented; the call path is exercised with `wx.showToast`
+  as a transport probe.
+- No WXML/WXSS compiler, no web component and no visual render.
+- No performance number.
+
+### 7.4 Removal progress (section 12.2B)
+
+| Decision | Total | Done | Remaining |
+|---|---|---|---|
+| REMOVE | 23 | 0 | 23 |
+| ADAPT | 15 | 1 | 14 |
+| REPLACE | 15 | 2 | 13 |
+| BLOCKED | 1 | 0 | 1 |
+| **Total** | **54** | **3** | **51** |
+
+Past target milestone: 0. Blocked by access/input: 1 (production apps).
+
+### 7.5 Compatibility matrix
+
+Added engine, SDK, module loader, bridge client, service-call and timer entries
+to §1.0 (`Experimental`, linked tests). Every WeChat API, component, syntax and
+device theme entry is unchanged; no compatibility claim is made.
+
+### 7.6 Open risks / blocked
+
+- Android QuickJS build and JNI: no local NDK; must be verified by CI/M5.
+- iOS JavaScriptCore adapter: M8.
+- Engine memory enforcement is not measured; the Node adapter reports `null`
+  rather than a host-wide number.
+- `flutter_js` remains in `pubspec.yaml` only because the legacy runtime still
+  uses it; row 1/M11 removes it with the legacy runtime.
+
+### 7.7 How to verify M2
+
+```powershell
+pnpm typecheck
+pnpm check:miniapp
+pnpm test:miniapp
+pnpm --filter @qchat/miniapp-service-runtime test
+Get-Content docs/adr/009-service-engine.md
+```
+
+## 8. M3 task plan
+
+| # | Task | Output | Verification |
+|---|---|---|---|
+| 1 | WXML parser | Tokenizer + AST for elements, attributes, text, comments; file/line/column on every node | Parser tests, malformed-input tests |
+| 2 | WXML compiler | `{{}}` binding, `wx:if`/`wx:elif`/`wx:else`, `wx:for` + `wx:key`, `block`, `template`/`import`/`include`, `slot` | Compiler tests with fixtures |
+| 3 | Event compiler | `bind*`/`catch*`, dataset, handler names; reject unknown syntax | Tests; event round trip with the view runtime |
+| 4 | WXSS compiler | `rpx`, `@import`, page/component scoping, `[data-theme]`; `prefers-color-scheme` rejected | Tests; compiled CSS snapshots |
+| 5 | P0 components | `view`, `text`, `image`, `button`, `input`, `scroll-view`, navigation bar as web components | Renderer tests per component |
+| 6 | `setData` path ops | Batched, path-based operations from the service to the view; ordering defined | Unit tests; no page reload |
+| 7 | Diagnostics | File, line, column, error code, explanation for every unsupported item | Diagnostic fixture tests |
+| 8 | Sample | `qchat-hello` source (WXML/WXSS/JS) compiled and rendered in the Node harness | End-to-end test |
+| 9 | M3 report + exit check | `STATUS.md` report, compatibility rows, removal progress | Exit check |
+
+M3 does not start M4 API work before its exit check. The Android host remains
+M5; M3 is verified in Node with the DOM adapter.

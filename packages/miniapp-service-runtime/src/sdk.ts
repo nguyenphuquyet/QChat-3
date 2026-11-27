@@ -16,6 +16,8 @@ export const SDK_SOURCE = String.raw`
   var componentDefs = Object.create(null);
   var stack = [];
   var timers = new Set();
+  var calls = Object.create(null);
+  var callSeq = 0;
   var nativeSetTimeout = globalThis.setTimeout;
   var nativeClearTimeout = globalThis.clearTimeout;
   var nativeSetInterval = globalThis.setInterval;
@@ -65,6 +67,49 @@ export const SDK_SOURCE = String.raw`
   };
   globalThis.getCurrentPages = function () { return stack.slice(); };
   globalThis.__qchatSetData = setData;
+
+  // The only path from page logic to a host API. The host answers by calling
+  // __qchatResponse with the same id; an unknown id is rejected, never guessed.
+  globalThis.__qchatCall = function (method, params) {
+    return new Promise(function (resolve, reject) {
+      callSeq += 1;
+      var id = "s" + callSeq;
+      calls[id] = { resolve: resolve, reject: reject, method: method };
+      post("bridge.request", { id: id, method: method, params: params || {} });
+    });
+  };
+  globalThis.__qchatResponse = function (json) {
+    var message = JSON.parse(String(json));
+    var entry = message && calls[message.id];
+    if (!entry) return { ok: false, code: "BRIDGE_INVALID_MESSAGE" };
+    delete calls[message.id];
+    if (message.ok) entry.resolve(message.result);
+    else entry.reject(message.error || { code: "API_FAILED", message: "The API call failed." });
+    return { ok: true };
+  };
+  globalThis.__qchatRejectCalls = function () {
+    for (var id in calls) {
+      calls[id].reject({ code: "BRIDGE_PAGE_CLOSED", message: "The page is closed." });
+    }
+    calls = Object.create(null);
+    return { ok: true };
+  };
+  globalThis.__qchatBack = function (delta) {
+    var count = Math.max(1, Number(delta) || 1);
+    for (var step = 0; step < count && stack.length > 1; step += 1) {
+      var page = stack.pop();
+      var options = pageDefs[page.route] || {};
+      if (typeof options.onHide === "function") options.onHide.call(page);
+      if (typeof options.onUnload === "function") options.onUnload.call(page);
+      post("page.close", { pageId: page.pageId, route: page.route });
+    }
+    var top = stack[stack.length - 1];
+    if (!top) return { ok: false, code: "NAVIGATION_STACK_LIMIT" };
+    var topOptions = pageDefs[top.route] || {};
+    if (typeof topOptions.onShow === "function") topOptions.onShow.call(top);
+    post("page.show", { pageId: top.pageId, route: top.route, data: clone(top.data) });
+    return { ok: true, pageId: top.pageId };
+  };
 
   globalThis.__qchatOpenPage = function (route, query, pageId) {
     var options = pageDefs[route];

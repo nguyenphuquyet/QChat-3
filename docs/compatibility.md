@@ -14,12 +14,14 @@
 
 ## Part 1 — New runtime matrix
 
-### 1.0 Contracts and M1 spike
+### 1.0 Contracts, M1 spike and M2 service runtime
 
-M1 delivered the shared contracts and a Node spike. These entries describe the
-QChat runtime itself, not a WeChat feature, so they are `Experimental` and are
-not counted in the WeChat denominator. No `wx.*` API and no component changes
-status in M1: the spike implements neither.
+M1 delivered the shared contracts and a Node spike; M2 delivered the engine
+contract, the Node engine adapter, the in-engine SDK, the module loader and the
+bridge client. These entries describe the QChat runtime itself, not a WeChat
+feature, so they are `Experimental` and are not counted in the WeChat
+denominator. No `wx.*` API and no component changes status in M1/M2: the
+implementation is M4/M3.
 
 | Contract | Entry | Status | Linked test | Notes |
 |---|---|---|---|---|
@@ -33,6 +35,12 @@ status in M1: the spike implements neither.
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
 | Theme contract | Fixed/`auto` resolution, no event to fixed | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Device matrix in 1.5 stays `Not started` |
 | Performance | Metric definitions and judge rule | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Values stay `Blocked` |
+| Engine | Isolated context, no host globals, no dynamic code, time limit | Experimental | `packages/miniapp-service-runtime/test/engine.test.ts` | Node `vm`; QuickJS/JSC adapters are M2/M8, device `Blocked` |
+| SDK | `App`, `Page`, `Component`, `getApp`, `getCurrentPages`, `setData` | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Runs inside the engine |
+| Modules | Relative `require`, cache, escape rejection | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | npm/subpackages are M7 |
+| Bridge client | Allowlist, ids, timeout, cancel, close, binding | Experimental | `packages/miniapp-service-runtime/test/bridge-client.test.ts` | Host side |
+| Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers are M4 |
+| Timers | Tracked `setTimeout`/`setInterval`, cleared on close | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Long-running timing test is M3 |
 
 ### 1.1 APIs — MVP (M4/M6)
 
