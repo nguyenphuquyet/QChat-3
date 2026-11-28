@@ -34,18 +34,18 @@ implementation is M4/M3.
 | Tree diff | `diffRenderTree`, deterministic op order, no full reload | Experimental | `packages/miniapp-contracts/test/renderer-diff.test.ts` | Removes descending, inserts ascending |
 | Render session | `seq` ordering, tree then ops, stale payload ignored | Experimental | `packages/miniapp-view-runtime/test/session.test.ts` | Ops before a tree are rejected |
 | View WebView client | `window.__qchatView` start/receive/destroy; tree/ops; page-root theme; `bind`/`catch` bubbling | Experimental | `packages/miniapp-view-web/test/client.test.ts`, `test/browser.test.ts`, `test/bundle.test.ts` | Dependency-free 51 KB bundle; package-root URLs stay inside the version; device WebView `UNVERIFIED` |
-| Android WebView host | `WebViewAssetLoader` origin, CSP, origin-bound `addWebMessageListener`, page CSS injection, teardown | Experimental | `packages/qchat_miniapp_webview/android/src/test/kotlin/...` (JVM) | Code written in host module 1; CI build/tests pending; device `UNVERIFIED` |
+| Android WebView host | `WebViewAssetLoader` origin, CSP, origin-bound `addWebMessageListener`, page CSS injection, teardown | Experimental | `packages/qchat_miniapp_webview/android/src/test/kotlin/...` (JVM) | Code written in host module 1; CI debug-APK and JVM tests green; device `UNVERIFIED` |
 | Service | `App`/`Page`, lifecycle, stack, path-based `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | First visible render is a tree; later updates are ops |
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
 | Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device screen is host module 2 |
 | `wx` SDK | Callback + Promise forms, navigation primitives, sync channel | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | One source on Node/QuickJS/JSC |
-| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are host modules 2–3 / M8 |
+| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are host modules 2–6 |
 | Page stack end to end | `navigateTo`/`navigateBack`, query, state restore | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness |
 | Async APIs end to end | Storage callback, `wx.request`, toast event | Experimental | `packages/miniapp-test-harness/test/host-api.test.ts` | Recording adapters; no network |
 | Sync API channel | `__qchatHost.sync`, storage and system info | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | ADR 010; device timing `BLOCKED` |
 | Theme contract | Fixed/`auto` resolution, no event to fixed | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Device matrix in 1.5 stays `Not started` |
 | Performance | Metric definitions and judge rule | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Values stay `Blocked` |
-| Engine | Isolated context, no host globals, no dynamic code, time limit | Experimental | `packages/miniapp-service-runtime/test/engine.test.ts` | Node `vm`; QuickJS/JSC adapters are M2/M8, device `Blocked` |
+| Engine | Isolated context, no host globals, no dynamic code, time limit | Experimental | `packages/miniapp-service-runtime/test/engine.test.ts` | Node `vm`; QuickJS on Android is host module 4 (CI build green), JavaScriptCore on iOS is module 6; device `Blocked` |
 | SDK | `App`, `Page`, `Component`, `getApp`, `getCurrentPages`, `setData` | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Runs inside the engine |
 | Modules | Relative `require`, cache, escape rejection | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | npm/subpackages are M7 |
 | Bridge client | Allowlist, ids, timeout, cancel, close, binding | Experimental | `packages/miniapp-service-runtime/test/bridge-client.test.ts` | Host side |
