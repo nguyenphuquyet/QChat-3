@@ -197,7 +197,13 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           # GitHub keeps at most ten error annotations per step; they are the only
           # part of a failed job that is readable without repository admin rights.
-          grep -E "$PATTERN" "$LOG" | head -n 10 | while IFS= read -r line; do
+          # Several log lines are packed into each one so a compiler error list is
+          # not cut off after ten lines.
+          grep -E "$PATTERN" "$LOG" | head -n 80 | awk '
+            { buf = (buf == "" ? $0 : buf " || " $0) }
+            length(buf) > 700 { print buf; buf = "" }
+            END { if (buf != "") print buf }
+          ' | head -n 10 | while IFS= read -r line; do
             line="${line//'%'/'%25'}"
             line="${line//$'\r'/''}"
             echo "::error title=Gradle::${line:0:900}"
@@ -227,7 +233,11 @@ jobs:
             tail -n 80 "$LOG"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          grep -E "$PATTERN" "$LOG" | head -n 10 | while IFS= read -r line; do
+          grep -E "$PATTERN" "$LOG" | head -n 80 | awk '
+            { buf = (buf == "" ? $0 : buf " || " $0) }
+            length(buf) > 700 { print buf; buf = "" }
+            END { if (buf != "") print buf }
+          ' | head -n 10 | while IFS= read -r line; do
             line="${line//'%'/'%25'}"
             line="${line//$'\r'/''}"
             echo "::error title=Host tests::${line:0:900}"

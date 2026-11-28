@@ -67,12 +67,14 @@ internal class MiniAppWebViewHost(
 
     init {
         channel.setMethodCallHandler { call, reply -> handleCall(call, reply) }
-        start()
+        // `args` is a constructor parameter, not a property, so it is passed in:
+        // a member function cannot see it.
+        start(args)
     }
 
     override fun getView(): View = pageView
 
-    private fun start() {
+    private fun start(args: Any?) {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
             reportError(
                 MiniAppErrorCodes.MINIAPP_WEBVIEW_UNSUPPORTED,
