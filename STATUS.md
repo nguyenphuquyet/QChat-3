@@ -176,7 +176,11 @@
   isolation rules, the limits and the service-side latency difference. Tests:
   compiler 102 (including 17 WXS), service 80 (4 WXS), harness 21, contracts 51,
   view-runtime 49, view-web 26; `pnpm typecheck`, `pnpm test:miniapp` and
-  `pnpm check:miniapp` pass locally. Device behaviour is `UNVERIFIED`.
+  `pnpm check:miniapp` pass locally. CI on `0f2e2d4` is green (push run
+  `46166322775`: Detect iOS changes, Analyze and test, Build web, Build debug APK
+  and test the WebView host, Build apk; the two macOS jobs were skipped because
+  no iOS code changed, so this task used no macOS minutes). That is `VERIFIED`
+  for the Linux build and tests only; device behaviour is `UNVERIFIED`.
 - M7 task 1 (P1 components) and task 2 (custom components) are done on Node.
 
 ### Done (M6)
@@ -1311,7 +1315,7 @@ device claim is `UNVERIFIED`.
 |---|---|---|---|
 | 1 | P1 components | `textarea`, `checkbox`/`checkbox-group`, `radio`/`radio-group`, `switch`, `slider`, `picker`, `form`, `swiper`/`swiper-item` and the tab bar are real web components in `COMPONENTS_SOURCE`; the registry carries `Experimental` with a linked test; the renderer accepts every P1 tag | Done (Node): 12 P1 web components, 12 new tests; `picker` is `Partial` |
 | 2 | Custom components | `usingComponents` resolves a package-local component; its properties, `slot` and events compile to `wx-<name>`; `Component()` registers it in the SDK; a missing component is a compiler diagnostic, never a silent plain tag | Done (Node): compiler 85, service 76, harness 21; app/page/nested `usingComponents`, properties/defaults/observers/lifetimes, `setData`/`triggerEvent`, default and named slots, scoped component WXSS; `qchat-components` runs from source and from an installed bundle. `behaviors` and full style isolation are not done |
-| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Done (Node): compiler 102 (17 WXS), service 80 (4 WXS), harness 21; `var`/functions/control flow, literal `require`, template calls and `wxs:` events, `ownerInstance.callMethod`, page-only, limits and `WXS_*` codes; ADR 013. Component WXS, computed callees and the rest of the `ownerInstance` API are not done |
+| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Done (Node): compiler 102 (17 WXS), service 80 (4 WXS), harness 21; `var`/functions/control flow, literal `require`, template calls and `wxs:` events, `ownerInstance.callMethod`, page-only, limits and `WXS_*` codes; ADR 013; CI green on `0f2e2d4` (push run `46166322775`). Component WXS, computed callees and the rest of the `ownerInstance` API are not done |
 | 4 | Source targets | Subpackages (main and independent) in `app.json`, manifest, compiler and installer; npm dependencies bundled at build time under a documented rule; UniApp/Taro `mp-weixin` output detected and adapted; ADR 014 | Paused (host first) |
 | 5 | Remaining APIs | `chooseImage`, `chooseMedia`, `scanCode`, `getLocation`, `uploadFile`, `downloadFile`, `connectSocket`, clipboard, `login` (QChat code exchange), `menu`, audio, file and device APIs, `setNavigationBarColor`, `setTabBarStyle`, `onThemeChange`/`offThemeChange` and the QChat runtime theme switch; registry, API host, adapters, ADR 015 | Paused (host first) |
 | 6 | P2 components | `video` (`<video>`), `canvas`, `map`, `camera` behind the documented web technology and permission rules; each status is `Partial`/`Experimental`/`Unsupported` with a linked test and the documented difference | Paused (host first) |
