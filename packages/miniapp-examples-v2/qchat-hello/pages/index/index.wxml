@@ -5,5 +5,8 @@
   <view class="list">
     <text wx:for="{{items}}" wx:key="*this" class="item">{{index}}: {{item}}</text>
   </view>
+  <button class="save" bindtap="onSave">Save count</button>
+  <text wx:if="{{hasSaved}}" class="saved">Saved: {{saved}}</text>
+  <button class="about" bindtap="onOpenAbout">About</button>
   <view wx:if="{{count > 0}}" class="status">Tapped {{count}} time(s)</view>
 </view>

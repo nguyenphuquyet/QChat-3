@@ -1,6 +1,6 @@
 # ADR 009 — Service Runtime engine
 
-- **Status:** ACCEPTED (device measurement `BLOCKED`)
+- **Status:** ACCEPTED (device measurement `BLOCKED`); synchronous-storage paragraph amended by ADR 010
 - **Date:** 2026-11-27
 - **Milestone:** M1
 - **Supersedes:** nothing. Amends the engine note in ADR 001.
@@ -59,8 +59,8 @@ engine interface in `packages/miniapp-service-runtime`:
   `RUNTIME_CRASH`, never the host.
 - **Synchronous storage:** the sync variants are served from an in-memory cache
   that the host hydrates before `onLaunch` and writes through asynchronously.
-  The engine never blocks on the host, which keeps a hung host from freezing the
-  app and keeps the same behaviour on both platforms.
+  The cache is read through the synchronous host binding in ADR 010; that call
+  is a map lookup and never host I/O, so a hung disk cannot freeze the app.
 
 `flutter_js` (register row 13) is not adopted as the long-term engine wrapper:
 it is a general-purpose bridge that exposes more than the contract needs. Its

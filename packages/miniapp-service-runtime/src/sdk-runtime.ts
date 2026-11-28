@@ -25,6 +25,12 @@ export interface SdkBridgeRequest {
   params: Record<string, unknown>;
 }
 
+export type SyncApiResult =
+  | { ok: true; result?: unknown }
+  | { ok: false; error: { code: string; message: string; errMsg?: string } };
+
+export type NavigationKind = "open" | "redirect" | "reLaunch" | "switchTab";
+
 export interface SdkRuntimeOptions {
   engine: ServiceEngine;
   source: ModuleSource;
@@ -32,8 +38,14 @@ export interface SdkRuntimeOptions {
   onMessage?: (message: SdkMessage) => void;
   /** Receives a validated host-API request from the page. */
   onRequest?: (request: SdkBridgeRequest) => void;
+  /** Answers a synchronous API inside the engine call, without a Promise. */
+  onSync?: (method: string, params: Record<string, unknown>) => SyncApiResult;
   /** Methods the host may answer; a request outside it is rejected. */
   allowlist?: readonly string[];
+  /** Tab pages, for `wx.switchTab` and tab-page reuse. */
+  tabPages?: readonly string[];
+  /** Engine-side page stack limit. */
+  maxPageStack?: number;
 }
 
 export interface SdkRuntime {
@@ -46,6 +58,8 @@ export interface SdkRuntime {
   loadPage(route: string): EngineEvaluation;
   appLaunch(options: { path: string; query?: Record<string, string> }): EngineEvaluation;
   open(route: string, query: Record<string, string>, pageId: string): EngineEvaluation;
+  /** Open, replace, relaunch or switch a tab; the host loads the module first. */
+  navigate(kind: NavigationKind, route: string, query: Record<string, string>, pageId: string): EngineEvaluation;
   deliver(event: Record<string, unknown>): EngineEvaluation;
   setData(patch: Record<string, unknown>): EngineEvaluation;
   closePage(pageId: string): EngineEvaluation;
@@ -60,11 +74,34 @@ export interface SdkRuntime {
 const MESSAGE_KINDS: readonly SdkMessageKind[] = ["page.open", "page.setData", "page.close", "page.show", "bridge.request"];
 
 export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
-  const { engine, source, onMessage, onRequest, allowlist } = options;
+  const { engine, source, onMessage, onRequest, onSync, allowlist, tabPages, maxPageStack } = options;
   let installed = false;
 
   const host = {
     currentRoute: "",
+    maxPageStack: maxPageStack ?? 10,
+    tabPages: tabPages ? [...tabPages] : [],
+    sync(method: string, paramsJson: string): string {
+      if (!onSync) {
+        return JSON.stringify({ ok: false, error: { code: "API_UNSUPPORTED", message: "This host has no synchronous API channel." } });
+      }
+      if (typeof method !== "string" || method.length === 0 || method.length > 128) {
+        return JSON.stringify({ ok: false, error: { code: "API_INVALID_ARGUMENT", message: "Invalid synchronous API name." } });
+      }
+      let params: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(String(paramsJson));
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("params");
+        params = parsed as Record<string, unknown>;
+      } catch {
+        return JSON.stringify({ ok: false, error: { code: "API_INVALID_ARGUMENT", message: "Invalid synchronous API arguments." } });
+      }
+      try {
+        return JSON.stringify(onSync(method, params));
+      } catch (cause) {
+        return JSON.stringify({ ok: false, error: { code: "API_FAILED", message: String(cause).slice(0, 2048) } });
+      }
+    },
     emit(json: string): void {
       if (!onMessage) return;
       let parsed: unknown;
@@ -148,6 +185,16 @@ export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
         return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid page id."), durationMs: 0 };
       }
       return after(() => engine.call("__qchatOpenPage", [route, query, pageId]));
+    },
+
+    navigate(kind, route, query, pageId) {
+      if (!/^p[0-9]{1,6}$/.test(pageId)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid page id."), durationMs: 0 };
+      }
+      if (kind !== "open" && kind !== "redirect" && kind !== "reLaunch" && kind !== "switchTab") {
+        return { ok: false, error: miniAppError("NAVIGATION_INVALID_ROUTE", "Unknown navigation kind."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatNavigate", [kind, route, query, pageId]));
     },
 
     deliver(event) {

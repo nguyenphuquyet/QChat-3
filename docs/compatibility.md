@@ -27,7 +27,7 @@ implementation is M4/M3.
 |---|---|---|---|---|
 | Bridge | Envelope, binding, size limit, unknown keys | Experimental | `packages/miniapp-contracts/test/bridge.test.ts` | Foreign app/session/page rejected |
 | Manifest | `.qxpkg` manifest, pages, files, signature shape | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Hashes/signature verified in M5 |
-| Permissions | Declared permissions, unknown rejected | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Prompt/OS mapping is M4 |
+| Permissions | Declared permissions, unknown rejected | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Prompt/OS mapping is M7 |
 | Components | Registry (P0/P1/P2) | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Rendering is M3/M7 |
 | APIs | Registry + bridge allowlist | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Implementation is M4/M7 |
 | Renderer | Typed tree, ops, event binding | Experimental | `packages/miniapp-view-runtime/test/view.test.ts` | Only `wx-*` tags render |
@@ -36,13 +36,18 @@ implementation is M4/M3.
 | Service | `App`/`Page`, lifecycle, stack, path-based `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | First visible render is a tree; later updates are ops |
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
 | Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device host is M5 |
+| `wx` SDK | Callback + Promise forms, navigation primitives, sync channel | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | One source on Node/QuickJS/JSC |
+| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are M5/M8 |
+| Page stack end to end | `navigateTo`/`navigateBack`, query, state restore | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness |
+| Async APIs end to end | Storage callback, `wx.request`, toast event | Experimental | `packages/miniapp-test-harness/test/host-api.test.ts` | Recording adapters; no network |
+| Sync API channel | `__qchatHost.sync`, storage and system info | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | ADR 010; device timing `BLOCKED` |
 | Theme contract | Fixed/`auto` resolution, no event to fixed | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | Device matrix in 1.5 stays `Not started` |
 | Performance | Metric definitions and judge rule | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Values stay `Blocked` |
 | Engine | Isolated context, no host globals, no dynamic code, time limit | Experimental | `packages/miniapp-service-runtime/test/engine.test.ts` | Node `vm`; QuickJS/JSC adapters are M2/M8, device `Blocked` |
 | SDK | `App`, `Page`, `Component`, `getApp`, `getCurrentPages`, `setData` | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Runs inside the engine |
 | Modules | Relative `require`, cache, escape rejection | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | npm/subpackages are M7 |
 | Bridge client | Allowlist, ids, timeout, cancel, close, binding | Experimental | `packages/miniapp-service-runtime/test/bridge-client.test.ts` | Host side |
-| Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers are M4 |
+| Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers are M4 (`sdk.ts`) |
 | Timers | Tracked `setTimeout`/`setInterval`, cleared on close | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Long-running timing test is M3 |
 | WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only |
 | WXML compiler | Directives, templates, events, dataset, typed render tree | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Node only; no device |
@@ -53,25 +58,25 @@ implementation is M4/M3.
 
 | Feature | Reference | Status | Linked test | Notes |
 |---|---|---|---|---|
-| `wx.navigateTo` | `/miniprogram/dev/api/route/wx.navigateTo.html` | Not started | — | Page stack; query string preserved |
-| `wx.redirectTo` | `/miniprogram/dev/api/route/wx.redirectTo.html` | Not started | — | Replaces the top page |
-| `wx.switchTab` | `/miniprogram/dev/api/route/wx.switchTab.html` | Not started | — | Requires a tabBar config |
-| `wx.navigateBack` | `/miniprogram/dev/api/route/wx.navigateBack.html` | Not started | — | `delta` |
-| `wx.reLaunch` | `/miniprogram/dev/api/route/wx.reLaunch.html` | Not started | — | Clears the stack |
-| `wx.setStorage` | `/miniprogram/dev/api/storage/wx.setStorage.html` | Not started | — | Async; per-app quota |
-| `wx.setStorageSync` | `/miniprogram/dev/api/storage/wx.setStorageSync.html` | Not started | — | Synchronous over the bridge |
-| `wx.getStorage` | `/miniprogram/dev/api/storage/wx.getStorage.html` | Not started | — | |
-| `wx.getStorageSync` | `/miniprogram/dev/api/storage/wx.getStorageSync.html` | Not started | — | |
-| `wx.removeStorage` | `/miniprogram/dev/api/storage/wx.removeStorage.html` | Not started | — | |
-| `wx.removeStorageSync` | `/miniprogram/dev/api/storage/wx.removeStorageSync.html` | Not started | — | |
-| `wx.clearStorage` | `/miniprogram/dev/api/storage/wx.clearStorage.html` | Not started | — | App-scoped only |
-| `wx.clearStorageSync` | `/miniprogram/dev/api/storage/wx.clearStorageSync.html` | Not started | — | |
-| `wx.request` | `/miniprogram/dev/api/network/request/wx.request.html` | Not started | — | HTTPS + domain allowlist |
-| `wx.showToast` | `/miniprogram/dev/api/ui/interaction/wx.showToast.html` | Not started | — | Host-drawn |
-| `wx.showModal` | `/miniprogram/dev/api/ui/interaction/wx.showModal.html` | Not started | — | Host-drawn |
-| `wx.showLoading` | `/miniprogram/dev/api/ui/interaction/wx.showLoading.html` | Not started | — | Host-drawn |
-| `wx.hideLoading` | `/miniprogram/dev/api/ui/interaction/wx.hideLoading.html` | Not started | — | |
-| `wx.getSystemInfo` / `wx.getSystemInfoSync` | `/miniprogram/dev/api/base/system/wx.getSystemInfo.html` | Not started | — | Only needed fields; `theme` is the resolved theme |
+| `wx.navigateTo` | `/miniprogram/dev/api/route/wx.navigateTo.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-test-harness/test/sample.test.ts` | Declared routes only; query preserved; stack limit |
+| `wx.redirectTo` | `/miniprogram/dev/api/route/wx.redirectTo.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Replaces the top page |
+| `wx.switchTab` | `/miniprogram/dev/api/route/wx.switchTab.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Requires a declared tab page; no query; reuses the page |
+| `wx.navigateBack` | `/miniprogram/dev/api/route/wx.navigateBack.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | `delta` 1–100; the bottom page cannot be popped |
+| `wx.reLaunch` | `/miniprogram/dev/api/route/wx.reLaunch.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Clears the stack |
+| `wx.setStorage` | `/miniprogram/dev/api/storage/wx.setStorage.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-test-harness/test/host-api.test.ts` | Async; per-app quota; host adapter required |
+| `wx.setStorageSync` | `/miniprogram/dev/api/storage/wx.setStorageSync.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | Synchronous host channel (ADR 010) |
+| `wx.getStorage` | `/miniprogram/dev/api/storage/wx.getStorage.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Missing key is `API_FAILED` |
+| `wx.getStorageSync` | `/miniprogram/dev/api/storage/wx.getStorageSync.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | Missing key returns `""` |
+| `wx.removeStorage` | `/miniprogram/dev/api/storage/wx.removeStorage.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | |
+| `wx.removeStorageSync` | `/miniprogram/dev/api/storage/wx.removeStorageSync.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | |
+| `wx.clearStorage` | `/miniprogram/dev/api/storage/wx.clearStorage.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | App-scoped only |
+| `wx.clearStorageSync` | `/miniprogram/dev/api/storage/wx.clearStorageSync.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | |
+| `wx.request` | `/miniprogram/dev/api/network/request/wx.request.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-test-harness/test/host-api.test.ts` | HTTPS + domain allowlist; adapter injected; no fallback |
+| `wx.showToast` | `/miniprogram/dev/api/ui/interaction/wx.showToast.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-test-harness/test/host-api.test.ts` | Host-drawn; typed event |
+| `wx.showModal` | `/miniprogram/dev/api/ui/interaction/wx.showModal.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Host-drawn; id-scoped result |
+| `wx.showLoading` | `/miniprogram/dev/api/ui/interaction/wx.showLoading.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Host-drawn; `hideLoading` pairs |
+| `wx.hideLoading` | `/miniprogram/dev/api/ui/interaction/wx.hideLoading.html` | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | |
+| `wx.getSystemInfo` / `wx.getSystemInfoSync` | `/miniprogram/dev/api/base/system/wx.getSystemInfo.html` | Partial | `packages/miniapp-service-runtime/test/api-host.test.ts`, `packages/miniapp-test-harness/test/host-api.test.ts` | Sync form only; only documented fields; `theme` is the resolved theme; async form is M7 |
 | `wx.getWindowInfo` | `/miniprogram/dev/api/base/system/wx.getWindowInfo.html` | Not started | — | Split API; `UNVERIFIED` until checked |
 | `wx.getDeviceInfo` | `/miniprogram/dev/api/base/system/wx.getDeviceInfo.html` | Not started | — | Split API; `UNVERIFIED` until checked |
 | `wx.getAppBaseInfo` | `/miniprogram/dev/api/base/system/wx.getAppBaseInfo.html` | Not started | — | Split API; `UNVERIFIED` until checked |

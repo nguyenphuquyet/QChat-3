@@ -1,0 +1,5 @@
+<view class="page">
+  <text class="title">About QChat Hello</text>
+  <text class="detail">Opened with count {{count}}</text>
+  <button class="back" bindtap="onBack">Back</button>
+</view>

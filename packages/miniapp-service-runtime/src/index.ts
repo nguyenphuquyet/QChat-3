@@ -46,6 +46,10 @@ export * from "./bridge-client.js";
 export * from "./module-loader.js";
 export * from "./sdk.js";
 export * from "./sdk-runtime.js";
+export * from "./storage.js";
+export * from "./network.js";
+export * from "./navigation.js";
+export * from "./api-host.js";
 
 export interface ServiceTransport {
   /** Send one validated bridge message to the host. */

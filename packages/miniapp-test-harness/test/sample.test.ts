@@ -5,10 +5,15 @@ import {
   MemoryDomAdapter,
   type MemorySnapshot,
 } from "@qchat/miniapp-view-runtime";
+import {
+  HOST_TOAST_EVENT,
+  MemoryStorageAdapter,
+} from "@qchat/miniapp-service-runtime";
 import { SampleError, createSampleHost, loadSample } from "../src/index.js";
 
 const ROOT = fileURLToPath(new URL("../../miniapp-examples-v2/qchat-hello", import.meta.url));
 const ROUTE = "pages/index/index";
+const ABOUT = "pages/about/about";
 
 function textOf(node: MemorySnapshot): string {
   return node.children.map((child) => child.text ?? textOf(child)).join("");
@@ -30,10 +35,33 @@ function textHandle(dom: MemoryDomAdapter, text: string): string {
   throw new Error(`no text node ${JSON.stringify(text)}`);
 }
 
+/** The first element with this class that is attached to the live root. */
+function handleByClass(dom: MemoryDomAdapter, className: string): string {
+  const visit = (handle: string): string | null => {
+    const node = dom.nodes.get(handle);
+    if (!node) return null;
+    if (node.attrs.get("class") === className) return handle;
+    for (const child of node.children) {
+      const found = visit(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  for (const child of dom.nodes.get(dom.root)?.children ?? []) {
+    const found = visit(child);
+    if (found) return found;
+  }
+  throw new Error(`no element with class ${JSON.stringify(className)}`);
+}
+
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 test("loads and compiles the sample package", () => {
   const sample = loadSample(ROOT);
 
-  assert.deepEqual(sample.app.pages, [ROUTE]);
+  assert.deepEqual(sample.app.pages, [ROUTE, ABOUT]);
   assert.equal(sample.app.qxColorScheme, "light");
   const page = sample.pages.get(ROUTE);
   assert.ok(page, "the declared page must be compiled");
@@ -62,6 +90,8 @@ test("launches the first page and renders the initial tree", () => {
     title: "QChat Hello",
     count: 0,
     items: ["WXML", "WXSS", "JavaScript"],
+    saved: "",
+    hasSaved: false,
   });
 
   const page = (host.dom as MemoryDomAdapter).snapshot().children[0];
@@ -149,4 +179,62 @@ test("an unknown page route is rejected before the engine starts", () => {
   const host = createSampleHost(loadSample(ROOT));
   assert.throws(() => host.launch("pages/missing/missing"), /unknown page/);
   host.close();
+});
+
+test("navigateTo opens the about page and navigateBack restores the index state", () => {
+  const host = createSampleHost(loadSample(ROOT));
+  const dom = host.dom as MemoryDomAdapter;
+  host.launch();
+
+  dom.dispatch(handleByClass(dom, "increment"), "tap");
+  dom.dispatch(handleByClass(dom, "increment"), "tap");
+  assert.equal(host.data().count, 2);
+
+  dom.dispatch(handleByClass(dom, "about"), "tap");
+  assert.equal(host.route(), ABOUT);
+  assert.deepEqual(host.pageStack(), [ROUTE, ABOUT]);
+  const about = dom.snapshot().children[0];
+  const detail = findByClass(about, "detail");
+  assert.ok(detail);
+  assert.equal(textOf(detail), "Opened with count 2");
+
+  dom.dispatch(handleByClass(dom, "back"), "tap");
+  assert.equal(host.route(), ROUTE);
+  assert.deepEqual(host.pageStack(), [ROUTE]);
+  assert.equal(host.data().count, 2, "the same index page is shown again");
+  const index = dom.snapshot().children[0];
+  assert.equal(textOf(findByClass(index, "count")!), "Count: 2");
+  host.close();
+});
+
+test("save writes storage, shows a toast, and a relaunch restores the count", async () => {
+  const storage = new MemoryStorageAdapter();
+  const sample = loadSample(ROOT);
+  const host = createSampleHost(sample, { storage });
+  const dom = host.dom as MemoryDomAdapter;
+  host.launch();
+
+  dom.dispatch(handleByClass(dom, "increment"), "tap");
+  dom.dispatch(handleByClass(dom, "save"), "tap");
+  await settle();
+
+  assert.equal(storage.read("hello.count"), "1");
+  assert.equal(host.data().saved, "1");
+  assert.equal(host.data().hasSaved, true);
+  const saved = findByClass(dom.snapshot().children[0], "saved");
+  assert.ok(saved);
+  assert.equal(textOf(saved), "Saved: 1");
+  assert.equal(host.events.at(-1)?.event, HOST_TOAST_EVENT);
+  assert.equal(host.events.at(-1)?.payload.title, "Saved");
+  host.close();
+
+  const again = createSampleHost(sample, { storage });
+  again.launch();
+  assert.equal(again.data().count, 1);
+  assert.equal(again.data().hasSaved, true);
+  const restored = again.dom as MemoryDomAdapter;
+  const restoredSaved = findByClass(restored.snapshot().children[0], "saved");
+  assert.ok(restoredSaved);
+  assert.equal(textOf(restoredSaved), "Saved: 1");
+  again.close();
 });

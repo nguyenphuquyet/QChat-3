@@ -2,17 +2,19 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M4 — APIs and navigation**
+- **Current milestone:** **M5 — Package format and Android host**
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
 - **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
 - **M3 exit check:** `PASS` (Node); device rendering and theme matrix are `BLOCKED`
+- **M4 exit check:** `PASS` (Node); device API/network evidence is `BLOCKED`
 - **PLAN:** `DONE`
 - **M0:** `DONE`
 - **M1:** `DONE` (device evidence `BLOCKED`)
 - **M2:** `DONE` (Android engine build `BLOCKED`)
 - **M3:** `DONE` (device view/theme evidence `BLOCKED`)
-- **Last updated:** 2026-11-27
+- **M4:** `DONE` (device API evidence `BLOCKED`)
+- **Last updated:** 2026-11-28
 
 ## 1. Where the work stands
 
@@ -61,11 +63,22 @@
 - M3 sample: `packages/miniapp-examples-v2/qchat-hello` in native source format,
   compiled and run end to end by `packages/miniapp-test-harness` (engine → SDK →
   compiler → view → DOM tap → patch); 7 tests.
+- M4: the `wx` facade (navigation, storage, `request`, interaction and
+  system-info calls) with callback and Promise forms, the engine navigation
+  primitive (open/redirect/reLaunch/switchTab, tab reuse, stack limit, lifecycle)
+  and the host API dispatcher (route/URL policy, quota, key rules, corruption,
+  modal ids, request allowlist and limits) — 66 service tests.
+- M4 sample: `qchat-hello` gains an about page (navigateTo/navigateBack) and a
+  durable storage demo; the harness renders a page stack and answers the
+  synchronous channel, and a fixture covers async storage, `wx.request` and the
+  toast event — 13 harness tests.
+- M4 ADR 010 (synchronous API channel and network transport seam) amends ADR 009;
+  compatibility §1.1 rows are `Experimental`/`Partial` with linked tests.
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
 
-- M4 APIs and navigation (task plan written before the first M4 task).
+- M5 package format and Android host: task plan not written yet.
 
 ### Blocked
 
@@ -79,11 +92,10 @@
 
 ### Next task
 
-M4 — APIs and navigation: write the M4 task plan, then implement the MVP APIs
-(`wx.navigateTo`, `redirectTo`, `switchTab`, `navigateBack`, `reLaunch`,
-storage, `request`, the interaction and system-info calls) over the bridge and
-the page stack in the Service Runtime, each with tests. Device evidence stays
-`BLOCKED`; the Android host lands in M5 and the phone checklist stays in §5.4.
+M5 — package format and Android host: write the M5 task plan, then implement the
+`.qxpkg` builder/verifier (ZIP + per-file SHA-256 + Ed25519 manifest signature,
+atomic install/rollback) and the Android WebView/QuickJS host behind the existing
+contracts. Device evidence stays `BLOCKED`; the phone checklist stays in §5.4.
 
 ### How to verify M0
 
@@ -801,3 +813,152 @@ and module layout), ADR 006 (theme ownership: `data-theme` + `color-scheme`,
 no reload) and ADR 009 (engine split). The compiler's no-`eval` rule and the
 `rpx`/theme-selector output follow ADR 006 and the specification, and are
 recorded in `docs/compatibility.md` §1.4 rather than in a new ADR.
+
+## 10. M4 task plan
+
+| # | Task | Output | Verification |
+|---|---|---|---|
+| 1 | SDK `wx` facade | `wx.*` inside the engine: callback and Promise forms, sync storage and system info over the synchronous host channel, navigation calls over `__qchatCall` | SDK tests in the Node engine |
+| 2 | Navigation primitives | SDK `__qchatNavigate` for open/redirect/reLaunch/switchTab, tab-page reuse, stack limit, lifecycle and `page.*` messages | Engine + harness tests |
+| 3 | API host | Route/URL parsing, allowlist dispatch, navigation adapter, storage (quota, key rules, corruption), UI events, system info with the resolved theme | Unit tests per API |
+| 4 | `wx.request` | HTTPS + domain allowlist, methods, headers, body, timeout, response-size limit, JSON parsing; transport injected by the host | Policy tests with a recording adapter |
+| 5 | Sample + harness | `qchat-hello` gains a second page (navigateTo/navigateBack) and a storage demo; the harness renders page stacks and answers sync calls | End-to-end tests |
+| 6 | M4 report + exit check | `STATUS.md` report, compatibility rows, ADR 010, removal progress | Exit check |
+
+M4 does not start M5 packaging or the Android host before its exit check.
+Device evidence stays `BLOCKED`; the Node harness is the verification.
+
+### 10.1 M4 progress
+
+| # | Task | State | Evidence |
+|---|---|---|---|
+| 1 | SDK `wx` facade | Done | `sdk.ts`: navigation, storage sync/async, `request`, UI, system info; callback + Promise; `test/wx-sdk.test.ts` (9) |
+| 2 | Navigation primitives | Done | `__qchatNavigate`/`__qchatBack`, tab reuse, stack limit, lifecycle; `test/wx-sdk.test.ts` (4 navigation tests) |
+| 3 | API host | Done | `api-host.ts`: route/URL rules, quota, key/corruption, modal ids, system info; `test/api-host.test.ts` (13) |
+| 4 | `wx.request` | Done | HTTPS + allowlist, methods, headers, body, timeout, size, JSON; recording adapter in `test/api-host.test.ts` |
+| 5 | Sample + harness | Done | `qchat-hello` about page + storage; harness page stack/sync channel; `test/sample.test.ts` (9), `test/host-api.test.ts` (4) |
+| 6 | M4 report + exit check | Done | §11; ADR 010; §1.1 rows; 3/54 removal unchanged |
+
+**Totals:** `pnpm test:miniapp` → **228 pass, 0 fail** (contracts 50, compiler 63,
+service 66, view 36, harness 13); `pnpm typecheck` pass; `pnpm check:miniapp` pass.
+Device API/network evidence remains `BLOCKED` (no Android host, phone or iOS).
+
+## 11. M4 phase report
+
+### 11.1 Exit check
+
+**Result:** `PASS` for the M4 done-when condition — "All MVP APIs with tests".
+The APIs are implemented in the Service Runtime and verified in Node through the
+real engine, API host and DOM adapter. No device, WebView, TLS stack or native
+storage adapter has run them; those items are `BLOCKED` and carried to M5/M6/M8.
+
+| Checklist item | Evidence |
+|---|---|
+| `wx` facade | `packages/miniapp-service-runtime/src/sdk.ts`: 5 navigation, 8 storage, `request`, 4 interaction, `getSystemInfoSync`; callback + Promise |
+| Navigation | `__qchatNavigate`/`__qchatBack`: open, redirect, reLaunch, switchTab, tab reuse, stack limit, `onLoad`/`onShow`/`onHide`/`onUnload`; `test/wx-sdk.test.ts` |
+| API host | `src/api-host.ts`: declared routes, tabs, query, storage quota/key/corruption, UI events, modal result ids, system-info field filter; `test/api-host.test.ts` (13) |
+| `wx.request` policy | HTTPS only, exact/`*.domain` allowlist, no credentials/ports/`cookie`/`host`, method allowlist, timeout, response cap, JSON parse; recording adapter tests |
+| Sync channel | `__qchatHost.sync` with method/argument validation and `SyncApiResult`; ADR 010 |
+| Adapters | `StorageAdapter` + memory, `NetworkAdapter` + Node `fetch`; missing adapter is `API_UNSUPPORTED` |
+| Sample | `qchat-hello`: about page, `navigateTo`/`navigateBack`, save/restore count, toast; harness renders a page stack |
+| Async end to end | Fixture page: async `setStorage` callback, `wx.request` through a recording adapter, missing adapter fails honestly, toast event |
+| Type check | `pnpm typecheck` pass (2 GB heap) |
+| Isolation guard | `pnpm check:miniapp` pass (9 roots) |
+| Tests | `pnpm test:miniapp` → **228 pass, 0 fail** |
+| Device API/network | `BLOCKED`: no Android host/phone; iOS is M8 |
+| Removal progress | 3/54 (rows 6, 13, 26); no row closes in M4, see §11.4 |
+| Compatibility update | §1.1 MVP rows `Experimental`/`Partial` with linked tests; §1.0 host/sync rows |
+| Commit and push | M4 commit on `origin/feat/miniapp-v7` |
+
+### 11.2 What M4 proves
+
+- Page code can call the MVP `wx.*` surface in both WeChat forms: a callback
+  object and a returned `Promise`. The same SDK source runs in the Node engine
+  and is the source the QuickJS/JSC adapters will install.
+- Navigation is one engine primitive with host-owned module loading and page
+  ids. The stack, tab reuse and lifecycle are the engine's; the route and tab
+  allowlists are the host's. `navigateTo` then `navigateBack` restores the same
+  page instance and its state.
+- Synchronous storage and system info return inside the call through one
+  validated host function; asynchronous storage, `request` and UI travel as
+  id-scoped bridge messages. A missing adapter is an honest `API_UNSUPPORTED`,
+  never an in-memory fallback.
+- `wx.request` is policy-first: the engine cannot open a socket, the host checks
+  HTTPS, host allowlist, credentials, ports, headers, method, timeout and size,
+  and only then calls the injected adapter.
+- The harness proves the whole path in one process: page tap → SDK → bridge →
+  API host → storage/network/UI → `setData` → path ops → patched DOM, including
+  a second page and a relaunch with durable storage.
+
+### 11.3 What M4 does not prove
+
+- No Android or iOS host has installed the engine or answered `sync`; JNI,
+  `JSContext`, WebView asset loading and the durable storage adapter are M5/M8.
+- No real TLS, proxy, captive portal, DNS or certificate behaviour; the Node
+  adapter is a recording stub and the policy tests do not exercise a network.
+- No device quota, disk corruption, process death or multi-process storage
+  consistency.
+- `wx.getSystemInfo` (async), the split system APIs and the M7 APIs remain
+  unimplemented. `wx.getSystemInfoSync` is `Partial`, not `Supported`.
+- No performance number for the synchronous call, request overhead or page
+  navigation.
+
+### 11.4 Removal progress (section 12.2B)
+
+| Decision | Total | Done | Remaining |
+|---|---|---|---|
+| REMOVE | 23 | 0 | 23 |
+| ADAPT | 15 | 1 | 14 |
+| REPLACE | 15 | 2 | 13 |
+| BLOCKED | 1 | 0 | 1 |
+| **Total** | **54** | **3** | **51** |
+
+Past target milestone: 0. Blocked by access/input: 1 (production apps).
+
+M4 does not close a register row. The legacy runtime and bridge rows (1, 3, 5,
+15) are removed only after the new host serves a real Mini App; deleting them
+now would break production. The new API host is the replacement evidence those
+rows will cite.
+
+### 11.5 Compatibility matrix
+
+§1.1 changed from `Not started` to `Experimental` for the 18 implemented MVP
+API rows; the combined `wx.getSystemInfo` row is `Partial` because only the sync
+form exists; the three split system APIs stay `Not started`. §1.0 gained rows for
+the `wx` SDK, the API host, the page-stack end-to-end test, the async end-to-end
+fixture and the synchronous channel. Every `Experimental`/`Partial` row links a
+test. Device-dependent rows (§1.5 theme) are unchanged and remain `Not started`.
+
+### 11.6 Open risks / blocked
+
+- The synchronous channel is only as safe as the host implementation; a host
+  that does disk or network work inside `sync` freezes the engine. ADR 010 makes
+  this a review rule; the engine timeout is the backstop.
+- The Node `fetch` adapter is not the Android/iOS stack; TLS and redirect
+  behaviour are unverified.
+- Modal results are id-scoped, but a host that drops an id leaves the call
+  pending until close; M5 must answer or fail every modal.
+- Storage corruption is detected on read (`STORAGE_CORRUPT`), but no repair or
+  migration policy exists yet.
+- Android QuickJS build remains `BLOCKED` from M2.
+
+### 11.7 How to verify M4
+
+```powershell
+$env:NODE_OPTIONS="--max-old-space-size=2048"
+pnpm typecheck
+pnpm check:miniapp
+pnpm test:miniapp
+pnpm --filter @qchat/miniapp-service-runtime test
+pnpm --filter @qchat/miniapp-test-harness test
+Get-Content docs/compatibility.md
+Get-Content docs/adr/010-synchronous-api-channel.md
+```
+
+### 11.8 ADRs written in M4
+
+- **ADR 010 — Synchronous API channel and network transport seam.** One
+  synchronous host binding for the APIs that must return immediately, with the
+  storage cache kept in the host and no I/O in the call; `wx.request` transport
+  injected by the host. It amends ADR 009's "the engine never blocks on the
+  host" to "never blocks on host I/O".

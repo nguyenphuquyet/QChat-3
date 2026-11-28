@@ -32,6 +32,16 @@
   color: #333333;
 }
 
+.save,
+.about {
+  width: 100%;
+}
+
+.saved {
+  font-size: 28rpx;
+  color: #047857;
+}
+
 [data-theme="dark"] .page {
   background: #111827;
   color: #f9fafb;
@@ -45,4 +55,8 @@
 [data-theme="dark"] .status {
   background: #1e3a8a;
   color: #dbeafe;
+}
+
+[data-theme="dark"] .saved {
+  color: #6ee7b7;
 }

@@ -1,0 +1,8 @@
+<view class="page">
+  <text class="platform">{{platform}}</text>
+  <text class="theme">{{theme}}</text>
+  <text class="stored">{{stored}}</text>
+  <text class="remote">{{remote}}</text>
+  <button class="save" bindtap="onSave">Save</button>
+  <button class="fetch" bindtap="onFetch">Fetch</button>
+</view>

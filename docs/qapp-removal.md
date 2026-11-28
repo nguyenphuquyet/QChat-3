@@ -34,6 +34,8 @@ Removal progress is reported in every phase report (section 12.2B).
 - **M1:** 1/54 done (row 26). The one M1-targeted item is complete.
 - **M2:** 3/54 done (rows 6, 13, 26). Both M2-targeted items are complete as
   replacements/decisions; their legacy files are deleted with row 1 at M11.
+- **M4:** 3/54 done (rows 6, 13, 26); no new row closes. The API host is the
+  replacement evidence for the legacy bridge/runtime rows at M11.
 
 ## Register
 
