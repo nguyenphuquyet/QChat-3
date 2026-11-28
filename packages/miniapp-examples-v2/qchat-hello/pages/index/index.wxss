@@ -1,0 +1,62 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  padding: 32rpx;
+}
+
+.title {
+  font-size: 40rpx;
+  font-weight: 600;
+}
+
+.count {
+  font-size: 32rpx;
+  color: #555555;
+}
+
+.increment {
+  width: 100%;
+}
+
+.status {
+  padding: 16rpx 24rpx;
+  border-radius: 12rpx;
+  background: #eef6ff;
+  color: #1d4ed8;
+}
+
+.item {
+  display: block;
+  padding: 8rpx 0;
+  color: #333333;
+}
+
+.save,
+.about {
+  width: 100%;
+}
+
+.saved {
+  font-size: 28rpx;
+  color: #047857;
+}
+
+[data-theme="dark"] .page {
+  background: #111827;
+  color: #f9fafb;
+}
+
+[data-theme="dark"] .count,
+[data-theme="dark"] .item {
+  color: #d1d5db;
+}
+
+[data-theme="dark"] .status {
+  background: #1e3a8a;
+  color: #dbeafe;
+}
+
+[data-theme="dark"] .saved {
+  color: #6ee7b7;
+}

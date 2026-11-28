@@ -3,3 +3,9 @@ packages:
   - apps/realtime
   - apps/miniapp-ide
   - packages/miniapp-framework
+  - packages/miniapp-contracts
+  - packages/miniapp-compiler
+  - packages/miniapp-service-runtime
+  - packages/miniapp-view-runtime
+  - packages/miniapp-view-web
+  - packages/miniapp-test-harness

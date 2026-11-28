@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -97,6 +98,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         sectionGap,
+        if (kDebugMode &&
+            (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS)) ...[
+          const SectionLabel('developer'),
+          MenuRow(
+            'miniappHostSpike',
+            trailing: const QChatIcon(
+              'chevron',
+              color: QChatColors.muted,
+              size: 18,
+            ),
+            onTap: () => c.push('/miniApps/spike'),
+          ),
+        ],
         ColoredBox(
           color: surface(c),
           child: QChatOverlayAction(

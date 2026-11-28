@@ -1,0 +1,302 @@
+/**
+ * SDK runtime wiring: installs the SDK bootstrap and the module loader into one
+ * engine, then exposes the calls the host needs. This is the layer the Android
+ * QuickJS adapter and the iOS JavaScriptCore adapter both use; only the engine
+ * implementation changes.
+ */
+
+import { miniAppError } from "@qchat/miniapp-contracts";
+import type { EngineEvaluation, ServiceEngine } from "./engine.js";
+import { createModuleLoader, type ModuleLoader, type ModuleSource } from "./module-loader.js";
+import { SDK_SOURCE } from "./sdk.js";
+
+export const SDK_RUNTIME_VERSION = 1 as const;
+
+export type SdkMessageKind =
+  | "page.open"
+  | "page.setData"
+  | "page.close"
+  | "page.show"
+  | "bridge.request"
+  | "component.setData"
+  | "component.event";
+
+export interface SdkMessage {
+  kind: SdkMessageKind;
+  payload: Record<string, unknown>;
+}
+
+export interface SdkBridgeRequest {
+  id: string;
+  method: string;
+  params: Record<string, unknown>;
+}
+
+export type SyncApiResult =
+  | { ok: true; result?: unknown }
+  | { ok: false; error: { code: string; message: string; errMsg?: string } };
+
+export type NavigationKind = "open" | "redirect" | "reLaunch" | "switchTab";
+
+export interface SdkRuntimeOptions {
+  engine: ServiceEngine;
+  source: ModuleSource;
+  /** Receives the SDK's outbound events after validation. */
+  onMessage?: (message: SdkMessage) => void;
+  /** Receives a validated host-API request from the page. */
+  onRequest?: (request: SdkBridgeRequest) => void;
+  /** Answers a synchronous API inside the engine call, without a Promise. */
+  onSync?: (method: string, params: Record<string, unknown>) => SyncApiResult;
+  /** Methods the host may answer; a request outside it is rejected. */
+  allowlist?: readonly string[];
+  /** Tab pages, for `wx.switchTab` and tab-page reuse. */
+  tabPages?: readonly string[];
+  /** Engine-side page stack limit. */
+  maxPageStack?: number;
+}
+
+export interface SdkRuntime {
+  readonly loader: ModuleLoader;
+  /** Evaluate the SDK bootstrap once. */
+  install(): EngineEvaluation;
+  /** Load `app.js` (or a custom entry) and call `App`. */
+  loadApp(entry?: string): EngineEvaluation;
+  /** Load one page module so its `Page()` call registers the definition. */
+  loadPage(route: string): EngineEvaluation;
+  appLaunch(options: { path: string; query?: Record<string, string> }): EngineEvaluation;
+  open(route: string, query: Record<string, string>, pageId: string): EngineEvaluation;
+  /** Open, replace, relaunch or switch a tab; the host loads the module first. */
+  navigate(kind: NavigationKind, route: string, query: Record<string, string>, pageId: string): EngineEvaluation;
+  deliver(event: Record<string, unknown>): EngineEvaluation;
+  setData(patch: Record<string, unknown>): EngineEvaluation;
+  closePage(pageId: string): EngineEvaluation;
+  back(delta?: number): EngineEvaluation;
+  clearTimers(): EngineEvaluation;
+  /** Create or update a component instance; the result carries its data. */
+  componentMount(input: { key: string; path: string; props: Record<string, unknown> }): EngineEvaluation;
+  /** Run one component method for an event that happened in its template. */
+  componentDeliver(input: { key: string; handler: string; event: Record<string, unknown> }): EngineEvaluation;
+  componentUnmount(key: string): EngineEvaluation;
+  /** Drop every component instance that belongs to a page. */
+  unmountPageComponents(pageId: string): EngineEvaluation;
+  /** Answer a `bridge.request`; the id is the one the SDK generated. */
+  respond(id: string, response: { ok: true; result?: unknown } | { ok: false; error: { code: string; message: string } }): EngineEvaluation;
+  /** Reject every pending call, used on page/app close. */
+  rejectCalls(): EngineEvaluation;
+}
+
+const MESSAGE_KINDS: readonly SdkMessageKind[] = [
+  "page.open",
+  "page.setData",
+  "page.close",
+  "page.show",
+  "bridge.request",
+  "component.setData",
+  "component.event",
+];
+
+const COMPONENT_KEY = /^[A-Za-z0-9_.:#[\]-]{1,200}$/;
+const COMPONENT_PATH = /^[A-Za-z0-9_][A-Za-z0-9_./-]{0,255}$/;
+const COMPONENT_HANDLER = /^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/;
+const PAGE_ID = /^p[0-9]{1,6}$/;
+
+export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
+  const { engine, source, onMessage, onRequest, onSync, allowlist, tabPages, maxPageStack } = options;
+  let installed = false;
+
+  const host = {
+    currentRoute: "",
+    maxPageStack: maxPageStack ?? 10,
+    tabPages: tabPages ? [...tabPages] : [],
+    sync(method: string, paramsJson: string): string {
+      if (!onSync) {
+        return JSON.stringify({ ok: false, error: { code: "API_UNSUPPORTED", message: "This host has no synchronous API channel." } });
+      }
+      if (typeof method !== "string" || method.length === 0 || method.length > 128) {
+        return JSON.stringify({ ok: false, error: { code: "API_INVALID_ARGUMENT", message: "Invalid synchronous API name." } });
+      }
+      let params: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(String(paramsJson));
+        if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("params");
+        params = parsed as Record<string, unknown>;
+      } catch {
+        return JSON.stringify({ ok: false, error: { code: "API_INVALID_ARGUMENT", message: "Invalid synchronous API arguments." } });
+      }
+      try {
+        return JSON.stringify(onSync(method, params));
+      } catch (cause) {
+        return JSON.stringify({ ok: false, error: { code: "API_FAILED", message: String(cause).slice(0, 2048) } });
+      }
+    },
+    emit(json: string): void {
+      if (!onMessage) return;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(String(json));
+      } catch {
+        return;
+      }
+      if (typeof parsed !== "object" || parsed === null) return;
+      const record = parsed as Record<string, unknown>;
+      if (typeof record.kind !== "string" || !MESSAGE_KINDS.includes(record.kind as SdkMessageKind)) return;
+      if (typeof record.payload !== "object" || record.payload === null || Array.isArray(record.payload)) return;
+      const payload = record.payload as Record<string, unknown>;
+      onMessage?.({ kind: record.kind as SdkMessageKind, payload });
+
+      if (record.kind === "bridge.request") {
+        if (typeof payload.id !== "string" || !/^s[0-9]{1,9}$/.test(payload.id)) return;
+        if (typeof payload.method !== "string") return;
+        if (allowlist && !allowlist.includes(payload.method)) {
+          engine.call("__qchatResponse", [
+            JSON.stringify({ id: payload.id, ok: false, error: { code: "BRIDGE_UNKNOWN_METHOD", message: "The bridge method is not allowlisted." } }),
+          ]);
+          return;
+        }
+        if (typeof payload.params !== "object" || payload.params === null || Array.isArray(payload.params)) return;
+        onRequest?.({ id: payload.id, method: payload.method, params: payload.params as Record<string, unknown> });
+      }
+    },
+  };
+
+  const routeStack: string[] = [];
+  const loader = createModuleLoader({
+    engine,
+    source,
+    beforeEvaluate(path) {
+      // `Page()`/`Component()` read this; a module that is not a page module
+      // simply never calls them. A nested require restores the outer route.
+      routeStack.push(host.currentRoute);
+      host.currentRoute = path.endsWith(".js") ? path.slice(0, -3) : path;
+    },
+    afterEvaluate() {
+      host.currentRoute = routeStack.pop() ?? "";
+    },
+  });
+
+  function ensureInstalled(): EngineEvaluation | null {
+    if (installed) return null;
+    engine.defineGlobal("__qchatHost", host);
+    const result = engine.evaluate(SDK_SOURCE, "qchat-sdk.js");
+    if (result.ok) installed = true;
+    return result;
+  }
+
+  function after<T>(call: () => EngineEvaluation): EngineEvaluation {
+    const setup = ensureInstalled();
+    if (setup && !setup.ok) return setup;
+    return call();
+  }
+
+  return {
+    loader,
+
+    install() {
+      return ensureInstalled() ?? { ok: true, durationMs: 0 };
+    },
+
+    loadApp(entry = "app.js") {
+      return after(() => loader.load(entry));
+    },
+
+    loadPage(route) {
+      return after(() => loader.load(route.endsWith(".js") ? route : `${route}.js`));
+    },
+
+    appLaunch(input) {
+      return after(() => engine.call("__qchatAppLaunch", [{ path: input.path, query: input.query ?? {} }]));
+    },
+
+    open(route, query, pageId) {
+      if (!/^p[0-9]{1,6}$/.test(pageId)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid page id."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatOpenPage", [route, query, pageId]));
+    },
+
+    navigate(kind, route, query, pageId) {
+      if (!/^p[0-9]{1,6}$/.test(pageId)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid page id."), durationMs: 0 };
+      }
+      if (kind !== "open" && kind !== "redirect" && kind !== "reLaunch" && kind !== "switchTab") {
+        return { ok: false, error: miniAppError("NAVIGATION_INVALID_ROUTE", "Unknown navigation kind."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatNavigate", [kind, route, query, pageId]));
+    },
+
+    deliver(event) {
+      return after(() => engine.call("__qchatDeliver", [JSON.stringify(event)]));
+    },
+
+    setData(patch) {
+      return after(() => engine.call("__qchatSetData", [patch]));
+    },
+
+    closePage(pageId) {
+      return after(() => engine.call("__qchatClosePage", [pageId]));
+    },
+
+    back(delta = 1) {
+      if (!Number.isSafeInteger(delta) || delta < 1) {
+        return { ok: false, error: miniAppError("NAVIGATION_INVALID_ROUTE", "delta must be a positive integer."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatBack", [delta]));
+    },
+
+    clearTimers() {
+      return after(() => engine.call("__qchatClearTimers", []));
+    },
+
+    componentMount(input) {
+      if (typeof input.key !== "string" || !COMPONENT_KEY.test(input.key)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component instance key."), durationMs: 0 };
+      }
+      if (typeof input.path !== "string" || !COMPONENT_PATH.test(input.path) || input.path.includes("..")) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component path."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentMount", [
+        JSON.stringify({ key: input.key, path: input.path, props: input.props ?? {} }),
+      ]));
+    },
+
+    componentDeliver(input) {
+      if (typeof input.key !== "string" || !COMPONENT_KEY.test(input.key)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component instance key."), durationMs: 0 };
+      }
+      if (typeof input.handler !== "string" || !COMPONENT_HANDLER.test(input.handler)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component handler."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentDeliver", [
+        JSON.stringify({ key: input.key, handler: input.handler, event: input.event ?? {} }),
+      ]));
+    },
+
+    componentUnmount(key) {
+      if (typeof key !== "string" || !COMPONENT_KEY.test(key)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component instance key."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentUnmount", [key]));
+    },
+
+    unmountPageComponents(pageId) {
+      if (typeof pageId !== "string" || !PAGE_ID.test(pageId)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid page id."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentUnmountPage", [pageId]));
+    },
+
+    respond(id, response) {
+      if (typeof id !== "string" || !/^s[0-9]{1,9}$/.test(id)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid call id."), durationMs: 0 };
+      }
+      const payload = response.ok
+        ? { id, ok: true, result: response.result ?? null }
+        : { id, ok: false, error: response.error };
+      return after(() => engine.call("__qchatResponse", [JSON.stringify(payload)]));
+    },
+
+    rejectCalls() {
+      return after(() => engine.call("__qchatRejectCalls", []));
+    },
+  };
+}

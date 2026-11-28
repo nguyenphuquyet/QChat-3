@@ -21,6 +21,15 @@ dependencies:
   uuid: 4.6.0
   image_picker: 1.2.4
   photo_manager: 3.12.0
+  # The Android system WebView host for the new Mini App runtime (ADR 011/012).
+  # The legacy QApp tree under lib/features/miniapps/qapp is unrelated.
+  qchat_miniapp_webview:
+    path: ../../packages/qchat_miniapp_webview
+  # The Android QuickJS service runtime (ADR 017). Its native library is built
+  # from a pinned upstream tarball for three ABIs; the page WebView never runs
+  # Mini App JavaScript.
+  qchat_miniapp_quickjs:
+    path: ../../packages/qchat_miniapp_quickjs
   # The photo picker page is the one Material island in the app; see
   # AGENTS.md §8. It ships no MaterialApp, Scaffold or theme of its own: the
   # app wraps it in a Theme built from QChatColors.
@@ -39,6 +48,9 @@ dependencies:
   flutter_js: 0.8.7
   archive: ^4.0.2
   crypto: ^3.0.7
+  # Ed25519 for the .qxpkg signature, in pure Dart so the installer verifies a
+  # package before the WebView or the service runtime exist. ADR 016.
+  cryptography: 2.9.0
   # Pure-Dart decode/encode for the sticker studio: cutting a sheet into
   # separate stickers and taking the background out are done on-device.
   image: ^4.3.0

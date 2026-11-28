@@ -1248,6 +1248,79 @@ const translations = <String, List<String>>{
     '删除该联系人？聊天记录仍保留在此设备。',
   ],
   'contactPermissions': ['Permissions', 'Cài đặt quyền', '权限设置'],
+  'developer': ['Developer', 'Nhà phát triển', '开发者'],
+  'miniappHostSpike': [
+    'Mini App host spike',
+    'Kiểm thử máy chủ Mini App',
+    '小程序宿主测试',
+  ],
+  'miniappHostSpikeNote': [
+    'Runs one installed page through the new Android/iOS WebView host, sends a '
+        'view.render tree and lists every bridge event that comes back. The page '
+        'is a fixed diagnostic tree; the service check below exercises the real '
+        'service runtime.',
+    'Chạy một trang đã cài qua máy chủ WebView Android/iOS mới, gửi cây '
+        'view.render và liệt kê mọi sự kiện cầu nối trả về. Trang này là cây '
+        'chẩn đoán cố định; phần kiểm tra bên dưới chạy service runtime thật.',
+    '通过新的 Android/iOS WebView 宿主运行一个已安装页面，发送 view.render 树并'
+        '列出所有返回的桥接事件。该页面是固定的诊断树；下方的检查会运行真实的 '
+        'service runtime。',
+  ],
+  'miniappHostOpen': ['Install and open', 'Cài đặt và mở', '安装并打开'],
+  'miniappHostInstalling': [
+    'Installing the spike page...',
+    'Đang cài trang kiểm thử...',
+    '正在安装测试页面...',
+  ],
+  'miniappHostStarting': [
+    'Starting the page...',
+    'Đang khởi động trang...',
+    '正在启动页面...',
+  ],
+  'miniappHostEvents': ['Bridge events', 'Sự kiện cầu nối', '桥接事件'],
+  'miniappHostNoEvents': [
+    'No bridge events yet.',
+    'Chưa có sự kiện cầu nối.',
+    '尚无桥接事件。',
+  ],
+  'miniappHostError': [
+    'The Mini App host stopped',
+    'Máy chủ Mini App đã dừng',
+    '小程序宿主已停止',
+  ],
+  'miniappHostService': [
+    'Service runtime',
+    'Service runtime',
+    '服务运行时',
+  ],
+  'miniappHostServiceNote': [
+    'Creates one service runtime (QuickJS on Android, JavaScriptCore on iOS), '
+        'evaluates a value, a Unicode string, a thrown error and a timed-out '
+        'loop, then frees it. This is the channel the service runtime uses; the '
+        'page WebView never runs these scripts.',
+    'Tạo một service runtime (QuickJS trên Android, JavaScriptCore trên iOS), '
+        'đánh giá một giá trị, một chuỗi Unicode, một lỗi được ném và một vòng '
+        'lặp quá thời gian, rồi giải phóng nó. Đây là kênh service runtime sử '
+        'dụng; WebView của trang không bao giờ chạy các script này.',
+    '创建一个 service runtime（Android 为 QuickJS，iOS 为 JavaScriptCore），依次'
+        '执行一个值、一个 Unicode 字符串、一个抛出的错误和一个超时循环，然后释放'
+        '它。这是 service runtime 使用的通道；页面 WebView 永远不会运行这些脚本。',
+  ],
+  'miniappHostServiceRun': [
+    'Run service check',
+    'Chạy kiểm tra service',
+    '运行服务检查',
+  ],
+  'miniappHostServiceRunning': [
+    'Running the service check...',
+    'Đang chạy kiểm tra service...',
+    '正在运行服务检查...',
+  ],
+  'miniappHostServiceNoResult': [
+    'No service run yet.',
+    'Chưa chạy service.',
+    '尚未运行服务。',
+  ],
 };
 String tr(BuildContext context, String key) {
   final language = Localizations.localeOf(context).languageCode;

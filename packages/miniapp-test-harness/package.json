@@ -1,0 +1,30 @@
+{
+  "name": "@qchat/miniapp-test-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QChat Mini App Node harness: compile a sample package and run it end to end",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@qchat/miniapp-compiler": "workspace:*",
+    "@qchat/miniapp-contracts": "workspace:*",
+    "@qchat/miniapp-service-runtime": "workspace:*",
+    "@qchat/miniapp-view-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

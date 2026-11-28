@@ -1,0 +1,28 @@
+name: qchat_miniapp_webview
+description: >-
+  Native WebView host for QChat Mini Apps: an app-private Android
+  WebViewAssetLoader origin and an iOS WKURLSchemeHandler origin, an
+  origin-checked bridge and the ADR 012 view transport. See docs/adr/011 and
+  docs/adr/018.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.10.0 <4.0.0'
+  flutter: '>=3.47.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.qchat.miniapp.webview
+        pluginClass: QchatMiniappWebviewPlugin
+      ios:
+        pluginClass: QchatMiniappWebviewPlugin
+  assets:
+    - assets/qchat-view.js
+    - assets/qchat-components.js

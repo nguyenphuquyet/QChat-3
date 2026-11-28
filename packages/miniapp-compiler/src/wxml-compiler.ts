@@ -1,0 +1,1287 @@
+/**
+ * WXML compiler.
+ *
+ * It turns a parsed WXML document into a template tree whose expressions are
+ * parsed once, then renders that tree against page data. The renderer receives
+ * a typed `RenderNode` tree — never markup, never a script — so a data value
+ * can never become an element or an event handler.
+ *
+ * Supported in M3: `{{ }}`, `wx:if`/`wx:elif`/`wx:else`, `wx:for` with
+ * `wx:for-item`/`wx:for-index`/`wx:key`, `block`, `template` with `is`/`data`,
+ * `import`, `include`, `slot`, `bind*`/`catch*` events and `data-*` datasets.
+ * Anything else is reported with a diagnostic; nothing is silently ignored.
+ */
+
+import {
+  COMPONENT_REGISTRY,
+  type ElementNode,
+  type ErrorCode,
+  type EventBinding,
+  type RenderNode,
+  type RenderPropValue,
+  type TextNode,
+  type WxsBundle,
+  type WxsInvoker,
+  type WxsModule,
+  type WxsProgram,
+} from "@qchat/miniapp-contracts";
+import { createWxsRuntime } from "@qchat/miniapp-view-runtime";
+import type { CompiledComponent } from "./components.js";
+import { diagnostic, type CompileResult, type Diagnostic, type SourceLocation } from "./diagnostics.js";
+import {
+  evaluateExpression,
+  parseExpression,
+  stringifyExpressionValue,
+  type Expression,
+} from "./expression.js";
+import { resolvePackagePath } from "./paths.js";
+import { collectWxsRequires, parseWxs } from "./wxs.js";
+import { parseWxml, type WxmlAttribute, type WxmlDocument, type WxmlElement, type WxmlNode } from "./wxml.js";
+
+export interface CompileOptions {
+  /** Custom component tags with no template expansion (kept for M3 fixtures). */
+  components?: readonly string[];
+  /** Local component tag to component path, resolved from `usingComponents`. */
+  componentTags?: Readonly<Record<string, string>>;
+  /** Compiled component templates, keyed by component path. */
+  componentTemplates?: Readonly<Record<string, CompiledComponent>>;
+  /** Read a package file for `import`/`include`; return `null` when absent. */
+  loadFile?: (path: string) => string | null;
+  /**
+   * Whether `<wxs>` is allowed. Pages allow it; a component does not, because
+   * the WXS runtime is page-scoped and a component never owns page data.
+   */
+  allowWxs?: boolean;
+}
+
+export interface CompiledWxml {
+  file: string;
+  nodes: TemplateNode[];
+  templates: ReadonlyMap<string, TemplateNode[]>;
+  /** Local component tag to component path. */
+  componentTags: Readonly<Record<string, string>>;
+  /** Compiled component templates, keyed by component path. */
+  componentTemplates: Readonly<Record<string, CompiledComponent>>;
+  /** Files pulled in by `import`/`include`/`<wxs src>`, for the package file list. */
+  files: readonly string[];
+  /** Compiled page-level WXS modules, absent when the page declares none. */
+  wxs?: WxsBundle;
+}
+
+export type TemplatePart =
+  | { kind: "text"; text: string }
+  | { kind: "expression"; expression: Expression; loc: SourceLocation };
+
+export interface PropTemplate {
+  name: string;
+  /** `true` for a boolean attribute written without a value. */
+  boolean: boolean;
+  parts: TemplatePart[];
+  loc: SourceLocation;
+}
+
+export interface EventTemplate {
+  type: string;
+  handler: string | { expression: Expression; loc: SourceLocation };
+  catch: boolean;
+  loc: SourceLocation;
+}
+
+export interface ElementTemplate {
+  type: "element";
+  tag: string;
+  /** Set for a custom component: the package path of its template. */
+  component?: string;
+  props: PropTemplate[];
+  dataset: { name: string; parts: TemplatePart[]; loc: SourceLocation }[];
+  events: EventTemplate[];
+  children: TemplateNode[];
+  loc: SourceLocation;
+}
+
+export interface TextTemplate {
+  type: "text";
+  parts: TemplatePart[];
+  loc: SourceLocation;
+}
+
+export interface ConditionalTemplate {
+  type: "conditional";
+  branches: { test: Expression; children: TemplateNode[]; loc: SourceLocation }[];
+  alternate: TemplateNode[];
+  loc: SourceLocation;
+}
+
+export interface ForTemplate {
+  type: "for";
+  list: Expression;
+  item: string;
+  index: string;
+  key: { kind: "this" } | { kind: "property"; path: string[] } | null;
+  children: TemplateNode[];
+  loc: SourceLocation;
+}
+
+export interface TemplateCall {
+  type: "templateCall";
+  name: string | Expression;
+  data: Expression | null;
+  loc: SourceLocation;
+}
+
+export type TemplateNode =
+  | ElementTemplate
+  | TextTemplate
+  | ConditionalTemplate
+  | ForTemplate
+  | TemplateCall;
+
+const COMPONENT_NAMES = new Set(COMPONENT_REGISTRY.map((component) => component.name));
+const COMMON_PROPERTIES = new Set(["class", "style", "id", "hidden", "slot"]);
+const DIRECTIVES = new Set([
+  "wx:if", "wx:elif", "wx:else", "wx:for", "wx:for-item", "wx:for-index", "wx:key",
+]);
+const EVENT_PATTERN = /^(bind|catch|mut-bind)(?::?)([a-z][a-z0-9:_-]*)$/;
+const WXS_EVENT_PATTERN = /^wxs:[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)+$/;
+
+interface Context {
+  file: string;
+  options: CompileOptions;
+  templates: Map<string, TemplateNode[]>;
+  files: string[];
+  diagnostics: Diagnostic[];
+  includeDepth: number;
+  importDepth: number;
+  /** WXS modules declared by the page, keyed by module name. */
+  wxsModules: Record<string, WxsModule>;
+  /** Every compiled WXS source, keyed by package path or inline synthetic path. */
+  wxsSources: Record<string, WxsProgram>;
+  /** Module names, for expression-call and event validation. */
+  wxsModuleNames: Set<string>;
+  /** Real `.wxs` files, for the package file list. */
+  wxsFiles: string[];
+  /** `<wxs>` elements already consumed by the pre-scan. */
+  wxsElements: Set<WxmlElement>;
+  allowWxs: boolean;
+}
+
+function error(ctx: Context, code: ErrorCode, message: string, at: SourceLocation): void {
+  ctx.diagnostics.push(diagnostic(code, message, at));
+}
+
+function offsetLocation(loc: SourceLocation, text: string, offset: number): SourceLocation {
+  let line = loc.line;
+  let column = loc.column;
+  for (let index = 0; index < offset && index < text.length; index += 1) {
+    if (text[index] === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+  return { file: loc.file, line, column, offset: loc.offset + offset };
+}
+
+/** Split `a {{ b }} c` into text and expression parts. */
+function parseParts(
+  value: string,
+  loc: SourceLocation,
+  ctx: Context,
+  code: ErrorCode = "WXML_INVALID_EXPRESSION",
+): TemplatePart[] {
+  const parts: TemplatePart[] = [];
+  let cursor = 0;
+  while (cursor < value.length) {
+    const open = value.indexOf("{{", cursor);
+    if (open === -1) {
+      parts.push({ kind: "text", text: value.slice(cursor) });
+      break;
+    }
+    if (open > cursor) parts.push({ kind: "text", text: value.slice(cursor, open) });
+    const close = value.indexOf("}}", open + 2);
+    if (close === -1) {
+      error(ctx, code, "A mustache expression is not terminated.", offsetLocation(loc, value, open));
+      return parts;
+    }
+    const source = value.slice(open + 2, close);
+    const parsed = parseExpression(source, { wxsModules: ctx.wxsModuleNames });
+    if (!parsed.ok) {
+      error(
+        ctx,
+        code,
+        `Invalid expression: ${parsed.error.message}`,
+        offsetLocation(loc, value, open + 2 + parsed.error.offset),
+      );
+    } else {
+      parts.push({
+        kind: "expression",
+        expression: parsed.expression,
+        loc: offsetLocation(loc, value, open + 2),
+      });
+    }
+    cursor = close + 2;
+  }
+  return parts;
+}
+
+/** One expression from a directive value, with or without `{{ }}`. */
+function directiveExpression(value: string, loc: SourceLocation, ctx: Context, name: string): Expression | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    error(ctx, "WXML_INVALID_DIRECTIVE", `${name} needs an expression.`, loc);
+    return null;
+  }
+  let source = trimmed;
+  let offset = 0;
+  if (trimmed.startsWith("{{") && trimmed.endsWith("}}")) {
+    source = trimmed.slice(2, -2);
+    offset = 2;
+  }
+  const parsed = parseExpression(source, { wxsModules: ctx.wxsModuleNames });
+  if (!parsed.ok) {
+    error(ctx, "WXML_INVALID_EXPRESSION", `Invalid expression in ${name}: ${parsed.error.message}`, offsetLocation(loc, value, offset + parsed.error.offset));
+    return null;
+  }
+  return parsed.expression;
+}
+
+/**
+ * Template `data` accepts either one object (`{{ item }}`) or WeChat's
+ * brace-less object form (`{{ label: title }}`, `{{ ...item, extra: 1 }}`).
+ */
+function templateDataExpression(value: string, loc: SourceLocation, ctx: Context): Expression | null {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{{") || !trimmed.endsWith("}}")) {
+    error(ctx, "WXML_INVALID_EXPRESSION", "Template data must be written as {{ ... }}.", loc);
+    return null;
+  }
+  const inner = trimmed.slice(2, -2).trim();
+  const direct = parseExpression(inner, { wxsModules: ctx.wxsModuleNames });
+  if (direct.ok) return direct.expression;
+  const wrapped = parseExpression(`{${inner}}`, { wxsModules: ctx.wxsModuleNames });
+  if (wrapped.ok) return wrapped.expression;
+  error(
+    ctx,
+    "WXML_INVALID_EXPRESSION",
+    `Invalid template data: ${direct.error.message}`,
+    offsetLocation(loc, value, 2 + direct.error.offset),
+  );
+  return null;
+}
+
+function attribute(element: WxmlElement, name: string): WxmlAttribute | undefined {
+  return element.attributes.find((entry) => entry.name === name);
+}
+
+function dataSetName(name: string): string {
+  return name
+    .slice("data-".length)
+    .toLowerCase()
+    .replace(/-([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+}
+
+function eventBinding(entry: WxmlAttribute, ctx: Context): EventTemplate | null {
+  const match = EVENT_PATTERN.exec(entry.name);
+  if (!match) return null;
+  const prefix = match[1];
+  const type = match[2];
+  if (entry.value === null || entry.value.trim().length === 0) {
+    error(ctx, "WXML_INVALID_EVENT", `Event "${entry.name}" needs a handler.`, entry.loc);
+    return null;
+  }
+  const value = entry.value.trim();
+  let handler: EventTemplate["handler"];
+  if (value.startsWith("{{") && value.endsWith("}}")) {
+    const parts = parseParts(value, entry.loc, ctx);
+    const expressionPart = parts.find((part) => part.kind === "expression");
+    if (!expressionPart || expressionPart.kind !== "expression") {
+      error(ctx, "WXML_INVALID_EVENT", `Event "${entry.name}" needs a handler name.`, entry.loc);
+      return null;
+    }
+    handler = { expression: expressionPart.expression, loc: expressionPart.loc };
+  } else if (value.startsWith("wxs:")) {
+    if (!WXS_EVENT_PATTERN.test(value)) {
+      error(ctx, "WXML_INVALID_EVENT", `"${value}" is not a valid WXS handler path.`, entry.loc);
+      return null;
+    }
+    const module = value.slice("wxs:".length).split(".")[0];
+    if (!ctx.wxsModuleNames.has(module)) {
+      error(ctx, "WXML_INVALID_EVENT", `WXS module "${module}" is not declared by this page.`, entry.loc);
+      return null;
+    }
+    handler = value;
+  } else {
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value)) {
+      error(ctx, "WXML_INVALID_EVENT", `"${value}" is not a valid handler name.`, entry.loc);
+      return null;
+    }
+    handler = value;
+  }
+  return { type, handler, catch: prefix === "catch", loc: entry.loc };
+}
+
+/**
+ * Read and compile one `.wxs` file, recursively pulling in its literal
+ * `require` targets. A path is registered before its requires are walked, so a
+ * cycle is loaded once instead of recursing forever.
+ */
+function loadWxsSource(path: string, ctx: Context, at: SourceLocation): WxsProgram | null {
+  const existing = ctx.wxsSources[path];
+  if (existing) return existing;
+  if (!ctx.options.loadFile) {
+    error(ctx, "WXS_PARSE_ERROR", `Cannot load "${path}": the compiler has no file reader.`, at);
+    return null;
+  }
+  const source = ctx.options.loadFile(path);
+  if (source === null) {
+    error(ctx, "WXS_PARSE_ERROR", `Cannot load "${path}": the file does not exist.`, at);
+    return null;
+  }
+  const parsed = parseWxs(source, path, {
+    resolveRequire: (specifier) => resolvePackagePath(path, specifier),
+  });
+  if (!parsed.ok) {
+    ctx.diagnostics.push(...parsed.diagnostics);
+    return null;
+  }
+  ctx.wxsSources[path] = parsed.value;
+  if (!ctx.wxsFiles.includes(path)) {
+    ctx.wxsFiles.push(path);
+    ctx.files.push(path);
+  }
+  for (const required of collectWxsRequires(parsed.value)) {
+    loadWxsSource(required, ctx, at);
+  }
+  return parsed.value;
+}
+
+/** Compile one `<wxs module="...">` block, either inline or from `src`. */
+function compileWxsModule(element: WxmlElement, ctx: Context): void {
+  ctx.wxsElements.add(element);
+  const moduleAttribute = attribute(element, "module");
+  if (
+    !moduleAttribute
+    || moduleAttribute.value === null
+    || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(moduleAttribute.value.trim())
+  ) {
+    error(ctx, "WXS_PARSE_ERROR", "<wxs> needs a module name.", moduleAttribute?.loc ?? element.loc);
+    return;
+  }
+  const name = moduleAttribute.value.trim();
+  if (ctx.wxsModules[name]) {
+    error(ctx, "WXS_PARSE_ERROR", `WXS module "${name}" is declared twice.`, moduleAttribute.loc);
+    return;
+  }
+  if (!ctx.allowWxs) {
+    error(ctx, "WXS_UNSUPPORTED", "WXS is only available in a page, not in a component.", element.loc);
+    return;
+  }
+
+  const src = attribute(element, "src");
+  if (src && src.value !== null) {
+    if (element.children.some((child) => child.type === "element" || child.text.trim().length > 0)) {
+      error(ctx, "WXS_PARSE_ERROR", "<wxs> cannot have both src and inline code.", element.loc);
+      return;
+    }
+    const path = resolvePackagePath(ctx.file, src.value);
+    if (!path) {
+      error(ctx, "WXS_PARSE_ERROR", `Unsafe WXS path "${src.value}".`, src.loc);
+      return;
+    }
+    const program = loadWxsSource(path, ctx, src.loc);
+    if (!program) return;
+    ctx.wxsModules[name] = { name, file: path, ast: program };
+    ctx.wxsModuleNames.add(name);
+    return;
+  }
+
+  if (element.children.length === 0) {
+    error(ctx, "WXS_PARSE_ERROR", "<wxs> has no code.", element.loc);
+    return;
+  }
+  const textNodes = element.children.filter((child): child is Extract<WxmlNode, { type: "text" }> => child.type === "text");
+  if (textNodes.length !== element.children.length) {
+    error(ctx, "WXS_PARSE_ERROR", "Inline <wxs> may only contain code.", element.loc);
+    return;
+  }
+  const source = textNodes.map((child) => child.text).join("");
+  if (source.trim().length === 0) {
+    error(ctx, "WXS_PARSE_ERROR", "<wxs> has no code.", element.loc);
+    return;
+  }
+  const file = `${ctx.file}#wxs:${name}`;
+  const parsed = parseWxs(source, ctx.file, {
+    base: textNodes[0].loc,
+    resolveRequire: (specifier) => resolvePackagePath(ctx.file, specifier),
+  });
+  if (!parsed.ok) {
+    ctx.diagnostics.push(...parsed.diagnostics);
+    return;
+  }
+  ctx.wxsSources[file] = parsed.value;
+  ctx.wxsModules[name] = { name, file, ast: parsed.value };
+  ctx.wxsModuleNames.add(name);
+  for (const required of collectWxsRequires(parsed.value)) {
+    loadWxsSource(required, ctx, textNodes[0].loc);
+  }
+}
+
+/** Pre-scan the page's direct children for `<wxs>` before any expression compiles. */
+function collectWxs(nodes: readonly WxmlNode[], ctx: Context): void {
+  for (const node of nodes) {
+    if (node.type === "element" && node.tag === "wxs") compileWxsModule(node, ctx);
+  }
+}
+
+function loadDocument(
+  path: string,
+  ctx: Context,
+  loc: SourceLocation,
+): WxmlDocument | null {
+  if (!ctx.options.loadFile) {
+    error(ctx, "WXML_INVALID_ATTRIBUTE", `Cannot load "${path}": the compiler has no file reader.`, loc);
+    return null;
+  }
+  const source = ctx.options.loadFile(path);
+  if (source === null) {
+    error(ctx, "WXML_INVALID_ATTRIBUTE", `Cannot load "${path}": the file does not exist.`, loc);
+    return null;
+  }
+  const parsed = parseWxml(source, path);
+  if (!parsed.ok) {
+    ctx.diagnostics.push(...parsed.diagnostics);
+    return null;
+  }
+  ctx.files.push(path);
+  return parsed.value;
+}
+
+function compileAttribute(
+  entry: WxmlAttribute,
+  element: WxmlElement,
+  tag: string,
+  ctx: Context,
+): { prop?: PropTemplate; dataset?: ElementTemplate["dataset"][number]; event?: EventTemplate } | null {
+  if (DIRECTIVES.has(entry.name)) return null;
+
+  const event = eventBinding(entry, ctx);
+  if (event) return { event };
+
+  if (entry.name.startsWith("data-")) {
+    if (entry.value === null) {
+      return { dataset: { name: dataSetName(entry.name), parts: [], loc: entry.loc } };
+    }
+    return {
+      dataset: {
+        name: dataSetName(entry.name),
+        parts: parseParts(entry.value, entry.loc, ctx),
+        loc: entry.loc,
+      },
+    };
+  }
+
+  if (entry.name.startsWith("capture-")) {
+    error(ctx, "COMPILER_UNSUPPORTED_DIRECTIVE", `Capture-phase event "${entry.name}" is not supported.`, entry.loc);
+    return null;
+  }
+
+  if (entry.name.startsWith("wx:") || entry.name.startsWith("model:")) {
+    error(ctx, "COMPILER_UNSUPPORTED_DIRECTIVE", `Directive "${entry.name}" is not supported here.`, entry.loc);
+    return null;
+  }
+
+  if (!COMMON_PROPERTIES.has(entry.name) && !entry.name.startsWith("aria-")) {
+    const component = COMPONENT_REGISTRY.find((candidate) => candidate.name === tag);
+    const allowed = component
+      ? new Set<string>([...component.properties, ...COMMON_PROPERTIES])
+      : null;
+    if (allowed && !allowed.has(entry.name)) {
+      error(
+        ctx,
+        "WXML_INVALID_ATTRIBUTE",
+        `"${entry.name}" is not a property of <${tag}>.`,
+        entry.loc,
+      );
+      return null;
+    }
+  }
+
+  if (entry.value === null) {
+    return { prop: { name: entry.name, boolean: true, parts: [], loc: entry.loc } };
+  }
+  return {
+    prop: {
+      name: entry.name,
+      boolean: false,
+      parts: parseParts(entry.value, entry.loc, ctx),
+      loc: entry.loc,
+    },
+  };
+}
+
+function compileElement(element: WxmlElement, ctx: Context): TemplateNode[] {
+  const tag = element.tag;
+
+  if (tag === "wxs") {
+    if (!ctx.wxsElements.has(element)) {
+      error(ctx, "WXS_PARSE_ERROR", "<wxs> must be a direct child of the page.", element.loc);
+    }
+    return [];
+  }
+
+  if (tag === "import") {
+    const src = attribute(element, "src");
+    if (!src || src.value === null) {
+      error(ctx, "WXML_INVALID_ATTRIBUTE", "<import> needs a src.", element.loc);
+      return [];
+    }
+    if (ctx.importDepth > 0) return [];
+    const path = resolvePackagePath(ctx.file, src.value);
+    if (!path) {
+      error(ctx, "WXML_INVALID_ATTRIBUTE", `Unsafe import path "${src.value}".`, src.loc);
+      return [];
+    }
+    const document = loadDocument(path, ctx, src.loc);
+    if (!document) return [];
+    // `import` brings in template definitions only; it is not recursive.
+    const nested: Context = {
+      ...ctx,
+      file: path,
+      templates: new Map(),
+      importDepth: ctx.importDepth + 1,
+      diagnostics: [],
+      files: [],
+    };
+    for (const child of document.children) compileNode(child, nested);
+    for (const [name, nodes] of nested.templates) ctx.templates.set(name, nodes);
+    return [];
+  }
+
+  if (tag === "include") {
+    const src = attribute(element, "src");
+    if (!src || src.value === null) {
+      error(ctx, "WXML_INVALID_ATTRIBUTE", "<include> needs a src.", element.loc);
+      return [];
+    }
+    const path = resolvePackagePath(ctx.file, src.value);
+    if (!path) {
+      error(ctx, "WXML_INVALID_ATTRIBUTE", `Unsafe include path "${src.value}".`, src.loc);
+      return [];
+    }
+    const document = loadDocument(path, ctx, src.loc);
+    if (!document) return [];
+    const nested: Context = { ...ctx, file: path, includeDepth: ctx.includeDepth + 1, diagnostics: ctx.diagnostics };
+    const nodes: TemplateNode[] = [];
+    for (const child of document.children) {
+      if (child.type === "element" && (child.tag === "template" || child.tag === "import")) continue;
+      nodes.push(...compileNode(child, nested));
+    }
+    return nodes;
+  }
+
+  if (tag === "template") {
+    const name = attribute(element, "name");
+    const is = attribute(element, "is");
+    if (name && is) {
+      error(ctx, "WXML_INVALID_ATTRIBUTE", "<template> cannot have both name and is.", element.loc);
+      return [];
+    }
+    if (name) {
+      if (name.value === null || name.value.trim().length === 0) {
+        error(ctx, "WXML_INVALID_ATTRIBUTE", "<template name> needs a name.", name.loc);
+        return [];
+      }
+      if (ctx.includeDepth > 0) return [];
+      const children = compileChildren(element.children, ctx);
+      ctx.templates.set(name.value.trim(), children);
+      return [];
+    }
+    if (!is || is.value === null) {
+      error(ctx, "WXML_INVALID_ATTRIBUTE", "<template> needs name or is.", element.loc);
+      return [];
+    }
+    const value = is.value.trim();
+    const nameExpression = value.startsWith("{{") && value.endsWith("}}")
+      ? directiveExpression(value, is.loc, ctx, "template is")
+      : value;
+    if (nameExpression === null) return [];
+    const dataAttribute = attribute(element, "data");
+    const data = dataAttribute && dataAttribute.value !== null
+      ? templateDataExpression(dataAttribute.value, dataAttribute.loc, ctx)
+      : null;
+    if (dataAttribute && data === null) return [];
+    return [{ type: "templateCall", name: nameExpression, data, loc: element.loc }];
+  }
+
+  if (tag === "slot") {
+    const props: PropTemplate[] = [];
+    const name = attribute(element, "name");
+    if (name && name.value !== null) {
+      props.push({ name: "name", boolean: false, parts: parseParts(name.value, name.loc, ctx), loc: name.loc });
+    }
+    return [{
+      type: "element",
+      tag: "wx-slot",
+      props,
+      dataset: [],
+      events: [],
+      children: [],
+      loc: element.loc,
+    }];
+  }
+
+  if (tag === "block") {
+    for (const entry of element.attributes) {
+      if (!DIRECTIVES.has(entry.name)) {
+        error(ctx, "WXML_INVALID_ATTRIBUTE", `<block> does not render; "${entry.name}" would be lost.`, entry.loc);
+      }
+    }
+    return compileChildren(element.children, ctx);
+  }
+
+  const componentPath = ctx.options.componentTags?.[tag];
+  const custom = componentPath !== undefined || (ctx.options.components?.includes(tag) ?? false);
+  if (!COMPONENT_NAMES.has(tag) && !custom) {
+    error(ctx, "WXML_UNKNOWN_COMPONENT", `<${tag}> is not in the component registry.`, element.loc);
+    return [];
+  }
+
+  const props: PropTemplate[] = [];
+  const dataset: ElementTemplate["dataset"] = [];
+  const events: EventTemplate[] = [];
+  for (const entry of element.attributes) {
+    const compiled = compileAttribute(entry, element, tag, ctx);
+    if (!compiled) continue;
+    if (compiled.prop) props.push(compiled.prop);
+    if (compiled.dataset) dataset.push(compiled.dataset);
+    if (compiled.event) events.push(compiled.event);
+  }
+
+  const compiled: ElementTemplate = {
+    type: "element",
+    tag: `wx-${tag}`,
+    props,
+    dataset,
+    events,
+    children: compileChildren(element.children, ctx),
+    loc: element.loc,
+  };
+  if (componentPath !== undefined) compiled.component = componentPath;
+  return [compiled];
+}
+
+function compileNode(node: WxmlNode, ctx: Context): TemplateNode[] {
+  if (node.type === "text") {
+    const parts = parseParts(node.text, node.loc, ctx);
+    const onlyText = parts.every((part) => part.kind === "text");
+    if (onlyText && node.text.trim().length === 0 && node.text.includes("\n")) return [];
+    return [{ type: "text", parts, loc: node.loc }];
+  }
+
+  if (ctx.wxsElements.has(node)) return [];
+
+  const forAttribute = attribute(node, "wx:for");
+  const forItem = attribute(node, "wx:for-item");
+  const forIndex = attribute(node, "wx:for-index");
+  const keyAttribute = attribute(node, "wx:key");
+
+  if (forItem && !forAttribute) error(ctx, "WXML_INVALID_DIRECTIVE", "wx:for-item needs wx:for.", forItem.loc);
+  if (forIndex && !forAttribute) error(ctx, "WXML_INVALID_DIRECTIVE", "wx:for-index needs wx:for.", forIndex.loc);
+  if (keyAttribute && !forAttribute) error(ctx, "WXML_INVALID_DIRECTIVE", "wx:key needs wx:for.", keyAttribute.loc);
+
+  let nodes: TemplateNode[] = compileElement(node, ctx);
+
+  if (forAttribute) {
+    if (forAttribute.value === null) {
+      error(ctx, "WXML_INVALID_DIRECTIVE", "wx:for needs an expression.", forAttribute.loc);
+      return nodes;
+    }
+    const list = directiveExpression(forAttribute.value, forAttribute.loc, ctx, "wx:for");
+    if (!list) return nodes;
+    let key: ForTemplate["key"] = null;
+    if (keyAttribute && keyAttribute.value !== null) {
+      const raw = keyAttribute.value.trim();
+      if (raw === "*this") {
+        key = { kind: "this" };
+      } else if (/^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/.test(raw)) {
+        key = { kind: "property", path: raw.split(".") };
+      } else {
+        error(ctx, "WXML_INVALID_DIRECTIVE", `wx:key "${raw}" must be *this or a property path.`, keyAttribute.loc);
+      }
+    }
+    nodes = [{
+      type: "for",
+      list,
+      item: forItem?.value?.trim() || "item",
+      index: forIndex?.value?.trim() || "index",
+      key,
+      children: nodes,
+      loc: node.loc,
+    }];
+  }
+
+  return nodes;
+}
+
+function compileChildren(nodes: readonly WxmlNode[], ctx: Context): TemplateNode[] {
+  const compiled: TemplateNode[] = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    if (node.type === "element") {
+      const ifAttribute = attribute(node, "wx:if");
+      if (ifAttribute) {
+        // Gather the sibling `wx:elif` chain and the optional `wx:else`.
+        const branches: ConditionalTemplate["branches"] = [];
+        const test = ifAttribute.value === null
+          ? null
+          : directiveExpression(ifAttribute.value, ifAttribute.loc, ctx, "wx:if");
+        if (test) branches.push({ test, children: compileNode(node, ctx), loc: node.loc });
+        let cursor = index + 1;
+        let alternate: TemplateNode[] = [];
+        while (cursor < nodes.length) {
+          const sibling = nodes[cursor];
+          // Formatting whitespace between the branches is allowed.
+          if (sibling.type === "text" && sibling.text.trim().length === 0) {
+            cursor += 1;
+            continue;
+          }
+          if (sibling.type !== "element") break;
+          const elif = attribute(sibling, "wx:elif");
+          if (elif) {
+            const branchTest = elif.value === null
+              ? null
+              : directiveExpression(elif.value, elif.loc, ctx, "wx:elif");
+            if (branchTest) branches.push({ test: branchTest, children: compileNode(sibling, ctx), loc: sibling.loc });
+            cursor += 1;
+            continue;
+          }
+          const otherwise = attribute(sibling, "wx:else");
+          if (otherwise) {
+            alternate = compileNode(sibling, ctx);
+            cursor += 1;
+          }
+          break;
+        }
+        compiled.push({ type: "conditional", branches, alternate, loc: node.loc });
+        index = cursor - 1;
+        continue;
+      }
+
+      const elif = attribute(node, "wx:elif");
+      const otherwise = attribute(node, "wx:else");
+      if (elif) {
+        error(ctx, "WXML_INVALID_DIRECTIVE", "wx:elif must follow an element with wx:if.", elif.loc);
+        index += 1;
+        continue;
+      }
+      if (otherwise) {
+        error(ctx, "WXML_INVALID_DIRECTIVE", "wx:else must follow an element with wx:if or wx:elif.", otherwise.loc);
+        index += 1;
+        continue;
+      }
+    }
+    compiled.push(...compileNode(node, ctx));
+  }
+  return compiled;
+}
+
+export function compileWxml(source: string, file = "app.wxml", options: CompileOptions = {}): CompileResult<CompiledWxml> {
+  const parsed = parseWxml(source, file);
+  if (!parsed.ok) return parsed;
+
+  const ctx: Context = {
+    file,
+    options,
+    templates: new Map(),
+    files: [],
+    diagnostics: [],
+    includeDepth: 0,
+    importDepth: 0,
+    wxsModules: {},
+    wxsSources: {},
+    wxsModuleNames: new Set(),
+    wxsFiles: [],
+    wxsElements: new Set(),
+    allowWxs: options.allowWxs !== false,
+  };
+  collectWxs(parsed.value.children, ctx);
+  const nodes = compileChildren(parsed.value.children, ctx);
+  if (ctx.diagnostics.length > 0) return { ok: false, diagnostics: ctx.diagnostics };
+  const compiled: CompiledWxml = {
+    file,
+    nodes,
+    templates: ctx.templates,
+    componentTags: options.componentTags ?? {},
+    componentTemplates: options.componentTemplates ?? {},
+    files: ctx.files,
+  };
+  if (ctx.wxsFiles.length > 0 || Object.keys(ctx.wxsModules).length > 0) {
+    compiled.wxs = {
+      modules: ctx.wxsModules,
+      sources: ctx.wxsSources,
+      files: [...ctx.wxsFiles].sort(),
+    };
+  }
+  return { ok: true, diagnostics: [], value: compiled };
+}
+
+/** What the host must answer before a custom component can be rendered. */
+export interface ComponentRenderRequest {
+  /** Component path from `usingComponents`. */
+  path: string;
+  /** The component tag as written in WXML (`my-card`). */
+  tag: string;
+  /** Properties written on the tag, without the host-only attributes. */
+  props: Record<string, RenderPropValue>;
+  /** Stable key for this component node in this render. */
+  instanceKey: string;
+  /** Events bound on the tag; the page receives them when the component triggers them. */
+  events: Record<string, EventBinding>;
+}
+
+export interface ComponentHandlerRequest {
+  path: string;
+  instanceKey: string;
+  handler: string;
+}
+
+export interface RenderOptions {
+  /**
+   * Create or update the component instance and return its data. Returning
+   * `null` fails the render with `COMPONENT_UNSUPPORTED`; a component is never
+   * silently rendered as an empty tag.
+   */
+  componentData?: (request: ComponentRenderRequest) => Record<string, unknown> | null;
+  /** Map a component method name to the handler the host can dispatch. */
+  componentHandler?: (request: ComponentHandlerRequest) => string | null;
+  /** Nested component depth. */
+  maxComponentDepth?: number;
+  /**
+   * A page-scoped WXS runtime. The service runtime passes the same instance it
+   * uses for event handlers; when omitted, `renderWxml` creates one from the
+   * page's compiled bundle and caches it.
+   */
+  wxs?: WxsInvoker;
+  /** Default `console.log` sink for a runtime created by `renderWxml`. */
+  wxsLog?: (message: string) => void;
+}
+
+interface RenderContext {
+  templates: ReadonlyMap<string, TemplateNode[]>;
+  componentTemplates: Readonly<Record<string, CompiledComponent>>;
+  options: RenderOptions;
+  diagnostics: Diagnostic[];
+  depth: number;
+  wxs: WxsInvoker | null;
+}
+
+/** One interpreter per compiled page, so event handlers share module state. */
+const WXS_RUNTIMES = new WeakMap<CompiledWxml, WxsInvoker>();
+
+const HOST_PROPERTIES = new Set(["class", "style", "id", "hidden", "slot"]);
+const DEFAULT_COMPONENT_DEPTH = 8;
+
+function evaluate(expression: Expression, scope: Record<string, unknown>, ctx: RenderContext, at: SourceLocation): unknown {
+  try {
+    return evaluateExpression(
+      expression,
+      scope,
+      ctx.wxs ? { call: (path, args) => ctx.wxs!.call(path, args) } : {},
+    );
+  } catch (cause) {
+    const code = (cause as { code?: unknown }).code;
+    const wxsCode = typeof code === "string" && code.startsWith("WXS_") ? code as ErrorCode : null;
+    ctx.diagnostics.push(
+      diagnostic(
+        wxsCode ?? "WXML_RENDER_WARNING",
+        `Expression failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        at,
+      ),
+    );
+    return undefined;
+  }
+}
+
+function partValue(parts: readonly TemplatePart[], scope: Record<string, unknown>, ctx: RenderContext): unknown {
+  if (parts.length === 1 && parts[0].kind === "expression") {
+    return evaluate(parts[0].expression, scope, ctx, parts[0].loc);
+  }
+  let result = "";
+  for (const part of parts) {
+    result += part.kind === "text" ? part.text : stringifyExpressionValue(evaluate(part.expression, scope, ctx, part.loc));
+  }
+  return result;
+}
+
+function propValue(prop: PropTemplate, scope: Record<string, unknown>, ctx: RenderContext): RenderPropValue {
+  if (prop.boolean) return true;
+  if (prop.parts.length === 1 && prop.parts[0].kind === "expression") {
+    const value = evaluate(prop.parts[0].expression, scope, ctx, prop.parts[0].loc);
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
+    return stringifyExpressionValue(value);
+  }
+  return stringifyExpressionValue(partValue(prop.parts, scope, ctx));
+}
+
+function keyFor(template: ForTemplate, item: unknown, index: number): string {
+  if (!template.key) return "";
+  if (template.key.kind === "this") {
+    if (typeof item === "string" || typeof item === "number") return String(item);
+    return String(index);
+  }
+  // `wx:key="id"` names a property of the item, not of the page data.
+  let cursor: unknown = item;
+  for (const segment of template.key.path) {
+    if (cursor === null || typeof cursor !== "object") return "";
+    cursor = (cursor as Record<string, unknown>)[segment];
+  }
+  return cursor === undefined || cursor === null ? "" : String(cursor);
+}
+
+function withKey(node: RenderNode, key: string): RenderNode {
+  if (node.type !== "element" || key.length === 0) return node;
+  return { ...node, key };
+}
+
+function renderElement(
+  node: ElementTemplate,
+  scope: Record<string, unknown>,
+  ctx: RenderContext,
+  nodePath: string,
+): RenderNode[] {
+  const props: Record<string, RenderPropValue> = {};
+  for (const prop of node.props) props[prop.name] = propValue(prop, scope, ctx);
+
+  const dataset: Record<string, string> = {};
+  for (const entry of node.dataset) {
+    dataset[entry.name] = stringifyExpressionValue(partValue(entry.parts, scope, ctx));
+  }
+
+  const events: Record<string, EventBinding> = {};
+  for (const event of node.events) {
+    let handler: string;
+    if (typeof event.handler === "string") {
+      handler = event.handler;
+    } else {
+      const value = evaluate(event.handler.expression, scope, ctx, event.handler.loc);
+      if (typeof value !== "string" || value.length === 0) {
+        ctx.diagnostics.push(
+          diagnostic("WXML_RENDER_WARNING", `Event "${event.type}" resolved to no handler.`, event.loc),
+        );
+        continue;
+      }
+      handler = value;
+    }
+    events[event.type] = event.catch ? { handler, catch: true } : { handler };
+  }
+
+  const children = renderNodes(node.children, scope, ctx, nodePath);
+
+  if (node.component === undefined) {
+    const element: ElementNode = { type: "element", tag: node.tag, props, children };
+    if (Object.keys(dataset).length > 0) element.dataset = dataset;
+    if (Object.keys(events).length > 0) element.events = events;
+    return [element];
+  }
+
+  // A custom component: the host creates the instance, the component's own
+  // template is rendered here, and the caller's children fill its slots.
+  const hostProps: Record<string, RenderPropValue> = {};
+  const componentProps: Record<string, RenderPropValue> = {};
+  for (const [name, value] of Object.entries(props)) {
+    if (HOST_PROPERTIES.has(name)) hostProps[name] = value;
+    else componentProps[name] = value;
+  }
+
+  const template = ctx.componentTemplates[node.component];
+  if (!template) {
+    ctx.diagnostics.push(
+      diagnostic(
+        "COMPONENT_UNSUPPORTED",
+        `The compiled bundle has no template for component "${node.component}".`,
+        node.loc,
+      ),
+    );
+    return [];
+  }
+  const maxDepth = ctx.options.maxComponentDepth ?? DEFAULT_COMPONENT_DEPTH;
+  if (ctx.depth >= maxDepth) {
+    ctx.diagnostics.push(
+      diagnostic("COMPONENT_UNSUPPORTED", `Component nesting exceeds ${maxDepth} levels.`, node.loc),
+    );
+    return [];
+  }
+
+  let instanceData: Record<string, unknown> | null = null;
+  if (ctx.options.componentData) {
+    try {
+      instanceData = ctx.options.componentData({
+        path: node.component,
+        tag: node.tag,
+        props: componentProps,
+        instanceKey: nodePath,
+        events,
+      });
+    } catch (cause) {
+      ctx.diagnostics.push(
+        diagnostic("COMPONENT_UNSUPPORTED", `The component instance failed: ${String(cause)}`, node.loc),
+      );
+      return [];
+    }
+  }
+  if (instanceData === null || instanceData === undefined) {
+    ctx.diagnostics.push(
+      diagnostic(
+        "COMPONENT_UNSUPPORTED",
+        `The host did not create an instance for <${node.tag}>.`,
+        node.loc,
+      ),
+    );
+    return [];
+  }
+
+  const componentCtx: RenderContext = {
+    templates: template.wxml.templates,
+    componentTemplates: template.wxml.componentTemplates,
+    options: ctx.options,
+    diagnostics: ctx.diagnostics,
+    depth: ctx.depth + 1,
+    wxs: ctx.wxs,
+  };
+  const componentScope: Record<string, unknown> = { ...instanceData, ...componentProps };
+  let expanded = renderNodes(template.wxml.nodes, componentScope, componentCtx, `${nodePath}#c`);
+  expanded = substituteSlots(expanded, children);
+  expanded = rewriteComponentHandlers(expanded, node.component, nodePath, ctx, node.loc);
+
+  const wrapper: ElementNode = { type: "element", tag: node.tag, props: hostProps, children: expanded };
+  // The component's WXSS is scoped to this attribute, so its rules never
+  // match a page element and two components with the same tag cannot collide.
+  wrapper.props["data-qchat-component"] = node.component;
+  if (Object.keys(dataset).length > 0) wrapper.dataset = dataset;
+  if (Object.keys(events).length > 0) wrapper.events = events;
+  return [wrapper];
+}
+
+/**
+ * Replace `wx-slot` with the caller's children. A child with `slot="name"`
+ * fills the matching named slot; every other child fills the default slot.
+ */
+function substituteSlots(
+  nodes: readonly RenderNode[],
+  callerChildren: readonly RenderNode[],
+): RenderNode[] {
+  const result: RenderNode[] = [];
+  for (const node of nodes) {
+    if (node.type === "element" && node.tag === "wx-slot") {
+      const rawName = node.props.name;
+      const name = typeof rawName === "string" ? rawName : "";
+      for (const child of callerChildren) {
+        if (child.type === "text") {
+          if (name === "") result.push(child);
+          continue;
+        }
+        const slot = child.props.slot;
+        const matches = name === "" ? slot === undefined : slot === name;
+        if (!matches) continue;
+        if (slot === undefined) {
+          result.push(child);
+        } else {
+          const copy: ElementNode = { ...child, props: { ...child.props } };
+          delete copy.props.slot;
+          result.push(copy);
+        }
+      }
+      continue;
+    }
+    if (node.type === "element") {
+      result.push({ ...node, children: substituteSlots(node.children, callerChildren) });
+    } else {
+      result.push(node);
+    }
+  }
+  return result;
+}
+
+/**
+ * A handler inside a component template is a component method, not a page
+ * method. The host maps it to a dispatchable name; a host that cannot dispatch
+ * component methods leaves the binding out and the render reports a warning.
+ */
+function rewriteComponentHandlers(
+  nodes: readonly RenderNode[],
+  componentPath: string,
+  instanceKey: string,
+  ctx: RenderContext,
+  loc: SourceLocation,
+): RenderNode[] {
+  return nodes.map((node) => {
+    if (node.type !== "element") return node;
+    const element: ElementNode = { ...node, children: rewriteComponentHandlers(node.children, componentPath, instanceKey, ctx, loc) };
+    if (!node.events) return element;
+    const events: Record<string, EventBinding> = {};
+    for (const [type, binding] of Object.entries(node.events)) {
+      // A nested component already namespaced its own handlers; leave them.
+      if (binding.handler.startsWith("component:")) {
+        events[type] = binding;
+        continue;
+      }
+      const mapped = ctx.options.componentHandler?.({
+        path: componentPath,
+        instanceKey,
+        handler: binding.handler,
+      });
+      if (typeof mapped === "string" && mapped.length > 0) {
+        events[type] = { ...binding, handler: mapped };
+      } else {
+        ctx.diagnostics.push(
+          diagnostic(
+            "WXML_RENDER_WARNING",
+            `Component method "${binding.handler}" cannot be dispatched by this host.`,
+            loc,
+          ),
+        );
+      }
+    }
+    element.events = events;
+    return element;
+  });
+}
+
+function renderNodes(
+  nodes: readonly TemplateNode[],
+  scope: Record<string, unknown>,
+  ctx: RenderContext,
+  path: string,
+): RenderNode[] {
+  const rendered: RenderNode[] = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    const nodePath = path.length === 0 ? String(index) : `${path}.${index}`;
+    switch (node.type) {
+      case "text": {
+        const text = stringifyExpressionValue(partValue(node.parts, scope, ctx));
+        const output: TextNode = { type: "text", text };
+        rendered.push(output);
+        break;
+      }
+      case "element": {
+        rendered.push(...renderElement(node, scope, ctx, nodePath));
+        break;
+      }
+      case "conditional": {
+        let matched = false;
+        for (const branch of node.branches) {
+          if (evaluate(branch.test, scope, ctx, branch.loc)) {
+            rendered.push(...renderNodes(branch.children, scope, ctx, nodePath));
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) rendered.push(...renderNodes(node.alternate, scope, ctx, nodePath));
+        break;
+      }
+      case "for": {
+        const list = evaluate(node.list, scope, ctx, node.loc);
+        if (!Array.isArray(list) && (typeof list !== "object" || list === null)) {
+          if (list !== undefined && list !== null) {
+            ctx.diagnostics.push(
+              diagnostic("WXML_RENDER_WARNING", `wx:for needs an array or object, got ${typeof list}.`, node.loc),
+            );
+          }
+          break;
+        }
+        const entries: [unknown, number][] = Array.isArray(list)
+          ? list.map((item, index): [unknown, number] => [item, index])
+          : Object.values(list as Record<string, unknown>).map((item, index): [unknown, number] => [item, index]);
+        for (const [item, index] of entries) {
+          const childScope: Record<string, unknown> = { ...scope, [node.item]: item, [node.index]: index };
+          const key = keyFor(node, item, index);
+          const children = renderNodes(node.children, childScope, ctx, `${nodePath}[${index}]`);
+          if (key.length === 0) {
+            rendered.push(...children);
+          } else {
+            rendered.push(...children.map((child, childIndex) => withKey(child, children.length === 1 ? key : `${key}:${childIndex}`)));
+          }
+        }
+        break;
+      }
+      case "templateCall": {
+        const name = typeof node.name === "string"
+          ? node.name
+          : evaluate(node.name, scope, ctx, node.loc);
+        if (typeof name !== "string" || name.length === 0) {
+          ctx.diagnostics.push(diagnostic("WXML_RENDER_WARNING", "A template call has no name.", node.loc));
+          break;
+        }
+        const nodesForTemplate = ctx.templates.get(name);
+        if (!nodesForTemplate) {
+          ctx.diagnostics.push(diagnostic("WXML_INVALID_ATTRIBUTE", `Template "${name}" is not defined.`, node.loc));
+          break;
+        }
+        let templateScope: Record<string, unknown> = {};
+        if (node.data) {
+          const value = evaluate(node.data, scope, ctx, node.loc);
+          if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+            templateScope = value as Record<string, unknown>;
+          } else if (value !== undefined) {
+            ctx.diagnostics.push(diagnostic("WXML_RENDER_WARNING", "Template data must be an object.", node.loc));
+          }
+        }
+        rendered.push(...renderNodes(nodesForTemplate, templateScope, ctx, nodePath));
+        break;
+      }
+    }
+  }
+  return rendered;
+}
+
+export function renderWxml(
+  compiled: CompiledWxml,
+  data: Record<string, unknown>,
+  options: RenderOptions = {},
+): CompileResult<RenderNode> {
+  let wxs = options.wxs ?? null;
+  if (!wxs && compiled.wxs) {
+    wxs = WXS_RUNTIMES.get(compiled) ?? null;
+    if (!wxs) {
+      try {
+        wxs = createWxsRuntime(compiled.wxs, options.wxsLog ? { log: options.wxsLog } : {});
+        WXS_RUNTIMES.set(compiled, wxs);
+      } catch (cause) {
+        return {
+          ok: false,
+          diagnostics: [
+            diagnostic("WXS_RUNTIME_ERROR", String(cause), {
+              file: compiled.file,
+              line: 1,
+              column: 1,
+              offset: 0,
+            }),
+          ],
+        };
+      }
+    }
+  }
+  const ctx: RenderContext = {
+    templates: compiled.templates,
+    componentTemplates: compiled.componentTemplates ?? {},
+    options,
+    diagnostics: [],
+    depth: 0,
+    wxs,
+  };
+  const nodes = renderNodes(compiled.nodes, data, ctx, "");
+  const tree: RenderNode = nodes.length === 1 && nodes[0].type === "element"
+    ? nodes[0]
+    : {
+      type: "element",
+      tag: "wx-view",
+      props: { class: "wx-page" },
+      children: nodes,
+    };
+  if (ctx.diagnostics.some((entry) => entry.code !== "WXML_RENDER_WARNING")) {
+    return { ok: false, diagnostics: ctx.diagnostics };
+  }
+  return { ok: true, value: tree, diagnostics: ctx.diagnostics };
+}

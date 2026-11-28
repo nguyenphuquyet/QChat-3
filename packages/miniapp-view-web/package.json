@@ -1,0 +1,30 @@
+{
+  "name": "@qchat/miniapp-view-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QChat Mini App View Runtime for the system WebView: DOM adapter, render client and dependency-free bundle",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "esbuild src/browser.ts --bundle --format=iife --global-name=QChatView --target=chrome61 --legal-comments=none --outfile=dist/qchat-view.js && tsx scripts/emit-components.ts",
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@qchat/miniapp-contracts": "workspace:*",
+    "@qchat/miniapp-view-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "esbuild": "0.27.7",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

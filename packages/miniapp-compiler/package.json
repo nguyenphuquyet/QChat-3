@@ -1,0 +1,29 @@
+{
+  "name": "@qchat/miniapp-compiler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "QChat Mini App compiler: WXML/WXSS parsing, diagnostics and render planning",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "fixture:miniapp": "tsx scripts/generate-miniapp-fixture.ts"
+  },
+  "dependencies": {
+    "@qchat/miniapp-contracts": "workspace:*",
+    "@qchat/miniapp-view-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

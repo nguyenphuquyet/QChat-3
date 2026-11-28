@@ -1,0 +1,8 @@
+<view class="page">
+  <my-card title="{{title}}" count="{{count}}" bind:change="onCardChange">
+    <text slot="head" class="heading">{{heading}}</text>
+    <text class="body">Body {{count}}</text>
+  </my-card>
+  <button class="inc" bindtap="onAdd">Inc</button>
+  <text class="clicks">Clicks: {{clicks}}</text>
+</view>
