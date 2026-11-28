@@ -1,6 +1,6 @@
 # ADR 009 — Service Runtime engine
 
-- **Status:** ACCEPTED (device measurement `BLOCKED`); synchronous-storage paragraph amended by ADR 010
+- **Status:** ACCEPTED (device measurement `BLOCKED`); synchronous-storage paragraph amended by ADR 010; packaging refined by ADR 017
 - **Date:** 2026-11-27
 - **Milestone:** M1
 - **Supersedes:** nothing. Amends the engine note in ADR 001.
