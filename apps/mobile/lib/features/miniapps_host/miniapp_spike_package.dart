@@ -7,9 +7,9 @@ import 'package:qchat_miniapp_webview/qchat_miniapp_webview.dart';
 /// The spike package: one page, no assets, no service code.
 ///
 /// This is deliberately **not** the installer. It has no signature, no archive
-/// and no rollback; it exists so the Android host can be exercised on a real
-/// phone before the QuickJS engine (host module 4) and the signed installer
-/// (host module 3) exist. The screen that opens it says so.
+/// and no rollback; it exists so the host can be exercised on a real phone or
+/// simulator before the signed installer and the service runtime are wired into
+/// a compiled Mini App. The screen that opens it says so.
 const miniAppSpikeAppId = 'com.qchat.spike';
 const miniAppSpikeVersion = '1.0.0';
 const miniAppSpikeRoute = 'pages/spike/index';
@@ -35,8 +35,8 @@ body{margin:0}
 /// Write the spike page into the installed layout and return the version
 /// directory.
 ///
-/// The path comes from the Android host, so the installer and the WebView can
-/// never disagree about where a version lives.
+/// The path comes from the host (`qchat/miniapp/installer`), so the installer
+/// and the WebView can never disagree about where a version lives.
 Future<String> installMiniAppSpike() async {
   final versionDir = await MiniAppInstallPaths.versionDir(
     appId: miniAppSpikeAppId,

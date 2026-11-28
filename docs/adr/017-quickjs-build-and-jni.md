@@ -110,6 +110,9 @@ context sees only the ECMAScript builtins.
   to load an Android library.
 - Device evidence (eval, timeout, memory limit, per-ABI size) stays
   `UNVERIFIED`/`BLOCKED` until the CI debug APK runs on a phone.
+- The iOS half of the same channel is JavaScriptCore and is recorded in
+  ADR 019. The envelope and method names here are the shared contract; the JNI,
+  the vendored sources and the interrupt-based timeout are Android-only.
 
 ## Evidence
 

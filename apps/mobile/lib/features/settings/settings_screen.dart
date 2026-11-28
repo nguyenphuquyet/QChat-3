@@ -98,7 +98,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         sectionGap,
-        if (kDebugMode && defaultTargetPlatform == TargetPlatform.android) ...[
+        if (kDebugMode &&
+            (defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS)) ...[
           const SectionLabel('developer'),
           MenuRow(
             'miniappHostSpike',

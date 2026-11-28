@@ -16,10 +16,12 @@ import 'miniapp_spike_package.dart';
 /// the system WebView, sends a `view.render` tree and shows every bridge event
 /// that comes back. There is no signed package and no service runtime on the
 /// page, so the page is a fixed tree built here, not a compiled Mini App. The
-/// QuickJS section below is the on-device check for the service runtime.
+/// service section below is the on-device check for the Service Runtime:
+/// QuickJS on Android, JavaScriptCore on iOS, behind the same channel.
 ///
-/// Debug builds on Android only: the entry point is hidden in release builds and
-/// on other platforms, because it is a diagnostic, not a product surface.
+/// Debug builds on Android and iOS only: the entry point is hidden in release
+/// builds and on other platforms, because it is a diagnostic, not a product
+/// surface.
 class MiniAppSpikeScreen extends StatefulWidget {
   const MiniAppSpikeScreen({super.key});
 
@@ -120,9 +122,15 @@ class _MiniAppSpikeScreenState extends State<MiniAppSpikeScreen> {
     }
   }
 
-  /// The device evidence path for host module 4: one runtime, four scripts,
-  /// then close. Nothing here runs in CI; the native library only exists on a
-  /// phone or emulator.
+  /// The device evidence path for host modules 4 and 6: one runtime, four
+  /// scripts, then close. Nothing here runs in CI; the native engine only
+  /// exists on a phone or emulator.
+  ///
+  /// The timeout is last on purpose. Android interrupts the loop and keeps the
+  /// runtime usable; iOS cannot interrupt JavaScriptCore, so the runtime is
+  /// poisoned and the loop is left to finish on its own. The loop is bounded
+  /// (about five seconds) so that abandoned thread exits instead of spinning
+  /// until the process ends, and the check still finishes long before it.
   Future<void> _runServiceCheck() async {
     if (_serviceBusy) return;
     setState(() {
@@ -150,7 +158,8 @@ class _MiniAppSpikeScreenState extends State<MiniAppSpikeScreen> {
         _describe(
           'timeout',
           await runtime.eval(
-            'while (true) {}',
+            '(() => { const end = Date.now() + 5000; '
+            'while (Date.now() < end) {} })()',
             timeout: const Duration(milliseconds: 300),
           ),
         ),

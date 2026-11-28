@@ -229,9 +229,9 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => FeatureScreen(kind: s.pathParameters['kind']!),
         ),
         qchatRoute(path: '/miniApps', builder: (_, s) => const MiniAppsScreen()),
-        // Debug-only Android diagnostic: the host spike, the page bridge and the
-        // QuickJS service runtime check. Static route first, so it is never read
-        // as an app id.
+        // Debug-only Android/iOS diagnostic: the host spike, the page bridge and
+        // the service runtime check. Static route first, so it is never read as
+        // an app id.
         qchatRoute(
           path: '/miniApps/spike',
           builder: (_, s) => const MiniAppSpikeScreen(),

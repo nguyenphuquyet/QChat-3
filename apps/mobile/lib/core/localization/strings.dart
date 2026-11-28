@@ -1255,16 +1255,16 @@ const translations = <String, List<String>>{
     '小程序宿主测试',
   ],
   'miniappHostSpikeNote': [
-    'Runs one installed page through the new Android WebView host, sends a '
+    'Runs one installed page through the new Android/iOS WebView host, sends a '
         'view.render tree and lists every bridge event that comes back. The page '
-        'is a fixed diagnostic tree; the QuickJS check below exercises the real '
+        'is a fixed diagnostic tree; the service check below exercises the real '
         'service runtime.',
-    'Chạy một trang đã cài qua máy chủ WebView Android mới, gửi cây view.render '
-        'và liệt kê mọi sự kiện cầu nối trả về. Trang này là cây chẩn đoán cố '
-        'định; phần kiểm tra QuickJS bên dưới chạy service runtime thật.',
-    '通过新的 Android WebView 宿主运行一个已安装页面，发送 view.render 树并列出'
-        '所有返回的桥接事件。该页面是固定的诊断树；下方的 QuickJS 检查会运行真实'
-        '的 service runtime。',
+    'Chạy một trang đã cài qua máy chủ WebView Android/iOS mới, gửi cây '
+        'view.render và liệt kê mọi sự kiện cầu nối trả về. Trang này là cây '
+        'chẩn đoán cố định; phần kiểm tra bên dưới chạy service runtime thật.',
+    '通过新的 Android/iOS WebView 宿主运行一个已安装页面，发送 view.render 树并'
+        '列出所有返回的桥接事件。该页面是固定的诊断树；下方的检查会运行真实的 '
+        'service runtime。',
   ],
   'miniappHostOpen': ['Install and open', 'Cài đặt và mở', '安装并打开'],
   'miniappHostInstalling': [
@@ -1289,36 +1289,37 @@ const translations = <String, List<String>>{
     '小程序宿主已停止',
   ],
   'miniappHostService': [
-    'QuickJS service runtime',
-    'Service runtime QuickJS',
-    'QuickJS 服务运行时',
+    'Service runtime',
+    'Service runtime',
+    '服务运行时',
   ],
   'miniappHostServiceNote': [
-    'Creates one QuickJS runtime, evaluates a value, a Unicode string, a thrown '
-        'error and a timed-out loop, then frees it. This is the channel the '
-        'service runtime uses; the page WebView never runs these scripts.',
-    'Tạo một QuickJS runtime, đánh giá một giá trị, một chuỗi Unicode, một lỗi '
-        'được ném và một vòng lặp quá thời gian, rồi giải phóng nó. Đây là kênh '
-        'service runtime sử dụng; WebView của trang không bao giờ chạy các script '
-        'này.',
-    '创建一个 QuickJS 运行时，依次执行一个值、一个 Unicode 字符串、一个抛出的'
-        '错误和一个超时循环，然后释放它。这是 service runtime 使用的通道；页面 '
-        'WebView 永远不会运行这些脚本。',
+    'Creates one service runtime (QuickJS on Android, JavaScriptCore on iOS), '
+        'evaluates a value, a Unicode string, a thrown error and a timed-out '
+        'loop, then frees it. This is the channel the service runtime uses; the '
+        'page WebView never runs these scripts.',
+    'Tạo một service runtime (QuickJS trên Android, JavaScriptCore trên iOS), '
+        'đánh giá một giá trị, một chuỗi Unicode, một lỗi được ném và một vòng '
+        'lặp quá thời gian, rồi giải phóng nó. Đây là kênh service runtime sử '
+        'dụng; WebView của trang không bao giờ chạy các script này.',
+    '创建一个 service runtime（Android 为 QuickJS，iOS 为 JavaScriptCore），依次'
+        '执行一个值、一个 Unicode 字符串、一个抛出的错误和一个超时循环，然后释放'
+        '它。这是 service runtime 使用的通道；页面 WebView 永远不会运行这些脚本。',
   ],
   'miniappHostServiceRun': [
-    'Run QuickJS check',
-    'Chạy kiểm tra QuickJS',
-    '运行 QuickJS 检查',
+    'Run service check',
+    'Chạy kiểm tra service',
+    '运行服务检查',
   ],
   'miniappHostServiceRunning': [
-    'Running the QuickJS check...',
-    'Đang chạy kiểm tra QuickJS...',
-    '正在运行 QuickJS 检查...',
+    'Running the service check...',
+    'Đang chạy kiểm tra service...',
+    '正在运行服务检查...',
   ],
   'miniappHostServiceNoResult': [
-    'No QuickJS run yet.',
-    'Chưa chạy QuickJS.',
-    '尚未运行 QuickJS。',
+    'No service run yet.',
+    'Chưa chạy service.',
+    '尚未运行服务。',
   ],
 };
 String tr(BuildContext context, String key) {

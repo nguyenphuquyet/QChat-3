@@ -1,8 +1,9 @@
 name: qchat_miniapp_quickjs
 description: >-
-  Android QuickJS service runtime for QChat Mini Apps: one JavaScript runtime
-  per Mini App instance, built from a pinned upstream tarball through CMake for
-  arm64-v8a, armeabi-v7a and x86_64. See docs/adr/017.
+  Service runtime for QChat Mini Apps: one JavaScript runtime per Mini App
+  instance. Android builds pinned QuickJS through CMake for arm64-v8a,
+  armeabi-v7a and x86_64; iOS uses the system JavaScriptCore. See
+  docs/adr/017 and docs/adr/019.
 version: 0.1.0
 publish_to: none
 
@@ -19,4 +20,6 @@ flutter:
     platforms:
       android:
         package: com.qchat.miniapp.quickjs
+        pluginClass: QchatQuickjsPlugin
+      ios:
         pluginClass: QchatQuickjsPlugin

@@ -6,7 +6,7 @@ import 'package:qchat_miniapp_webview/qchat_miniapp_webview.dart';
 import '../../core/design_system/components.dart';
 import '../../core/localization/strings.dart';
 
-/// One Mini App page, drawn by the Android system WebView (ADR 011/012).
+/// One Mini App page, drawn by the system WebView (ADR 011/012/018).
 ///
 /// The screen owns the bridge binding, the loading and error surfaces and the
 /// teardown. It never renders Mini App content itself: the page tree arrives as
