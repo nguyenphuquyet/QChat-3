@@ -33,6 +33,7 @@ implementation is M4/M3.
 | Renderer | Typed tree, ops, event binding | Experimental | `packages/miniapp-view-runtime/test/view.test.ts` | Only `wx-*` tags render |
 | Tree diff | `diffRenderTree`, deterministic op order, no full reload | Experimental | `packages/miniapp-contracts/test/renderer-diff.test.ts` | Removes descending, inserts ascending |
 | Render session | `seq` ordering, tree then ops, stale payload ignored | Experimental | `packages/miniapp-view-runtime/test/session.test.ts` | Ops before a tree are rejected |
+| View WebView client | `window.__qchatView` start/receive/destroy; tree/ops; page-root theme; `bind`/`catch` bubbling | Experimental | `packages/miniapp-view-web/test/client.test.ts`, `test/browser.test.ts`, `test/bundle.test.ts` | Dependency-free 51 KB bundle; device WebView is M6 `BLOCKED` |
 | Service | `App`/`Page`, lifecycle, stack, path-based `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | First visible render is a tree; later updates are ops |
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
 | Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device host is M6 |

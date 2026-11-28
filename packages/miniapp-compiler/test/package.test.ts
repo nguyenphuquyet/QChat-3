@@ -55,6 +55,16 @@ function unwrap<T>(result: { ok: true; value: T } | { ok: false; error: { messag
   return result.value;
 }
 
+/** Locate the EOCD and the first central-directory entry of a ZIP archive. */
+function zipLayout(bytes: Buffer): { eocd: number; central: number } {
+  for (let offset = bytes.length - 22; offset >= 0; offset -= 1) {
+    if (bytes.readUInt32LE(offset) === 0x06054b50) {
+      return { eocd: offset, central: bytes.readUInt32LE(offset + 16) };
+    }
+  }
+  throw new Error("no EOCD");
+}
+
 function createApp(overrides: Partial<typeof OPTIONS> = {}): AppPackageResult {
   const result = createAppPackage(read, { ...OPTIONS, ...overrides });
   assert.equal(result.ok, true, result.error?.message);
@@ -112,6 +122,29 @@ test("a wrong key or a tampered package is rejected", () => {
     !result.ok && ["PACKAGE_HASH_MISMATCH", "PACKAGE_FORMAT_UNSUPPORTED"].includes(result.error.code),
     !result.ok ? result.error.code : "verified",
   );
+});
+
+test("ZIP64, encrypted entries and symbolic links are refused", () => {
+  const archive = createApp().created!.bytes;
+  const { eocd, central } = zipLayout(archive);
+
+  const zip64 = Buffer.from(archive);
+  zip64.writeUInt32LE(0xffffffff, eocd + 16);
+  const zip64Result = verifyPackage(zip64, { publicKeys: PUBLIC, runtimeVersion: "0.1.0" });
+  assert.equal(zip64Result.ok, false);
+  assert.equal(!zip64Result.ok && zip64Result.error.code, "PACKAGE_FORMAT_UNSUPPORTED");
+
+  const encrypted = Buffer.from(archive);
+  encrypted.writeUInt16LE(encrypted.readUInt16LE(central + 8) | 0x1, central + 8);
+  const encryptedResult = verifyPackage(encrypted, { publicKeys: PUBLIC, runtimeVersion: "0.1.0" });
+  assert.equal(encryptedResult.ok, false);
+  assert.equal(!encryptedResult.ok && encryptedResult.error.code, "PACKAGE_FORMAT_UNSUPPORTED");
+
+  const symlink = Buffer.from(archive);
+  symlink.writeUInt32LE(0xa1ff0000, central + 38);
+  const symlinkResult = verifyPackage(symlink, { publicKeys: PUBLIC, runtimeVersion: "0.1.0" });
+  assert.equal(symlinkResult.ok, false);
+  assert.equal(!symlinkResult.ok && symlinkResult.error.code, "PACKAGE_UNSAFE_PATH");
 });
 
 test("a package that needs a newer runtime is rejected", () => {

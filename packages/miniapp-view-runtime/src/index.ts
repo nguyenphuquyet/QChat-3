@@ -113,7 +113,7 @@ export function createViewRenderer(adapter: DomAdapter, options: ViewRendererOpt
         binding,
         handle: (event: DomEvent) => emitEvent(binding, record.dataset, event),
       };
-      adapter.addEventListener(handle, type, listener.handle);
+      adapter.addEventListener(handle, type, listener.handle, { stopPropagation: binding.catch ?? false });
       record.listeners.set(type, listener);
     }
     record.children = node.children.map((child) => create(child));
@@ -164,7 +164,7 @@ export function createViewRenderer(adapter: DomAdapter, options: ViewRendererOpt
         binding,
         handle: (event: DomEvent) => emitEvent(binding, record.dataset, event),
       };
-      adapter.addEventListener(record.handle, type, listener.handle);
+      adapter.addEventListener(record.handle, type, listener.handle, { stopPropagation: binding.catch ?? false });
       record.listeners.set(type, listener);
     }
 
@@ -238,7 +238,9 @@ export function createViewRenderer(adapter: DomAdapter, options: ViewRendererOpt
       render(ops[0].node);
       return;
     }
-    const next = structuredClone(tree);
+    // A recursive copy, not `structuredClone`: the minimum Android WebView
+    // predates it, and the tree is JSON-shaped data by contract.
+    const next = cloneRenderNode(tree);
     for (const operation of ops) {
       applyOp(next, operation);
     }
@@ -330,6 +332,25 @@ export function createViewRenderer(adapter: DomAdapter, options: ViewRendererOpt
       return currentTheme;
     },
   };
+}
+
+function cloneRenderNode(node: RenderNode): RenderNode {
+  if (node.type === "text") return { type: "text", text: node.text };
+  const copy: ElementNode = {
+    type: "element",
+    tag: node.tag,
+    props: { ...node.props },
+    children: node.children.map(cloneRenderNode),
+  };
+  if (node.key !== undefined) copy.key = node.key;
+  if (node.dataset) copy.dataset = { ...node.dataset };
+  if (node.events) {
+    copy.events = {};
+    for (const [type, binding] of Object.entries(node.events)) {
+      copy.events[type] = { handler: binding.handler, ...(binding.catch ? { catch: true } : {}) };
+    }
+  }
+  return copy;
 }
 
 /** The bridge event name the view uses to send an event to the service. */

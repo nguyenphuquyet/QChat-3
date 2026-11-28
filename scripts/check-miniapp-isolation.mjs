@@ -14,6 +14,7 @@ const ROOTS = [
   "packages/miniapp-contracts",
   "packages/miniapp-service-runtime",
   "packages/miniapp-view-runtime",
+  "packages/miniapp-view-web",
   "packages/miniapp-compiler",
   "packages/miniapp-test-harness",
   "packages/miniapp-examples-v2",

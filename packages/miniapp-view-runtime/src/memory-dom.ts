@@ -95,7 +95,12 @@ export class MemoryDomAdapter implements DomAdapter {
     childNode.parent = null;
   }
 
-  addEventListener(handle: string, type: string, handler: (event: DomEvent) => void): void {
+  addEventListener(
+    handle: string,
+    type: string,
+    handler: (event: DomEvent) => void,
+    _options?: { stopPropagation?: boolean },
+  ): void {
     const node = this.nodes.get(handle);
     if (!node) throw new Error("addEventListener: unknown handle");
     let set = node.listeners.get(type);

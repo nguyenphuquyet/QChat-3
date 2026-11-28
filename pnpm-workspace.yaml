@@ -7,4 +7,5 @@ packages:
   - packages/miniapp-compiler
   - packages/miniapp-service-runtime
   - packages/miniapp-view-runtime
+  - packages/miniapp-view-web
   - packages/miniapp-test-harness

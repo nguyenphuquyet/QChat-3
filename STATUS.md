@@ -2,13 +2,14 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M6 — MVP validation** (M5 package exit check `PASS`; Android host `BLOCKED`)
+- **Current milestone:** **M6 — MVP validation** (M5 package exit check `PASS`; view client `PASS` in Node; Android host/device `BLOCKED`)
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
 - **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
 - **M3 exit check:** `PASS` (Node); device rendering and theme matrix are `BLOCKED`
 - **M4 exit check:** `PASS` (Node); device API/network evidence is `BLOCKED`
 - **M5 exit check:** `PASS` (Node); the Android host build/device is `BLOCKED`
+- **M6 exit check:** `PASS` (Node-verifiable items); Android host, Dart installer, device run and metrics `BLOCKED`
 - **PLAN:** `DONE`
 - **M0:** `DONE`
 - **M1:** `DONE` (device evidence `BLOCKED`)
@@ -16,6 +17,7 @@
 - **M3:** `DONE` (device view/theme evidence `BLOCKED`)
 - **M4:** `DONE` (device API evidence `BLOCKED`)
 - **M5:** `DONE` (package/installer/storage; Android host `BLOCKED`)
+- **M6:** `DONE` (view client, threat model, adversarial tests; Android host/device `BLOCKED`)
 - **Last updated:** 2026-11-28
 
 ## 1. Where the work stands
@@ -80,7 +82,7 @@
   signature, limits, path/extension rules, runtime gate), the compiler's
   `build/view.json` artifact, the installer (`PackageStore`: staging, atomic
   rename, two versions, rollback, revocation, downgrade) and per-app storage
-  (`FileStorageAdapter`: key hashing, quota, corruption) — 73 compiler tests.
+  (`FileStorageAdapter`: key hashing, quota, corruption) — 74 compiler tests.
 - M5 proof: an installed `qchat-hello` package runs from `build/view.json` with
   no compiler on the path (`loadInstalledPackage`), including a refused bundle
   mismatch and a refused source-only package — 16 harness tests.
@@ -90,8 +92,14 @@
 
 ### In progress
 
-- M6 MVP validation: task plan next. The Android host build and a phone remain
-  the gating inputs.
+- M6 MVP validation: task plan (§14), the threat model
+  (`docs/security/threat-model.md`), ADR 012 and the View WebView client are
+  written. `packages/miniapp-view-web` applies tree/ops to a browser DOM, writes
+  `data-theme` and `color-scheme` on the page root, forwards `bind`/`catch`
+  events and ships a 50.6 KB dependency-free bundle that a `vm` test evaluates.
+  The package adversarial tests cover ZIP64, encryption, symlinks and tampering.
+  The Android host build, the Dart installer, the device run and the
+  measurements remain `BLOCKED`.
 
 ### Blocked
 
@@ -105,11 +113,14 @@
 
 ### Next task
 
-M6 — MVP validation: write the M6 task plan, then build the Android host
-(WebView asset loader + message listener, QuickJS engine binding, Dart installer
-and runtime screen), run `qchat-hello` on a real phone, measure section 9.1 and
-write the bridge/package threat model. Without an SDK/phone the host stays
-`BLOCKED`; the phone checklist stays in §5.4.
+M6 is closed for the Node-verifiable items: the view client, the threat model
+and the adversarial package tests are done, and §15 records `PASS`/`BLOCKED` per
+item. The Android host (WebView asset loader + message listener, QuickJS engine
+binding), the Dart installer/runtime screen, the real-phone run and the section
+9.1 measurements stay `BLOCKED` (no SDK/phone). The phone checklist stays in
+§5.4; the first device run covers these items, and none of them counts as passed
+before it. M7 may start under the spec's `BLOCKED` rule, with every device claim
+marked `UNVERIFIED`.
 
 ### How to verify M0
 
@@ -1012,7 +1023,7 @@ them.
 | Installed run | `packages/miniapp-test-harness/test/installed.test.ts`: install `qchat-hello`, launch, tap, patch |
 | Type check | `pnpm typecheck` pass (2 GB heap) |
 | Isolation guard | `pnpm check:miniapp` pass (9 roots) |
-| Tests | `pnpm test:miniapp` → **242 pass, 0 fail** (contracts 51, compiler 73, service 66, view 36, harness 16) |
+| Tests | `pnpm test:miniapp` → **243 pass, 0 fail** (contracts 51, compiler 74, service 66, view 36, harness 16) |
 | Android host | `BLOCKED`: no SDK/NDK/phone; seam and layout fixed in ADR 011 |
 | Removal progress | 8/54 (rows 6, 7, 8, 13, 16, 26, 31, 34); rows 5 and 14 carried to M6 |
 | Compatibility update | §1.0 package/bundle/install/storage rows with linked tests |
@@ -1107,3 +1118,77 @@ Get-Content docs/adr/011-installed-layout-and-android-host.md
   asset-loader origin, the message listener, the engine thread and teardown.
   ADR 008 is amended for the bundle requirement, optional page JSON/WXSS and the
   registry error-code names.
+- **ADR 012 — View WebView client, message transport and event semantics.**
+  `window.__qchatView`, the `qchatViewBridge` channel, `view.ready`/`view.error`,
+  the page-root theme, `bind`/`catch` bubbling and the dependency-free bundle.
+
+## 14. M6 task plan
+
+| # | Task | Done when | State |
+|---|---|---|---|
+| 1 | Android host | `packages/qchat_miniapp_webview` builds; `WebViewAssetLoader` serves the installed directory at the fixed origin; `addWebMessageListener` accepts only that origin; QuickJS runs on its own thread with the SDK and the ADR 010 sync binding | `BLOCKED` (no SDK/NDK/emulator/phone) |
+| 2 | View WebView bundle | A dependency-free JS client applies `tree`/`ops` to the DOM, sets `data-theme` and `color-scheme` on the page root, and forwards events; tested against a fake DOM | Done (Node): `packages/miniapp-view-web`, 25 tests, 50.6 KB bundle; device WebView `BLOCKED` |
+| 3 | Dart installer and runtime screen | Verify/install a `.qxpkg` from Dart (`archive` + an Ed25519 package), rollback, per-app storage; the QChat-drawn screen launches a verified package and reports errors honestly | `BLOCKED` on the Ed25519 choice and a Flutter build |
+| 4 | Device run | `qchat-hello` installs and runs on a real Android phone; a second Android/WebView version where available | `BLOCKED` (no phone) |
+| 5 | Metrics | Section 9.1 cold start, install, first render, `setData` latency and memory, measured on the reference device | `BLOCKED` (no device) |
+| 6 | Threat model and tests | `docs/security/threat-model.md`; adversarial bridge and package tests | Done for the Node-verifiable part; device threats stay `BLOCKED` |
+| 7 | MVP report and exit check | Evidence table, `PASS`/`BLOCKED` per item, no device claim without a device | Done: §15; Node items `PASS`, device items `BLOCKED` |
+
+M6 is the MVP checkpoint: M7 production code does not start until the exit check
+passes. Tasks 1, 3, 4 and 5 need hardware or an Android toolchain the environment
+does not have; they stay `BLOCKED` and are reported as such, never as passed.
+
+## 15. M6 report and exit check
+
+### 15.1 Evidence
+
+| Item | Evidence | State |
+|---|---|---|
+| View client applies a full tree, then path ops | `packages/miniapp-view-web/src/client.ts`; `test/client.test.ts` (18) | `PASS` (Node) |
+| Page-root theme `data-theme` + `color-scheme`; theme event never reloads | `src/dom.ts`; `test/client.test.ts` | `PASS` (Node) |
+| `bind` bubbles, `catch` stops at the element | `src/dom.ts`; `test/client.test.ts` | `PASS` (Node) |
+| Foreign binding, ops before a tree, wrong page, stale `seq` rejected/ignored | `src/client.ts`; `test/client.test.ts` | `PASS` (Node) |
+| `window.__qchatView.start/receive/destroy`; one start; missing root/channel refused | `src/install.ts`; `test/browser.test.ts` (5) | `PASS` (Node) |
+| Dependency-free bundle: no import/require/eval/Function/innerHTML/fetch/XHR/WebSocket; runs in `vm` | `dist/qchat-view.js`; `test/bundle.test.ts` (2) | `PASS` (Node) |
+| No `structuredClone` dependency (Chrome 61) | `packages/miniapp-view-runtime/test/view.test.ts` | `PASS` (Node) |
+| Threat model with test map and residual risks | `docs/security/threat-model.md` | `PASS` |
+| Adversarial package tests (ZIP64, encryption, symlink, tamper, oversized) | `packages/miniapp-compiler/test/package.test.ts` | `PASS` (Node) |
+| Type check | `pnpm typecheck` | `PASS` |
+| Isolation guard | `pnpm check:miniapp` (10 roots) | `PASS` |
+| Tests | `pnpm test:miniapp` → **269 pass, 0 fail** (contracts 51, compiler 74, service 66, view 37, view-web 25, harness 16) | `PASS` |
+| Android host build (asset loader, message listener, QuickJS thread, sync binding) | No SDK/NDK/emulator/phone | `BLOCKED` |
+| Dart installer/runtime screen and device Ed25519 | No Flutter build/device; Ed25519 package choice open | `BLOCKED` |
+| `qchat-hello` on a real Android phone, second WebView version | No phone | `BLOCKED` |
+| Section 9.1 cold start, install, first render, `setData` latency, memory | No reference device | `BLOCKED` |
+| Foreign origin/frame and closed-page bridge tests on a real WebView | No device | `BLOCKED` |
+
+### 15.2 What M6 proves
+
+- One renderer and one render session drive the Node harness and the WebView
+  client; there is no second renderer to drift.
+- Page data reaches the DOM as text and attributes only. The bundle test proves
+  the shipped client has no HTML sink, dynamic code or network primitive.
+- The render protocol is enforced at the view edge: binding, page id, monotonic
+  `seq`, tree-before-ops, and a theme event that changes the root only.
+- `catch` stops native propagation and `bind` lets it bubble, so WeChat event
+  semantics survive the DOM mapping.
+- The package path refuses forged, oversized, ZIP64, encrypted, symlinked and
+  tampered archives before anything is written.
+
+### 15.3 What M6 does not prove
+
+- No WebView origin check, message listener, QuickJS JNI, Ed25519 verifier, TLS
+  stack, storage durability or theme matrix has run on a phone. Those items are
+  `BLOCKED`; the MVP is not complete.
+- The `setData` cost is a tree clone plus a diff per batch. It is unmeasured on
+  the reference device; a missed target needs a direct DOM patch (threat model
+  residual risk 9).
+- `view.ready`/`view.error` are new internal names; the Android host must route
+  them and the iOS host must match in M8.
+
+### 15.4 Exit check
+
+`PASS` for the Node-verifiable M6 items, with tasks 1, 3, 4, 5 and the device
+parts of 2 and 6 `BLOCKED`. This is the spec's `BLOCKED` rule: the phase closes,
+M7 may start, and every device claim stays `UNVERIFIED` until the first real
+device run. The MVP is **not** declared complete.

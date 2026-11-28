@@ -79,6 +79,15 @@ export const VIEW_THEME_EVENT = "view.theme" as const;
 export const VIEW_DESTROY_EVENT = "view.destroy" as const;
 /** View Runtime to Service Runtime. */
 export const VIEW_INPUT_EVENT = "view.event" as const;
+/** View Runtime to host: the page is ready for its first tree. */
+export const VIEW_READY_EVENT = "view.ready" as const;
+/** View Runtime to host: a message was rejected before it touched the DOM. */
+export const VIEW_ERROR_EVENT = "view.error" as const;
+
+export interface ViewErrorPayload {
+  code: string;
+  message: string;
+}
 
 /** An event the View Runtime sends back to the Service Runtime. */
 export interface ViewEvent {
@@ -119,7 +128,17 @@ export interface DomAdapter {
   appendChild(parent: string, child: string): void;
   insertBefore(parent: string, child: string, index: number): void;
   removeChild(parent: string, child: string): void;
-  addEventListener(handle: string, type: string, handler: (event: DomEvent) => void): void;
+  /**
+   * `stopPropagation` implements WXML `catch`: the DOM listener stops the
+   * native event at this element before the handler runs. The memory adapter
+   * has no bubbling, so it records the flag without changing its behaviour.
+   */
+  addEventListener(
+    handle: string,
+    type: string,
+    handler: (event: DomEvent) => void,
+    options?: { stopPropagation?: boolean },
+  ): void;
   removeEventListener(handle: string, type: string, handler: (event: DomEvent) => void): void;
   setRootTheme(theme: ResolvedTheme): void;
 }

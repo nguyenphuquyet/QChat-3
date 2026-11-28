@@ -100,6 +100,20 @@ test("patch applies typed operations and still diffs", () => {
   assert.equal(dom.snapshot().children[0].children[1].attrs.type, "warn");
 });
 
+test("patch does not depend on structuredClone (the minimum WebView has none)", () => {
+  const dom = new FakeDomAdapter();
+  const view = createViewRenderer(dom);
+  view.render(page(0));
+  const original = globalThis.structuredClone;
+  try {
+    Object.defineProperty(globalThis, "structuredClone", { value: undefined, configurable: true, writable: true });
+    view.patch([{ op: "setText", path: [0, 0], text: "count:5" }]);
+  } finally {
+    Object.defineProperty(globalThis, "structuredClone", { value: original, configurable: true, writable: true });
+  }
+  assert.equal(dom.snapshot().children[0].children[0].children[0].text, "count:5");
+});
+
 test("an unsafe tree is rejected before touching the DOM", () => {
   const dom = new FakeDomAdapter();
   const view = createViewRenderer(dom);
