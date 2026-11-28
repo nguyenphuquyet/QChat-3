@@ -25,6 +25,11 @@ import {
   type CompiledWxml,
   type TemplateNode,
 } from "./wxml-compiler.js";
+import {
+  loadComponentRegistry,
+  type CompiledComponent,
+  type ComponentStyleIsolation,
+} from "./components.js";
 import { compileWxss, type CompiledWxss } from "./wxss.js";
 import type { CompileResult, Diagnostic } from "./diagnostics.js";
 import {
@@ -45,7 +50,17 @@ export interface SerializedWxml {
   file: string;
   nodes: TemplateNode[];
   templates: Record<string, TemplateNode[]>;
+  /** Local component tag to component path. */
+  componentTags: Record<string, string>;
   files: string[];
+}
+
+export interface SerializedComponent {
+  path: string;
+  wxml: SerializedWxml;
+  /** The component's own WXSS, scoped to its wrapper element. */
+  css: string;
+  styleIsolation: ComponentStyleIsolation;
 }
 
 export interface ViewBundlePage {
@@ -63,6 +78,8 @@ export interface ViewBundle {
   /** App WXSS on its own, for hosts that apply it to a shared root. */
   appCss: string;
   pages: Record<string, ViewBundlePage>;
+  /** Compiled custom component templates, keyed by package path. */
+  components: Record<string, SerializedComponent>;
 }
 
 export interface BuiltViewBundle {
@@ -112,16 +129,31 @@ function serializeWxml(compiled: CompiledWxml): SerializedWxml {
     file: compiled.file,
     nodes: compiled.nodes,
     templates: Object.fromEntries(compiled.templates),
+    componentTags: { ...compiled.componentTags },
     files: [...compiled.files],
   };
 }
 
+function serializeComponent(component: CompiledComponent): SerializedComponent {
+  return {
+    path: component.path,
+    wxml: serializeWxml(component.wxml),
+    css: component.css.css,
+    styleIsolation: component.styleIsolation,
+  };
+}
+
 /** Turn a bundle page back into the compiler's `CompiledWxml` shape. */
-export function reviveWxml(serialized: SerializedWxml): CompiledWxml {
+export function reviveWxml(
+  serialized: SerializedWxml,
+  componentTemplates: Readonly<Record<string, CompiledComponent>> = {},
+): CompiledWxml {
   return {
     file: serialized.file,
     nodes: serialized.nodes,
     templates: new Map(Object.entries(serialized.templates)),
+    componentTags: { ...(serialized.componentTags ?? {}) },
+    componentTemplates,
     files: serialized.files,
   };
 }
@@ -175,14 +207,42 @@ export function buildViewBundle(
   }
 
   const bundlePages: Record<string, ViewBundlePage> = {};
+  const bundleComponents: Record<string, SerializedComponent> = {};
   for (const route of pages as string[]) {
+    const configText = read(`${route}.json`);
+    let config: Record<string, unknown> = {};
+    if (configText !== null) {
+      sources.add(`${route}.json`);
+      const parsed = parseJsonObject(configText, `${route}.json`);
+      if (!parsed.ok) return { ok: false, diagnostics: [parsed.diagnostic] };
+      config = parsed.value;
+    }
+
     const wxmlSource = read(`${route}.wxml`);
     if (wxmlSource === null) {
       return { ok: false, diagnostics: [at(`${route}.wxml`, "A declared page is missing its WXML.")] };
     }
     sources.add(`${route}.wxml`);
+
+    const registry = loadComponentRegistry({
+      read,
+      pageFile: `${route}.wxml`,
+      ...(app.usingComponents !== undefined ? { appUsingComponents: app.usingComponents as Record<string, unknown> } : {}),
+      ...(config.usingComponents !== undefined ? { pageUsingComponents: config.usingComponents as Record<string, unknown> } : {}),
+    });
+    diagnostics.push(...registry.diagnostics);
+    if (!registry.ok) return { ok: false, diagnostics };
+    for (const file of registry.value.files) sources.add(file);
+    let componentCss = "";
+    for (const [path, component] of Object.entries(registry.value.templates)) {
+      bundleComponents[path] = serializeComponent(component);
+      componentCss += component.css.css;
+    }
+
     const wxml = compileWxml(wxmlSource, `${route}.wxml`, {
       loadFile: read,
+      componentTags: registry.value.tags,
+      componentTemplates: registry.value.templates,
       ...(options.components ? { components: options.components } : {}),
     });
     diagnostics.push(...wxml.diagnostics);
@@ -200,15 +260,6 @@ export function buildViewBundle(
       for (const file of pageWxss.files) sources.add(file);
     }
 
-    const configText = read(`${route}.json`);
-    let config: Record<string, unknown> = {};
-    if (configText !== null) {
-      sources.add(`${route}.json`);
-      const parsed = parseJsonObject(configText, `${route}.json`);
-      if (!parsed.ok) return { ok: false, diagnostics: [parsed.diagnostic] };
-      config = parsed.value;
-    }
-
     if (read(`${route}.js`) === null) {
       return { ok: false, diagnostics: [at(`${route}.js`, "A declared page is missing its JavaScript.")] };
     }
@@ -216,7 +267,7 @@ export function buildViewBundle(
 
     bundlePages[route] = {
       wxml: serializeWxml(wxml.value),
-      css: `${appWxss.css}${pageWxss.css}`,
+      css: `${appWxss.css}${pageWxss.css}${componentCss}`,
       config,
     };
   }
@@ -226,6 +277,7 @@ export function buildViewBundle(
     formatVersion: VIEW_BUNDLE_VERSION,
     appCss: appWxss.css,
     pages: bundlePages,
+    components: bundleComponents,
   };
   return {
     ok: true,

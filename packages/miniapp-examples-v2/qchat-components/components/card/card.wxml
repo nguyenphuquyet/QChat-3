@@ -1,0 +1,7 @@
+<view class="card">
+  <slot name="head"></slot>
+  <text class="title">{{title}} / {{count}}</text>
+  <text class="taps">{{taps}}</text>
+  <button class="add" bindtap="onTap">Add</button>
+  <slot></slot>
+</view>

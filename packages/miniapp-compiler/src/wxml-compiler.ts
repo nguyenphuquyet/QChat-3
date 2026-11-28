@@ -21,6 +21,7 @@ import {
   type RenderPropValue,
   type TextNode,
 } from "@qchat/miniapp-contracts";
+import type { CompiledComponent } from "./components.js";
 import { diagnostic, type CompileResult, type Diagnostic, type SourceLocation } from "./diagnostics.js";
 import {
   evaluateExpression,
@@ -32,8 +33,12 @@ import { resolvePackagePath } from "./paths.js";
 import { parseWxml, type WxmlAttribute, type WxmlDocument, type WxmlElement, type WxmlNode } from "./wxml.js";
 
 export interface CompileOptions {
-  /** Custom components the build knows about (M7). Unknown tags are errors. */
+  /** Custom component tags with no template expansion (kept for M3 fixtures). */
   components?: readonly string[];
+  /** Local component tag to component path, resolved from `usingComponents`. */
+  componentTags?: Readonly<Record<string, string>>;
+  /** Compiled component templates, keyed by component path. */
+  componentTemplates?: Readonly<Record<string, CompiledComponent>>;
   /** Read a package file for `import`/`include`; return `null` when absent. */
   loadFile?: (path: string) => string | null;
 }
@@ -42,6 +47,10 @@ export interface CompiledWxml {
   file: string;
   nodes: TemplateNode[];
   templates: ReadonlyMap<string, TemplateNode[]>;
+  /** Local component tag to component path. */
+  componentTags: Readonly<Record<string, string>>;
+  /** Compiled component templates, keyed by component path. */
+  componentTemplates: Readonly<Record<string, CompiledComponent>>;
   /** Files pulled in by `import`/`include`, for the package file list. */
   files: readonly string[];
 }
@@ -68,6 +77,8 @@ export interface EventTemplate {
 export interface ElementTemplate {
   type: "element";
   tag: string;
+  /** Set for a custom component: the package path of its template. */
+  component?: string;
   props: PropTemplate[];
   dataset: { name: string; parts: TemplatePart[]; loc: SourceLocation }[];
   events: EventTemplate[];
@@ -478,7 +489,8 @@ function compileElement(element: WxmlElement, ctx: Context): TemplateNode[] {
     return compileChildren(element.children, ctx);
   }
 
-  const custom = ctx.options.components?.includes(tag) ?? false;
+  const componentPath = ctx.options.componentTags?.[tag];
+  const custom = componentPath !== undefined || (ctx.options.components?.includes(tag) ?? false);
   if (!COMPONENT_NAMES.has(tag) && !custom) {
     error(ctx, "WXML_UNKNOWN_COMPONENT", `<${tag}> is not in the component registry.`, element.loc);
     return [];
@@ -495,7 +507,7 @@ function compileElement(element: WxmlElement, ctx: Context): TemplateNode[] {
     if (compiled.event) events.push(compiled.event);
   }
 
-  return [{
+  const compiled: ElementTemplate = {
     type: "element",
     tag: `wx-${tag}`,
     props,
@@ -503,7 +515,9 @@ function compileElement(element: WxmlElement, ctx: Context): TemplateNode[] {
     events,
     children: compileChildren(element.children, ctx),
     loc: element.loc,
-  }];
+  };
+  if (componentPath !== undefined) compiled.component = componentPath;
+  return [compiled];
 }
 
 function compileNode(node: WxmlNode, ctx: Context): TemplateNode[] {
@@ -637,14 +651,60 @@ export function compileWxml(source: string, file = "app.wxml", options: CompileO
   return {
     ok: true,
     diagnostics: [],
-    value: { file, nodes, templates: ctx.templates, files: ctx.files },
+    value: {
+      file,
+      nodes,
+      templates: ctx.templates,
+      componentTags: options.componentTags ?? {},
+      componentTemplates: options.componentTemplates ?? {},
+      files: ctx.files,
+    },
   };
+}
+
+/** What the host must answer before a custom component can be rendered. */
+export interface ComponentRenderRequest {
+  /** Component path from `usingComponents`. */
+  path: string;
+  /** The component tag as written in WXML (`my-card`). */
+  tag: string;
+  /** Properties written on the tag, without the host-only attributes. */
+  props: Record<string, RenderPropValue>;
+  /** Stable key for this component node in this render. */
+  instanceKey: string;
+  /** Events bound on the tag; the page receives them when the component triggers them. */
+  events: Record<string, EventBinding>;
+}
+
+export interface ComponentHandlerRequest {
+  path: string;
+  instanceKey: string;
+  handler: string;
+}
+
+export interface RenderOptions {
+  /**
+   * Create or update the component instance and return its data. Returning
+   * `null` fails the render with `COMPONENT_UNSUPPORTED`; a component is never
+   * silently rendered as an empty tag.
+   */
+  componentData?: (request: ComponentRenderRequest) => Record<string, unknown> | null;
+  /** Map a component method name to the handler the host can dispatch. */
+  componentHandler?: (request: ComponentHandlerRequest) => string | null;
+  /** Nested component depth. */
+  maxComponentDepth?: number;
 }
 
 interface RenderContext {
   templates: ReadonlyMap<string, TemplateNode[]>;
+  componentTemplates: Readonly<Record<string, CompiledComponent>>;
+  options: RenderOptions;
   diagnostics: Diagnostic[];
+  depth: number;
 }
+
+const HOST_PROPERTIES = new Set(["class", "style", "id", "hidden", "slot"]);
+const DEFAULT_COMPONENT_DEPTH = 8;
 
 function evaluate(expression: Expression, scope: Record<string, unknown>, ctx: RenderContext, at: SourceLocation): unknown {
   try {
@@ -698,9 +758,219 @@ function withKey(node: RenderNode, key: string): RenderNode {
   return { ...node, key };
 }
 
-function renderNodes(nodes: readonly TemplateNode[], scope: Record<string, unknown>, ctx: RenderContext): RenderNode[] {
-  const rendered: RenderNode[] = [];
+function renderElement(
+  node: ElementTemplate,
+  scope: Record<string, unknown>,
+  ctx: RenderContext,
+  nodePath: string,
+): RenderNode[] {
+  const props: Record<string, RenderPropValue> = {};
+  for (const prop of node.props) props[prop.name] = propValue(prop, scope, ctx);
+
+  const dataset: Record<string, string> = {};
+  for (const entry of node.dataset) {
+    dataset[entry.name] = stringifyExpressionValue(partValue(entry.parts, scope, ctx));
+  }
+
+  const events: Record<string, EventBinding> = {};
+  for (const event of node.events) {
+    let handler: string;
+    if (typeof event.handler === "string") {
+      handler = event.handler;
+    } else {
+      const value = evaluate(event.handler.expression, scope, ctx, event.handler.loc);
+      if (typeof value !== "string" || value.length === 0) {
+        ctx.diagnostics.push(
+          diagnostic("WXML_RENDER_WARNING", `Event "${event.type}" resolved to no handler.`, event.loc),
+        );
+        continue;
+      }
+      handler = value;
+    }
+    events[event.type] = event.catch ? { handler, catch: true } : { handler };
+  }
+
+  const children = renderNodes(node.children, scope, ctx, nodePath);
+
+  if (node.component === undefined) {
+    const element: ElementNode = { type: "element", tag: node.tag, props, children };
+    if (Object.keys(dataset).length > 0) element.dataset = dataset;
+    if (Object.keys(events).length > 0) element.events = events;
+    return [element];
+  }
+
+  // A custom component: the host creates the instance, the component's own
+  // template is rendered here, and the caller's children fill its slots.
+  const hostProps: Record<string, RenderPropValue> = {};
+  const componentProps: Record<string, RenderPropValue> = {};
+  for (const [name, value] of Object.entries(props)) {
+    if (HOST_PROPERTIES.has(name)) hostProps[name] = value;
+    else componentProps[name] = value;
+  }
+
+  const template = ctx.componentTemplates[node.component];
+  if (!template) {
+    ctx.diagnostics.push(
+      diagnostic(
+        "COMPONENT_UNSUPPORTED",
+        `The compiled bundle has no template for component "${node.component}".`,
+        node.loc,
+      ),
+    );
+    return [];
+  }
+  const maxDepth = ctx.options.maxComponentDepth ?? DEFAULT_COMPONENT_DEPTH;
+  if (ctx.depth >= maxDepth) {
+    ctx.diagnostics.push(
+      diagnostic("COMPONENT_UNSUPPORTED", `Component nesting exceeds ${maxDepth} levels.`, node.loc),
+    );
+    return [];
+  }
+
+  let instanceData: Record<string, unknown> | null = null;
+  if (ctx.options.componentData) {
+    try {
+      instanceData = ctx.options.componentData({
+        path: node.component,
+        tag: node.tag,
+        props: componentProps,
+        instanceKey: nodePath,
+        events,
+      });
+    } catch (cause) {
+      ctx.diagnostics.push(
+        diagnostic("COMPONENT_UNSUPPORTED", `The component instance failed: ${String(cause)}`, node.loc),
+      );
+      return [];
+    }
+  }
+  if (instanceData === null || instanceData === undefined) {
+    ctx.diagnostics.push(
+      diagnostic(
+        "COMPONENT_UNSUPPORTED",
+        `The host did not create an instance for <${node.tag}>.`,
+        node.loc,
+      ),
+    );
+    return [];
+  }
+
+  const componentCtx: RenderContext = {
+    templates: template.wxml.templates,
+    componentTemplates: template.wxml.componentTemplates,
+    options: ctx.options,
+    diagnostics: ctx.diagnostics,
+    depth: ctx.depth + 1,
+  };
+  const componentScope: Record<string, unknown> = { ...instanceData, ...componentProps };
+  let expanded = renderNodes(template.wxml.nodes, componentScope, componentCtx, `${nodePath}#c`);
+  expanded = substituteSlots(expanded, children);
+  expanded = rewriteComponentHandlers(expanded, node.component, nodePath, ctx, node.loc);
+
+  const wrapper: ElementNode = { type: "element", tag: node.tag, props: hostProps, children: expanded };
+  // The component's WXSS is scoped to this attribute, so its rules never
+  // match a page element and two components with the same tag cannot collide.
+  wrapper.props["data-qchat-component"] = node.component;
+  if (Object.keys(dataset).length > 0) wrapper.dataset = dataset;
+  if (Object.keys(events).length > 0) wrapper.events = events;
+  return [wrapper];
+}
+
+/**
+ * Replace `wx-slot` with the caller's children. A child with `slot="name"`
+ * fills the matching named slot; every other child fills the default slot.
+ */
+function substituteSlots(
+  nodes: readonly RenderNode[],
+  callerChildren: readonly RenderNode[],
+): RenderNode[] {
+  const result: RenderNode[] = [];
   for (const node of nodes) {
+    if (node.type === "element" && node.tag === "wx-slot") {
+      const rawName = node.props.name;
+      const name = typeof rawName === "string" ? rawName : "";
+      for (const child of callerChildren) {
+        if (child.type === "text") {
+          if (name === "") result.push(child);
+          continue;
+        }
+        const slot = child.props.slot;
+        const matches = name === "" ? slot === undefined : slot === name;
+        if (!matches) continue;
+        if (slot === undefined) {
+          result.push(child);
+        } else {
+          const copy: ElementNode = { ...child, props: { ...child.props } };
+          delete copy.props.slot;
+          result.push(copy);
+        }
+      }
+      continue;
+    }
+    if (node.type === "element") {
+      result.push({ ...node, children: substituteSlots(node.children, callerChildren) });
+    } else {
+      result.push(node);
+    }
+  }
+  return result;
+}
+
+/**
+ * A handler inside a component template is a component method, not a page
+ * method. The host maps it to a dispatchable name; a host that cannot dispatch
+ * component methods leaves the binding out and the render reports a warning.
+ */
+function rewriteComponentHandlers(
+  nodes: readonly RenderNode[],
+  componentPath: string,
+  instanceKey: string,
+  ctx: RenderContext,
+  loc: SourceLocation,
+): RenderNode[] {
+  return nodes.map((node) => {
+    if (node.type !== "element") return node;
+    const element: ElementNode = { ...node, children: rewriteComponentHandlers(node.children, componentPath, instanceKey, ctx, loc) };
+    if (!node.events) return element;
+    const events: Record<string, EventBinding> = {};
+    for (const [type, binding] of Object.entries(node.events)) {
+      // A nested component already namespaced its own handlers; leave them.
+      if (binding.handler.startsWith("component:")) {
+        events[type] = binding;
+        continue;
+      }
+      const mapped = ctx.options.componentHandler?.({
+        path: componentPath,
+        instanceKey,
+        handler: binding.handler,
+      });
+      if (typeof mapped === "string" && mapped.length > 0) {
+        events[type] = { ...binding, handler: mapped };
+      } else {
+        ctx.diagnostics.push(
+          diagnostic(
+            "WXML_RENDER_WARNING",
+            `Component method "${binding.handler}" cannot be dispatched by this host.`,
+            loc,
+          ),
+        );
+      }
+    }
+    element.events = events;
+    return element;
+  });
+}
+
+function renderNodes(
+  nodes: readonly TemplateNode[],
+  scope: Record<string, unknown>,
+  ctx: RenderContext,
+  path: string,
+): RenderNode[] {
+  const rendered: RenderNode[] = [];
+  for (let index = 0; index < nodes.length; index += 1) {
+    const node = nodes[index];
+    const nodePath = path.length === 0 ? String(index) : `${path}.${index}`;
     switch (node.type) {
       case "text": {
         const text = stringifyExpressionValue(partValue(node.parts, scope, ctx));
@@ -709,50 +979,19 @@ function renderNodes(nodes: readonly TemplateNode[], scope: Record<string, unkno
         break;
       }
       case "element": {
-        const props: Record<string, RenderPropValue> = {};
-        for (const prop of node.props) props[prop.name] = propValue(prop, scope, ctx);
-        const dataset: Record<string, string> = {};
-        for (const entry of node.dataset) {
-          dataset[entry.name] = stringifyExpressionValue(partValue(entry.parts, scope, ctx));
-        }
-        const events: Record<string, EventBinding> = {};
-        for (const event of node.events) {
-          let handler: string;
-          if (typeof event.handler === "string") {
-            handler = event.handler;
-          } else {
-            const value = evaluate(event.handler.expression, scope, ctx, event.handler.loc);
-            if (typeof value !== "string" || value.length === 0) {
-              ctx.diagnostics.push(
-                diagnostic("WXML_RENDER_WARNING", `Event "${event.type}" resolved to no handler.`, event.loc),
-              );
-              continue;
-            }
-            handler = value;
-          }
-          events[event.type] = event.catch ? { handler, catch: true } : { handler };
-        }
-        const element: ElementNode = {
-          type: "element",
-          tag: node.tag,
-          props,
-          children: renderNodes(node.children, scope, ctx),
-        };
-        if (Object.keys(dataset).length > 0) element.dataset = dataset;
-        if (Object.keys(events).length > 0) element.events = events;
-        rendered.push(element);
+        rendered.push(...renderElement(node, scope, ctx, nodePath));
         break;
       }
       case "conditional": {
         let matched = false;
         for (const branch of node.branches) {
           if (evaluate(branch.test, scope, ctx, branch.loc)) {
-            rendered.push(...renderNodes(branch.children, scope, ctx));
+            rendered.push(...renderNodes(branch.children, scope, ctx, nodePath));
             matched = true;
             break;
           }
         }
-        if (!matched) rendered.push(...renderNodes(node.alternate, scope, ctx));
+        if (!matched) rendered.push(...renderNodes(node.alternate, scope, ctx, nodePath));
         break;
       }
       case "for": {
@@ -771,7 +1010,7 @@ function renderNodes(nodes: readonly TemplateNode[], scope: Record<string, unkno
         for (const [item, index] of entries) {
           const childScope: Record<string, unknown> = { ...scope, [node.item]: item, [node.index]: index };
           const key = keyFor(node, item, index);
-          const children = renderNodes(node.children, childScope, ctx);
+          const children = renderNodes(node.children, childScope, ctx, `${nodePath}[${index}]`);
           if (key.length === 0) {
             rendered.push(...children);
           } else {
@@ -802,7 +1041,7 @@ function renderNodes(nodes: readonly TemplateNode[], scope: Record<string, unkno
             ctx.diagnostics.push(diagnostic("WXML_RENDER_WARNING", "Template data must be an object.", node.loc));
           }
         }
-        rendered.push(...renderNodes(nodesForTemplate, templateScope, ctx));
+        rendered.push(...renderNodes(nodesForTemplate, templateScope, ctx, nodePath));
         break;
       }
     }
@@ -810,9 +1049,19 @@ function renderNodes(nodes: readonly TemplateNode[], scope: Record<string, unkno
   return rendered;
 }
 
-export function renderWxml(compiled: CompiledWxml, data: Record<string, unknown>): CompileResult<RenderNode> {
-  const ctx: RenderContext = { templates: compiled.templates, diagnostics: [] };
-  const nodes = renderNodes(compiled.nodes, data, ctx);
+export function renderWxml(
+  compiled: CompiledWxml,
+  data: Record<string, unknown>,
+  options: RenderOptions = {},
+): CompileResult<RenderNode> {
+  const ctx: RenderContext = {
+    templates: compiled.templates,
+    componentTemplates: compiled.componentTemplates ?? {},
+    options,
+    diagnostics: [],
+    depth: 0,
+  };
+  const nodes = renderNodes(compiled.nodes, data, ctx, "");
   const tree: RenderNode = nodes.length === 1 && nodes[0].type === "element"
     ? nodes[0]
     : {

@@ -17,10 +17,14 @@ import {
   compileWxml,
   compileWxss,
   formatDiagnostic,
+  loadComponentRegistry,
   reviveWxml,
+  type CompiledComponent,
   type CompiledWxml,
   type CompiledWxss,
   type CompileResult,
+  type SerializedComponent,
+  type SerializedWxml,
   type ViewBundle,
 } from "@qchat/miniapp-compiler";
 import { isSafePackagePath, isSafeRoute } from "@qchat/miniapp-contracts";
@@ -119,19 +123,34 @@ export function loadSample(root: string): SamplePackage {
 
   const compiled = new Map<string, CompiledPage>();
   for (const route of pages as string[]) {
+    const configText = read(`${route}.json`);
+    const config = configText === null ? {} : parseJson(configText, `${route}.json`);
+    const registry = unwrap(
+      loadComponentRegistry({
+        read,
+        pageFile: `${route}.wxml`,
+        ...(app.usingComponents !== undefined ? { appUsingComponents: app.usingComponents as Record<string, unknown> } : {}),
+        ...(config.usingComponents !== undefined ? { pageUsingComponents: config.usingComponents as Record<string, unknown> } : {}),
+      }),
+      `${route}.json`,
+    );
     const wxmlSource = read(`${route}.wxml`);
     if (wxmlSource === null) throw new SampleError(`${route}.wxml is missing`);
     const wxml = unwrap(
-      compileWxml(wxmlSource, `${route}.wxml`, { loadFile: read }),
+      compileWxml(wxmlSource, `${route}.wxml`, {
+        loadFile: read,
+        componentTags: registry.tags,
+        componentTemplates: registry.templates,
+      }),
       `${route}.wxml`,
     );
     const wxss = unwrap(
       compileWxss(read(`${route}.wxss`) ?? "", `${route}.wxss`, { loadFile: read }),
       `${route}.wxss`,
     );
-    const configText = read(`${route}.json`);
-    const config = configText === null ? {} : parseJson(configText, `${route}.json`);
-    compiled.set(route, { route, config, wxml, wxss, css: `${appWxss.css}${wxss.css}` });
+    let componentCss = "";
+    for (const component of Object.values(registry.templates)) componentCss += component.css.css;
+    compiled.set(route, { route, config, wxml, wxss, css: `${appWxss.css}${wxss.css}${componentCss}` });
   }
 
   return { root, app: app as unknown as SampleAppConfig, appWxss, pages: compiled, read };
@@ -139,6 +158,27 @@ export function loadSample(root: string): SamplePackage {
 
 function bundleError(message: string): SampleError {
   return new SampleError(`${VIEW_BUNDLE_PATH}: ${message}`);
+}
+
+/** Validate the JSON shape of a compiled WXML artifact before reviving it. */
+function checkWxml(value: unknown, what: string): SerializedWxml {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw bundleError(`${what} has a malformed WXML artifact`);
+  }
+  const wxml = value as Partial<SerializedWxml>;
+  if (!Array.isArray(wxml.nodes) || typeof wxml.templates !== "object" || wxml.templates === null || !Array.isArray(wxml.files)) {
+    throw bundleError(`${what} has a malformed WXML artifact`);
+  }
+  if (wxml.componentTags !== undefined && (typeof wxml.componentTags !== "object" || wxml.componentTags === null || Array.isArray(wxml.componentTags))) {
+    throw bundleError(`${what} has malformed component tags`);
+  }
+  return {
+    file: typeof wxml.file === "string" ? wxml.file : what,
+    nodes: wxml.nodes,
+    templates: wxml.templates as SerializedWxml["templates"],
+    componentTags: (wxml.componentTags as Record<string, string> | undefined) ?? {},
+    files: wxml.files,
+  };
 }
 
 /**
@@ -181,21 +221,31 @@ export function loadInstalledPackage(root: string): SamplePackage {
     throw bundleError("the compiled pages do not match app.json");
   }
 
+  const rawComponents = bundle.components;
+  if (rawComponents !== undefined && (typeof rawComponents !== "object" || rawComponents === null || Array.isArray(rawComponents))) {
+    throw bundleError("components is malformed");
+  }
+  const componentTemplates: Record<string, CompiledComponent> = {};
+  for (const [path, entry] of Object.entries((rawComponents ?? {}) as Record<string, SerializedComponent>)) {
+    if (typeof entry !== "object" || entry === null || typeof entry.path !== "string" || entry.path !== path) {
+      throw bundleError(`component ${path} is malformed`);
+    }
+    if (entry.styleIsolation !== "isolated" && entry.styleIsolation !== "apply-shared" && entry.styleIsolation !== "shared") {
+      throw bundleError(`component ${path} has an unknown styleIsolation`);
+    }
+    if (typeof entry.css !== "string") throw bundleError(`component ${path} has no CSS`);
+    componentTemplates[path] = {
+      path,
+      wxml: reviveWxml(checkWxml(entry.wxml, `component ${path}`), componentTemplates),
+      css: { file: `${path}.wxss`, css: entry.css, files: [] },
+      styleIsolation: entry.styleIsolation,
+    };
+  }
+
   const compiled = new Map<string, CompiledPage>();
   for (const route of declared) {
     const page = bundle.pages[route];
     if (typeof page !== "object" || page === null) throw bundleError(`page ${route} is missing`);
-    const wxml = page.wxml;
-    if (
-      typeof wxml !== "object" ||
-      wxml === null ||
-      !Array.isArray(wxml.nodes) ||
-      typeof wxml.templates !== "object" ||
-      wxml.templates === null ||
-      !Array.isArray(wxml.files)
-    ) {
-      throw bundleError(`page ${route} has a malformed WXML artifact`);
-    }
     if (typeof page.css !== "string") throw bundleError(`page ${route} has no CSS`);
     const config =
       typeof page.config === "object" && page.config !== null && !Array.isArray(page.config)
@@ -204,7 +254,7 @@ export function loadInstalledPackage(root: string): SamplePackage {
     compiled.set(route, {
       route,
       config,
-      wxml: reviveWxml(wxml),
+      wxml: reviveWxml(checkWxml(page.wxml, `page ${route}`), componentTemplates),
       wxss: { file: `${route}.wxss`, css: page.css, files: [] },
       css: page.css,
     });

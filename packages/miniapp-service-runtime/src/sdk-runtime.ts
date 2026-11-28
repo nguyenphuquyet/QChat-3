@@ -12,7 +12,14 @@ import { SDK_SOURCE } from "./sdk.js";
 
 export const SDK_RUNTIME_VERSION = 1 as const;
 
-export type SdkMessageKind = "page.open" | "page.setData" | "page.close" | "page.show" | "bridge.request";
+export type SdkMessageKind =
+  | "page.open"
+  | "page.setData"
+  | "page.close"
+  | "page.show"
+  | "bridge.request"
+  | "component.setData"
+  | "component.event";
 
 export interface SdkMessage {
   kind: SdkMessageKind;
@@ -65,13 +72,33 @@ export interface SdkRuntime {
   closePage(pageId: string): EngineEvaluation;
   back(delta?: number): EngineEvaluation;
   clearTimers(): EngineEvaluation;
+  /** Create or update a component instance; the result carries its data. */
+  componentMount(input: { key: string; path: string; props: Record<string, unknown> }): EngineEvaluation;
+  /** Run one component method for an event that happened in its template. */
+  componentDeliver(input: { key: string; handler: string; event: Record<string, unknown> }): EngineEvaluation;
+  componentUnmount(key: string): EngineEvaluation;
+  /** Drop every component instance that belongs to a page. */
+  unmountPageComponents(pageId: string): EngineEvaluation;
   /** Answer a `bridge.request`; the id is the one the SDK generated. */
   respond(id: string, response: { ok: true; result?: unknown } | { ok: false; error: { code: string; message: string } }): EngineEvaluation;
   /** Reject every pending call, used on page/app close. */
   rejectCalls(): EngineEvaluation;
 }
 
-const MESSAGE_KINDS: readonly SdkMessageKind[] = ["page.open", "page.setData", "page.close", "page.show", "bridge.request"];
+const MESSAGE_KINDS: readonly SdkMessageKind[] = [
+  "page.open",
+  "page.setData",
+  "page.close",
+  "page.show",
+  "bridge.request",
+  "component.setData",
+  "component.event",
+];
+
+const COMPONENT_KEY = /^[A-Za-z0-9_.:#[\]-]{1,200}$/;
+const COMPONENT_PATH = /^[A-Za-z0-9_][A-Za-z0-9_./-]{0,255}$/;
+const COMPONENT_HANDLER = /^[A-Za-z_$][A-Za-z0-9_$]{0,127}$/;
+const PAGE_ID = /^p[0-9]{1,6}$/;
 
 export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
   const { engine, source, onMessage, onRequest, onSync, allowlist, tabPages, maxPageStack } = options;
@@ -218,6 +245,44 @@ export function createSdkRuntime(options: SdkRuntimeOptions): SdkRuntime {
 
     clearTimers() {
       return after(() => engine.call("__qchatClearTimers", []));
+    },
+
+    componentMount(input) {
+      if (typeof input.key !== "string" || !COMPONENT_KEY.test(input.key)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component instance key."), durationMs: 0 };
+      }
+      if (typeof input.path !== "string" || !COMPONENT_PATH.test(input.path) || input.path.includes("..")) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component path."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentMount", [
+        JSON.stringify({ key: input.key, path: input.path, props: input.props ?? {} }),
+      ]));
+    },
+
+    componentDeliver(input) {
+      if (typeof input.key !== "string" || !COMPONENT_KEY.test(input.key)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component instance key."), durationMs: 0 };
+      }
+      if (typeof input.handler !== "string" || !COMPONENT_HANDLER.test(input.handler)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component handler."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentDeliver", [
+        JSON.stringify({ key: input.key, handler: input.handler, event: input.event ?? {} }),
+      ]));
+    },
+
+    componentUnmount(key) {
+      if (typeof key !== "string" || !COMPONENT_KEY.test(key)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid component instance key."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentUnmount", [key]));
+    },
+
+    unmountPageComponents(pageId) {
+      if (typeof pageId !== "string" || !PAGE_ID.test(pageId)) {
+        return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "Invalid page id."), durationMs: 0 };
+      }
+      return after(() => engine.call("__qchatComponentUnmountPage", [pageId]));
     },
 
     respond(id, response) {

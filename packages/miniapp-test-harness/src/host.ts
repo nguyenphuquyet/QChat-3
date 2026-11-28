@@ -14,12 +14,17 @@ import {
   bridgeMethodAllowlist,
   diffRenderTree,
   type DomAdapter,
+  type EventBinding,
   type RenderNode,
   type ResolvedTheme,
   type RuntimeIdentity,
   type ViewEvent,
 } from "@qchat/miniapp-contracts";
-import { formatDiagnostic, renderWxml } from "@qchat/miniapp-compiler";
+import {
+  formatDiagnostic,
+  renderWxml,
+  type ComponentRenderRequest,
+} from "@qchat/miniapp-compiler";
 import {
   MemoryStorageAdapter,
   createApiHost,
@@ -91,6 +96,17 @@ interface OpenPage {
   data: Record<string, unknown>;
 }
 
+interface ComponentInstanceRecord {
+  pageId: string;
+  events: Record<string, EventBinding>;
+}
+
+interface PendingComponentEvent {
+  key: string;
+  name: string;
+  detail: Record<string, unknown>;
+}
+
 function record(value: unknown, what: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new SampleError(`${what}: expected an object`);
@@ -130,6 +146,11 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
   let started = false;
   let closed = false;
   let apiHost: ApiHost | null = null;
+  const componentInstances = new Map<string, ComponentInstanceRecord>();
+  const loadedModules = new Set<string>();
+  const pendingComponentEvents: PendingComponentEvent[] = [];
+  let rendering = false;
+  let pendingRerender = false;
 
   function pageTheme(page: CompiledPage): ResolvedTheme {
     const override = page.config.qxColorScheme;
@@ -144,18 +165,80 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
     return record ? pageTheme(record.page) : resolveTheme(sample.app.qxColorScheme, hostTheme);
   }
 
-  function renderFull(pageId: string): void {
-    const record = openPages.get(pageId);
-    if (!record) throw new SampleError(`render for an unopened page ${pageId}`);
-    const result = renderWxml(record.page.wxml, record.data);
+  /**
+   * Turn page data into a tree. Every custom component in the tree asks the
+   * engine for its instance data; the page module never sees the component's
+   * markup and the component never sees the page's data.
+   */
+  function renderPageTree(pageId: string, record: OpenPage): RenderNode {
+    const seen = new Set<string>();
+    const options = {
+      componentData(request: ComponentRenderRequest): Record<string, unknown> | null {
+        const key = `${pageId}:${request.instanceKey}`;
+        seen.add(key);
+        componentInstances.set(key, { pageId, events: request.events });
+        if (!loadedModules.has(request.path)) {
+          const loaded = sdk.loadPage(request.path);
+          if (!loaded.ok) {
+            throw new SampleError(`component ${request.path}: ${loaded.error?.message ?? "load failed"}`);
+          }
+          loadedModules.add(request.path);
+        }
+        const mounted = sdk.componentMount({ key, path: request.path, props: request.props });
+        if (!mounted.ok) {
+          throw new SampleError(`component ${request.path}: ${mounted.error?.message ?? "mount failed"}`);
+        }
+        const value = mounted.value as { ok?: boolean; data?: unknown; message?: string } | undefined;
+        if (!value || value.ok !== true || typeof value.data !== "object" || value.data === null) {
+          throw new SampleError(`component ${request.path}: ${value?.message ?? "no instance data"}`);
+        }
+        return value.data as Record<string, unknown>;
+      },
+      componentHandler(request: { path: string; instanceKey: string; handler: string }): string {
+        return `component:${pageId}:${request.instanceKey}:${request.handler}`;
+      },
+    };
+    const result = renderWxml(record.page.wxml, record.data, options);
     if (!result.ok) {
       const first = result.diagnostics[0];
       throw new SampleError(`render: ${first ? formatDiagnostic(first) : "invalid render tree"}`);
     }
-    currentPageId = pageId;
-    tree = result.value;
-    view.render(tree);
-    view.setTheme(pageTheme(record.page));
+    // A component that the new tree no longer contains is unmounted, so a
+    // stale instance cannot deliver an event into the page.
+    for (const [key, entry] of componentInstances) {
+      if (entry.pageId === pageId && !seen.has(key)) {
+        sdk.componentUnmount(key);
+        componentInstances.delete(key);
+      }
+    }
+    return result.value;
+  }
+
+  function flushPending(): void {
+    while (pendingComponentEvents.length > 0) {
+      const entry = pendingComponentEvents.shift();
+      if (entry) deliverComponentEvent(entry);
+    }
+    if (pendingRerender) {
+      pendingRerender = false;
+      if (currentPageId !== null) renderPatch(currentPageId);
+    }
+  }
+
+  function renderFull(pageId: string): void {
+    const record = openPages.get(pageId);
+    if (!record) throw new SampleError(`render for an unopened page ${pageId}`);
+    rendering = true;
+    try {
+      const next = renderPageTree(pageId, record);
+      currentPageId = pageId;
+      tree = next;
+      view.render(tree);
+      view.setTheme(pageTheme(record.page));
+    } finally {
+      rendering = false;
+      flushPending();
+    }
   }
 
   function renderPatch(pageId: string): void {
@@ -166,15 +249,32 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
     }
     const record = openPages.get(pageId);
     if (!record) return;
-    const result = renderWxml(record.page.wxml, record.data);
-    if (!result.ok) {
-      const first = result.diagnostics[0];
-      throw new SampleError(`render: ${first ? formatDiagnostic(first) : "invalid render tree"}`);
+    rendering = true;
+    try {
+      const next = renderPageTree(pageId, record);
+      const ops = diffRenderTree(tree, next);
+      tree = next;
+      if (ops.length > 0) view.patch(ops);
+    } finally {
+      rendering = false;
+      flushPending();
     }
-    const next = result.value;
-    const ops = diffRenderTree(tree, next);
-    tree = next;
-    if (ops.length > 0) view.patch(ops);
+  }
+
+  function deliverComponentEvent(entry: PendingComponentEvent): void {
+    const record = componentInstances.get(entry.key);
+    if (!record || record.pageId !== currentPageId) return;
+    const binding = record.events[entry.name];
+    if (!binding) return;
+    const event: ViewEvent = {
+      handler: binding.handler,
+      type: entry.name,
+      detail: entry.detail,
+      dataset: {},
+      catch: binding.catch ?? false,
+      timeStamp: Date.now(),
+    };
+    ensure(sdk.deliver({ ...event }), `component event ${entry.name}`);
   }
 
   const sdk = createSdkRuntime({
@@ -210,11 +310,36 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
       } else if (message.kind === "page.close") {
         const pageId = message.payload.pageId;
         if (typeof pageId !== "string") throw new SampleError("page.close without a page");
+        sdk.unmountPageComponents(pageId);
+        for (const [key, entry] of componentInstances) {
+          if (entry.pageId === pageId) componentInstances.delete(key);
+        }
         openPages.delete(pageId);
         if (currentPageId === pageId) {
           currentPageId = null;
           tree = null;
         }
+      } else if (message.kind === "component.setData") {
+        const key = message.payload.key;
+        if (typeof key !== "string") throw new SampleError("component.setData without a key");
+        if (rendering) {
+          pendingRerender = true;
+        } else if (currentPageId !== null) {
+          renderPatch(currentPageId);
+        }
+      } else if (message.kind === "component.event") {
+        const key = message.payload.key;
+        const name = message.payload.name;
+        if (typeof key !== "string" || typeof name !== "string") {
+          throw new SampleError("component.event is malformed");
+        }
+        const entry: PendingComponentEvent = {
+          key,
+          name,
+          detail: record(message.payload.detail ?? {}, "component.event detail"),
+        };
+        if (rendering) pendingComponentEvents.push(entry);
+        else deliverComponentEvent(entry);
       }
     },
   });
@@ -241,8 +366,31 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
     },
   });
 
+  /**
+   * Route one view event. A handler inside a component template is namespaced
+   * by the compiler (`component:<page>:<instance>:<method>`); it belongs to the
+   * component instance, not to the page. Everything else is a page handler.
+   */
+  function routeEvent(event: ViewEvent): void {
+    if (event.handler.startsWith("component:")) {
+      const parts = event.handler.split(":");
+      if (parts.length < 4) throw new SampleError(`malformed component handler ${event.handler}`);
+      const pageId = parts[1];
+      const instanceKey = parts[2];
+      const handler = parts.slice(3).join(":");
+      const delivered = sdk.componentDeliver({ key: `${pageId}:${instanceKey}`, handler, event: { ...event } });
+      ensure(delivered, `component handler ${handler}`);
+      const value = delivered.value as { ok?: boolean; code?: string; message?: string } | undefined;
+      if (value && value.ok === false) {
+        throw new SampleError(`component handler ${handler}: ${value.code ?? value.message ?? "failed"}`);
+      }
+      return;
+    }
+    ensure(sdk.deliver({ ...event }), `handler ${event.handler}`);
+  }
+
   deliverToService = (event) => {
-    ensure(sdk.deliver({ handler: event.handler, event }), `handler ${event.handler}`);
+    routeEvent(event);
   };
 
   function start(): void {
@@ -273,7 +421,7 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
       if (closed) throw new SampleError("the sample host is closed");
       if (deliverToService === null) throw new SampleError("dispatch before the SDK is ready");
       if (currentPageId === null) throw new SampleError("dispatch before launch");
-      deliverToService(event);
+      routeEvent(event);
     },
 
     data() {

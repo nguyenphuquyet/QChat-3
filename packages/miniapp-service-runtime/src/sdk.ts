@@ -22,6 +22,7 @@ export const SDK_SOURCE = String.raw`
   var app = null;
   var pageDefs = Object.create(null);
   var componentDefs = Object.create(null);
+  var componentInstances = Object.create(null);
   var stack = [];
   var opened = new Set();
   var timers = new Set();
@@ -80,6 +81,180 @@ export const SDK_SOURCE = String.raw`
     componentDefs[host.currentRoute] = options || {};
   };
   globalThis.getCurrentPages = function () { return stack.slice(); };
+
+  // ------------------------------------------------------- components ----
+  // A component instance belongs to the engine, never to the view. The host
+  // asks for its data while it renders and delivers its methods back here.
+
+  function propertySpec(def, name) {
+    var properties = def && def.properties;
+    if (!properties || !Object.prototype.hasOwnProperty.call(properties, name)) return null;
+    var spec = properties[name];
+    if (spec === null || spec === undefined) return null;
+    if (typeof spec === "function") return { type: spec };
+    if (typeof spec === "object") return spec;
+    return null;
+  }
+
+  function coerceProperty(value, spec) {
+    if (!spec || spec.type === undefined || spec.type === null) return clone(value);
+    var type = spec.type;
+    if (type === String) return value === undefined || value === null ? "" : String(value);
+    if (type === Number) {
+      var number = Number(value);
+      return isFinite(number) ? number : 0;
+    }
+    if (type === Boolean) return Boolean(value);
+    if (type === Object) {
+      return value && typeof value === "object" && !Array.isArray(value) ? clone(value) : {};
+    }
+    if (type === Array) return Array.isArray(value) ? clone(value) : [];
+    return clone(value);
+  }
+
+  function sameValue(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+  }
+
+  function callLifecycle(def, instance, name) {
+    var lifetimes = def && def.lifetimes;
+    var callback = (lifetimes && typeof lifetimes[name] === "function" && lifetimes[name]) ||
+      (typeof def[name] === "function" && def[name]) || null;
+    if (callback) callback.call(instance);
+  }
+
+  function runObserver(def, instance, name, next, previous) {
+    var observer = null;
+    var spec = propertySpec(def, name);
+    if (spec) {
+      if (typeof spec.observer === "function") observer = spec.observer;
+      else if (typeof spec.observer === "string" && def.methods && typeof def.methods[spec.observer] === "function") {
+        observer = def.methods[spec.observer];
+      }
+    }
+    if (!observer && def.observers && typeof def.observers[name] === "function") observer = def.observers[name];
+    if (!observer && def.observers && typeof def.observers["**"] === "function") observer = def.observers["**"];
+    if (observer) observer.call(instance, next, previous);
+  }
+
+  function mountComponent(message) {
+    var key = message && message.key;
+    var path = message && message.path;
+    if (typeof key !== "string" || key.length === 0 || typeof path !== "string" || path.length === 0) {
+      return { ok: false, code: "API_INVALID_ARGUMENT", message: "A component mount needs a key and a path." };
+    }
+    var def = componentDefs[path];
+    if (!def) return { ok: false, code: "COMPONENT_UNSUPPORTED", message: "No Component() definition for " + path };
+    var created = false;
+    var instance = componentInstances[key];
+    if (!instance) {
+      created = true;
+      instance = {
+        key: key,
+        path: path,
+        is: path,
+        data: clone(def.data || {}),
+        properties: {},
+        dataset: {},
+      };
+      instance.setData = function (patch) {
+        if (!patch || typeof patch !== "object") throw new Error("setData needs an object");
+        for (var name in patch) {
+          if (Object.prototype.hasOwnProperty.call(patch, name)) applyPath(instance.data, name, clone(patch[name]));
+        }
+        if (!instance.__mounting) {
+          post("component.setData", { key: instance.key, path: instance.path, data: clone(instance.data) });
+        }
+        return { ok: true };
+      };
+      instance.triggerEvent = function (name, detail) {
+        if (typeof name !== "string" || !/^[a-z][a-z0-9:_-]*$/i.test(name)) {
+          throw new Error("triggerEvent needs an event name");
+        }
+        post("component.event", { key: instance.key, name: name, detail: clone(detail === undefined ? {} : detail) });
+        return { ok: true };
+      };
+      instance.selectComponent = function () { return null; };
+      instance.selectAllComponents = function () { return []; };
+      instance.createSelectorQuery = function () {
+        throw { code: "API_UNSUPPORTED", message: "createSelectorQuery is not available in a component." };
+      };
+      componentInstances[key] = instance;
+    }
+
+    var incoming = message.props && typeof message.props === "object" ? message.props : {};
+    var names = Object.create(null);
+    var declared = def.properties && typeof def.properties === "object" ? def.properties : {};
+    var name;
+    for (name in declared) if (Object.prototype.hasOwnProperty.call(declared, name)) names[name] = 1;
+    for (name in incoming) if (Object.prototype.hasOwnProperty.call(incoming, name)) names[name] = 1;
+
+    for (name in names) {
+      var spec = propertySpec(def, name);
+      var raw = Object.prototype.hasOwnProperty.call(incoming, name) ? incoming[name] : undefined;
+      var next = raw === undefined && spec && spec.value !== undefined
+        ? clone(spec.value)
+        : coerceProperty(raw, spec);
+      var previous = instance.properties[name];
+      if (!sameValue(previous, next)) {
+        instance.properties[name] = clone(next);
+        instance.data[name] = clone(next);
+        if (!created) runObserver(def, instance, name, next, previous);
+      }
+    }
+
+    if (created) {
+      instance.__mounting = true;
+      try {
+        callLifecycle(def, instance, "created");
+        callLifecycle(def, instance, "attached");
+        callLifecycle(def, instance, "ready");
+      } finally {
+        delete instance.__mounting;
+      }
+    }
+    return { ok: true, data: clone(instance.data), created: created };
+  }
+
+  function deliverComponent(message) {
+    var key = message && message.key;
+    var instance = typeof key === "string" ? componentInstances[key] : null;
+    if (!instance) return { ok: false, code: "BRIDGE_PAGE_CLOSED" };
+    var def = componentDefs[instance.path] || {};
+    var methods = def.methods && typeof def.methods === "object" ? def.methods : {};
+    var handler = message && message.handler;
+    if (typeof handler !== "string" || typeof methods[handler] !== "function") {
+      return { ok: false, code: "BRIDGE_UNKNOWN_METHOD" };
+    }
+    methods[handler].call(instance, message.event || {});
+    return { ok: true };
+  }
+
+  function unmountComponent(key) {
+    var instance = typeof key === "string" ? componentInstances[key] : null;
+    if (!instance) return { ok: true };
+    var def = componentDefs[instance.path] || {};
+    callLifecycle(def, instance, "detached");
+    delete componentInstances[key];
+    return { ok: true };
+  }
+
+  globalThis.__qchatComponentMount = function (json) {
+    return mountComponent(JSON.parse(String(json)));
+  };
+  globalThis.__qchatComponentDeliver = function (json) {
+    return deliverComponent(JSON.parse(String(json)));
+  };
+  globalThis.__qchatComponentUnmount = function (key) {
+    return unmountComponent(key);
+  };
+  globalThis.__qchatComponentUnmountPage = function (pageId) {
+    var prefix = String(pageId) + ":";
+    var keys = [];
+    for (var key in componentInstances) if (key.indexOf(prefix) === 0) keys.push(key);
+    for (var index = 0; index < keys.length; index += 1) unmountComponent(keys[index]);
+    return { ok: true, removed: keys.length };
+  };
   globalThis.__qchatSetData = setData;
 
   // The only path from page logic to a host API. The host answers by calling

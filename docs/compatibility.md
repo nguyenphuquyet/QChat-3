@@ -128,7 +128,7 @@ implementation is M4/M3.
 | P1 | `form` | `/miniprogram/dev/component/form.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `bindsubmit` collects named controls; `bindreset`; `report-submit` is a no-op |
 | P1 | `swiper` / `swiper-item` | `/miniprogram/dev/component/swiper.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `current`, `autoplay`, `circular`, `vertical`, indicator dots; touch swipe is host-side |
 | P1 | Tab bar | `app.json` `tabBar` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `wx-tab-bar` drawn by the View Runtime from `items`; `wx.setTabBarStyle` is M7 APIs |
-| P1 | Custom components | `/miniprogram/dev/framework/custom-component/` | Not started | — | `usingComponents`, properties, slots, behaviors |
+| P1 | Custom components | `/miniprogram/dev/framework/custom-component/` | Partial | `packages/miniapp-compiler/test/components.test.ts`, `packages/miniapp-service-runtime/test/components.test.ts`, `packages/miniapp-test-harness/test/components.test.ts` | `usingComponents` at app/page/component level, property types and defaults, observers, `created`/`attached`/`ready`/`detached`, `setData`, `triggerEvent`, default and named slots, component WXSS scoped by `data-qchat-component`; `behaviors` and full page-to-component style isolation are not implemented; `ready` runs during mount |
 | P2 | `video` | `/miniprogram/dev/component/video.html` | Not started | — | HTML `<video>`; codecs documented |
 | P2 | `canvas` | `/miniprogram/dev/component/canvas.html` | Not started | — | Canvas/WebGL |
 | P2 | `map` | `/miniprogram/dev/component/map.html` | Not started | — | Web map library; license/cost first |
@@ -150,7 +150,7 @@ implementation is M4/M3.
 | `rpx` | `/miniprogram/dev/framework/view/wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | Compiled to `--qchat-rpx` (750 rpx = page width); host sets the measured width |
 | `@import` in WXSS | `/miniprogram/dev/framework/view/wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | Inlined, package-confined, cycle detected |
 | Page and component styles | `/miniprogram/dev/framework/custom-component/wxml-wxss.html` | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | `scopeSelector` + `:host`; custom components are M7 |
-| `app.json` (`pages`, `window`, `tabBar`, `usingComponents`) | `/miniprogram/dev/reference/configuration/app.html` | Not started | — | |
+| `app.json` (`pages`, `window`, `tabBar`, `usingComponents`) | `/miniprogram/dev/reference/configuration/app.html` | Partial | `packages/miniapp-compiler/test/components.test.ts` | `pages`, `window`, `tabBar` and `usingComponents` are read; other keys are ignored until their feature exists |
 | `page.json` | `/miniprogram/dev/reference/configuration/page.html` | Not started | — | |
 | `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | `app.json` value validated and resolved by the host (ADR 006); the WebView root write is M5 |
 | `darkmode`, `themeLocation`, `theme.json` | WeChat theme | Unsupported | — | Replaced by `qxColorScheme`; compiler error code |
