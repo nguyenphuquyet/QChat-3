@@ -1,4 +1,4 @@
-/// Installs a verified `.qxpkg` into the layout the Android host reads.
+/// Installs a verified `.qxpkg` into the layout the native host reads.
 ///
 /// ADR 008 §4: at most two verified versions per app, an atomic rename instead
 /// of an in-place write, and a downgrade is refused unless the caller asks for

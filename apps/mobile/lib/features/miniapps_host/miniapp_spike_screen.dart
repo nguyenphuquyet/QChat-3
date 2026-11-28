@@ -10,15 +10,16 @@ import '../../core/localization/strings.dart';
 import 'miniapp_host_screen.dart';
 import 'miniapp_spike_package.dart';
 
-/// The Android host spike (M1).
+/// The host spike (M1).
 ///
 /// It installs one unsigned page into the app's installed layout, opens it in
 /// the system WebView, sends a `view.render` tree and shows every bridge event
-/// that comes back. There is no QuickJS engine and no signed package yet, so the
-/// page is a fixed tree built here, not a compiled Mini App.
+/// that comes back. There is no signed package and no service runtime on the
+/// page, so the page is a fixed tree built here, not a compiled Mini App. The
+/// QuickJS section below is the on-device check for the service runtime.
 ///
-/// Debug builds on Android only: the entry point is hidden in release builds,
-/// because it is a diagnostic, not a product surface.
+/// Debug builds on Android only: the entry point is hidden in release builds and
+/// on other platforms, because it is a diagnostic, not a product surface.
 class MiniAppSpikeScreen extends StatefulWidget {
   const MiniAppSpikeScreen({super.key});
 

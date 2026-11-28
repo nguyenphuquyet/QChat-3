@@ -1,7 +1,7 @@
 # ADR 011 — Installed layout, compiled view bundle and the Android host seam
 
 - **Status:** ACCEPTED (Android host written in M7; CI build and device evidence
-  still open)
+  still open). The iOS counterpart is ADR 018.
 - **Date:** 2026-11-28
 - **Milestone:** M5
 - **Supersedes:** nothing. Fills in the host and artifact details ADR 008 left

@@ -12,8 +12,9 @@ import '../../core/localization/strings.dart';
 /// teardown. It never renders Mini App content itself: the page tree arrives as
 /// a `view.render` bridge event from the service runtime.
 ///
-/// The host has no iOS implementation yet (M8), so this screen is Android only;
-/// building it elsewhere is an error, not a silent fallback.
+/// The page host is implemented on Android and iOS (ADR 011/018); the platform
+/// view itself is selected by `MiniAppWebView`. Building on another platform is
+/// an error, not a silent fallback.
 class MiniAppHostScreen extends StatefulWidget {
   const MiniAppHostScreen({
     super.key,

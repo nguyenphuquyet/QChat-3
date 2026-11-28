@@ -1,10 +1,11 @@
 import 'package:flutter/services.dart';
 
-/// Paths the Android host and the Dart installer must agree on.
+/// Paths the host and the Dart installer must agree on.
 ///
-/// The host derives the installed directory from its own `filesDir`, so Dart
-/// asks it for the path instead of rebuilding the layout: a mismatch here would
-/// install a package the WebView can never find.
+/// The host derives the installed directory from its own files directory
+/// (`filesDir` on Android, Application Support on iOS), so Dart asks it for the
+/// path instead of rebuilding the layout: a mismatch here would install a
+/// package the WebView can never find.
 class MiniAppInstallPaths {
   MiniAppInstallPaths._();
 

@@ -69,7 +69,7 @@ class MiniAppWebViewController {
   /// Send one `view.render` / `view.theme` / `view.destroy` bridge event.
   ///
   /// [messageJson] is the JSON of a `BridgeEvent` from the shared contract. The
-  /// Android host checks the size and binding before it reaches the page.
+  /// host checks the size and binding before it reaches the page.
   Future<void> send(String messageJson) async {
     final channel = _channel;
     if (_disposed) throw StateError('The Mini App WebView controller is disposed.');

@@ -10,14 +10,16 @@ typedef MiniAppWebViewMessage = void Function(String messageJson);
 /// Receives a host rejection or a fatal WebView error.
 typedef MiniAppWebViewError = void Function(String code, String message);
 
-/// The Android system WebView that draws one Mini App page.
+/// The system WebView that draws one Mini App page.
 ///
-/// The page is served from
-/// `https://appassets.androidplatform.net/qchat/<appId>/<version>/` and talks to
-/// the host through the origin-bound `qchatViewBridge` listener. The widget
-/// never renders Mini App content itself and never falls back to another engine.
+/// On Android the page is served from
+/// `https://appassets.androidplatform.net/qchat/<appId>/<version>/`; on iOS from
+/// `qchat-app://app/qchat/<appId>/<version>/`. Both talk to the host through the
+/// origin-bound `qchatViewBridge` object and the same per-view channel
+/// (`qchat/miniapp/<viewId>`). The widget never renders Mini App content itself
+/// and never falls back to another engine.
 ///
-/// iOS is M8; building this widget on another platform is a programming error,
+/// Android and iOS are implemented; another platform is a programming error,
 /// not a silent fallback.
 class MiniAppWebView extends StatefulWidget {
   const MiniAppWebView({
@@ -28,7 +30,7 @@ class MiniAppWebView extends StatefulWidget {
     this.onError,
   });
 
-  /// The platform view type registered by the Android plugin.
+  /// The platform view type registered by both host plugins.
   static const String viewType = 'qchat/miniapp/webview';
 
   final MiniAppWebViewRequest request;
@@ -99,17 +101,27 @@ class _MiniAppWebViewState extends State<MiniAppWebView> {
 
   @override
   Widget build(BuildContext context) {
-    if (defaultTargetPlatform != TargetPlatform.android) {
-      throw UnsupportedError(
-        'MiniAppWebView is implemented on Android only; the iOS host lands in M8.',
-      );
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return AndroidView(
+          key: ValueKey<MiniAppWebViewRequest>(widget.request),
+          viewType: MiniAppWebView.viewType,
+          creationParams: widget.request.toMap(),
+          creationParamsCodec: const StandardMessageCodec(),
+          onPlatformViewCreated: _onPlatformViewCreated,
+        );
+      case TargetPlatform.iOS:
+        return UiKitView(
+          key: ValueKey<MiniAppWebViewRequest>(widget.request),
+          viewType: MiniAppWebView.viewType,
+          creationParams: widget.request.toMap(),
+          creationParamsCodec: const StandardMessageCodec(),
+          onPlatformViewCreated: _onPlatformViewCreated,
+        );
+      default:
+        throw UnsupportedError(
+          'MiniAppWebView is implemented on Android and iOS only.',
+        );
     }
-    return AndroidView(
-      key: ValueKey<MiniAppWebViewRequest>(widget.request),
-      viewType: MiniAppWebView.viewType,
-      creationParams: widget.request.toMap(),
-      creationParamsCodec: const StandardMessageCodec(),
-      onPlatformViewCreated: _onPlatformViewCreated,
-    );
   }
 }

@@ -1,7 +1,7 @@
 # ADR 012 — View WebView client, message transport and event semantics
 
 - **Status:** ACCEPTED (Node evidence; the Android host is written, device
-  WebView evidence open)
+  WebView evidence open). The iOS transport is ADR 018.
 - **Date:** 2026-11-28
 - **Milestone:** M6
 - **Supersedes:** nothing. Implements the view side of ADR 011 §3.

@@ -125,7 +125,7 @@ class VerifiedMiniAppPackage {
   /// Every file except `manifest.json` and `signature.ed25519`.
   final Map<String, Uint8List> files;
 
-  /// `build/view.json`, the compiled view bundle the Android host reads.
+  /// `build/view.json`, the compiled view bundle the native host reads.
   Uint8List get viewBundle => files['build/view.json']!;
 }
 

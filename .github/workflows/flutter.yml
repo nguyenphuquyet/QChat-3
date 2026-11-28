@@ -10,12 +10,14 @@ on:
     paths:
       - 'apps/mobile/**'
       - 'packages/qchat_miniapp_webview/**'
+      - 'packages/qchat_miniapp_quickjs/**'
       - 'packages/miniapp-view-web/**'
       - '.github/workflows/flutter.yml'
   pull_request:
     paths:
       - 'apps/mobile/**'
       - 'packages/qchat_miniapp_webview/**'
+      - 'packages/qchat_miniapp_quickjs/**'
       - 'packages/miniapp-view-web/**'
       - '.github/workflows/flutter.yml'
   workflow_dispatch:
