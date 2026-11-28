@@ -1,15 +1,22 @@
 name: Flutter app
 # Build and test on GitHub runners; no local build is required.
+#
+# macOS minutes cost 10x, so the iOS jobs run only when iOS code changed. Use
+# "Run workflow" (workflow_dispatch) to force them.
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'feat/**']
     paths:
       - 'apps/mobile/**'
+      - 'packages/qchat_miniapp_webview/**'
+      - 'packages/miniapp-view-web/**'
       - '.github/workflows/flutter.yml'
   pull_request:
     paths:
       - 'apps/mobile/**'
+      - 'packages/qchat_miniapp_webview/**'
+      - 'packages/miniapp-view-web/**'
       - '.github/workflows/flutter.yml'
   workflow_dispatch:
 
@@ -24,6 +31,43 @@ env:
   FLUTTER_VERSION: '3.47.7'
 
 jobs:
+  changes:
+    name: Detect iOS changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ios: ${{ steps.detect.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT" = "pull_request" ]; then
+            BASE_SHA="$BASE"
+          else
+            BASE_SHA="$BEFORE"
+          fi
+          if [ -z "$BASE_SHA" ] || ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null; then
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$BASE_SHA" "$HEAD" | grep -Eq '^(apps/mobile/ios/|packages/[^/]+/ios/)'; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+          fi
+
   checks:
     name: Analyze and test
     runs-on: ubuntu-latest
@@ -41,6 +85,9 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - run: flutter test
+      - name: Check the Mini App WebView bundle is in sync
+        working-directory: .
+        run: node scripts/check-miniapp-webview-assets.mjs
 
   build:
     name: Build ${{ matrix.target }}
@@ -95,8 +142,10 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  android-emulator:
-    name: Build Android emulator APK
+  # The owner installs this APK on a real phone. The host code compiles here and
+  # its JVM tests run here; neither is device evidence (STATUS.md §5.4).
+  android-debug:
+    name: Build debug APK and test the WebView host
     needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -118,21 +167,25 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get --enforce-lockfile
-      - name: Build debug APK for x64 and ARM64 emulators
+      - name: Build debug APK
         run: >-
-          flutter build apk --debug --target-platform android-x64,android-arm64
+          flutter build apk --debug
           --dart-define="API_URL=$API_URL"
           --dart-define="REALTIME_URL=$REALTIME_URL"
+      - name: Test the Mini App WebView host
+        working-directory: apps/mobile/android
+        run: ./gradlew :qchat_miniapp_webview:testDebugUnitTest --no-daemon
       - uses: actions/upload-artifact@v4
         with:
-          name: qchat-android-emulator-${{ github.sha }}
+          name: qchat-android-debug-${{ github.sha }}
           path: apps/mobile/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
 
   ios-simulator:
     name: Build iOS Simulator app
-    needs: checks
+    needs: [checks, changes]
+    if: needs.changes.outputs.ios == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
     defaults:
@@ -167,7 +220,8 @@ jobs:
 
   ios:
     name: Build unsigned iOS IPA
-    needs: checks
+    needs: [checks, changes]
+    if: needs.changes.outputs.ios == 'true'
     runs-on: macos-latest
     timeout-minutes: 45
     defaults:

@@ -113,6 +113,33 @@ test("receive before start is refused", () => {
   assert.equal(result.error?.code, "BRIDGE_INVALID_MESSAGE");
 });
 
+test("a root-absolute package URL stays inside the installed version", () => {
+  const win = createWindow();
+  const handle = installBrowserView(win);
+  handle.start(JSON.stringify(binding));
+  const rendered = parse(handle.receive(message("view.render", {
+    pageId: "p1",
+    seq: 1,
+    update: {
+      kind: "tree",
+      theme: "light",
+      tree: {
+        type: "element",
+        tag: "wx-view",
+        props: {},
+        children: [
+          { type: "element", tag: "wx-image", props: { src: "/assets/logo.png" }, children: [] },
+          { type: "element", tag: "wx-image", props: { src: "//cdn.example/logo.png" }, children: [] },
+        ],
+      },
+    },
+  })));
+  assert.equal(rendered.ok, true);
+  const root = win.root.children[0] as FakeElement;
+  assert.equal((root.children[0] as FakeElement).getAttribute("src"), "./assets/logo.png");
+  assert.equal((root.children[1] as FakeElement).getAttribute("src"), "//cdn.example/logo.png");
+});
+
 test("the installed handle renders a tree, forwards an event and destroys", () => {
   const win = createWindow();
   const handle: BrowserViewHandle = installBrowserView(win);

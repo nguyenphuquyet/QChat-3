@@ -2,23 +2,26 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M7 — Full runtime compatibility** (M6 exit check `PASS` for Node-verifiable items; Android host/device `BLOCKED`)
+- **Current milestone:** **M7 — Full runtime compatibility**, paused after task 2 by the
+  2026-11-28 correction. The Android host is now written in small modules
+  (module 1 is in CI; modules 2–4 are next), then iOS. Only device evidence is
+  `BLOCKED`.
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
-- **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
-- **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
+- **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no phone)
+- **M2 exit check:** `PASS` (Node); the Android QuickJS build is host module 4 (pending) and the device run is `BLOCKED`
 - **M3 exit check:** `PASS` (Node); device rendering and theme matrix are `BLOCKED`
 - **M4 exit check:** `PASS` (Node); device API/network evidence is `BLOCKED`
-- **M5 exit check:** `PASS` (Node); the Android host build/device is `BLOCKED`
-- **M6 exit check:** `PASS` (Node-verifiable items); Android host, Dart installer, device run and metrics `BLOCKED`
+- **M5 exit check:** `PASS` (Node); the Android host code was not written in M5, it is host module 1 now
+- **M6 exit check:** `PASS` (Node-verifiable items); the Android host, Dart installer and metrics are now scheduled host work; the device run is `BLOCKED`
 - **PLAN:** `DONE`
 - **M0:** `DONE`
 - **M1:** `DONE` (device evidence `BLOCKED`)
-- **M2:** `DONE` (Android engine build `BLOCKED`)
+- **M2:** `DONE` (Android engine build is host module 4)
 - **M3:** `DONE` (device view/theme evidence `BLOCKED`)
 - **M4:** `DONE` (device API evidence `BLOCKED`)
-- **M5:** `DONE` (package/installer/storage; Android host `BLOCKED`)
-- **M6:** `DONE` (view client, threat model, adversarial tests; Android host/device `BLOCKED`)
-- **M7:** `IN PROGRESS` (plan §16)
+- **M5:** `DONE` (package/installer/storage; Android host is host module 1)
+- **M6:** `DONE` (view client, threat model, adversarial tests; device run `BLOCKED`)
+- **M7:** `PAUSED` after task 2 (plan §16); host modules run first
 - **Last updated:** 2026-11-28
 
 ## 1. Where the work stands
@@ -88,15 +91,19 @@
   no compiler on the path (`loadInstalledPackage`), including a refused bundle
   mismatch and a refused source-only package — 16 harness tests.
 - M5 ADR 011 fixes the installed layout, the bundle format and the Android host
-  seam; the Android build/device stays `BLOCKED` (no SDK/NDK/phone).
+  seam. The Kotlin host is host module 1 (see below); the device run stays
+  `BLOCKED` until the owner installs the CI debug APK.
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
 
-- M7 — full runtime compatibility: the task plan is §16. P1 components are done
-  (12 web components, `picker` `Partial`); custom components are next, then WXS,
-  the source targets (subpackages, npm, UniApp/Taro), the remaining APIs and the
-  QChat theme switch. Device-dependent items stay `BLOCKED`/`UNVERIFIED`.
+- **Host implementation (owner correction, 2026-11-28).** `BLOCKED` applies to
+  real-device evidence, production access and owner inputs only, never to writing
+  code. M7 tasks 3–7 are paused; the Android host is written first, in small
+  modules, then iOS. Module 1 (`packages/qchat_miniapp_webview`) is written and
+  pushed; CI builds the debug APK and runs its JVM tests. Modules 2–4 and the iOS
+  host follow. Every device claim stays `UNVERIFIED`/`BLOCKED`.
+- M7 task 1 (P1 components) and task 2 (custom components) are done on Node.
 
 ### Done (M6)
 
@@ -106,14 +113,14 @@
   `data-theme` and `color-scheme` on the page root, forwards `bind`/`catch`
   events and ships a 50.6 KB dependency-free bundle that a `vm` test evaluates.
   The package adversarial tests cover ZIP64, encryption, symlinks and tampering.
-  The Android host build, the Dart installer, the device run and the
-  measurements remain `BLOCKED`.
+  The Android host, the Dart installer and the measurements were not written in
+  M6; they are host work now, and only the device run is `BLOCKED`.
 
 ### Blocked
 
 | Item | Needs | Effect |
 |---|---|---|
-| Android device evidence (M1 spike, M6 MVP) | Android SDK + a real phone, or a phone that can install a CI-built APK | Device items stay `BLOCKED`, never passed |
+| Android device evidence (M1 spike, M6 MVP, host modules 1–4) | A real phone that can install the CI debug APK | Device items stay `BLOCKED`, never passed; code is written without the phone |
 | iOS build/device (M8) | A Mac or accepted macOS CI minutes + a real iPhone + signing | iOS items `BLOCKED` |
 | Performance targets (section 9.1) | The reference low-end device | All values `BLOCKED` |
 | Production app migration (section 12.5) | Owner-supplied export (name, owner, users, features, size) | Per-app decisions `BLOCKED`; apps stay on legacy |
@@ -121,14 +128,27 @@
 
 ### Next task
 
-M6 is closed for the Node-verifiable items: the view client, the threat model
-and the adversarial package tests are done, and §15 records `PASS`/`BLOCKED` per
-item. The Android host (WebView asset loader + message listener, QuickJS engine
-binding), the Dart installer/runtime screen, the real-phone run and the section
-9.1 measurements stay `BLOCKED` (no SDK/phone). The phone checklist stays in
-§5.4; the first device run covers these items, and none of them counts as passed
-before it. M7 may start under the spec's `BLOCKED` rule, with every device claim
-marked `UNVERIFIED`.
+Host module 2: the M1 spike screen and the Flutter runtime screen under
+`apps/mobile/lib/features/miniapps_runtime`, driven by `MiniAppWebView`. Then
+module 3 (Dart installer + Ed25519 ADR) and module 4 (QuickJS JNI, three ABIs).
+The iOS host follows once the Android host builds in CI. The phone checklist
+stays in §5.4; the first real device run covers the device items and none of them
+counts as passed before it.
+
+### Host modules (Android first)
+
+| # | Module | State | Evidence |
+|---|---|---|---|
+| 1 | `packages/qchat_miniapp_webview`: Kotlin WebView + `WebViewAssetLoader` + `WebMessageListener`, Dart `AndroidView` API, JVM tests | Written, CI build/tests pending on this push | Kotlin host + 3 JVM test classes; `flutter analyze` clean; device `UNVERIFIED` |
+| 2 | M1 spike screen + Flutter runtime screen (`apps/mobile/lib/features/miniapps_runtime`) | Pending | - |
+| 3 | Dart installer and Ed25519 choice (ADR 016) | Pending | - |
+| 4 | QuickJS JNI + Gradle/CMake for three ABIs | Pending | - |
+| 5 | iOS host: `WKWebView` + `WKURLSchemeHandler` + `WKScriptMessageHandler` + JavaScriptCore, unsigned IPA | Pending (after Android CI) | macOS minutes used: **0** |
+
+CI: `.github/workflows/flutter.yml` now has a Linux-only debug-APK job that also
+runs the plugin's JVM tests, and the two macOS jobs run only when
+`apps/mobile/ios/**` or `packages/*/ios/**` changed (or on manual dispatch).
+A successful CI build is `VERIFIED` for "builds" only, never device evidence.
 
 ### How to verify M0
 
@@ -1134,17 +1154,17 @@ Get-Content docs/adr/011-installed-layout-and-android-host.md
 
 | # | Task | Done when | State |
 |---|---|---|---|
-| 1 | Android host | `packages/qchat_miniapp_webview` builds; `WebViewAssetLoader` serves the installed directory at the fixed origin; `addWebMessageListener` accepts only that origin; QuickJS runs on its own thread with the SDK and the ADR 010 sync binding | `BLOCKED` (no SDK/NDK/emulator/phone) |
-| 2 | View WebView bundle | A dependency-free JS client applies `tree`/`ops` to the DOM, sets `data-theme` and `color-scheme` on the page root, and forwards events; tested against a fake DOM | Done (Node): `packages/miniapp-view-web`, 25 tests, 50.6 KB bundle; device WebView `BLOCKED` |
-| 3 | Dart installer and runtime screen | Verify/install a `.qxpkg` from Dart (`archive` + an Ed25519 package), rollback, per-app storage; the QChat-drawn screen launches a verified package and reports errors honestly | `BLOCKED` on the Ed25519 choice and a Flutter build |
+| 1 | Android host | `packages/qchat_miniapp_webview` builds; `WebViewAssetLoader` serves the installed directory at the fixed origin; `addWebMessageListener` accepts only that origin; QuickJS runs on its own thread with the SDK and the ADR 010 sync binding | WebView host written in M7 host module 1 (CI build pending); QuickJS is host module 4; device `BLOCKED` |
+| 2 | View WebView bundle | A dependency-free JS client applies `tree`/`ops` to the DOM, sets `data-theme` and `color-scheme` on the page root, and forwards events; tested against a fake DOM | Done (Node): `packages/miniapp-view-web`, 26 tests, 50.9 KB bundle; device WebView `BLOCKED` |
+| 3 | Dart installer and runtime screen | Verify/install a `.qxpkg` from Dart (`archive` + an Ed25519 package), rollback, per-app storage; the QChat-drawn screen launches a verified package and reports errors honestly | Host module 3 (pending); Ed25519 choice still open |
 | 4 | Device run | `qchat-hello` installs and runs on a real Android phone; a second Android/WebView version where available | `BLOCKED` (no phone) |
 | 5 | Metrics | Section 9.1 cold start, install, first render, `setData` latency and memory, measured on the reference device | `BLOCKED` (no device) |
 | 6 | Threat model and tests | `docs/security/threat-model.md`; adversarial bridge and package tests | Done for the Node-verifiable part; device threats stay `BLOCKED` |
 | 7 | MVP report and exit check | Evidence table, `PASS`/`BLOCKED` per item, no device claim without a device | Done: §15; Node items `PASS`, device items `BLOCKED` |
 
-M6 is the MVP checkpoint: M7 production code does not start until the exit check
-passes. Tasks 1, 3, 4 and 5 need hardware or an Android toolchain the environment
-does not have; they stay `BLOCKED` and are reported as such, never as passed.
+M6 is the MVP checkpoint. Tasks 1 and 3 were not written in M6; they are host
+modules 1 and 3 now. Tasks 4 and 5 need a real phone and stay `BLOCKED`; they are
+reported as such, never as passed.
 
 ## 15. M6 report and exit check
 
@@ -1164,8 +1184,8 @@ does not have; they stay `BLOCKED` and are reported as such, never as passed.
 | Type check | `pnpm typecheck` | `PASS` |
 | Isolation guard | `pnpm check:miniapp` (10 roots) | `PASS` |
 | Tests | `pnpm test:miniapp` → **269 pass, 0 fail** (contracts 51, compiler 74, service 66, view 37, view-web 25, harness 16) | `PASS` |
-| Android host build (asset loader, message listener, QuickJS thread, sync binding) | No SDK/NDK/emulator/phone | `BLOCKED` |
-| Dart installer/runtime screen and device Ed25519 | No Flutter build/device; Ed25519 package choice open | `BLOCKED` |
+| Android host build (asset loader, message listener, QuickJS thread, sync binding) | Not built in M6; the WebView host is written in M7 host module 1, QuickJS is module 4 | Device `BLOCKED` |
+| Dart installer/runtime screen and device Ed25519 | Host module 3 (pending); Ed25519 package choice open | Device `BLOCKED` |
 | `qchat-hello` on a real Android phone, second WebView version | No phone | `BLOCKED` |
 | Section 9.1 cold start, install, first render, `setData` latency, memory | No reference device | `BLOCKED` |
 | Foreign origin/frame and closed-page bridge tests on a real WebView | No device | `BLOCKED` |
@@ -1204,19 +1224,20 @@ device run. The MVP is **not** declared complete.
 ## 16. M7 task plan
 
 M7 delivers section 7 P1/P2 components, section 6 source targets (WXS, npm,
-subpackages, UniApp/Taro `mp-weixin`), and the section 8 post-MVP APIs. The
-Android host, iOS host and every device measurement remain `BLOCKED`; M7 proves
-the contracts and the Node reference, and marks every device claim `UNVERIFIED`.
+subpackages, UniApp/Taro `mp-weixin`), and the section 8 post-MVP APIs. It was
+paused after task 2 by the owner's 2026-11-28 correction: the Android host is
+written first, in modules (§1), then iOS. Tasks 3–7 resume after the host.
+Device measurements stay `BLOCKED`; every device claim is `UNVERIFIED`.
 
 | # | Task | Done when | State |
 |---|---|---|---|
 | 1 | P1 components | `textarea`, `checkbox`/`checkbox-group`, `radio`/`radio-group`, `switch`, `slider`, `picker`, `form`, `swiper`/`swiper-item` and the tab bar are real web components in `COMPONENTS_SOURCE`; the registry carries `Experimental` with a linked test; the renderer accepts every P1 tag | Done (Node): 12 P1 web components, 12 new tests; `picker` is `Partial` |
 | 2 | Custom components | `usingComponents` resolves a package-local component; its properties, `slot` and events compile to `wx-<name>`; `Component()` registers it in the SDK; a missing component is a compiler diagnostic, never a silent plain tag | Done (Node): compiler 85, service 76, harness 21; app/page/nested `usingComponents`, properties/defaults/observers/lifetimes, `setData`/`triggerEvent`, default and named slots, scoped component WXSS; `qchat-components` runs from source and from an installed bundle. `behaviors` and full style isolation are not done |
-| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Not started |
-| 4 | Source targets | Subpackages (main and independent) in `app.json`, manifest, compiler and installer; npm dependencies bundled at build time under a documented rule; UniApp/Taro `mp-weixin` output detected and adapted; ADR 014 | Not started |
-| 5 | Remaining APIs | `chooseImage`, `chooseMedia`, `scanCode`, `getLocation`, `uploadFile`, `downloadFile`, `connectSocket`, clipboard, `login` (QChat code exchange), `menu`, audio, file and device APIs, `setNavigationBarColor`, `setTabBarStyle`, `onThemeChange`/`offThemeChange` and the QChat runtime theme switch; registry, API host, adapters, ADR 015 | Not started |
-| 6 | P2 components | `video` (`<video>`), `canvas`, `map`, `camera` behind the documented web technology and permission rules; each status is `Partial`/`Experimental`/`Unsupported` with a linked test and the documented difference | Not started |
-| 7 | M7 report and exit check | Compatibility rows updated, tests pass, `PASS`/`BLOCKED` per item, no device claim without a device | Not started |
+| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Paused (host first) |
+| 4 | Source targets | Subpackages (main and independent) in `app.json`, manifest, compiler and installer; npm dependencies bundled at build time under a documented rule; UniApp/Taro `mp-weixin` output detected and adapted; ADR 014 | Paused (host first) |
+| 5 | Remaining APIs | `chooseImage`, `chooseMedia`, `scanCode`, `getLocation`, `uploadFile`, `downloadFile`, `connectSocket`, clipboard, `login` (QChat code exchange), `menu`, audio, file and device APIs, `setNavigationBarColor`, `setTabBarStyle`, `onThemeChange`/`offThemeChange` and the QChat runtime theme switch; registry, API host, adapters, ADR 015 | Paused (host first) |
+| 6 | P2 components | `video` (`<video>`), `canvas`, `map`, `camera` behind the documented web technology and permission rules; each status is `Partial`/`Experimental`/`Unsupported` with a linked test and the documented difference | Paused (host first) |
+| 7 | M7 report and exit check | Compatibility rows updated, tests pass, `PASS`/`BLOCKED` per item, no device claim without a device | Paused (host first) |
 
 Order: 1 and 2 (view surface), 3 (WXS), 4 (source targets), 5 (APIs), 6 (P2),
 7 (report). Each task ends with `pnpm test:miniapp`, `pnpm typecheck`,
@@ -1249,3 +1270,34 @@ Decisions that M7 must record in an ADR:
   `Unsupported`, not a fake map.
 - `camera` uses `getUserMedia` inside the WebView and needs the host's camera
   permission; the device behaviour is `UNVERIFIED`.
+
+### 16.2 Host module 1 — Android WebView host
+
+Written 2026-11-28 in `packages/qchat_miniapp_webview`:
+
+- `android/src/main/kotlin/com/qchat/miniapp/webview/MiniAppOrigin.kt` — app id,
+  semver, session, page and route validation; the exact origin
+  `https://appassets.androidplatform.net/qchat/<appId>/<version>/`.
+- `MiniAppAssetPathHandler` / `MiniAppAssetPaths` — `WebViewAssetLoader` serves
+  the installed version and the host page; traversal, encoded traversal,
+  backslash, colon and dot segments are refused; only view assets (images,
+  fonts, audio, video) are served, never `app.js`, page `.js`, `.wxml`, `.wxss`,
+  `build/view.json` or `manifest.json`.
+- `MiniAppWebViewHost` — `WebSettings` hardening, CSP, `addWebMessageListener`
+  bound to the exact origin, main-frame and current-URL checks, binding and size
+  checks, `__qchatView.start/receive/destroy`, teardown.
+- `MiniAppBundle` — reads the page CSS from `build/view.json` and checks
+  `formatVersion`; unknown versions are refused.
+- `MiniAppWebView` / `MiniAppWebViewController` (Dart) — `AndroidView` and one
+  `qchat/miniapp/<viewId>` channel per page.
+- JVM tests: `MiniAppOriginTest`, `MiniAppAssetPathsTest`, `MiniAppBundleTest`.
+
+Evidence in this push: `flutter analyze` (plugin and app) clean; root
+`pnpm typecheck` clean; `pnpm check:miniapp` passes including the new
+`check-miniapp-webview-assets.mjs`; view-web 26 tests pass. The CI build and the
+JVM tests are `PENDING` on the push that adds this section. Device: `UNVERIFIED`.
+
+Also fixed in this module: the view DOM adapter now rewrites a WXML
+package-root URL (`/assets/logo.png`) to a relative URL, so it stays inside the
+installed version instead of hitting the origin root. `src`/`poster` only;
+protocol-relative URLs are untouched.

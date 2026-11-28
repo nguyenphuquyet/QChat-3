@@ -59,6 +59,23 @@ const WXML_TO_DOM_EVENT: Readonly<Record<string, string>> = { tap: "click" };
 
 const TAG = /^wx-[a-z][a-z0-9-]{0,61}$/;
 
+/** Attributes whose value is a package-relative resource URL. */
+const URL_ATTRIBUTES = new Set(["src", "poster"]);
+
+/**
+ * WXML `/assets/logo.png` means the package root. The page document lives under
+ * `/qchat/<appId>/<version>/`, so a root-absolute URL would leave the installed
+ * version and hit the origin root, which the host refuses. A relative URL keeps
+ * the resource inside the versioned directory. Protocol-relative `//host` stays
+ * untouched: it is a remote URL and the CSP refuses it.
+ */
+function packageUrl(name: string, value: string): string {
+  if (URL_ATTRIBUTES.has(name) && value.startsWith("/") && !value.startsWith("//")) {
+    return `.${value}`;
+  }
+  return value;
+}
+
 export interface BrowserDomAdapter extends DomAdapter {
   /** Release every handle and listener. Called after `destroy`. */
   dispose(): void;
@@ -150,7 +167,7 @@ export function createBrowserDomAdapter(document: DomDocumentLike, root: DomElem
     },
 
     setAttribute(value: string, name: string, attribute: string): void {
-      element(value).setAttribute(name, attribute);
+      element(value).setAttribute(name, packageUrl(name, attribute));
     },
 
     removeAttribute(value: string, name: string): void {

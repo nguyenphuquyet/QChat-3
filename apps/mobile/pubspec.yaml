@@ -21,6 +21,10 @@ dependencies:
   uuid: 4.6.0
   image_picker: 1.2.4
   photo_manager: 3.12.0
+  # The Android system WebView host for the new Mini App runtime (ADR 011/012).
+  # The legacy QApp tree under lib/features/miniapps/qapp is unrelated.
+  qchat_miniapp_webview:
+    path: ../../packages/qchat_miniapp_webview
   # The photo picker page is the one Material island in the app; see
   # AGENTS.md §8. It ships no MaterialApp, Scaffold or theme of its own: the
   # app wraps it in a Theme built from QChatColors.

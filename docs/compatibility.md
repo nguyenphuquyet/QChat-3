@@ -33,12 +33,13 @@ implementation is M4/M3.
 | Renderer | Typed tree, ops, event binding | Experimental | `packages/miniapp-view-runtime/test/view.test.ts` | Only `wx-*` tags render |
 | Tree diff | `diffRenderTree`, deterministic op order, no full reload | Experimental | `packages/miniapp-contracts/test/renderer-diff.test.ts` | Removes descending, inserts ascending |
 | Render session | `seq` ordering, tree then ops, stale payload ignored | Experimental | `packages/miniapp-view-runtime/test/session.test.ts` | Ops before a tree are rejected |
-| View WebView client | `window.__qchatView` start/receive/destroy; tree/ops; page-root theme; `bind`/`catch` bubbling | Experimental | `packages/miniapp-view-web/test/client.test.ts`, `test/browser.test.ts`, `test/bundle.test.ts` | Dependency-free 51 KB bundle; device WebView is M6 `BLOCKED` |
+| View WebView client | `window.__qchatView` start/receive/destroy; tree/ops; page-root theme; `bind`/`catch` bubbling | Experimental | `packages/miniapp-view-web/test/client.test.ts`, `test/browser.test.ts`, `test/bundle.test.ts` | Dependency-free 51 KB bundle; package-root URLs stay inside the version; device WebView `UNVERIFIED` |
+| Android WebView host | `WebViewAssetLoader` origin, CSP, origin-bound `addWebMessageListener`, page CSS injection, teardown | Experimental | `packages/qchat_miniapp_webview/android/src/test/kotlin/...` (JVM) | Code written in host module 1; CI build/tests pending; device `UNVERIFIED` |
 | Service | `App`/`Page`, lifecycle, stack, path-based `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | First visible render is a tree; later updates are ops |
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
-| Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device host is M6 |
+| Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device screen is host module 2 |
 | `wx` SDK | Callback + Promise forms, navigation primitives, sync channel | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | One source on Node/QuickJS/JSC |
-| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are M6/M8 |
+| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are host modules 2–3 / M8 |
 | Page stack end to end | `navigateTo`/`navigateBack`, query, state restore | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness |
 | Async APIs end to end | Storage callback, `wx.request`, toast event | Experimental | `packages/miniapp-test-harness/test/host-api.test.ts` | Recording adapters; no network |
 | Sync API channel | `__qchatHost.sync`, storage and system info | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | ADR 010; device timing `BLOCKED` |
@@ -57,7 +58,7 @@ implementation is M4/M3.
 | Package builder | `.qxpkg` ZIP, manifest, per-file SHA-256, Ed25519 signature | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Private key is caller-supplied; never shipped |
 | Package verifier | Size, ZIP limits, path/extension, signature, hashes, runtime gate | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Tamper and oversize tests |
 | Installer | Staging, atomic rename, `state.json`, two versions, rollback | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Revoked and downgrade refused |
-| Storage isolation | Per-app directory, key hashing, quota, corruption | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Device storage adapter is M6 |
+| Storage isolation | Per-app directory, key hashing, quota, corruption | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Device storage adapter is host module 3 |
 | Compiled bundle | `build/view.json` read and rendered from an installed package | Experimental | `packages/miniapp-compiler/test/package.test.ts`, `packages/miniapp-test-harness/test/installed.test.ts` | No compiler on the device path |
 
 ### 1.1 APIs — MVP (M4/M6)

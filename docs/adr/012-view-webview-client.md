@@ -1,6 +1,7 @@
 # ADR 012 — View WebView client, message transport and event semantics
 
-- **Status:** ACCEPTED (Node evidence; Android WebView evidence `BLOCKED`)
+- **Status:** ACCEPTED (Node evidence; the Android host is written, device
+  WebView evidence open)
 - **Date:** 2026-11-28
 - **Milestone:** M6
 - **Supersedes:** nothing. Implements the view side of ADR 011 §3.
@@ -108,10 +109,14 @@ bubbling.
   the client owns only the tree and the events.
 - The bundle is ~51 KB unminified. The host can minify it further; the test
   checks the committed unminified file, so the check is readable.
+- A WXML resource URL that starts with `/` is package-root (`/assets/logo.png`).
+  The DOM adapter writes it as `./assets/logo.png`, so it stays under
+  `/qchat/<appId>/<version>/`; protocol-relative and remote URLs are unchanged
+  and the CSP refuses them.
 - `view.ready` and `view.error` are new internal event names. They are not
   `wx.*` APIs and do not change the bridge allowlist.
 - The device WebView, the origin check, the message listener and the theme root
-  on a real phone remain `BLOCKED` (no SDK/phone). No Node test is device proof.
+  on a real phone remain `BLOCKED` (no phone). No Node test is device proof.
 - WXS, P1/P2 components and the device performance numbers are M7/M8 work.
 
 ## Evidence

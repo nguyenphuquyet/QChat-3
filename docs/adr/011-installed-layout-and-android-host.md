@@ -1,6 +1,7 @@
 # ADR 011 — Installed layout, compiled view bundle and the Android host seam
 
-- **Status:** ACCEPTED (Android build and device evidence `BLOCKED`)
+- **Status:** ACCEPTED (Android host written in M7; CI build and device evidence
+  still open)
 - **Date:** 2026-11-28
 - **Milestone:** M5
 - **Supersedes:** nothing. Fills in the host and artifact details ADR 008 left
@@ -17,9 +18,10 @@ and no WXML compiler. Two questions were still open after ADR 008:
    without `file://` and without a loopback server?
 
 The Android SDK, NDK, emulator and a phone are absent in this environment
-(`STATUS.md` §2.14), so this ADR fixes the seam and the Node reference proves the
-artifact and the layout. The Kotlin/QuickJS build remains `BLOCKED`; writing
-native code that cannot be compiled would be an unverified claim, not evidence.
+(`STATUS.md` §2.14). The 2026-11-28 correction makes that a device-evidence gap,
+not a reason to leave the host unwritten: the seam is implemented in
+`packages/qchat_miniapp_webview` and compiled by CI, and only the real-device run
+stays `BLOCKED`.
 
 ## Decision
 
@@ -84,12 +86,22 @@ rejects a missing or mismatched bundle, and runs the existing engine and view.
   so a key cannot choose a path. The quota is enforced before a write. A corrupt
   record is `STORAGE_CORRUPT`, never silently recreated.
 
-### 3. Android host seam (implementation M6, contract fixed here)
+### 3. Android host seam (implemented in M7 host module 1)
 
 - **Origin:** `WebViewAssetLoader` serves the installed directory under
   `https://appassets.androidplatform.net/qchat/<appId>/<version>/`. The loader
   maps only that directory and rejects `..`, absolute paths and unknown files.
   `file://`, `content://` and a loopback HTTP server are not used.
+- **Host assets:** the HTML document and the two scripts live at
+  `https://appassets.androidplatform.net/qchat-host/`, outside every app
+  directory. The document is served at
+  `/qchat/<appId>/<version>/__qchat_view.html`, so relative package URLs resolve
+  inside the version. Only view assets (images, fonts, audio, video) are served
+  from the installed directory; the service code is never readable by page
+  script.
+- **CSS:** the host reads the page's compiled `css` from `build/view.json` and
+  injects it as a `<style>` element before `start`; the bundle's `formatVersion`
+  is checked and an unknown version is refused.
 - **Bridge:** `WebViewCompat.addWebMessageListener` with the exact origin above;
   a message from another origin or frame is `BRIDGE_ORIGIN_REJECTED`.
   `addJavascriptInterface` is not used. The listener is bound to one app,
@@ -97,7 +109,9 @@ rejects a missing or mismatched bundle, and runs the existing engine and view.
 - **WebView settings:** JavaScript enabled only for the view bundle; file access,
   universal access from file URLs, mixed content, third-party cookies and
   remote debugging (release) disabled; safe browsing enabled; force-dark and
-  algorithmic darkening disabled (ADR 004/006); a CSP served with the bundle.
+  algorithmic darkening disabled (ADR 004/006); a CSP served with the document
+  (`script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `connect-src
+  'none'`).
 - **Engine:** QuickJS runs on its own thread with the SDK and the package's
   service modules. Only the SDK globals exist; no host object, file API or
   network API. The synchronous binding of ADR 010 is a map lookup in the host.

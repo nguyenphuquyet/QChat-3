@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "esbuild src/browser.ts --bundle --format=iife --global-name=QChatView --target=chrome61 --legal-comments=none --outfile=dist/qchat-view.js",
+    "build": "esbuild src/browser.ts --bundle --format=iife --global-name=QChatView --target=chrome61 --legal-comments=none --outfile=dist/qchat-view.js && tsx scripts/emit-components.ts",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

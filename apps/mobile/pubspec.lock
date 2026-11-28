@@ -1028,6 +1028,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.1"
+  qchat_miniapp_webview:
+    dependency: "direct main"
+    description:
+      path: "../../packages/qchat_miniapp_webview"
+      relative: true
+    source: path
+    version: "0.1.0"
   qr:
     dependency: transitive
     description:

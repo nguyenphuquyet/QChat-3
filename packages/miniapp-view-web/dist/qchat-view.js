@@ -958,6 +958,13 @@ var QChatView = (() => {
   var VIEW_ROOT_ID = "qchat-root";
   var WXML_TO_DOM_EVENT = { tap: "click" };
   var TAG = /^wx-[a-z][a-z0-9-]{0,61}$/;
+  var URL_ATTRIBUTES = /* @__PURE__ */ new Set(["src", "poster"]);
+  function packageUrl(name, value) {
+    if (URL_ATTRIBUTES.has(name) && value.startsWith("/") && !value.startsWith("//")) {
+      return ".".concat(value);
+    }
+    return value;
+  }
   function safeDetail(value) {
     if (!isRecord(value)) return {};
     try {
@@ -1015,7 +1022,7 @@ var QChatView = (() => {
         return add(document.createTextNode(value), "text");
       },
       setAttribute(value, name, attribute) {
-        element(value).setAttribute(name, attribute);
+        element(value).setAttribute(name, packageUrl(name, attribute));
       },
       removeAttribute(value, name) {
         element(value).removeAttribute(name);
