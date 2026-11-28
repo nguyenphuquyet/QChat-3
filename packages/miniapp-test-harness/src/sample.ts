@@ -11,12 +11,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
+  VIEW_BUNDLE_FORMAT,
+  VIEW_BUNDLE_PATH,
+  VIEW_BUNDLE_VERSION,
   compileWxml,
   compileWxss,
   formatDiagnostic,
+  reviveWxml,
   type CompiledWxml,
   type CompiledWxss,
   type CompileResult,
+  type ViewBundle,
 } from "@qchat/miniapp-compiler";
 import { isSafePackagePath, isSafeRoute } from "@qchat/miniapp-contracts";
 
@@ -129,5 +134,82 @@ export function loadSample(root: string): SamplePackage {
     compiled.set(route, { route, config, wxml, wxss, css: `${appWxss.css}${wxss.css}` });
   }
 
+  return { root, app: app as unknown as SampleAppConfig, appWxss, pages: compiled, read };
+}
+
+function bundleError(message: string): SampleError {
+  return new SampleError(`${VIEW_BUNDLE_PATH}: ${message}`);
+}
+
+/**
+ * Load an installed package: the same source tree plus the compiled bundle the
+ * packager produced. No WXML or WXSS is compiled here, so this is the path a
+ * device takes after verification. A bundle whose pages do not match `app.json`
+ * is rejected instead of falling back to the sources.
+ */
+export function loadInstalledPackage(root: string): SamplePackage {
+  const read = (path: string): string | null => readSource(root, path);
+
+  const appText = read("app.json");
+  if (appText === null) throw new SampleError("app.json is missing");
+  const app = parseJson(appText, "app.json");
+  const pages = app.pages;
+  if (!Array.isArray(pages) || pages.length === 0) {
+    throw new SampleError("app.json: pages must be a non-empty array");
+  }
+
+  const bundleText = read(VIEW_BUNDLE_PATH);
+  if (bundleText === null) throw new SampleError(`${VIEW_BUNDLE_PATH} is missing`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(bundleText);
+  } catch {
+    throw bundleError("the bundle is not valid JSON");
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) throw bundleError("the bundle is not an object");
+  const bundle = raw as Partial<ViewBundle>;
+  if (bundle.format !== VIEW_BUNDLE_FORMAT) throw bundleError("unknown format");
+  if (bundle.formatVersion !== VIEW_BUNDLE_VERSION) throw bundleError("unsupported format version");
+  if (typeof bundle.appCss !== "string") throw bundleError("appCss is missing");
+  if (typeof bundle.pages !== "object" || bundle.pages === null || Array.isArray(bundle.pages)) {
+    throw bundleError("pages is missing");
+  }
+
+  const declared = pages as string[];
+  const built = Object.keys(bundle.pages).sort();
+  if (built.length !== declared.length || [...declared].sort().some((route, index) => route !== built[index])) {
+    throw bundleError("the compiled pages do not match app.json");
+  }
+
+  const compiled = new Map<string, CompiledPage>();
+  for (const route of declared) {
+    const page = bundle.pages[route];
+    if (typeof page !== "object" || page === null) throw bundleError(`page ${route} is missing`);
+    const wxml = page.wxml;
+    if (
+      typeof wxml !== "object" ||
+      wxml === null ||
+      !Array.isArray(wxml.nodes) ||
+      typeof wxml.templates !== "object" ||
+      wxml.templates === null ||
+      !Array.isArray(wxml.files)
+    ) {
+      throw bundleError(`page ${route} has a malformed WXML artifact`);
+    }
+    if (typeof page.css !== "string") throw bundleError(`page ${route} has no CSS`);
+    const config =
+      typeof page.config === "object" && page.config !== null && !Array.isArray(page.config)
+        ? (page.config as Record<string, unknown>)
+        : {};
+    compiled.set(route, {
+      route,
+      config,
+      wxml: reviveWxml(wxml),
+      wxss: { file: `${route}.wxss`, css: page.css, files: [] },
+      css: page.css,
+    });
+  }
+
+  const appWxss: CompiledWxss = { file: "app.wxss", css: bundle.appCss, files: [] };
   return { root, app: app as unknown as SampleAppConfig, appWxss, pages: compiled, read };
 }

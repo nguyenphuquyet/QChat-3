@@ -4,3 +4,6 @@ export * from "./paths.js";
 export * from "./wxml.js";
 export * from "./wxml-compiler.js";
 export * from "./wxss.js";
+export * from "./package.js";
+export * from "./install.js";
+export * from "./build.js";

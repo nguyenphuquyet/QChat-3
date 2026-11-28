@@ -140,16 +140,19 @@ export function parseManifest(value: unknown): ManifestResult {
   }
   if (total > MAX_PACKAGE_BYTES) return { ok: false, error: miniAppError("PACKAGE_TOO_LARGE") };
 
-  // Every page needs its four source files in the archive, or the build failed
-  // before packaging. A missing file is a manifest error, never a runtime crash.
+  // Every page needs its WXML and JavaScript source in the archive, and the
+  // build must have produced the compiled view bundle. A missing file is a
+  // manifest error, never a runtime crash. Page JSON and WXSS are optional, as
+  // in WeChat, so a page without styles or config is valid.
   for (const page of pages) {
-    for (const ext of ["js", "json", "wxml", "wxss"]) {
+    for (const ext of ["js", "wxml"]) {
       const path = `${page}.${ext}`;
       if (!paths.has(path)) return bad("A declared page is missing a source file.", { page, path });
     }
   }
   if (!paths.has("app.js")) return bad("app.js is missing.");
   if (!paths.has("app.json")) return bad("app.json is missing.");
+  if (!paths.has("build/view.json")) return bad("The compiled view bundle build/view.json is missing.");
 
   const signature = value.signature;
   if (!isRecord(signature) || !hasOnlyKeys(signature, ["algorithm", "value", "keyId"])) {

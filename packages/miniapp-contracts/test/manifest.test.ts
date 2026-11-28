@@ -19,6 +19,7 @@ function filesFor(pages: string[]) {
   const files = [
     { path: "app.js", sha256: sha, bytes: 10 },
     { path: "app.json", sha256: sha, bytes: 10 },
+    { path: "build/view.json", sha256: sha, bytes: 10 },
   ];
   for (const page of pages) {
     for (const ext of ["js", "json", "wxml", "wxss"]) {
@@ -96,9 +97,23 @@ test("rejects an entry that is not a declared page", () => {
 
 test("rejects a declared page with a missing source file", () => {
   const value = manifest();
-  value.files = (value.files as Array<Record<string, unknown>>).filter((file) => file.path !== "pages/index/index.wxss");
+  value.files = (value.files as Array<Record<string, unknown>>).filter((file) => file.path !== "pages/index/index.wxml");
   const result = parseManifest(value);
   assert.equal(result.ok, false);
+});
+
+test("accepts a page without JSON or WXSS and rejects a package without a view bundle", () => {
+  const lean = manifest();
+  lean.files = (lean.files as Array<Record<string, unknown>>).filter(
+    (file) => file.path !== "pages/index/index.json" && file.path !== "pages/index/index.wxss",
+  );
+  assert.equal(parseManifest(lean).ok, true);
+
+  const noBundle = manifest();
+  noBundle.files = (noBundle.files as Array<Record<string, unknown>>).filter((file) => file.path !== "build/view.json");
+  const result = parseManifest(noBundle);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.match(result.error.message, /view bundle/);
 });
 
 test("rejects an unsupported format version", () => {

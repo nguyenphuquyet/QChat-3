@@ -2,18 +2,20 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M5 — Package format and Android host**
+- **Current milestone:** **M6 — MVP validation** (M5 package exit check `PASS`; Android host `BLOCKED`)
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
 - **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
 - **M3 exit check:** `PASS` (Node); device rendering and theme matrix are `BLOCKED`
 - **M4 exit check:** `PASS` (Node); device API/network evidence is `BLOCKED`
+- **M5 exit check:** `PASS` (Node); the Android host build/device is `BLOCKED`
 - **PLAN:** `DONE`
 - **M0:** `DONE`
 - **M1:** `DONE` (device evidence `BLOCKED`)
 - **M2:** `DONE` (Android engine build `BLOCKED`)
 - **M3:** `DONE` (device view/theme evidence `BLOCKED`)
 - **M4:** `DONE` (device API evidence `BLOCKED`)
+- **M5:** `DONE` (package/installer/storage; Android host `BLOCKED`)
 - **Last updated:** 2026-11-28
 
 ## 1. Where the work stands
@@ -74,11 +76,22 @@
   toast event — 13 harness tests.
 - M4 ADR 010 (synchronous API channel and network transport seam) amends ADR 009;
   compatibility §1.1 rows are `Experimental`/`Partial` with linked tests.
+- M5: `.qxpkg` builder and verifier (ZIP, per-file SHA-256, Ed25519 manifest
+  signature, limits, path/extension rules, runtime gate), the compiler's
+  `build/view.json` artifact, the installer (`PackageStore`: staging, atomic
+  rename, two versions, rollback, revocation, downgrade) and per-app storage
+  (`FileStorageAdapter`: key hashing, quota, corruption) — 73 compiler tests.
+- M5 proof: an installed `qchat-hello` package runs from `build/view.json` with
+  no compiler on the path (`loadInstalledPackage`), including a refused bundle
+  mismatch and a refused source-only package — 16 harness tests.
+- M5 ADR 011 fixes the installed layout, the bundle format and the Android host
+  seam; the Android build/device stays `BLOCKED` (no SDK/NDK/phone).
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
 
-- M5 package format and Android host: task plan not written yet.
+- M6 MVP validation: task plan next. The Android host build and a phone remain
+  the gating inputs.
 
 ### Blocked
 
@@ -92,10 +105,11 @@
 
 ### Next task
 
-M5 — package format and Android host: write the M5 task plan, then implement the
-`.qxpkg` builder/verifier (ZIP + per-file SHA-256 + Ed25519 manifest signature,
-atomic install/rollback) and the Android WebView/QuickJS host behind the existing
-contracts. Device evidence stays `BLOCKED`; the phone checklist stays in §5.4.
+M6 — MVP validation: write the M6 task plan, then build the Android host
+(WebView asset loader + message listener, QuickJS engine binding, Dart installer
+and runtime screen), run `qchat-hello` on a real phone, measure section 9.1 and
+write the bridge/package threat model. Without an SDK/phone the host stays
+`BLOCKED`; the phone checklist stays in §5.4.
 
 ### How to verify M0
 
@@ -962,3 +976,134 @@ Get-Content docs/adr/010-synchronous-api-channel.md
   storage cache kept in the host and no I/O in the call; `wx.request` transport
   injected by the host. It amends ADR 009's "the engine never blocks on the
   host" to "never blocks on host I/O".
+
+## 12. M5 task plan
+
+| # | Task | Done when | Evidence |
+|---|---|---|---|
+| 1 | `.qxpkg` builder and verifier | ZIP with `manifest.json`, `signature.ed25519` and files; every file hashed; Ed25519 over canonical manifest; limits and safe paths; runtime gate | `packages/miniapp-compiler/src/package.ts`; `test/package.test.ts` |
+| 2 | Compiled view bundle | `build/view.json` produced by the compiler and required by the manifest; host reads it without compiling | `src/build.ts`; `packages/miniapp-contracts/src/manifest.ts` |
+| 3 | Installer | Verify → staging → atomic rename → `state.json`; two versions; rollback; revoked and downgrade refused | `src/install.ts` (`PackageStore`) |
+| 4 | Storage isolation | Per-app directory, hashed key file names, quota, corruption error | `src/install.ts` (`FileStorageAdapter`) |
+| 5 | Installed run | An installed package runs from its bundle; a missing or mismatched bundle is refused | `packages/miniapp-test-harness/src/sample.ts` (`loadInstalledPackage`); `test/installed.test.ts` |
+| 6 | Android host seam | Layout, origin, bridge, engine and teardown fixed in an ADR; build/device honestly `BLOCKED` | ADR 011 |
+| 7 | M5 report + exit check | `STATUS.md` report, compatibility rows, removal progress, ADR 011 | This section and §13 |
+
+## 13. M5 phase report
+
+### 13.1 Exit check
+
+**Result:** `PASS` for the M5 done-when condition — "`.qxpkg` verified; tamper
+tests; atomic install/rollback". The package format, installer and storage are
+implemented and verified in Node. The Android host build and device run are
+`BLOCKED` (no SDK/NDK/emulator/phone) and are carried to M6; M5 does not claim
+them.
+
+| Checklist item | Evidence |
+|---|---|
+| `.qxpkg` builder | `src/package.ts`: ZIP writer (stored/deflate), CRC32, canonical manifest, Ed25519 signature, `signature.ed25519` |
+| Verifier order | size → ZIP limits → path/extension → manifest schema → signature → per-file size/SHA-256 → runtime gate |
+| Tamper tests | `test/package.test.ts`: wrong key, flipped archive byte, oversized archive, unsafe path, executable, missing page source |
+| Compiled bundle | `src/build.ts`: `build/view.json` for every page; manifest requires it; `loadInstalledPackage` reads it |
+| Atomic install | `PackageStore.install`: verify, staging directory, one rename, then `state.json`; a failure leaves the previous version |
+| Rollback | `PackageStore.rollback` swaps `current`/`previous` without extraction; two versions retained |
+| Revocation / downgrade | `PACKAGE_REVOKED`, `PACKAGE_DOWNGRADE_BLOCKED` tests |
+| Storage isolation | `FileStorageAdapter`: per-app directory, SHA-256 key names, quota, `STORAGE_CORRUPT` |
+| Installed run | `packages/miniapp-test-harness/test/installed.test.ts`: install `qchat-hello`, launch, tap, patch |
+| Type check | `pnpm typecheck` pass (2 GB heap) |
+| Isolation guard | `pnpm check:miniapp` pass (9 roots) |
+| Tests | `pnpm test:miniapp` → **242 pass, 0 fail** (contracts 51, compiler 73, service 66, view 36, harness 16) |
+| Android host | `BLOCKED`: no SDK/NDK/phone; seam and layout fixed in ADR 011 |
+| Removal progress | 8/54 (rows 6, 7, 8, 13, 16, 26, 31, 34); rows 5 and 14 carried to M6 |
+| Compatibility update | §1.0 package/bundle/install/storage rows with linked tests |
+| Commit and push | M5 commit on `origin/feat/miniapp-v7` |
+
+### 13.2 What M5 proves
+
+- A package cannot be built without a manifest-consistent file list: every file
+  is hashed before the manifest is signed, so a caller cannot sign bytes that do
+  not match what ships.
+- Verification is ordered and fails closed: a wrong key, a flipped byte, an
+  oversized archive, an unsafe path or an executable is refused before anything
+  is written.
+- Installation is atomic and reversible: a failed install leaves the previous
+  version untouched, a rollback needs no re-extraction, and a revoked or
+  downgraded version is refused.
+- Storage cannot escape an app: the file name is the SHA-256 of the key, the
+  quota is checked before a write, and a corrupt record is an error, not a
+  silent reset.
+- The device path needs no compiler: `build/view.json` carries every compiled
+  template and stylesheet, and an installed package renders and handles a tap in
+  the Node host from that bundle alone.
+
+### 13.3 What M5 does not prove
+
+- No Android WebView loaded a package, no QuickJS build ran, no JNI call was
+  made, and no phone installed anything. The host seam is fixed, not built.
+- The device Ed25519 verifier is still `UNVERIFIED`; the Dart `archive`/`crypto`
+  reuse and the Ed25519 package choice are carried to M6 (ADR 008).
+- No process death, disk-full, concurrent install, multi-process storage or
+  device quota behaviour.
+- No server upload route, signing service, key rotation or revocation feed; the
+  server adapter is M9.
+- No measurement of install time, bundle size, verification time or storage
+  throughput.
+
+### 13.4 Removal progress (section 12.2B)
+
+| Decision | Total | Done | Remaining |
+|---|---|---|---|
+| REMOVE | 23 | 0 | 23 |
+| ADAPT | 15 | 2 | 13 |
+| REPLACE | 15 | 6 | 9 |
+| BLOCKED | 1 | 0 | 1 |
+| **Total** | **54** | **8** | **46** |
+
+Past target milestone: 2 (rows 5 and 14, carried to M6). Blocked by
+access/input: 1 (production apps).
+
+Rows 7, 8, 16, 31 and 34 close with the new installer, storage, package tests,
+validator and ZIP limits. The legacy files stay until row 1 at M11, so no
+production app breaks in M5.
+
+### 13.5 Compatibility matrix
+
+§1.0 gained rows for the package builder, verifier, installer, storage isolation
+and the compiled-bundle installed run, each with a linked test. The manifest row
+now names `build/view.json`. No WeChat feature row changes status in M5; the
+Android host rows stay `Not started` until M6 has a device.
+
+### 13.6 Open risks / blocked
+
+- The Android host is the largest unverified piece: WebView origin, message
+  listener, QuickJS thread, sync binding and teardown must be built and tested on
+  a device before any of it is claimed.
+- A device Ed25519 verifier below Android API 33 needs a bundled implementation;
+  the choice and license must be recorded before the first install.
+- `build/view.json` is a new format surface: its version gate must be tested on
+  the device host, not only in Node.
+- Staging directories left by a crash are not swept on startup yet; M6 must add
+  a startup cleanup with a test.
+- The server upload/signing path is M9; M5 signs with a caller-supplied key in
+  tests only.
+
+### 13.7 How to verify M5
+
+```powershell
+$env:NODE_OPTIONS="--max-old-space-size=2048"
+pnpm typecheck
+pnpm check:miniapp
+pnpm test:miniapp
+pnpm --filter @qchat/miniapp-compiler test
+pnpm --filter @qchat/miniapp-test-harness test
+Get-Content docs/adr/008-package-format-signing.md
+Get-Content docs/adr/011-installed-layout-and-android-host.md
+```
+
+### 13.8 ADRs written in M5
+
+- **ADR 011 — Installed layout, compiled view bundle and the Android host
+  seam.** `build/view.json`, the on-disk layout, atomic install/rollback, the
+  asset-loader origin, the message listener, the engine thread and teardown.
+  ADR 008 is amended for the bundle requirement, optional page JSON/WXSS and the
+  registry error-code names.

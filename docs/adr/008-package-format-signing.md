@@ -17,7 +17,11 @@ blocked revoked/downgraded versions. The legacy `.japp` format is removed.
    - `manifest.json` — format version, app ID, version, minimum runtime version,
      entry, pages, permissions, default `qxColorScheme`, file list with SHA-256
      and size, signature metadata;
-   - the source artifacts (compiled view bundle, service bundle, WXSS, assets);
+   - the source artifacts (`app.js`, `app.json`, `app.wxss`, every page's `.js`
+     and `.wxml`, optional page `.json`/`.wxss`, assets);
+   - `build/view.json` — the compiled view bundle: every page's compiled WXML
+     template and compiled CSS in one versioned JSON document. A package without
+     it is rejected by the manifest, so a host never has to compile on device;
    - `signature.ed25519` — a detached signature over the canonical manifest.
 2. **Signature:** Ed25519 over the SHA-256 of the canonical manifest bytes.
    Public keys are pinned in the app and rotated through a key ID in the
@@ -32,13 +36,17 @@ blocked revoked/downgraded versions. The legacy `.japp` format is removed.
    downgrades.
 5. **Storage isolation:** one app-private directory per app ID; quotas; no
    cross-app reads.
-6. **Errors:** documented codes (`PKG_SIGNATURE_INVALID`, `PKG_HASH_MISMATCH`,
-   `PKG_UNSAFE_PATH`, `PKG_TOO_LARGE`, `PKG_FORMAT_UNSUPPORTED`,
-   `PKG_REVOKED`, `PKG_DOWNGRADE_BLOCKED`).
+6. **Errors:** the registry codes (`PACKAGE_SIGNATURE_INVALID`,
+   `PACKAGE_HASH_MISMATCH`, `PACKAGE_UNSAFE_PATH`, `PACKAGE_TOO_LARGE`,
+   `PACKAGE_FORMAT_UNSUPPORTED`, `PACKAGE_REVOKED`,
+   `PACKAGE_DOWNGRADE_BLOCKED`, `PACKAGE_INSTALL_FAILED`); the registry is the
+   single source of truth and ADR 008's earlier `PKG_*` spelling was a draft.
 
-`UNVERIFIED`: the Dart Ed25519 implementation. M5 evaluates `cryptography`
-(pure Dart, Apache-2.0) or `pointycastle` (MIT) and records the choice and
-license in the third-party notices; the format does not change either way.
+`UNVERIFIED`: the Dart/Android Ed25519 implementation. M5 fixed the Node
+reference (OpenSSL Ed25519) and left the device verifier open: `cryptography`
+(pure Dart, Apache-2.0) or `pointycastle` (MIT) in Dart, or a Kotlin verifier on
+API 33+ with a fallback below it. The format does not change either way; the
+choice is recorded with its license before the first device install (M6).
 
 ## Alternatives considered
 

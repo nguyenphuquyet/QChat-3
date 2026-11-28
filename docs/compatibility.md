@@ -26,7 +26,7 @@ implementation is M4/M3.
 | Contract | Entry | Status | Linked test | Notes |
 |---|---|---|---|---|
 | Bridge | Envelope, binding, size limit, unknown keys | Experimental | `packages/miniapp-contracts/test/bridge.test.ts` | Foreign app/session/page rejected |
-| Manifest | `.qxpkg` manifest, pages, files, signature shape | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Hashes/signature verified in M5 |
+| Manifest | `.qxpkg` manifest, pages, files, signature shape | Experimental | `packages/miniapp-contracts/test/manifest.test.ts` | Required `build/view.json`; hashes/signature verified in M5 |
 | Permissions | Declared permissions, unknown rejected | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Prompt/OS mapping is M7 |
 | Components | Registry (P0/P1/P2) | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Rendering is M3/M7 |
 | APIs | Registry + bridge allowlist | Experimental | `packages/miniapp-contracts/test/contracts.test.ts` | Implementation is M4/M7 |
@@ -35,9 +35,9 @@ implementation is M4/M3.
 | Render session | `seq` ordering, tree then ops, stale payload ignored | Experimental | `packages/miniapp-view-runtime/test/session.test.ts` | Ops before a tree are rejected |
 | Service | `App`/`Page`, lifecycle, stack, path-based `setData` | Experimental | `packages/miniapp-service-runtime/test/service.test.ts` | First visible render is a tree; later updates are ops |
 | Round trip | Service render → view paint → tap → service | Experimental | `packages/miniapp-view-runtime/test/roundtrip.test.ts` | Node bridge, not a device |
-| Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device host is M5 |
+| Sample end to end | `qchat-hello` source → compiler → engine → view → tap → patch | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness; device host is M6 |
 | `wx` SDK | Callback + Promise forms, navigation primitives, sync channel | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | One source on Node/QuickJS/JSC |
-| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are M5/M8 |
+| API host | Navigation, storage, request, UI and system-info dispatch | Experimental | `packages/miniapp-service-runtime/test/api-host.test.ts` | Policy and adapters; device adapters are M6/M8 |
 | Page stack end to end | `navigateTo`/`navigateBack`, query, state restore | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | Node harness |
 | Async APIs end to end | Storage callback, `wx.request`, toast event | Experimental | `packages/miniapp-test-harness/test/host-api.test.ts` | Recording adapters; no network |
 | Sync API channel | `__qchatHost.sync`, storage and system info | Experimental | `packages/miniapp-service-runtime/test/wx-sdk.test.ts` | ADR 010; device timing `BLOCKED` |
@@ -47,12 +47,17 @@ implementation is M4/M3.
 | SDK | `App`, `Page`, `Component`, `getApp`, `getCurrentPages`, `setData` | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Runs inside the engine |
 | Modules | Relative `require`, cache, escape rejection | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | npm/subpackages are M7 |
 | Bridge client | Allowlist, ids, timeout, cancel, close, binding | Experimental | `packages/miniapp-service-runtime/test/bridge-client.test.ts` | Host side |
-| Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers are M4 (`sdk.ts`) |
+| Service calls | `__qchatCall`/`__qchatResponse`, unknown method rejected | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | `wx.*` wrappers in `sdk.ts` |
 | Timers | Tracked `setTimeout`/`setInterval`, cleared on close | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Long-running timing test is M3 |
 | WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only |
 | WXML compiler | Directives, templates, events, dataset, typed render tree | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Node only; no device |
 | Expressions | Safe `{{ }}` subset, no calls, no prototype access | Experimental | `packages/miniapp-compiler/test/expression.test.ts` | Never `eval` |
 | WXSS compiler | `rpx`, `@import`, scoping, theme selectors | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | `prefers-color-scheme` rejected; Node only |
+| Package builder | `.qxpkg` ZIP, manifest, per-file SHA-256, Ed25519 signature | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Private key is caller-supplied; never shipped |
+| Package verifier | Size, ZIP limits, path/extension, signature, hashes, runtime gate | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Tamper and oversize tests |
+| Installer | Staging, atomic rename, `state.json`, two versions, rollback | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Revoked and downgrade refused |
+| Storage isolation | Per-app directory, key hashing, quota, corruption | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Device storage adapter is M6 |
+| Compiled bundle | `build/view.json` read and rendered from an installed package | Experimental | `packages/miniapp-compiler/test/package.test.ts`, `packages/miniapp-test-harness/test/installed.test.ts` | No compiler on the device path |
 
 ### 1.1 APIs — MVP (M4/M6)
 
