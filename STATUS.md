@@ -8,7 +8,7 @@
   `BLOCKED`.
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no phone)
-- **M2 exit check:** `PASS` (Node); the Android QuickJS build is host module 4 (pending) and the device run is `BLOCKED`
+- **M2 exit check:** `PASS` (Node); the Android QuickJS build is host module 4 (CI green on `0772a75`) and the device run is `BLOCKED`
 - **M3 exit check:** `PASS` (Node); device rendering and theme matrix are `BLOCKED`
 - **M4 exit check:** `PASS` (Node); device API/network evidence is `BLOCKED`
 - **M5 exit check:** `PASS` (Node); the Android host code was not written in M5, it is host module 1 now
@@ -115,8 +115,14 @@
   (MIT, SHA-256 recorded in `VENDORED.md`) and builds `libqchat_quickjs.so` with
   CMake for `arm64-v8a`, `armeabi-v7a` and `x86_64`. The JNI bridge and the
   `qchat/miniapp/service` channel are written; the Dart wrapper parses the JSON
-  envelope (6 tests pass locally). The native build is verified only when the CI
-  debug-APK job compiles all three ABIs; evaluation on a phone is `UNVERIFIED`.
+  envelope (6 tests pass locally). CI on `0772a75` compiled the native library
+  for all three ABIs in both the debug and the release APK job (push run
+  `46138664495`, PR run `46138669727`); that is `VERIFIED` for "the three ABIs
+  compile and package" only. Evaluation on a phone is `UNVERIFIED`. The M1 spike
+  screen (`/miniApps/spike`) now has a QuickJS check: create, `1 + 1`, a Unicode
+  string, a thrown error, a 300 ms `while (true)` timeout, then close, printing
+  each envelope. It is the on-device evidence path for this module and has not
+  run yet.
 - M7 task 1 (P1 components) and task 2 (custom components) are done on Node.
 
 ### Done (M6)
@@ -155,7 +161,7 @@ as passed before it.
 | 1 | `packages/qchat_miniapp_webview`: Kotlin WebView + `WebViewAssetLoader` + `WebMessageListener`, Dart `AndroidView` API, JVM tests | Written and pushed (`46cffaa` fixed the two Kotlin compile errors); CI builds the debug APK and runs the JVM tests | Kotlin host + 3 JVM test classes; `flutter analyze` clean; device `UNVERIFIED` |
 | 2 | M1 spike screen + Flutter host screen (`apps/mobile/lib/features/miniapps_host`, route `/miniApps/spike`) | Written and pushed (`830fc7d`) | `flutter analyze` clean; the spike renders the fixture bundle; device `UNVERIFIED` |
 | 3 | Dart verifier + installer and Ed25519 choice (ADR 016) | Written; local tests green; pushed with this task | 4 committed `.qxpkg` fixtures, 19 Dart tests, `cryptography` 2.9.0; device `UNVERIFIED` |
-| 4 | QuickJS JNI + Gradle/CMake for three ABIs (`packages/qchat_miniapp_quickjs`, ADR 017) | Written; CI build pending on this push | Vendored QuickJS 2026-06-04, `libqchat_quickjs.so`, `qchat/miniapp/service`, 6 Dart envelope tests; device `UNVERIFIED` |
+| 4 | QuickJS JNI + Gradle/CMake for three ABIs (`packages/qchat_miniapp_quickjs`, ADR 017) | Written and pushed (`0772a75`); CI green on both runs | Vendored QuickJS 2026-06-04, `libqchat_quickjs.so` for 3 ABIs in the debug and release APKs, `qchat/miniapp/service`, 6 Dart envelope tests, spike check wired; device `UNVERIFIED` |
 | 5 | iOS host: `WKWebView` + `WKURLSchemeHandler` + `WKScriptMessageHandler` + JavaScriptCore, unsigned IPA | Pending (after Android CI) | macOS minutes used: **0** |
 
 CI: `.github/workflows/flutter.yml` now has a Linux-only debug-APK job that also

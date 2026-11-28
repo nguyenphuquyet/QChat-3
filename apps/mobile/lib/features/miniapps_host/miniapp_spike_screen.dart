@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/cupertino.dart';
+import 'package:qchat_miniapp_quickjs/qchat_miniapp_quickjs.dart';
 import 'package:qchat_miniapp_webview/qchat_miniapp_webview.dart';
 
 import '../../core/design_system/components.dart';
@@ -26,10 +28,12 @@ class MiniAppSpikeScreen extends StatefulWidget {
 
 class _MiniAppSpikeScreenState extends State<MiniAppSpikeScreen> {
   final List<String> _log = <String>[];
+  final List<String> _serviceLog = <String>[];
   MiniAppWebViewController? _controller;
   String _sessionId = '';
   String? _error;
   bool _installing = false;
+  bool _serviceBusy = false;
   int _taps = 0;
   int _seq = 0;
 
@@ -115,6 +119,54 @@ class _MiniAppSpikeScreenState extends State<MiniAppSpikeScreen> {
     }
   }
 
+  /// The device evidence path for host module 4: one runtime, four scripts,
+  /// then close. Nothing here runs in CI; the native library only exists on a
+  /// phone or emulator.
+  Future<void> _runServiceCheck() async {
+    if (_serviceBusy) return;
+    setState(() {
+      _serviceBusy = true;
+      _serviceLog.clear();
+    });
+    QjsRuntime? runtime;
+    try {
+      runtime = await QjsRuntime.create();
+      final lines = <String>[];
+      lines.add(_describe('1 + 1', await runtime.eval('1 + 1')));
+      lines.add(
+        _describe(
+          'unicode',
+          await runtime.eval('"QChat ✅ Đặt lại"'),
+        ),
+      );
+      lines.add(
+        _describe(
+          'throw',
+          await runtime.eval('(() => { throw new Error("boom"); })()'),
+        ),
+      );
+      lines.add(
+        _describe(
+          'timeout',
+          await runtime.eval(
+            'while (true) {}',
+            timeout: const Duration(milliseconds: 300),
+          ),
+        ),
+      );
+      if (mounted) setState(() => _serviceLog.addAll(lines));
+    } on Object catch (error) {
+      if (mounted) setState(() => _serviceLog.add('failed: $error'));
+    } finally {
+      await runtime?.close();
+      if (mounted) setState(() => _serviceBusy = false);
+    }
+  }
+
+  String _describe(String label, QjsEvalResult result) => result.ok
+      ? '$label -> ${jsonEncode(result.value)}'
+      : '$label -> ${result.error}';
+
   @override
   Widget build(BuildContext context) {
     final muted = TextStyle(fontSize: 14, height: 1.45, color: qchatMuted(context));
@@ -158,6 +210,42 @@ class _MiniAppSpikeScreenState extends State<MiniAppSpikeScreen> {
             Text(tr(context, 'miniappHostNoEvents'), style: muted)
           else
             for (final line in _log)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  line,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontFamily: 'monospace',
+                    color: qchatMuted(context),
+                  ),
+                ),
+              ),
+          const SizedBox(height: 26),
+          Text(
+            tr(context, 'miniappHostService'),
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: qchatInk(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(tr(context, 'miniappHostServiceNote'), style: muted),
+          const SizedBox(height: 12),
+          QChatButton(
+            _serviceBusy
+                ? tr(context, 'miniappHostServiceRunning')
+                : tr(context, 'miniappHostServiceRun'),
+            loading: _serviceBusy,
+            secondary: true,
+            onTap: _serviceBusy ? null : () => unawaited(_runServiceCheck()),
+          ),
+          const SizedBox(height: 10),
+          if (_serviceLog.isEmpty)
+            Text(tr(context, 'miniappHostServiceNoResult'), style: muted)
+          else
+            for (final line in _serviceLog)
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
