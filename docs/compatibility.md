@@ -119,15 +119,15 @@ implementation is M4/M3.
 | P0 | `input` | `/miniprogram/dev/component/input.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `bindinput`, `bindconfirm`, `password`, `maxlength`; keyboard height is host-side |
 | P0 | `scroll-view` | `/miniprogram/dev/component/scroll-view.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `scroll-y`, `scroll-x`, `scroll-top`, thresholds; `enhanced` is a no-op |
 | P0 | Navigation bar | `app.json` `window` + `wx.setNavigationBarColor` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `wx-navigation-bar` drawn by the View Runtime; host may override |
-| P1 | `textarea` | `/miniprogram/dev/component/textarea.html` | Not started | — | |
-| P1 | `checkbox` / `checkbox-group` | `/miniprogram/dev/component/checkbox.html` | Not started | — | |
-| P1 | `radio` / `radio-group` | `/miniprogram/dev/component/radio.html` | Not started | — | |
-| P1 | `switch` | `/miniprogram/dev/component/switch.html` | Not started | — | |
-| P1 | `slider` | `/miniprogram/dev/component/slider.html` | Not started | — | |
-| P1 | `picker` | `/miniprogram/dev/component/picker.html` | Not started | — | `selector`, `multiSelector`, `date`, `time`; `region` `UNVERIFIED` |
-| P1 | `form` | `/miniprogram/dev/component/form.html` | Not started | — | `bindsubmit`, `bindreset` |
-| P1 | `swiper` / `swiper-item` | `/miniprogram/dev/component/swiper.html` | Not started | — | |
-| P1 | Tab bar | `app.json` `tabBar` | Not started | — | Drawn by the View Runtime |
+| P1 | `textarea` | `/miniprogram/dev/component/textarea.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `bindinput`, `bindconfirm`, `maxlength`, `auto-height`; `fixed` is a no-op |
+| P1 | `checkbox` / `checkbox-group` | `/miniprogram/dev/component/checkbox.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `wx-checkbox-group` aggregates checked values; `change` detail `{value: string[]}` |
+| P1 | `radio` / `radio-group` | `/miniprogram/dev/component/radio.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | One selection per group; `change` detail `{value: string}` |
+| P1 | `switch` | `/miniprogram/dev/component/switch.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `checked`, `disabled`, `color`; `change` detail `{value: boolean}` |
+| P1 | `slider` | `/miniprogram/dev/component/slider.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `changing` on drag, `change` on release; `block-size` is a no-op |
+| P1 | `picker` | `/miniprogram/dev/component/picker.html` | Partial | `packages/miniapp-view-runtime/test/components.test.ts` | `selector`, `date`, `time`, `datetime`; `multiSelector` uses the first column only; `region` is `UNVERIFIED` |
+| P1 | `form` | `/miniprogram/dev/component/form.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `bindsubmit` collects named controls; `bindreset`; `report-submit` is a no-op |
+| P1 | `swiper` / `swiper-item` | `/miniprogram/dev/component/swiper.html` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `current`, `autoplay`, `circular`, `vertical`, indicator dots; touch swipe is host-side |
+| P1 | Tab bar | `app.json` `tabBar` | Experimental | `packages/miniapp-view-runtime/test/components.test.ts` | `wx-tab-bar` drawn by the View Runtime from `items`; `wx.setTabBarStyle` is M7 APIs |
 | P1 | Custom components | `/miniprogram/dev/framework/custom-component/` | Not started | — | `usingComponents`, properties, slots, behaviors |
 | P2 | `video` | `/miniprogram/dev/component/video.html` | Not started | — | HTML `<video>`; codecs documented |
 | P2 | `canvas` | `/miniprogram/dev/component/canvas.html` | Not started | — | Canvas/WebGL |

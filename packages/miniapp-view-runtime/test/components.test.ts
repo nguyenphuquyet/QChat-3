@@ -9,6 +9,7 @@ import {
   imageEventDetail,
   inputEventDetail,
   p0ComponentsCovered,
+  p1ComponentsCovered,
   scrollEventDetail,
   webComponentByName,
   webComponentByTag,
@@ -37,9 +38,25 @@ function setup(): ComponentHarness {
   };
 }
 
+/** Values built inside the `vm` context are cross-realm; compare JSON data. */
+function plain(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value));
+}
+
 test("every P0 registry component has a matching web component", () => {
   assert.equal(p0ComponentsCovered(), true);
   for (const definition of COMPONENT_REGISTRY.filter((component) => component.priority === "P0")) {
+    const web = webComponentByName(definition.name);
+    assert.ok(web, `${definition.name} has no web component`);
+    assert.equal(web.tag, `wx-${definition.name}`);
+    assert.deepEqual([...web.observedAttributes], [...definition.properties]);
+    assert.deepEqual([...web.events], [...definition.events]);
+  }
+});
+
+test("every P1 registry component has a matching web component", () => {
+  assert.equal(p1ComponentsCovered(), true);
+  for (const definition of COMPONENT_REGISTRY.filter((component) => component.priority === "P1")) {
     const web = webComponentByName(definition.name);
     assert.ok(web, `${definition.name} has no web component`);
     assert.equal(web.tag, `wx-${definition.name}`);
@@ -56,7 +73,8 @@ test("web component tags are unique and prefixed", () => {
     assert.equal(webComponentByTag(tag)?.tag, tag);
   }
   assert.equal(webComponentByName("navigation-bar")?.tag, "wx-navigation-bar");
-  assert.equal(webComponentByName("textarea"), undefined);
+  assert.equal(webComponentByName("textarea")?.tag, "wx-textarea");
+  assert.equal(webComponentByName("checkbox-group")?.tag, "wx-checkbox-group");
 });
 
 test("COMPONENTS_SOURCE registers every web component and is idempotent", () => {
@@ -258,4 +276,168 @@ test("event detail helpers match the documented shapes", () => {
     { scrollTop: 1, scrollLeft: 2, scrollHeight: 3, scrollWidth: 4, deltaX: 5, deltaY: -6 },
   );
   assert.deepEqual(imageEventDetail(40, 30), { width: 40, height: 30 });
+});
+
+test("textarea reflects value, placeholder and maxlength, then emits input and confirm", () => {
+  const { make } = setup();
+  const element = make("wx-textarea", { value: "hello", placeholder: "Write", maxlength: "20", "auto-height": "true" });
+  const area = element.__qchatInput;
+  assert.equal(area.value, "hello");
+  assert.equal(area.placeholder, "Write");
+  assert.equal(area.maxLength, 20);
+  area.value = "hi";
+  area.selectionStart = 1;
+  area.dispatchEvent(new ShimEvent("input"));
+  const input = element.dispatched.find((entry: ShimEvent) => entry.type === "input");
+  assert.deepEqual({ ...input?.detail }, { value: "hi", cursor: 1, keyCode: 0 });
+  area.dispatchEvent(new ShimEvent("keydown", { key: "Enter" }));
+  const confirm = element.dispatched.find((entry: ShimEvent) => entry.type === "confirm");
+  assert.deepEqual({ ...confirm?.detail }, { value: "hi" });
+});
+
+test("checkbox reflects checked and emits its state; the group collects checked values", () => {
+  const { make } = setup();
+  const box = make("wx-checkbox", { value: "a", checked: "true" });
+  assert.equal(box.__qchatInput.checked, true);
+  box.__qchatInput.checked = false;
+  box.__qchatInput.dispatchEvent(new ShimEvent("change"));
+  const change = box.dispatched.find((entry: ShimEvent) => entry.type === "change");
+  assert.deepEqual({ ...change?.detail }, { value: false });
+
+  const group = make("wx-checkbox-group");
+  const first = make("wx-checkbox", { value: "a", checked: "true" });
+  const second = make("wx-checkbox", { value: "b" });
+  group.appendChild(first);
+  group.appendChild(second);
+  group.dispatchEvent(new ShimEvent("change"));
+  const collected = group.dispatched.filter((entry: ShimEvent) => entry.type === "change").pop();
+  assert.deepEqual(plain(collected?.detail), { value: ["a"] });
+  assert.deepEqual(plain(group.__qchatValue), ["a"]);
+});
+
+test("radio-group keeps one selection and reports its value", () => {
+  const { make } = setup();
+  const group = make("wx-radio-group");
+  const first = make("wx-radio", { value: "a", checked: "true" });
+  const second = make("wx-radio", { value: "b", checked: "true" });
+  group.appendChild(first);
+  group.appendChild(second);
+  group.dispatchEvent(new ShimEvent("change"));
+  const change = group.dispatched.filter((entry: ShimEvent) => entry.type === "change").pop();
+  assert.deepEqual(plain(change?.detail), { value: "a" });
+  assert.equal(second.__qchatInput.checked, false);
+});
+
+test("switch toggles on tap and ignores a disabled tap", () => {
+  const { make } = setup();
+  const element = make("wx-switch", { checked: "false" });
+  element.__qchatSwitch.dispatchEvent(new ShimEvent("click"));
+  const change = element.dispatched.find((entry: ShimEvent) => entry.type === "change");
+  assert.deepEqual({ ...change?.detail }, { value: true });
+  assert.equal(element.__qchatSwitch.dataset.checked, "true");
+
+  const disabled = make("wx-switch", { checked: "false", disabled: "true" });
+  disabled.__qchatSwitch.dispatchEvent(new ShimEvent("click"));
+  assert.equal(disabled.dispatched.some((entry: ShimEvent) => entry.type === "change"), false);
+});
+
+test("slider reflects min, max and step, then emits changing and change", () => {
+  const { make } = setup();
+  const element = make("wx-slider", { value: "25", min: "10", max: "50", step: "5", activeColor: "#123456" });
+  const input = element.__qchatInput;
+  assert.equal(input.min, "10");
+  assert.equal(input.max, "50");
+  assert.equal(input.step, "5");
+  assert.equal(input.value, "25");
+  assert.equal(input.style.accentColor, "#123456");
+  input.value = "30";
+  input.dispatchEvent(new ShimEvent("input"));
+  input.dispatchEvent(new ShimEvent("change"));
+  const changing = element.dispatched.find((entry: ShimEvent) => entry.type === "changing");
+  const change = element.dispatched.find((entry: ShimEvent) => entry.type === "change");
+  assert.deepEqual({ ...changing?.detail }, { value: 30 });
+  assert.deepEqual({ ...change?.detail }, { value: 30 });
+});
+
+test("picker builds selector options and reports the selected index", () => {
+  const { make } = setup();
+  const element = make("wx-picker", { mode: "selector", range: '["A","B","C"]', value: "1" });
+  const select = element.__qchatSelect;
+  assert.equal(select.childNodes.length, 3);
+  assert.equal(select.value, "1");
+  select.value = "2";
+  select.dispatchEvent(new ShimEvent("change"));
+  const change = element.dispatched.find((entry: ShimEvent) => entry.type === "change");
+  assert.deepEqual({ ...change?.detail }, { value: 2 });
+});
+
+test("picker date mode uses a native date input", () => {
+  const { make } = setup();
+  const element = make("wx-picker", { mode: "date", value: "2026-11-28", start: "2020-01-01", end: "2030-12-31" });
+  const date = element.__qchatDate;
+  assert.equal(date.type, "date");
+  assert.equal(date.value, "2026-11-28");
+  assert.equal(date.min, "2020-01-01");
+  assert.equal(date.max, "2030-12-31");
+  date.value = "2026-12-01";
+  date.dispatchEvent(new ShimEvent("change"));
+  const change = element.dispatched.find((entry: ShimEvent) => entry.type === "change");
+  assert.deepEqual({ ...change?.detail }, { value: "2026-12-01" });
+});
+
+test("form collects named values on submit and reports reset", () => {
+  const { make } = setup();
+  const form = make("wx-form");
+  form.appendChild(make("wx-input", { name: "title", value: "hello" }));
+  form.appendChild(make("wx-switch", { name: "done", checked: "true" }));
+  form.dispatchEvent(new ShimEvent("formsubmit"));
+  const submit = form.dispatched.find((entry: ShimEvent) => entry.type === "submit");
+  assert.deepEqual(plain(submit?.detail), { value: { title: "hello", done: true } });
+
+  form.dispatchEvent(new ShimEvent("formreset"));
+  assert.equal(form.dispatched.some((entry: ShimEvent) => entry.type === "reset"), true);
+});
+
+test("swiper applies the current index, dots and a change event", () => {
+  const { shim } = setup();
+  const Swiper = shim.customElements.get("wx-swiper");
+  assert.ok(Swiper);
+  const swiper: any = new Swiper();
+  swiper.setAttribute("current", "1");
+  swiper.setAttribute("indicator-dots", "true");
+  swiper.appendChild(shim.element("wx-swiper-item"));
+  swiper.appendChild(shim.element("wx-swiper-item"));
+  swiper.connectedCallback();
+  assert.equal(swiper.__qchatSwiper.track.style.transform, "translateX(-100%)");
+  assert.equal(swiper.__qchatSwiper.dots.childNodes.length, 2);
+  const change = swiper.dispatched.find((entry: ShimEvent) => entry.type === "change");
+  assert.deepEqual({ ...change?.detail }, { current: 1, source: "setData" });
+});
+
+test("tab bar draws items and reports the selected index", () => {
+  const { make } = setup();
+  const element = make("wx-tab-bar", { items: '[{"text":"Home"},{"text":"Mine"}]', selected: "0" });
+  const buttons = element.__qchatBar.childNodes.filter((node: any) => node.tagName === "button");
+  assert.equal(buttons.length, 2);
+  assert.equal(buttons[1].childNodes[0].textContent, "Mine");
+  buttons[1].dispatchEvent(new ShimEvent("click"));
+  assert.equal(element.getAttribute("selected"), "1");
+  const change = element.dispatched.filter((entry: ShimEvent) => entry.type === "change").pop();
+  assert.deepEqual({ ...change?.detail }, { index: 1 });
+});
+
+test("the renderer creates every P1 element", () => {
+  const dom = new FakeDomAdapter();
+  const view = createViewRenderer(dom);
+  const p1 = COMPONENT_REGISTRY.filter((component) => component.priority === "P1");
+  const children: RenderNode[] = p1.map((component) => ({
+    type: "element",
+    tag: `wx-${component.name}`,
+    props: {},
+    children: [],
+  }));
+  view.render({ type: "element", tag: "wx-view", props: { class: "page" }, children });
+  for (const component of p1) {
+    assert.ok(dom.createdTags.includes(`wx-${component.name}`), `${component.name} was not created`);
+  }
 });

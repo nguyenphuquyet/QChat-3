@@ -290,7 +290,16 @@ export function createDomShim(): DomShim {
   const customElements = {
     define(tag: string, ctor: CustomElementConstructor): void {
       if (registry.has(tag)) throw new Error(`${tag} is already defined`);
-      registry.set(tag, ctor);
+      // A real custom element gets its tag name from the registry. The shim
+      // constructor does not, so wrap it: a component that queries its light
+      // DOM by tag (`wx-checkbox`, `wx-radio`, ...) must work here too.
+      const registered = class extends ctor {
+        constructor() {
+          super();
+          (this as unknown as { tagName: string }).tagName = tag;
+        }
+      };
+      registry.set(tag, registered);
     },
     get(tag: string): CustomElementConstructor | undefined {
       return registry.get(tag);

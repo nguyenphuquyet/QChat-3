@@ -2,7 +2,7 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M6 — MVP validation** (M5 package exit check `PASS`; view client `PASS` in Node; Android host/device `BLOCKED`)
+- **Current milestone:** **M7 — Full runtime compatibility** (M6 exit check `PASS` for Node-verifiable items; Android host/device `BLOCKED`)
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no SDK/device)
 - **M2 exit check:** `PASS`; the Android QuickJS build and device run are `BLOCKED`
@@ -18,6 +18,7 @@
 - **M4:** `DONE` (device API evidence `BLOCKED`)
 - **M5:** `DONE` (package/installer/storage; Android host `BLOCKED`)
 - **M6:** `DONE` (view client, threat model, adversarial tests; Android host/device `BLOCKED`)
+- **M7:** `IN PROGRESS` (plan §16)
 - **Last updated:** 2026-11-28
 
 ## 1. Where the work stands
@@ -91,6 +92,13 @@
 - Environment report below; Appendix A assumptions below.
 
 ### In progress
+
+- M7 — full runtime compatibility: the task plan is §16. P1 components are done
+  (12 web components, `picker` `Partial`); custom components are next, then WXS,
+  the source targets (subpackages, npm, UniApp/Taro), the remaining APIs and the
+  QChat theme switch. Device-dependent items stay `BLOCKED`/`UNVERIFIED`.
+
+### Done (M6)
 
 - M6 MVP validation: task plan (§14), the threat model
   (`docs/security/threat-model.md`), ADR 012 and the View WebView client are
@@ -1192,3 +1200,52 @@ does not have; they stay `BLOCKED` and are reported as such, never as passed.
 parts of 2 and 6 `BLOCKED`. This is the spec's `BLOCKED` rule: the phase closes,
 M7 may start, and every device claim stays `UNVERIFIED` until the first real
 device run. The MVP is **not** declared complete.
+
+## 16. M7 task plan
+
+M7 delivers section 7 P1/P2 components, section 6 source targets (WXS, npm,
+subpackages, UniApp/Taro `mp-weixin`), and the section 8 post-MVP APIs. The
+Android host, iOS host and every device measurement remain `BLOCKED`; M7 proves
+the contracts and the Node reference, and marks every device claim `UNVERIFIED`.
+
+| # | Task | Done when | State |
+|---|---|---|---|
+| 1 | P1 components | `textarea`, `checkbox`/`checkbox-group`, `radio`/`radio-group`, `switch`, `slider`, `picker`, `form`, `swiper`/`swiper-item` and the tab bar are real web components in `COMPONENTS_SOURCE`; the registry carries `Experimental` with a linked test; the renderer accepts every P1 tag | Done (Node): 12 P1 web components, 12 new tests; `picker` is `Partial` |
+| 2 | Custom components | `usingComponents` resolves a package-local component; its properties, `slot` and events compile to `wx-<name>`; `Component()` registers it in the SDK; a missing component is a compiler diagnostic, never a silent plain tag | Not started |
+| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Not started |
+| 4 | Source targets | Subpackages (main and independent) in `app.json`, manifest, compiler and installer; npm dependencies bundled at build time under a documented rule; UniApp/Taro `mp-weixin` output detected and adapted; ADR 014 | Not started |
+| 5 | Remaining APIs | `chooseImage`, `chooseMedia`, `scanCode`, `getLocation`, `uploadFile`, `downloadFile`, `connectSocket`, clipboard, `login` (QChat code exchange), `menu`, audio, file and device APIs, `setNavigationBarColor`, `setTabBarStyle`, `onThemeChange`/`offThemeChange` and the QChat runtime theme switch; registry, API host, adapters, ADR 015 | Not started |
+| 6 | P2 components | `video` (`<video>`), `canvas`, `map`, `camera` behind the documented web technology and permission rules; each status is `Partial`/`Experimental`/`Unsupported` with a linked test and the documented difference | Not started |
+| 7 | M7 report and exit check | Compatibility rows updated, tests pass, `PASS`/`BLOCKED` per item, no device claim without a device | Not started |
+
+Order: 1 and 2 (view surface), 3 (WXS), 4 (source targets), 5 (APIs), 6 (P2),
+7 (report). Each task ends with `pnpm test:miniapp`, `pnpm typecheck`,
+`pnpm check:miniapp`, and a commit.
+
+Decisions that M7 must record in an ADR:
+
+- WXS sandbox: what the interpreter may touch, how a `.wxs` module is resolved,
+  and why the WXML expression evaluator is not reused for arbitrary statements.
+- npm: which packages are compatible (no native addons, no Node built-ins, no
+  dynamic `require`), and how the build fails loudly on the rest.
+- Subpackages: how the manifest names a package, how an independent subpackage
+  loads without the main package, and the install layout.
+- UniApp/Taro: what is adapted (`miniprogramRoot`, generated `app.json`, the
+  component/style output) and what is `Unsupported`.
+- Each API group: permission, allowlist, adapter seam, errors, and the device
+  work that stays `BLOCKED`.
+
+### 16.1 Assumptions carried into M7
+
+- P1 components are drawn in the View Runtime; the tab bar is drawn by the View
+  Runtime from `app.json` and `wx.setTabBarStyle`, not by Flutter.
+- `picker` `region` mode is `UNVERIFIED` against the pinned base library and
+  stays `Partial` until checked; the other modes are implemented.
+- `login` never returns a QChat session credential. It returns a short-lived
+  code that the QChat server exchanges for a per-app user identifier; the
+  exchange endpoint is M9/M10 backend work and is `BLOCKED` until the server
+  contract exists.
+- `map` needs a licensed web map provider and a key; without both it is
+  `Unsupported`, not a fake map.
+- `camera` uses `getUserMedia` inside the WebView and needs the host's camera
+  permission; the device behaviour is `UNVERIFIED`.
