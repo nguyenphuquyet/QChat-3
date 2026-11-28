@@ -19,7 +19,7 @@ const ROOTS = [
   "packages/miniapp-test-harness",
   "packages/miniapp-examples-v2",
   "packages/qchat_miniapp_webview",
-  "apps/mobile/lib/features/miniapps_runtime",
+  "apps/mobile/lib/features/miniapps_host",
   "apps/server/src/modules/v1",
 ];
 

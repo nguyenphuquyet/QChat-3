@@ -1,0 +1,6 @@
+{
+  "keyId": "fixture-test-key",
+  "publicKeyBase64": "11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=",
+  "seedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+  "note": "Test key only. It is not in miniAppTrustedPackageKeys; the tests pass it explicitly."
+}

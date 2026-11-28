@@ -29,7 +29,7 @@ Create these new modules. None of them imports a legacy module.
 | `packages/qchat_miniapp_webview` | Flutter plugin | Android `WebViewAssetLoader` + `addWebMessageListener`, iOS `WKURLSchemeHandler` + `WKScriptMessageHandler` (M8). No UI. |
 | `packages/miniapp-examples-v2` | WXML/WXSS sources | Sample apps in the new source format. |
 | `packages/miniapp-test-harness` | TS package (M3+) | Shared fixtures, golden WXML/WXSS, fake bridge. |
-| `apps/mobile/lib/features/miniapps_runtime` | Flutter feature | Runtime screen, capsule/status bar, installer, storage, permission prompts, bridge client. |
+| `apps/mobile/lib/features/miniapps_host` | Flutter feature | Runtime screen, capsule/status bar, installer, storage, permission prompts, bridge client. |
 | `apps/server/src/modules/v1` | server domain modules | App registry, projects, build jobs, package storage, signing, versions, releases, distribution, permissions, analytics, crash reports, compatibility registry, audit logs, under `/api/v1/`. |
 | `apps/miniapp-ide` | adapted desktop app | The Tauri/Monaco shell is kept; its compiler, templates, TSX tooling and preview are replaced (M10). |
 

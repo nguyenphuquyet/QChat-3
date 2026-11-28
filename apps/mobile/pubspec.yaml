@@ -43,6 +43,9 @@ dependencies:
   flutter_js: 0.8.7
   archive: ^4.0.2
   crypto: ^3.0.7
+  # Ed25519 for the .qxpkg signature, in pure Dart so the installer verifies a
+  # package before the WebView or the service runtime exist. ADR 016.
+  cryptography: 2.9.0
   # Pure-Dart decode/encode for the sticker studio: cutting a sheet into
   # separate stickers and taking the background out are done on-device.
   image: ^4.3.0

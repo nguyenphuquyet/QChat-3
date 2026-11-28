@@ -11,7 +11,8 @@
   },
   "scripts": {
     "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "fixture:miniapp": "tsx scripts/generate-miniapp-fixture.ts"
   },
   "dependencies": {
     "@qchat/miniapp-contracts": "workspace:*"

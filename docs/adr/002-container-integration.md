@@ -42,7 +42,7 @@ Build a federated Flutter plugin, **`packages/qchat_miniapp_webview`**, with:
 - **Dart API:** a small, typed surface (`MiniAppWebViewController`) that loads a
   page, sends/receives typed messages, reports load errors and disposes. It
   contains no UI.
-- **Host UI:** `apps/mobile/lib/features/miniapps_runtime/` owns the runtime
+- **Host UI:** `apps/mobile/lib/features/miniapps_host/` owns the runtime
   screen, the capsule/status bar, the permission prompts, the installer and the
   bridge client. It uses only the QChat design system.
 
