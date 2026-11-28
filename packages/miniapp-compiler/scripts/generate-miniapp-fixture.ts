@@ -56,7 +56,13 @@ const SOURCES: Record<string, string> = {
  * different content: the installer must refuse it instead of overwriting the
  * version that is already installed.
  */
-const FIXTURES = [
+type Fixture = {
+  file: string;
+  version: string;
+  sources: Record<string, string>;
+};
+
+const FIXTURES: readonly Fixture[] = [
   { file: "fixture-1.0.0", version: "1.0.0", sources: SOURCES },
   { file: "fixture-1.1.0", version: "1.1.0", sources: SOURCES },
   { file: "fixture-1.2.0", version: "1.2.0", sources: SOURCES },
@@ -68,17 +74,18 @@ const FIXTURES = [
       "app.js": "App({alternative: true});",
     },
   },
-] as const;
+];
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..", "..");
 const outDir = join(repoRoot, "apps", "mobile", "test", "fixtures", "miniapp");
 
 const privateKey = ed25519PrivateKey(SEED);
-const publicKeyBase64 = Buffer.from(
-  createPublicKey(privateKey).export({ format: "jwk" }).x,
-  "base64url",
-).toString("base64");
+const publicJwk = createPublicKey(privateKey).export({ format: "jwk" });
+if (typeof publicJwk.x !== "string") {
+  throw new Error("The fixture key has no JWK x coordinate.");
+}
+const publicKeyBase64 = Buffer.from(publicJwk.x, "base64url").toString("base64");
 
 mkdirSync(outDir, { recursive: true });
 
