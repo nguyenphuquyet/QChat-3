@@ -29,10 +29,9 @@ internal class MiniAppViewRequest private constructor(
             }
 
             val filesDir = context.filesDir.canonicalFile
-            val rootDir = File(
-                File(File(File(filesDir, "miniapps"), "apps"), binding.appId),
-                "versions${File.separator}${binding.version}",
-            ).canonicalFile
+            val rootDir = MiniAppInstallPaths
+                .versionDir(filesDir, binding.appId, binding.version)
+                .canonicalFile
             if (!rootDir.isDirectory || !rootDir.path.startsWith(filesDir.path + File.separator)) {
                 return ParseResult.Invalid(
                     MiniAppErrorCodes.PACKAGE_INSTALL_FAILED,

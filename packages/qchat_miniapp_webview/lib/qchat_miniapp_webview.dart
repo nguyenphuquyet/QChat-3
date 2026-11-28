@@ -6,4 +6,5 @@
 /// and exchanges bridge messages through [MiniAppWebViewController].
 library;
 
+export 'src/miniapp_install_paths.dart';
 export 'src/miniapp_webview.dart';

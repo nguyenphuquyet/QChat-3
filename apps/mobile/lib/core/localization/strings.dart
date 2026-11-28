@@ -1248,6 +1248,44 @@ const translations = <String, List<String>>{
     '删除该联系人？聊天记录仍保留在此设备。',
   ],
   'contactPermissions': ['Permissions', 'Cài đặt quyền', '权限设置'],
+  'developer': ['Developer', 'Nhà phát triển', '开发者'],
+  'miniappHostSpike': [
+    'Mini App host spike',
+    'Kiểm thử máy chủ Mini App',
+    '小程序宿主测试',
+  ],
+  'miniappHostSpikeNote': [
+    'Runs one installed page through the new Android WebView host, sends a '
+        'view.render tree and lists every bridge event that comes back. It is a '
+        'diagnostic: there is no signed package and no service runtime yet.',
+    'Chạy một trang đã cài qua máy chủ WebView Android mới, gửi cây view.render '
+        'và liệt kê mọi sự kiện cầu nối trả về. Đây là công cụ chẩn đoán: chưa '
+        'có gói đã ký và chưa có service runtime.',
+    '通过新的 Android WebView 宿主运行一个已安装页面，发送 view.render 树并列出'
+        '所有返回的桥接事件。这是诊断工具：尚无已签名包，也尚无 service runtime。',
+  ],
+  'miniappHostOpen': ['Install and open', 'Cài đặt và mở', '安装并打开'],
+  'miniappHostInstalling': [
+    'Installing the spike page...',
+    'Đang cài trang kiểm thử...',
+    '正在安装测试页面...',
+  ],
+  'miniappHostStarting': [
+    'Starting the page...',
+    'Đang khởi động trang...',
+    '正在启动页面...',
+  ],
+  'miniappHostEvents': ['Bridge events', 'Sự kiện cầu nối', '桥接事件'],
+  'miniappHostNoEvents': [
+    'No bridge events yet.',
+    'Chưa có sự kiện cầu nối.',
+    '尚无桥接事件。',
+  ],
+  'miniappHostError': [
+    'The Mini App host stopped',
+    'Máy chủ Mini App đã dừng',
+    '小程序宿主已停止',
+  ],
 };
 String tr(BuildContext context, String key) {
   final language = Localizations.localeOf(context).languageCode;

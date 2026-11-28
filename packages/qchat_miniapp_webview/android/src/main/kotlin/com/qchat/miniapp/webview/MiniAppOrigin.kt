@@ -64,11 +64,11 @@ internal object MiniAppOrigin {
 
         val appId = map["appId"] as? String
             ?: return invalid("appId is missing.")
-        if (!APP_ID.matches(appId)) return invalid("appId is invalid.")
+        if (!isAppId(appId)) return invalid("appId is invalid.")
 
         val version = map["version"] as? String
             ?: return invalid("version is missing.")
-        if (!VERSION.matches(version)) return invalid("version is invalid.")
+        if (!isVersion(version)) return invalid("version is invalid.")
 
         val sessionId = map["sessionId"] as? String
             ?: return invalid("sessionId is missing.")
@@ -94,6 +94,12 @@ internal object MiniAppOrigin {
      */
     fun isOrigin(uri: Uri): Boolean =
         uri.scheme == SCHEME && uri.host == DOMAIN && (uri.port == -1 || uri.port == 443)
+
+    /** Manifest app id, e.g. `com.example.hello`; never a path. */
+    fun isAppId(value: String): Boolean = APP_ID.matches(value)
+
+    /** Semantic version, including prerelease and build metadata. */
+    fun isVersion(value: String): Boolean = VERSION.matches(value)
 
     private fun invalid(message: String) =
         BindingResult.Invalid(MiniAppErrorCodes.BRIDGE_INVALID_MESSAGE, message)

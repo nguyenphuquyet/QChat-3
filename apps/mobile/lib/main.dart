@@ -41,6 +41,7 @@ import 'features/payments/transfer_screen.dart';
 import 'features/miniapps/miniapps_screen.dart';
 import 'features/miniapps/miniapp_runtime_screen.dart';
 import 'features/miniapps/models.dart';
+import 'features/miniapps_host/miniapp_spike_screen.dart';
 import 'features/search/search_screen.dart';
 
 GoRoute qchatRoute({
@@ -228,6 +229,13 @@ class _QChatAppState extends ConsumerState<QChatApp> {
           builder: (_, s) => FeatureScreen(kind: s.pathParameters['kind']!),
         ),
         qchatRoute(path: '/miniApps', builder: (_, s) => const MiniAppsScreen()),
+        // Debug-only Android diagnostic: the new WebView host before the signed
+        // installer and the QuickJS runtime exist. Static route first, so it is
+        // never read as an app id.
+        qchatRoute(
+          path: '/miniApps/spike',
+          builder: (_, s) => const MiniAppSpikeScreen(),
+        ),
         // Mini programs open as a task-style layer over the chat instead of a
         // page in the navigation stack, so they slide up from the bottom and
         // slide back down when closed rather than using the sideways push.
