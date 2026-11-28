@@ -20,6 +20,7 @@ import {
   canTransitionPage,
   diffRenderTree,
   followsHost,
+  isErrorCode,
   isResolvedTheme,
   miniAppError,
   parseBridgeMessage,
@@ -38,6 +39,7 @@ import {
   type RuntimeIdentity,
   type ThemeDeclaration,
   type ViewEvent,
+  type WxsInvoker,
 } from "@qchat/miniapp-contracts";
 
 export * from "./engine.js";
@@ -71,6 +73,10 @@ export interface PageOptions {
   render(data: Readonly<Record<string, unknown>>): RenderNode;
   /** Event handlers referenced by `events` in the render tree. */
   handlers?: Record<string, PageHandler>;
+  /** Page-scoped WXS runtime for `wxs:` handlers and template calls. */
+  wxs?: WxsInvoker;
+  /** `console.log` sink for the WXS runtime. */
+  wxsLog?: (message: string) => void;
 }
 
 export interface AppOptions {
@@ -184,6 +190,30 @@ function assignPath(target: Record<string, unknown>, segments: readonly (string 
   if (typeof cursor !== "object" || cursor === null || Array.isArray(cursor)) return false;
   (cursor as Record<string, unknown>)[last] = value;
   return true;
+}
+
+/**
+ * Deliver a `wxs:` view event to a WXS runtime. The handler receives
+ * `(event, ownerInstance)`; `ownerInstance.callMethod(name, data)` is routed
+ * back to the page's handler map. A runtime that predates `callEvent` gets the
+ * event as the only argument.
+ */
+export function invokeWxsEvent(
+  invoker: WxsInvoker,
+  path: string,
+  event: ViewEvent,
+  callMethod: (name: string, data?: unknown) => void,
+  log?: (message: string) => void,
+): unknown {
+  const context = { callMethod, ...(log ? { log } : {}) };
+  return invoker.callEvent ? invoker.callEvent(path, event, context) : invoker.call(path, [event], context);
+}
+
+export function wxsEventDetail(data: unknown): Record<string, unknown> {
+  if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+    return data as Record<string, unknown>;
+  }
+  return data === undefined ? {} : { value: data };
 }
 
 export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRuntime {
@@ -383,6 +413,44 @@ export function createServiceRuntime(options: ServiceRuntimeOptions): ServiceRun
       if (!page) return { ok: false, error: miniAppError("BRIDGE_PAGE_CLOSED") };
       if (!event || typeof event.handler !== "string") {
         return { ok: false, error: miniAppError("BRIDGE_INVALID_MESSAGE", "A view event needs a handler.") };
+      }
+      if (event.handler.startsWith("wxs:")) {
+        if (!page.options.wxs) {
+          return {
+            ok: false,
+            error: miniAppError("WXS_UNSUPPORTED", "This page has no WXS runtime.", { handler: event.handler }),
+          };
+        }
+        try {
+          invokeWxsEvent(
+            page.options.wxs,
+            event.handler.slice("wxs:".length),
+            event,
+            (name, data) => {
+              const pageHandler = page.options.handlers?.[name];
+              if (!pageHandler) throw new Error(`The page has no method "${name}".`);
+              pageHandler({
+                handler: name,
+                type: event.type,
+                detail: wxsEventDetail(data),
+                dataset: event.dataset,
+                catch: false,
+                timeStamp: Date.now(),
+              });
+            },
+            page.options.wxsLog,
+          );
+        } catch (cause) {
+          const code = (cause as { code?: unknown }).code;
+          const error = miniAppError(
+            typeof code === "string" && isErrorCode(code) ? code : "WXS_RUNTIME_ERROR",
+            cause instanceof Error ? cause.message : String(cause),
+            { handler: event.handler },
+          );
+          app?.onError?.(error);
+          return { ok: false, error };
+        }
+        return { ok: true, pageId: page.instance.pageId };
       }
       const handler = page.options.handlers?.[event.handler];
       if (!handler) {

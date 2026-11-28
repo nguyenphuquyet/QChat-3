@@ -283,6 +283,7 @@ export function loadComponentRegistry(options: ComponentRegistryOptions): Compil
         loadFile: read,
         componentTags: tags,
         componentTemplates: templates,
+        allowWxs: false,
       });
       diagnostics.push(...compiled.diagnostics);
       if (!compiled.ok) {

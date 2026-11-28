@@ -170,6 +170,9 @@ importers:
       '@qchat/miniapp-contracts':
         specifier: workspace:*
         version: link:../miniapp-contracts
+      '@qchat/miniapp-view-runtime':
+        specifier: workspace:*
+        version: link:../miniapp-view-runtime
     devDependencies:
       '@types/node':
         specifier: 24.10.1

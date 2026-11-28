@@ -214,7 +214,6 @@ test("unknown components and invalid attributes are reported", () => {
 test("unsupported directives are reported, never ignored", () => {
   fail(`<input model:value="{{ text }}" />`, "COMPILER_UNSUPPORTED_DIRECTIVE");
   fail(`<view capture-bind:tap="onTap" />`, "COMPILER_UNSUPPORTED_DIRECTIVE");
-  fail(`<wxs module="m">module.exports = 1</wxs>`, "WXS_UNSUPPORTED");
 });
 
 test("misplaced conditional and loop directives are reported", () => {

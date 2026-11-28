@@ -15,3 +15,4 @@ export * from "./manifest.js";
 export * from "./renderer.js";
 export * from "./theme.js";
 export * from "./performance.js";
+export * from "./wxs.js";

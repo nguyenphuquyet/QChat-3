@@ -2,10 +2,10 @@
 
 - **Specification:** QChat Mini App Platform — Engineering Specification **V8.7**
   (`QChat_MiniApp_Spec_V8_7.md`, supplied 2026-11-27).
-- **Current milestone:** **M7 — Full runtime compatibility**, paused after task 2 by the
-  2026-11-28 correction. The Android host and the iOS host are now written in
-  small modules (modules 1–6 pushed and green in CI, including the macOS
-  simulator and unsigned-IPA builds). Only device evidence is `BLOCKED`.
+- **Current milestone:** **M7 — Full runtime compatibility**, task 3 (WXS) done on
+  Node. The Android host and the iOS host are written in small modules (modules
+  1–6 pushed and green in CI, including the macOS simulator and unsigned-IPA
+  builds). Only device evidence is `BLOCKED`.
 - **M0 exit check:** `PASS` (commit `6cd467e`, pushed to `origin/feat/miniapp-v7`)
 - **M1 exit check:** `PASS`; the real-device item is `BLOCKED` (no phone)
 - **M2 exit check:** `PASS` (Node); the Android QuickJS build is host module 4 (CI green on `0772a75`) and the device run is `BLOCKED`
@@ -21,7 +21,7 @@
 - **M4:** `DONE` (device API evidence `BLOCKED`)
 - **M5:** `DONE` (package/installer/storage; Android host is host module 1)
 - **M6:** `DONE` (view client, threat model, adversarial tests; device run `BLOCKED`)
-- **M7:** `PAUSED` after task 2 (plan §16); host modules run first
+- **M7:** `IN PROGRESS` (task 3 WXS done on Node; plan §16); tasks 4–7 resume after the host
 - **Last updated:** 2026-11-28
 
 ## 1. Where the work stands
@@ -99,7 +99,7 @@
 
 - **Host implementation (owner correction, 2026-11-28).** `BLOCKED` applies to
   real-device evidence, production access and owner inputs only, never to writing
-  code. M7 tasks 3–7 are paused; the Android host is written first, in small
+  code. M7 tasks 4–7 are paused; the Android host is written first, in small
   modules, then iOS. Modules 1–6 are written: the Kotlin WebView host, the M1
   spike screen plus the Flutter host screen, the Dart verifier and installer
   (ADR 016), the QuickJS service runtime (ADR 017), the iOS WKWebView host
@@ -163,6 +163,20 @@
   unsigned IPA in both runs (push run `46158915594`, PR run `46158920413`); that
   is `VERIFIED` for "the Swift package compiles and links" only. Evaluation,
   timeout and poisoning on a phone stay `UNVERIFIED`.
+- M7 task 3 (WXS) is done on Node. `packages/miniapp-compiler/src/wxs.ts` parses
+  `.wxs` and inline `<wxs>` into the typed AST in
+  `packages/miniapp-contracts/src/wxs.ts`; `packages/miniapp-view-runtime/src/wxs.ts`
+  runs it in a tree-walking interpreter with cloned values, per-type member
+  allowlists, `__proto__`/`prototype`/`constructor` rejected, a 1,000,000-step
+  budget and a depth-64 call limit. The WXML compiler accepts `{{ m.fn(x) }}`
+  and `wxs:m.fn` events, resolves literal `require` at build time and refuses
+  WXS in components. The service dispatches `wxs:` events through
+  `invokeWxsEvent`, including `ownerInstance.callMethod`; the harness shares one
+  page runtime between rendering and events. ADR 013 records the subset, the
+  isolation rules, the limits and the service-side latency difference. Tests:
+  compiler 102 (including 17 WXS), service 80 (4 WXS), harness 21, contracts 51,
+  view-runtime 49, view-web 26; `pnpm typecheck`, `pnpm test:miniapp` and
+  `pnpm check:miniapp` pass locally. Device behaviour is `UNVERIFIED`.
 - M7 task 1 (P1 components) and task 2 (custom components) are done on Node.
 
 ### Done (M6)
@@ -188,12 +202,12 @@
 
 ### Next task
 
-Module 6 is green. Resume **M7 task 3 (WXS)**: compile `.wxs` to a typed AST at
-build time, run it in an isolated interpreter (`getRegExp`, `console`,
-`module.exports`/`require`, no bridge/DOM/timers/host globals), support template
-calls and event handlers, and write ADR 013. The phone checklist stays in §5.4;
-the first real device run covers the device items and none of them counts as
-passed before it.
+M7 task 3 (WXS) is done on Node (ADR 013). Continue with **M7 task 4 (source
+targets)**: subpackages (main and independent) in `app.json`, the manifest, the
+compiler and the installer; npm dependencies bundled at build time under a
+documented rule; UniApp/Taro `mp-weixin` output detected and adapted; ADR 014.
+The phone checklist stays in §5.4; the first real device run covers the device
+items and none of them counts as passed before it.
 
 ### Host modules (Android first)
 
@@ -1289,14 +1303,15 @@ device run. The MVP is **not** declared complete.
 M7 delivers section 7 P1/P2 components, section 6 source targets (WXS, npm,
 subpackages, UniApp/Taro `mp-weixin`), and the section 8 post-MVP APIs. It was
 paused after task 2 by the owner's 2026-11-28 correction: the Android host is
-written first, in modules (§1), then iOS. Tasks 3–7 resume after the host.
-Device measurements stay `BLOCKED`; every device claim is `UNVERIFIED`.
+written first, in modules (§1), then iOS. Task 3 resumed and is done on Node;
+tasks 4–7 resume after the host. Device measurements stay `BLOCKED`; every
+device claim is `UNVERIFIED`.
 
 | # | Task | Done when | State |
 |---|---|---|---|
 | 1 | P1 components | `textarea`, `checkbox`/`checkbox-group`, `radio`/`radio-group`, `switch`, `slider`, `picker`, `form`, `swiper`/`swiper-item` and the tab bar are real web components in `COMPONENTS_SOURCE`; the registry carries `Experimental` with a linked test; the renderer accepts every P1 tag | Done (Node): 12 P1 web components, 12 new tests; `picker` is `Partial` |
 | 2 | Custom components | `usingComponents` resolves a package-local component; its properties, `slot` and events compile to `wx-<name>`; `Component()` registers it in the SDK; a missing component is a compiler diagnostic, never a silent plain tag | Done (Node): compiler 85, service 76, harness 21; app/page/nested `usingComponents`, properties/defaults/observers/lifetimes, `setData`/`triggerEvent`, default and named slots, scoped component WXSS; `qchat-components` runs from source and from an installed bundle. `behaviors` and full style isolation are not done |
-| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Paused (host first) |
+| 3 | WXS | `.wxs` compiles at build time to a typed AST and runs in an isolated interpreter inside the View Runtime (`getRegExp`, `console`, `module.exports`/`require`); no bridge, DOM, timers or host globals; event handlers and template calls; ADR 013 | Done (Node): compiler 102 (17 WXS), service 80 (4 WXS), harness 21; `var`/functions/control flow, literal `require`, template calls and `wxs:` events, `ownerInstance.callMethod`, page-only, limits and `WXS_*` codes; ADR 013. Component WXS, computed callees and the rest of the `ownerInstance` API are not done |
 | 4 | Source targets | Subpackages (main and independent) in `app.json`, manifest, compiler and installer; npm dependencies bundled at build time under a documented rule; UniApp/Taro `mp-weixin` output detected and adapted; ADR 014 | Paused (host first) |
 | 5 | Remaining APIs | `chooseImage`, `chooseMedia`, `scanCode`, `getLocation`, `uploadFile`, `downloadFile`, `connectSocket`, clipboard, `login` (QChat code exchange), `menu`, audio, file and device APIs, `setNavigationBarColor`, `setTabBarStyle`, `onThemeChange`/`offThemeChange` and the QChat runtime theme switch; registry, API host, adapters, ADR 015 | Paused (host first) |
 | 6 | P2 components | `video` (`<video>`), `canvas`, `map`, `camera` behind the documented web technology and permission rules; each status is `Partial`/`Experimental`/`Unsupported` with a linked test and the documented difference | Paused (host first) |

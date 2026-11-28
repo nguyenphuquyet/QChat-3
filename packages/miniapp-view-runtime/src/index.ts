@@ -27,6 +27,7 @@ import {
 export * from "./components.js";
 export * from "./memory-dom.js";
 export * from "./session.js";
+export * from "./wxs.js";
 
 export interface ViewRendererOptions {
   /** Called for every bound event; the host forwards it to the service. */

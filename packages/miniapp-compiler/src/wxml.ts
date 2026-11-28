@@ -197,6 +197,24 @@ export function parseWxml(source: string, file = "app.wxml"): CompileResult<Wxml
     while (!cursor.eof) {
       const top = stack[stack.length - 1];
 
+      // An inline `<wxs>` body is code, not markup: `<`, `>` and `{{` are
+      // literal until the matching `</wxs>`. `src` modules are read from a
+      // separate file, so this only affects inline blocks.
+      if (top.tag === "wxs") {
+        const end = cursor.source.indexOf("</wxs>", cursor.index);
+        if (end === -1) {
+          cursor.fail("WXML_UNCLOSED_TAG", "Element <wxs> is not closed.", top.loc);
+        }
+        if (end > cursor.index) {
+          const loc = cursor.loc();
+          top.children.push({ type: "text", text: cursor.source.slice(cursor.index, end), loc });
+          cursor.advance(end - cursor.index);
+          continue;
+        }
+        // The cursor is on `</wxs>` itself; let the normal close-tag branch
+        // below pop the element.
+      }
+
       if (cursor.startsWith("<!--")) {
         const start = cursor.loc();
         const end = cursor.source.indexOf("-->", cursor.index + 4);

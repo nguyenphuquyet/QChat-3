@@ -60,6 +60,11 @@ export const ERROR_CODES = {
   COMPILER_UNSUPPORTED_CONFIG: { retryable: false, message: "The build tool does not support this configuration key." },
   COMPILER_DIAGNOSTIC: { retryable: false, message: "The build failed with a diagnostic." },
   WXS_UNSUPPORTED: { retryable: false, message: "WXS is not implemented in this runtime version." },
+  WXS_PARSE_ERROR: { retryable: false, message: "The WXS module is malformed." },
+  WXS_UNSUPPORTED_FEATURE: { retryable: false, message: "This WXS feature is not supported." },
+  WXS_RUNTIME_ERROR: { retryable: false, message: "The WXS module threw an error." },
+  WXS_LIMIT_EXCEEDED: { retryable: false, message: "The WXS module exceeded a runtime limit." },
+  WXS_UNSAFE_ACCESS: { retryable: false, message: "The WXS module tried to reach a forbidden property." },
   COMPONENT_UNSUPPORTED: { retryable: false, message: "This component is not implemented in this runtime version." },
 } as const;
 

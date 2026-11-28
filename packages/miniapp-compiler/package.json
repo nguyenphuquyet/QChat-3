@@ -15,7 +15,8 @@
     "fixture:miniapp": "tsx scripts/generate-miniapp-fixture.ts"
   },
   "dependencies": {
-    "@qchat/miniapp-contracts": "workspace:*"
+    "@qchat/miniapp-contracts": "workspace:*",
+    "@qchat/miniapp-view-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.10.1",

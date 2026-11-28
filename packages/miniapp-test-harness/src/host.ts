@@ -31,6 +31,8 @@ import {
   createNavigationController,
   createNodeEngine,
   createSdkRuntime,
+  invokeWxsEvent,
+  wxsEventDetail,
   type ApiHost,
   type EngineEvaluation,
   type NetworkAdapter,
@@ -39,7 +41,9 @@ import {
 import {
   MemoryDomAdapter,
   createViewRenderer,
+  createWxsRuntime,
   type SpikeViewRenderer,
+  type WxsRuntime,
 } from "@qchat/miniapp-view-runtime";
 import { SampleError, type CompiledPage, type SamplePackage } from "./sample.js";
 
@@ -149,8 +153,19 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
   const componentInstances = new Map<string, ComponentInstanceRecord>();
   const loadedModules = new Set<string>();
   const pendingComponentEvents: PendingComponentEvent[] = [];
+  const wxsRuntimes = new WeakMap<CompiledPage["wxml"], WxsRuntime>();
   let rendering = false;
   let pendingRerender = false;
+
+  /** One WXS interpreter per compiled page, shared by templates and handlers. */
+  function wxsFor(page: CompiledPage): WxsRuntime | null {
+    if (!page.wxml.wxs) return null;
+    const existing = wxsRuntimes.get(page.wxml);
+    if (existing) return existing;
+    const runtime = createWxsRuntime(page.wxml.wxs);
+    wxsRuntimes.set(page.wxml, runtime);
+    return runtime;
+  }
 
   function pageTheme(page: CompiledPage): ResolvedTheme {
     const override = page.config.qxColorScheme;
@@ -197,6 +212,7 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
       componentHandler(request: { path: string; instanceKey: string; handler: string }): string {
         return `component:${pageId}:${request.instanceKey}:${request.handler}`;
       },
+      ...(wxsFor(record.page) ? { wxs: wxsFor(record.page)! } : {}),
     };
     const result = renderWxml(record.page.wxml, record.data, options);
     if (!result.ok) {
@@ -372,6 +388,29 @@ export function createSampleHost(sample: SamplePackage, options: SampleHostOptio
    * component instance, not to the page. Everything else is a page handler.
    */
   function routeEvent(event: ViewEvent): void {
+    if (event.handler.startsWith("wxs:")) {
+      const page = currentPageId === null ? undefined : openPages.get(currentPageId);
+      const runtime = page ? wxsFor(page.page) : null;
+      if (!runtime) throw new SampleError(`no WXS runtime for ${event.handler}`);
+      try {
+        invokeWxsEvent(runtime, event.handler.slice("wxs:".length), event, (name, data) => {
+          ensure(
+            sdk.deliver({
+              handler: name,
+              type: event.type,
+              detail: wxsEventDetail(data),
+              dataset: event.dataset,
+              catch: false,
+              timeStamp: Date.now(),
+            }),
+            `WXS callMethod ${name}`,
+          );
+        });
+      } catch (cause) {
+        throw new SampleError(`WXS handler ${event.handler}: ${cause instanceof Error ? cause.message : String(cause)}`);
+      }
+      return;
+    }
     if (event.handler.startsWith("component:")) {
       const parts = event.handler.split(":");
       if (parts.length < 4) throw new SampleError(`malformed component handler ${event.handler}`);

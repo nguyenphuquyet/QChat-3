@@ -17,8 +17,10 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   isSafeRoute,
+  isWxsBundle,
   miniAppError,
   type MiniAppError,
+  type WxsBundle,
 } from "@qchat/miniapp-contracts";
 import {
   compileWxml,
@@ -53,6 +55,8 @@ export interface SerializedWxml {
   /** Local component tag to component path. */
   componentTags: Record<string, string>;
   files: string[];
+  /** Compiled page-level WXS modules. */
+  wxs?: WxsBundle;
 }
 
 export interface SerializedComponent {
@@ -125,13 +129,15 @@ function parseJsonObject(
 }
 
 function serializeWxml(compiled: CompiledWxml): SerializedWxml {
-  return {
+  const serialized: SerializedWxml = {
     file: compiled.file,
     nodes: compiled.nodes,
     templates: Object.fromEntries(compiled.templates),
     componentTags: { ...compiled.componentTags },
     files: [...compiled.files],
   };
+  if (compiled.wxs) serialized.wxs = compiled.wxs;
+  return serialized;
 }
 
 function serializeComponent(component: CompiledComponent): SerializedComponent {
@@ -148,7 +154,10 @@ export function reviveWxml(
   serialized: SerializedWxml,
   componentTemplates: Readonly<Record<string, CompiledComponent>> = {},
 ): CompiledWxml {
-  return {
+  if (serialized.wxs !== undefined && !isWxsBundle(serialized.wxs)) {
+    throw new Error(`The view bundle for "${serialized.file}" has a malformed WXS bundle.`);
+  }
+  const compiled: CompiledWxml = {
     file: serialized.file,
     nodes: serialized.nodes,
     templates: new Map(Object.entries(serialized.templates)),
@@ -156,6 +165,8 @@ export function reviveWxml(
     componentTemplates,
     files: serialized.files,
   };
+  if (serialized.wxs !== undefined) compiled.wxs = serialized.wxs;
+  return compiled;
 }
 
 /**

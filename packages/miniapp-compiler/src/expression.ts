@@ -4,7 +4,8 @@
  * WXML expressions are not JavaScript and are never handed to `eval`. This
  * module parses the documented subset — literals, property and index access,
  * unary/binary operators, the ternary operator, array literals and object
- * literals — and evaluates it against page data. Function calls, assignment,
+ * literals — and evaluates it against page data. The only call form is a
+ * function of a declared page WXS module (`{{ m.format(x) }}`); assignment,
  * `new`, spread and every other executable form are rejected at compile time.
  */
 
@@ -12,11 +13,26 @@ export type Expression =
   | { kind: "literal"; value: string | number | boolean | null | undefined }
   | { kind: "identifier"; name: string }
   | { kind: "member"; object: Expression; property: Expression; computed: boolean }
+  | { kind: "call"; callee: Expression; args: Expression[] }
   | { kind: "unary"; op: "!" | "-" | "+"; operand: Expression }
   | { kind: "binary"; op: BinaryOperator; left: Expression; right: Expression }
   | { kind: "conditional"; test: Expression; consequent: Expression; alternate: Expression }
   | { kind: "array"; items: Expression[] }
   | { kind: "object"; entries: ObjectEntry[] };
+
+export interface ExpressionParseOptions {
+  /**
+   * WXS module names declared by the page. A call is accepted only when its
+   * callee is a path rooted at one of these modules; every other call is a
+   * compile error.
+   */
+  wxsModules?: ReadonlySet<string>;
+}
+
+export interface ExpressionEvaluateOptions {
+  /** Call one WXS export with already-evaluated arguments. */
+  call?: (path: string, args: readonly unknown[]) => unknown;
+}
 
 export type ObjectEntry = { key: string; value: Expression } | { spread: Expression };
 
@@ -37,6 +53,21 @@ export type ParseExpressionResult =
   | { ok: false; error: ExpressionError };
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
+
+/**
+ * `m.fn` / `m.util.fn` as segments, or `null` for any other callee shape.
+ * Computed access is not a WXS call path because the module must be known at
+ * build time.
+ */
+export function expressionCallPath(expression: Expression): string[] | null {
+  if (expression.kind === "identifier") return [expression.name];
+  if (expression.kind !== "member" || expression.computed) return null;
+  const property = expression.property;
+  if (property.kind !== "literal" || typeof property.value !== "string") return null;
+  const parent = expressionCallPath(expression.object);
+  if (!parent) return null;
+  return [...parent, property.value];
+}
 
 type TokenType = "number" | "string" | "identifier" | "operator" | "eof";
 
@@ -133,7 +164,10 @@ function tokenize(source: string): Token[] {
 class Parser {
   private index = 0;
 
-  constructor(private readonly tokens: Token[]) {}
+  constructor(
+    private readonly tokens: Token[],
+    private readonly options: ExpressionParseOptions,
+  ) {}
 
   private peek(): Token {
     return this.tokens[this.index];
@@ -233,7 +267,29 @@ class Parser {
         continue;
       }
       if (this.isOperator("(")) {
-        throw new ExpressionFailure("Function calls are not supported in a WXML expression.", this.peek().offset);
+        this.next();
+        const args: Expression[] = [];
+        if (!this.isOperator(")")) {
+          for (;;) {
+            args.push(this.parseTernary());
+            if (!this.isOperator(",")) break;
+            this.next();
+          }
+        }
+        this.expect(")");
+        const path = expressionCallPath(expression);
+        const modules = this.options.wxsModules;
+        if (!modules) {
+          throw new ExpressionFailure("Function calls are not supported in a WXML expression.", this.peek().offset);
+        }
+        if (!path || path.length < 2 || !modules.has(path[0])) {
+          throw new ExpressionFailure(
+            "Only a function of a declared WXS module can be called in a WXML expression.",
+            this.peek().offset,
+          );
+        }
+        expression = { kind: "call", callee: expression, args };
+        continue;
       }
       return expression;
     }
@@ -309,9 +365,9 @@ class Parser {
   }
 }
 
-export function parseExpression(source: string): ParseExpressionResult {
+export function parseExpression(source: string, options: ExpressionParseOptions = {}): ParseExpressionResult {
   try {
-    return { ok: true, expression: new Parser(tokenize(source)).parse() };
+    return { ok: true, expression: new Parser(tokenize(source), options).parse() };
   } catch (cause) {
     if (cause instanceof ExpressionFailure) {
       return { ok: false, error: { message: cause.message, offset: cause.offset } };
@@ -369,34 +425,44 @@ function compare(operator: BinaryOperator, left: unknown, right: unknown): unkno
   }
 }
 
-export function evaluateExpression(expression: Expression, scope: Record<string, unknown>): unknown {
+export function evaluateExpression(
+  expression: Expression,
+  scope: Record<string, unknown>,
+  options: ExpressionEvaluateOptions = {},
+): unknown {
   switch (expression.kind) {
     case "literal":
       return expression.value;
     case "identifier":
       return hasOwn(scope, expression.name) ? scope[expression.name] : undefined;
     case "member": {
-      const object = evaluateExpression(expression.object, scope);
-      const property = evaluateExpression(expression.property, scope) as string | number;
+      const object = evaluateExpression(expression.object, scope, options);
+      const property = evaluateExpression(expression.property, scope, options) as string | number;
       return readProperty(object, property);
     }
+    case "call": {
+      const path = expressionCallPath(expression.callee);
+      if (!path || !options.call) throw new Error("a WXML expression called a function without a WXS runtime");
+      const args = expression.args.map((argument) => evaluateExpression(argument, scope, options));
+      return options.call(path.join("."), args);
+    }
     case "unary": {
-      const operand = evaluateExpression(expression.operand, scope);
+      const operand = evaluateExpression(expression.operand, scope, options);
       if (expression.op === "!") return !truthy(operand);
       if (expression.op === "-") return -(operand as number);
       return +(operand as number);
     }
     case "binary": {
       if (expression.op === "&&") {
-        const left = evaluateExpression(expression.left, scope);
-        return truthy(left) ? evaluateExpression(expression.right, scope) : left;
+        const left = evaluateExpression(expression.left, scope, options);
+        return truthy(left) ? evaluateExpression(expression.right, scope, options) : left;
       }
       if (expression.op === "||") {
-        const left = evaluateExpression(expression.left, scope);
-        return truthy(left) ? left : evaluateExpression(expression.right, scope);
+        const left = evaluateExpression(expression.left, scope, options);
+        return truthy(left) ? left : evaluateExpression(expression.right, scope, options);
       }
-      const left = evaluateExpression(expression.left, scope);
-      const right = evaluateExpression(expression.right, scope);
+      const left = evaluateExpression(expression.left, scope, options);
+      const right = evaluateExpression(expression.right, scope, options);
       if (expression.op === "+") return add(left, right);
       if (expression.op === "-") return (left as number) - (right as number);
       if (expression.op === "*") return (left as number) * (right as number);
@@ -405,16 +471,16 @@ export function evaluateExpression(expression: Expression, scope: Record<string,
       return compare(expression.op, left, right);
     }
     case "conditional":
-      return truthy(evaluateExpression(expression.test, scope))
-        ? evaluateExpression(expression.consequent, scope)
-        : evaluateExpression(expression.alternate, scope);
+      return truthy(evaluateExpression(expression.test, scope, options))
+        ? evaluateExpression(expression.consequent, scope, options)
+        : evaluateExpression(expression.alternate, scope, options);
     case "array":
-      return expression.items.map((item) => evaluateExpression(item, scope));
+      return expression.items.map((item) => evaluateExpression(item, scope, options));
     case "object": {
       const result: Record<string, unknown> = {};
       for (const entry of expression.entries) {
         if ("spread" in entry) {
-          const value = evaluateExpression(entry.spread, scope);
+          const value = evaluateExpression(entry.spread, scope, options);
           if (value !== null && typeof value === "object" && !Array.isArray(value)) {
             for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
               if (!FORBIDDEN_KEYS.has(key)) result[key] = item;
@@ -422,7 +488,7 @@ export function evaluateExpression(expression: Expression, scope: Record<string,
           }
           continue;
         }
-        result[entry.key] = evaluateExpression(entry.value, scope);
+        result[entry.key] = evaluateExpression(entry.value, scope, options);
       }
       return result;
     }

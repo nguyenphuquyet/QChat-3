@@ -53,7 +53,7 @@ implementation is M4/M3.
 | Timers | Tracked `setTimeout`/`setInterval`, cleared on close | Experimental | `packages/miniapp-service-runtime/test/sdk-runtime.test.ts` | Long-running timing test is M3 |
 | WXML parser | Elements, attributes, text, mustache, comments, locations | Experimental | `packages/miniapp-compiler/test/wxml.test.ts` | Syntax tree only |
 | WXML compiler | Directives, templates, events, dataset, typed render tree | Experimental | `packages/miniapp-compiler/test/wxml-compiler.test.ts` | Node only; no device |
-| Expressions | Safe `{{ }}` subset, no calls, no prototype access | Experimental | `packages/miniapp-compiler/test/expression.test.ts` | Never `eval` |
+| Expressions | Safe `{{ }}` subset; calls only to declared page WXS exports; no prototype access | Experimental | `packages/miniapp-compiler/test/expression.test.ts`, `packages/miniapp-compiler/test/wxs.test.ts` | Never `eval` |
 | WXSS compiler | `rpx`, `@import`, scoping, theme selectors | Experimental | `packages/miniapp-compiler/test/wxss.test.ts` | `prefers-color-scheme` rejected; Node only |
 | Package builder | `.qxpkg` ZIP, manifest, per-file SHA-256, Ed25519 signature | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Private key is caller-supplied; never shipped |
 | Package verifier | Size, ZIP limits, path/extension, signature, hashes, runtime gate | Experimental | `packages/miniapp-compiler/test/package.test.ts` | Tamper and oversize tests |
@@ -156,7 +156,7 @@ implementation is M4/M3.
 | `qxColorScheme` (`light`, `dark`, `auto`) | section 4.4 | Experimental | `packages/miniapp-test-harness/test/sample.test.ts` | `app.json` value validated and resolved by the host (ADR 006); the WebView root write is M5 |
 | `darkmode`, `themeLocation`, `theme.json` | WeChat theme | Unsupported | — | Replaced by `qxColorScheme`; compiler error code |
 | `@media (prefers-color-scheme)` | WXSS | Unsupported | `packages/miniapp-compiler/test/wxss.test.ts` | Rejected with `WXSS_UNSUPPORTED_FEATURE`; use `[data-theme]` |
-| WXS | `/miniprogram/dev/framework/view/wxs/` | Not started | — | M7; isolated, no bridge/native objects |
+| WXS | `/miniprogram/dev/framework/view/wxs/` | Experimental | `packages/miniapp-compiler/test/wxs.test.ts`, `packages/miniapp-service-runtime/test/wxs.test.ts` | Build-time parse to a typed AST; isolated interpreter (no `eval`, bridge, DOM, timers or host globals); `var`, functions, control flow, `getRegExp`, `console`, `module.exports`/literal `require`; template calls and `wxs:` events; `ownerInstance.callMethod` only; page-only (components rejected); handlers run in the service and round-trip over `view.event`, so latency differs from WeChat; ADR 013 |
 | Subpackages (including independent) | `/miniprogram/dev/framework/subpackages.html` | Not started | — | M7 |
 | npm dependencies (compatible) | WeChat npm support | Not started | — | M7 |
 | UniApp / Taro `mp-weixin` output | section 6 | Not started | — | M7 |
